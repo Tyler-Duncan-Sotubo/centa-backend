@@ -48,7 +48,7 @@ let AuthService = class AuthService {
             if (userWithoutPassword) {
                 response.cookie('Authentication', refresh_token, {
                     httpOnly: true,
-                    secure: false,
+                    secure: process.env.NODE_ENV === 'production',
                     expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
                     sameSite: 'lax',
                 });

@@ -69,11 +69,10 @@ export class AuthService {
         // Set the refresh token as a cookie (optional)
         response.cookie('Authentication', refresh_token, {
           httpOnly: true,
-          secure: false,
-          expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          secure: process.env.NODE_ENV === 'production', // Secure only in production
+          expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
           sameSite: 'lax',
         });
-
         // Set both tokens in the HTTP headers
         response.setHeader('Authorization', `Bearer ${access_token}`);
         response.setHeader('X-Refresh-Token', refresh_token);
