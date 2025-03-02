@@ -1,0 +1,71 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.PayrollModule = void 0;
+const common_1 = require("@nestjs/common");
+const payroll_service_1 = require("./services/payroll.service");
+const payroll_controller_1 = require("./payroll.controller");
+const loan_controller_1 = require("./loan.controller");
+const bullmq_1 = require("@nestjs/bullmq");
+const payroll_processor_1 = require("./payroll.processor");
+const drizzle_module_1 = require("../drizzle/drizzle.module");
+const payslip_service_1 = require("./services/payslip.service");
+const deduction_service_1 = require("./services/deduction.service");
+const config_1 = require("@nestjs/config");
+const jwt_guard_1 = require("../auth/guards/jwt.guard");
+const cache_module_1 = require("../config/cache/cache.module");
+const cache_service_1 = require("../config/cache/cache.service");
+const aws_service_1 = require("../config/aws/aws.service");
+const tax_service_1 = require("./services/tax.service");
+const pdf_service_1 = require("./services/pdf.service");
+const loan_service_1 = require("./services/loan.service");
+const pusher_service_1 = require("../notification/services/pusher.service");
+const redisStore = require("cache-manager-redis-store");
+let PayrollModule = class PayrollModule {
+};
+exports.PayrollModule = PayrollModule;
+exports.PayrollModule = PayrollModule = __decorate([
+    (0, common_1.Module)({
+        imports: [
+            cache_module_1.CacheModule,
+            drizzle_module_1.DrizzleModule,
+            bullmq_1.BullModule.forRootAsync({
+                imports: [config_1.ConfigModule],
+                inject: [config_1.ConfigService],
+                useFactory: async (configService) => ({
+                    connection: {
+                        host: configService.get('REDIS_HOST'),
+                        port: configService.get('REDIS_PORT'),
+                        password: configService.get('REDIS_PASSWORD'),
+                    },
+                    store: redisStore,
+                    ttl: configService.get('CACHE_TTL'),
+                    isGlobal: true,
+                }),
+            }),
+            bullmq_1.BullModule.registerQueue({
+                name: 'payrollQueue',
+            }),
+        ],
+        controllers: [payroll_controller_1.PayrollController, loan_controller_1.LoanController],
+        providers: [
+            payroll_service_1.PayrollService,
+            payroll_processor_1.PayrollProcessor,
+            payslip_service_1.PayslipService,
+            deduction_service_1.DeductionService,
+            jwt_guard_1.JwtGuard,
+            cache_service_1.CacheService,
+            aws_service_1.AwsService,
+            tax_service_1.TaxService,
+            pdf_service_1.PdfService,
+            loan_service_1.LoanService,
+            pusher_service_1.PusherService,
+        ],
+    })
+], PayrollModule);
+//# sourceMappingURL=payroll.module.js.map

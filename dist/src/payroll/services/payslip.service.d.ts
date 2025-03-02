@@ -1,0 +1,73 @@
+import { db } from 'src/drizzle/types/drizzle';
+import { CacheService } from 'src/config/cache/cache.service';
+import { AwsService } from 'src/config/aws/aws.service';
+import { PusherService } from 'src/notification/services/pusher.service';
+export declare class PayslipService {
+    private db;
+    private cache;
+    private aws;
+    private readonly pusher;
+    constructor(db: db, cache: CacheService, aws: AwsService, pusher: PusherService);
+    createPayslip(employee_id: string, payrollMonth: string): Promise<{
+        id: string;
+        company_id: string;
+        employee_id: string;
+        payroll_month: string;
+        issued_at: string | null;
+        slip_status: string | null;
+        employer_remarks: string | null;
+        pdf_url: string | null;
+        payroll_id: string;
+    }[]>;
+    private getCompany;
+    generatePayslipsForCompany(company_id: string, payrollMonth: string): Promise<{
+        message: string;
+    }>;
+    getCompanyPayslipsById(user_id: string, payroll_run_id: string): Promise<{
+        payslip_id: string;
+        payroll_run_id: string;
+        gross_salary: number;
+        net_salary: number;
+        paye_tax: number;
+        pension_contribution: number;
+        employer_pension_contribution: number;
+        nhf_contribution: number;
+        additionalDeductions: number | null;
+        payroll_month: string;
+        first_name: string;
+        last_name: string;
+        status: string | null;
+        payment_status: string | null;
+        payment_date: string | null;
+        taxable_income: number;
+        payslip_pdf_url: string | null;
+        salaryAdvance: number | null;
+    }[]>;
+    DownloadCompanyPayslipsByMonth(user_id: string, payroll_run_id: string, format?: 'internal' | 'bank'): Promise<string | null>;
+    getEmployeePayslipSummary(employee_id: string): Promise<{
+        payslip_id: string;
+        payroll_month: string;
+    }[]>;
+    getEmployeePayslip(payslip_id: string): Promise<{
+        id: string;
+        issued_at: string | null;
+        status: string | null;
+        employer_remarks: string | null;
+        gross_salary: number;
+        net_salary: number;
+        paye_tax: number;
+        pdf_url: string | null;
+        salaryAdvance: number | null;
+        pension_contribution: number;
+        nhf_contribution: number;
+        payroll_month: string;
+        first_name: string;
+        last_name: string;
+        email: string;
+        company_name: string;
+        company_address: string | null;
+        company_email: string | null;
+        company_logo: string | null;
+        company_city: string | null;
+    }>;
+}
