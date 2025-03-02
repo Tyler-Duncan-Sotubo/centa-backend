@@ -1,0 +1,1 @@
+ALTER TABLE "payroll" ADD COLUMN "taxable_income" integer NOT NULL;

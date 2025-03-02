@@ -1,0 +1,12 @@
+import { IsString, IsNotEmpty } from 'class-validator';
+
+// DTO for creating a pay frequency
+export class CreatePayFrequencyDto {
+  @IsString()
+  @IsNotEmpty()
+  pay_frequency: string; // The pay frequency of the company
+
+  @IsString()
+  @IsNotEmpty()
+  startDate: string; // The start date of the pay frequency
+}

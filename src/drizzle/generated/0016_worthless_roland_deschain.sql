@@ -1,0 +1,1 @@
+ALTER TABLE "loans" ADD COLUMN "total_paid" numeric(10, 2) DEFAULT '0' NOT NULL;

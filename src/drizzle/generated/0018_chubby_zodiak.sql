@@ -1,0 +1,1 @@
+ALTER TABLE "loans" DROP CONSTRAINT "loans_name_unique";

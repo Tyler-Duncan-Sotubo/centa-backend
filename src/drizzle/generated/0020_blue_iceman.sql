@@ -1,0 +1,1 @@
+ALTER TABLE "payroll" ADD COLUMN "salary_Advance" integer DEFAULT 0;

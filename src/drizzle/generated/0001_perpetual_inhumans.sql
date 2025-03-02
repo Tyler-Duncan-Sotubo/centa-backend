@@ -1,0 +1,1 @@
+ALTER TABLE "payroll" ADD COLUMN "employer_pension_contribution" integer NOT NULL;
