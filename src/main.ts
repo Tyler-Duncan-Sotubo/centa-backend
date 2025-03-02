@@ -46,7 +46,8 @@ async function bootstrap() {
   try {
     // Use the compression middleware
     app.use(compression());
-    await app.listen(8000);
+    const port = process.env.PORT || 8000;
+    await app.listen(port);
     logger.log('API Gateway is running on port 8000');
   } catch (error) {
     logger.error(`An error occurred: ${error.message}`);

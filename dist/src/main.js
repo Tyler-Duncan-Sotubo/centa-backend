@@ -35,7 +35,8 @@ async function bootstrap() {
     const logger = app.get(nestjs_pino_1.Logger);
     try {
         app.use(compression());
-        await app.listen(8000);
+        const port = process.env.PORT || 8000;
+        await app.listen(port);
         logger.log('API Gateway is running on port 8000');
     }
     catch (error) {

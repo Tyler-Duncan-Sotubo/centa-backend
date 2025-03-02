@@ -106,10 +106,10 @@ export declare class EmployeeService {
     updateEmployeeBankDetails(employee_id: string, dto: UpdateEmployeeBankDetailsDto): Promise<string>;
     addEmployeeTaxDetails(employee_id: string, dto: CreateEmployeeTaxDetailsDto): Promise<{
         id: string;
+        tin: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         employee_id: string;
-        tin: string;
         consolidated_relief_allowance: number | null;
         other_reliefs: number | null;
         state_of_residence: string;
@@ -134,12 +134,12 @@ export declare class EmployeeService {
         name: string;
         company_id: string;
         is_demo: boolean | null;
+        createdAt: Date | null;
+        updatedAt: Date | null;
         apply_paye: boolean | null;
         apply_pension: boolean | null;
         apply_nhf: boolean | null;
         apply_additional: boolean | null;
-        createdAt: Date | null;
-        updatedAt: Date | null;
     }>;
     getEmployeeGroup(group_id: string): Promise<{
         id: string;
