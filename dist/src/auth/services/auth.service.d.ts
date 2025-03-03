@@ -12,4 +12,5 @@ export declare class AuthService {
     constructor(userService: UserService, tokenGeneratorService: TokenGeneratorService, passwordResetService: PasswordResetService, db: db);
     login(payload: LoginDto, response: Response): Promise<void>;
     private validateUser;
+    logout(response: Response): Promise<void>;
 }

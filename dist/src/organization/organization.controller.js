@@ -222,6 +222,7 @@ let OrganizationController = class OrganizationController extends base_controlle
         return this.employee.getEmployeesInGroup(groupId);
     }
     addEmployeeToGroup(employees, groupId) {
+        console.log(employees);
         return this.employee.addEmployeesToGroup(employees, groupId);
     }
     removeEmployeeFromGroup(employeeIds) {

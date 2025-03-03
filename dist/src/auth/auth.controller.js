@@ -44,6 +44,9 @@ let AuthController = class AuthController {
     async Login(dto, response) {
         return this.auth.login(dto, response);
     }
+    async Logout(response) {
+        return this.auth.logout(response);
+    }
     async GetUser(user) {
         return user;
     }
@@ -123,6 +126,14 @@ __decorate([
     __metadata("design:paramtypes", [dto_1.LoginDto, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "Login", null);
+__decorate([
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, common_1.Post)('logout'),
+    __param(0, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "Logout", null);
 __decorate([
     (0, common_1.Get)('user'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

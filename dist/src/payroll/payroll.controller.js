@@ -66,6 +66,7 @@ let PayrollController = class PayrollController extends base_controller_1.BaseCo
         return this.payrollService.getPayrollStatus(user.company_id);
     }
     async deleteCompanyPayroll(user, id, status) {
+        console.log(id);
         return this.payrollService.updatePayrollApprovalStatus(user.company_id, id, status);
     }
     async updatePayrollPaymentStatus(user, id, status) {
@@ -132,7 +133,6 @@ let PayrollController = class PayrollController extends base_controller_1.BaseCo
         return this.taxService.getCompanyTaxFilings(user.company_id);
     }
     async updateCompanyTaxFilings(id, status) {
-        console.log(id, status);
         return this.taxService.updateCompanyTaxFilings(id, status);
     }
     async downloadExcel(tax_filing_id, res) {
@@ -227,23 +227,23 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], PayrollController.prototype, "getCompanyPayrollStatus", null);
 __decorate([
-    (0, common_1.Put)('company-payroll/:id/:status'),
+    (0, common_1.Put)('company-payroll/:id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id')),
-    __param(2, (0, common_1.Param)('status')),
+    __param(2, (0, common_1.Body)('status')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], PayrollController.prototype, "deleteCompanyPayroll", null);
 __decorate([
-    (0, common_1.Put)('company-payroll-payment-status/:id/:status'),
+    (0, common_1.Put)('company-payroll-payment-status/:id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id')),
-    __param(2, (0, common_1.Param)('status')),
+    __param(2, (0, common_1.Body)('status')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
@@ -365,11 +365,11 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], PayrollController.prototype, "getCompanyTaxFilings", null);
 __decorate([
-    (0, common_1.Put)('tax-filings/:id/:status'),
+    (0, common_1.Put)('tax-filings/:id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
     __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Param)('status')),
+    __param(1, (0, common_1.Body)('status')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)

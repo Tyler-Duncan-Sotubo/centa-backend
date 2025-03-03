@@ -84,6 +84,12 @@ export class AuthController {
     return this.auth.login(dto, response);
   }
 
+  @HttpCode(HttpStatus.OK)
+  @Post('logout')
+  async Logout(@Res({ passthrough: true }) response: Response) {
+    return this.auth.logout(response);
+  }
+
   @Get('user')
   @UseGuards(JwtAuthGuard)
   async GetUser(@CurrentUser() user: User) {

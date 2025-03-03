@@ -25,16 +25,6 @@ export class AuthService {
     @Inject(DRIZZLE) private db: db,
   ) {}
 
-  /**
-   * Handles the login of a user and returns a JWT token
-   *
-   * The login method takes a user object as an argument and returns a JWT token.
-   * The method first generates a payload object from the user object, which contains the user's ID and email.
-   *
-   * @param user The user object to be logged in with a JWT token
-   * @returns  The JWT token
-   */
-
   async login(payload: LoginDto, response: Response) {
     const user = await this.validateUser(payload.email, payload.password);
 
@@ -96,15 +86,6 @@ export class AuthService {
     }
   }
 
-  /**
-   * Validates a user's email and password.
-   *
-   * @param email - The email address of the user.
-   * @param password - The password of the user.
-   * @returns The user object if validation is successful.
-   * @throws Will throw an error if the user does not exist or if the credentials are incorrect.
-   */
-
   private async validateUser(email: string, password: string) {
     const user = await this.userService.findUserByEmail(email.toLowerCase());
 
@@ -119,5 +100,13 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  async logout(response: Response) {
+    response.clearCookie('Authentication');
+    response.json({
+      success: true,
+      message: 'Logout successful',
+    });
   }
 }

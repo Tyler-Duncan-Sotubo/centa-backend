@@ -15,7 +15,7 @@ import {
 } from 'src/drizzle/schema/payroll.schema';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { createBonusDto, CustomTaxSettingsDto } from '../dto';
+import { createBonusDto } from '../dto';
 import { companies } from 'src/drizzle/schema/company.schema';
 import { CacheService } from 'src/config/cache/cache.service';
 import { v4 as uuidv4 } from 'uuid';

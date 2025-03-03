@@ -129,6 +129,7 @@ export class OrganizationController extends BaseController {
     @Body() dto: CreateCompanyTaxDto,
     @CurrentUser() user: User,
   ) {
+    // console.log(user);
     return this.company.createCompanyTaxDetails(user.company_id, dto);
   }
 
@@ -466,6 +467,7 @@ export class OrganizationController extends BaseController {
     @Body() employees: string | string[],
     @Param('groupId') groupId: string,
   ) {
+    console.log(employees);
     return this.employee.addEmployeesToGroup(employees, groupId);
   }
 

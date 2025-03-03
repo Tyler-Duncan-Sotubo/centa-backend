@@ -31,21 +31,21 @@ export declare class PayrollController extends BaseController {
     calculatePayrollForCompany(user: User): Promise<{
         id: string;
         company_id: string;
-        employee_id: string;
-        salary_advance: number | null;
         custom_deductions: number | null;
-        bonuses: number | null;
-        payroll_month: string;
+        employee_id: string;
         payroll_run_id: string;
         gross_salary: number;
         paye_tax: number;
         pension_contribution: number;
         employer_pension_contribution: number;
         nhf_contribution: number;
+        bonuses: number | null;
         net_salary: number;
         taxable_income: number;
         payroll_date: string;
+        payroll_month: string;
         total_deductions: number;
+        salary_advance: number | null;
         payment_status: string | null;
         payment_date: string | null;
         payment_reference: string | null;
@@ -92,7 +92,7 @@ export declare class PayrollController extends BaseController {
         employee_id: string;
         company_id: string;
     }[]>;
-    updatePayrollPaymentStatus(user: User, id: string, status: 'pending' | 'approved' | 'rejected'): Promise<{
+    updatePayrollPaymentStatus(user: User, id: string, status: 'paid' | 'pending'): Promise<{
         payroll_month: string;
     }[]>;
     deleteCompanyPayrollById(user: User, id: string): Promise<any>;
@@ -110,9 +110,9 @@ export declare class PayrollController extends BaseController {
         company_id: string;
         employee_id: string;
         amount: number;
+        payroll_month: string;
         bonus_type: string | null;
         bonus_date: string;
-        payroll_month: string;
     }[]>;
     deleteCompanyBonuses(user: User, id: string): Promise<any>;
     getCompanyPayslips(user: User, id: string): Promise<{

@@ -48,9 +48,9 @@ let AuthService = class AuthService {
             if (userWithoutPassword) {
                 response.cookie('Authentication', refresh_token, {
                     httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
+                    secure: true,
                     expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                    sameSite: 'lax',
+                    sameSite: 'none',
                 });
                 response.setHeader('Authorization', `Bearer ${access_token}`);
                 response.setHeader('X-Refresh-Token', refresh_token);
@@ -82,6 +82,13 @@ let AuthService = class AuthService {
             throw new common_1.BadRequestException('Invalid credentials');
         }
         return user;
+    }
+    async logout(response) {
+        response.clearCookie('Authentication');
+        response.json({
+            success: true,
+            message: 'Logout successful',
+        });
     }
 };
 exports.AuthService = AuthService;

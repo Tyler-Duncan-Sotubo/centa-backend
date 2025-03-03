@@ -125,14 +125,15 @@ export class PayrollController extends BaseController {
     return this.payrollService.getPayrollStatus(user.company_id);
   }
 
-  @Put('company-payroll/:id/:status')
+  @Put('company-payroll/:id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
   async deleteCompanyPayroll(
     @CurrentUser() user: User,
     @Param('id') id: string,
-    @Param('status') status: 'pending' | 'approved' | 'rejected',
+    @Body('status') status: 'pending' | 'approved' | 'rejected',
   ) {
+    console.log(id);
     return this.payrollService.updatePayrollApprovalStatus(
       user.company_id,
       id,
@@ -140,13 +141,13 @@ export class PayrollController extends BaseController {
     );
   }
 
-  @Put('company-payroll-payment-status/:id/:status')
+  @Put('company-payroll-payment-status/:id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
   async updatePayrollPaymentStatus(
     @CurrentUser() user: User,
     @Param('id') id: string,
-    @Param('status') status: 'pending' | 'approved' | 'rejected',
+    @Body('status') status: 'paid' | 'pending',
   ) {
     return this.payrollService.updatePayrollPaymentStatus(
       user.company_id,
@@ -289,14 +290,13 @@ export class PayrollController extends BaseController {
     return this.taxService.getCompanyTaxFilings(user.company_id);
   }
 
-  @Put('tax-filings/:id/:status')
+  @Put('tax-filings/:id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
   async updateCompanyTaxFilings(
     @Param('id') id: string,
-    @Param('status') status: string,
+    @Body('status') status: string,
   ) {
-    console.log(id, status);
     return this.taxService.updateCompanyTaxFilings(id, status);
   }
 

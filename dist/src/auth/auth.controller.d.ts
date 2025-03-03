@@ -24,6 +24,7 @@ export declare class AuthController {
     }>;
     EditUserRole(dto: InviteUserDto, id: string): Promise<void>;
     Login(dto: LoginDto, response: Response): Promise<void>;
+    Logout(response: Response): Promise<void>;
     GetUser(user: User): Promise<User>;
     GetCompanyUsers(user: User): Promise<{
         id: string;
