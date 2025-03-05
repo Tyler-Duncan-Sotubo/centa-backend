@@ -25,8 +25,12 @@ export class PayrollProcessor extends WorkerHost {
           payrollMonth,
         );
       } else if (name === 'populateTaxDetails') {
-        const { company_id, payrollMonth } = data;
-        await this.taxService.onPayrollApproval(company_id, payrollMonth);
+        const { company_id, payrollMonth, payrollRunId } = data;
+        await this.taxService.onPayrollApproval(
+          company_id,
+          payrollMonth,
+          payrollRunId,
+        );
       } else if (name === 'generatePayslipPdf') {
         const { payslipId } = data;
 

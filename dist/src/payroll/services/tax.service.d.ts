@@ -4,7 +4,7 @@ export declare class TaxService {
     private db;
     private readonly cache;
     constructor(db: db, cache: CacheService);
-    onPayrollApproval(company_id: string, payrollMonth: string): Promise<{
+    onPayrollApproval(company_id: string, payrollMonth: string, payrollRunId: string): Promise<{
         message: string;
     }>;
     private getCompany;

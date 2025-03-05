@@ -132,14 +132,14 @@ export declare class EmployeeService {
     createEmployeeGroup(company_id: string, dto: CreateEmployeeGroupDto): Promise<{
         id: string;
         name: string;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-        is_demo: boolean | null;
         company_id: string;
+        is_demo: boolean | null;
         apply_paye: boolean | null;
         apply_pension: boolean | null;
         apply_nhf: boolean | null;
         apply_additional: boolean | null;
+        createdAt: Date | null;
+        updatedAt: Date | null;
     }>;
     getEmployeeGroup(group_id: string): Promise<{
         id: string;

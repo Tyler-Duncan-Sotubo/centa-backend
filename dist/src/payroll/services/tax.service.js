@@ -41,9 +41,9 @@ let TaxService = class TaxService {
             });
         };
     }
-    async onPayrollApproval(company_id, payrollMonth) {
+    async onPayrollApproval(company_id, payrollMonth, payrollRunId) {
         const payrollRecords = await this.db
-            .select({
+            .selectDistinctOn([payroll_schema_1.payroll.employee_id], {
             payroll_id: payroll_schema_1.payroll.id,
             company_id: payroll_schema_1.payroll.company_id,
             payroll_month: payroll_schema_1.payroll.payroll_month,
@@ -60,7 +60,7 @@ let TaxService = class TaxService {
             .from(payroll_schema_1.payroll)
             .innerJoin(employee_schema_1.employees, (0, drizzle_orm_1.eq)(payroll_schema_1.payroll.employee_id, employee_schema_1.employees.id))
             .innerJoin(employee_schema_1.employee_tax_details, (0, drizzle_orm_1.eq)(payroll_schema_1.payroll.employee_id, employee_schema_1.employees.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_schema_1.payroll.company_id, company_id), (0, drizzle_orm_1.eq)(payroll_schema_1.payroll.payroll_month, payrollMonth), (0, drizzle_orm_1.eq)(payroll_schema_1.payroll.payment_status, 'paid')))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_schema_1.payroll.company_id, company_id), (0, drizzle_orm_1.eq)(payroll_schema_1.payroll.payroll_month, payrollMonth), (0, drizzle_orm_1.eq)(payroll_schema_1.payroll.payroll_run_id, payrollRunId), (0, drizzle_orm_1.eq)(payroll_schema_1.payroll.payment_status, 'paid')))
             .execute();
         if (!payrollRecords.length) {
             throw new Error('No approved payroll records found');
@@ -133,7 +133,12 @@ let TaxService = class TaxService {
             .select({
             id: tax_schema_1.tax_filings.id,
             tax_type: tax_schema_1.tax_filings.tax_type,
-            total_deductions: (0, drizzle_orm_1.sql) `SUM(${tax_schema_1.tax_filing_details.contribution_amount})`.as('total_deductions'),
+            total_deductions: (0, drizzle_orm_1.sql) `
+      SUM(
+        CASE WHEN tax_filings.tax_type = ${tax_schema_1.tax_filings.tax_type}
+        THEN ${tax_schema_1.tax_filing_details.contribution_amount} ELSE 0 END
+      )
+    `.as('total_deductions'),
             status: tax_schema_1.tax_filings.status,
             month: tax_schema_1.tax_filings.payroll_month,
         })

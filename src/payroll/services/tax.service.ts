@@ -23,10 +23,14 @@ export class TaxService {
     private readonly cache: CacheService,
   ) {}
 
-  async onPayrollApproval(company_id: string, payrollMonth: string) {
+  async onPayrollApproval(
+    company_id: string,
+    payrollMonth: string,
+    payrollRunId: string,
+  ) {
     // Fetch approved payroll details
     const payrollRecords = await this.db
-      .select({
+      .selectDistinctOn([payroll.employee_id], {
         payroll_id: payroll.id,
         company_id: payroll.company_id,
         payroll_month: payroll.payroll_month,
@@ -47,6 +51,7 @@ export class TaxService {
         and(
           eq(payroll.company_id, company_id),
           eq(payroll.payroll_month, payrollMonth),
+          eq(payroll.payroll_run_id, payrollRunId),
           eq(payroll.payment_status, 'paid'),
         ),
       )
@@ -176,10 +181,12 @@ export class TaxService {
       .select({
         id: tax_filings.id,
         tax_type: tax_filings.tax_type,
-        total_deductions:
-          sql<number>`SUM(${tax_filing_details.contribution_amount})`.as(
-            'total_deductions',
-          ),
+        total_deductions: sql<number>`
+      SUM(
+        CASE WHEN tax_filings.tax_type = ${tax_filings.tax_type}
+        THEN ${tax_filing_details.contribution_amount} ELSE 0 END
+      )
+    `.as('total_deductions'),
         status: tax_filings.status,
         month: tax_filings.payroll_month,
       })

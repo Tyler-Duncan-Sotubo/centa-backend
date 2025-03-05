@@ -54,10 +54,10 @@ export declare class OrganizationController extends BaseController {
     createCompanyContact(dto: CreateCompanyContactDto, companyId: string): Promise<{
         id: string;
         name: string;
-        email: string;
-        position: string | null;
-        phone: string | null;
         company_id: string;
+        email: string;
+        phone: string | null;
+        position: string | null;
     }[]>;
     getCompanyContacts(companyId: string): Promise<{
         id: string;
@@ -75,9 +75,9 @@ export declare class OrganizationController extends BaseController {
     updatePayFrequency(dto: CreatePayFrequencyDto, user: User): Promise<string>;
     createCompanyTaxDetails(dto: CreateCompanyTaxDto, user: User): Promise<{
         id: string;
+        company_id: string;
         created_at: Date;
         updated_at: Date | null;
-        company_id: string;
         tin: string;
         vat_number: string | null;
         nhf_code: string | null;
@@ -212,10 +212,10 @@ export declare class OrganizationController extends BaseController {
     updateEmployeeBankDetails(dto: CreateEmployeeBankDetailsDto, employeeId: string): Promise<string>;
     createEmployeeTaxDetails(dto: CreateEmployeeTaxDetailsDto, employeeId: string): Promise<{
         id: string;
-        tin: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         employee_id: string;
+        tin: string;
         consolidated_relief_allowance: number | null;
         other_reliefs: number | null;
         state_of_residence: string;
@@ -228,12 +228,12 @@ export declare class OrganizationController extends BaseController {
         name: string;
         company_id: string;
         is_demo: boolean | null;
-        createdAt: Date | null;
-        updatedAt: Date | null;
         apply_paye: boolean | null;
         apply_pension: boolean | null;
         apply_nhf: boolean | null;
         apply_additional: boolean | null;
+        createdAt: Date | null;
+        updatedAt: Date | null;
     }>;
     getEmployeeGroups(user: User): Promise<{
         id: string;

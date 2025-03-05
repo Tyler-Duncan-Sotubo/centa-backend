@@ -246,6 +246,7 @@ let PayrollService = class PayrollService {
         await this.payrollQueue.add('populateTaxDetails', {
             company_id,
             payrollMonth: result[0].payroll_month,
+            payrollRunId: payroll_run_id,
         });
         const getPayslips = await this.db
             .select()
