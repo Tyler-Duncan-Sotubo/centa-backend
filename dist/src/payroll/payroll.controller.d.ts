@@ -30,6 +30,7 @@ export declare class PayrollController extends BaseController {
     deleteCustomDeduction(id: string): Promise<any>;
     calculatePayrollForCompany(user: User): Promise<{
         id: string;
+        payroll_month: string;
         payroll_run_id: string;
         gross_salary: number;
         paye_tax: number;
@@ -40,7 +41,6 @@ export declare class PayrollController extends BaseController {
         net_salary: number;
         taxable_income: number;
         payroll_date: string;
-        payroll_month: string;
         custom_deductions: number | null;
         total_deductions: number;
         salary_advance: number | null;
@@ -138,7 +138,27 @@ export declare class PayrollController extends BaseController {
     downloadPayslipCSV(user: User, id: string, format: "internal" | "bank" | undefined, res: Response): Promise<void>;
     getEmployeePayslipSummary(employeeId: string): Promise<{
         payslip_id: string;
-        payroll_month: string;
+        payroll_date: string;
+        gross_salary: number;
+        net_salary: number;
+        totalDeduction: number;
+        taxableIncome: number;
+        paye: number;
+        pensionContribution: number;
+        nhfContribution: number;
+        salaryAdvance: number | null;
+    }[]>;
+    getEmployeePayslips(employeeId: string, user: User): Promise<{
+        payslip_id: string;
+        payroll_date: string;
+        gross_salary: number;
+        net_salary: number;
+        totalDeduction: number;
+        taxableIncome: number;
+        paye: number;
+        pensionContribution: number;
+        nhfContribution: number;
+        salaryAdvance: number | null;
     }[]>;
     getEmployeePayslip(payslipId: string): Promise<{
         id: string;

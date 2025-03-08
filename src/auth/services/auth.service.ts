@@ -27,19 +27,6 @@ export class AuthService {
 
   async login(payload: LoginDto, response: Response) {
     const user = await this.validateUser(payload.email, payload.password);
-
-    // First login
-    let firstLogin = false;
-
-    if (user.role === 'employee' && user.last_login === null) {
-      firstLogin = true;
-    }
-
-    if (firstLogin) {
-      // Send password reset email
-      await this.passwordResetService.generatePasswordResetToken(user.email);
-    }
-
     // Update last login
     await this.db
       .update(users)

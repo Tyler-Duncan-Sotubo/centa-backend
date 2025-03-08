@@ -35,7 +35,7 @@ let PayrollController = class PayrollController extends base_controller_1.BaseCo
         this.pdfService = pdfService;
         this.formattedDate = () => {
             const date = new Date();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const month = String(date.getMonth() - 1).padStart(2, '0');
             const year = date.getFullYear();
             const formattedDate = `${year}-${month}`;
             return formattedDate;
@@ -116,6 +116,9 @@ let PayrollController = class PayrollController extends base_controller_1.BaseCo
     }
     async getEmployeePayslipSummary(employeeId) {
         return this.payslipService.getEmployeePayslipSummary(employeeId);
+    }
+    async getEmployeePayslips(employeeId, user) {
+        return this.payslipService.getEmployeePayslipSummary(user.id);
     }
     async getEmployeePayslip(payslipId) {
         return this.payslipService.getEmployeePayslip(payslipId);
@@ -318,6 +321,16 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], PayrollController.prototype, "getEmployeePayslipSummary", null);
+__decorate([
+    (0, common_1.Get)('employee-payslip'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'employee', 'hr_manager']),
+    __param(0, (0, common_1.Param)('employeeId')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], PayrollController.prototype, "getEmployeePayslips", null);
 __decorate([
     (0, common_1.Get)('employee-payslip/:payslipId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

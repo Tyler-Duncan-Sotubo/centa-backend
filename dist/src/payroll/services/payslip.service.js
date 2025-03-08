@@ -218,12 +218,21 @@ let PayslipService = class PayslipService {
         const paystubs = await this.db
             .select({
             payslip_id: payroll_schema_1.payslips.id,
-            payroll_month: payroll_schema_1.payroll.payroll_month,
+            payroll_date: payroll_schema_1.payroll.payroll_month,
+            gross_salary: payroll_schema_1.payroll.gross_salary,
+            net_salary: payroll_schema_1.payroll.net_salary,
+            totalDeduction: payroll_schema_1.payroll.total_deductions,
+            taxableIncome: payroll_schema_1.payroll.taxable_income,
+            paye: payroll_schema_1.payroll.paye_tax,
+            pensionContribution: payroll_schema_1.payroll.pension_contribution,
+            nhfContribution: payroll_schema_1.payroll.nhf_contribution,
+            salaryAdvance: payroll_schema_1.payroll.salary_advance,
         })
             .from(payroll_schema_1.payslips)
             .innerJoin(payroll_schema_1.payroll, (0, drizzle_orm_1.eq)(payroll_schema_1.payslips.payroll_id, payroll_schema_1.payroll.id))
             .where((0, drizzle_orm_1.eq)(payroll_schema_1.payslips.employee_id, employee_id))
             .orderBy((0, drizzle_orm_1.asc)(payroll_schema_1.payslips.issued_at))
+            .limit(4)
             .execute();
         return paystubs;
     }

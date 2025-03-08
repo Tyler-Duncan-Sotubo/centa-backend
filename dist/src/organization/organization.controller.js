@@ -121,6 +121,9 @@ let OrganizationController = class OrganizationController extends base_controlle
     getEmployeeSummary(user) {
         return this.employee.getEmployeesSummary(user.company_id);
     }
+    getActiveEmployees(user) {
+        return this.employee.getEmployeeByUserId(user.id);
+    }
     getEmployeeById(employeeId) {
         return this.employee.getEmployeeById(employeeId);
     }
@@ -128,7 +131,6 @@ let OrganizationController = class OrganizationController extends base_controlle
         return this.employee.getEmployeesByDepartment(departmentId);
     }
     updateEmployee(dto, employeeId) {
-        console.log('dto', dto);
         return this.employee.updateEmployee(employeeId, dto);
     }
     deleteEmployee(employeeId) {
@@ -442,6 +444,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], OrganizationController.prototype, "getEmployeeSummary", null);
+__decorate([
+    (0, common_1.Get)('employee-active'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], OrganizationController.prototype, "getActiveEmployees", null);
 __decorate([
     (0, common_1.Get)('employee/:employeeId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

@@ -42,7 +42,7 @@ export class PayrollController extends BaseController {
 
   private formattedDate = () => {
     const date = new Date();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const month = String(date.getMonth() - 1).padStart(2, '0');
     const year = date.getFullYear();
 
     const formattedDate = `${year}-${month}`;
@@ -251,6 +251,16 @@ export class PayrollController extends BaseController {
   @SetMetadata('roles', ['super_admin', 'admin', 'employee', 'hr_manager'])
   async getEmployeePayslipSummary(@Param('employeeId') employeeId: string) {
     return this.payslipService.getEmployeePayslipSummary(employeeId);
+  }
+
+  @Get('employee-payslip')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'employee', 'hr_manager'])
+  async getEmployeePayslips(
+    @Param('employeeId') employeeId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.payslipService.getEmployeePayslipSummary(user.id);
   }
 
   @Get('employee-payslip/:payslipId')

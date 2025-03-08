@@ -3,6 +3,6 @@ export type User = {
     username: string;
     email: string;
     password: string;
-    role: 'student' | 'teacher' | 'admin';
+    role: 'super_admin' | 'admin' | 'employee' | 'hr_manager';
     company_id: string;
 };

@@ -19,6 +19,19 @@ export declare class EmployeeService {
         email: string;
     }>;
     addMultipleEmployees(dtoArray: CreateEmployeeDto[], company_id: string): Promise<any>;
+    getEmployeeByUserId(user_id: string): Promise<{
+        id: string;
+        first_name: string;
+        last_name: string;
+        job_title: string;
+        phone: string | null;
+        email: string;
+        company_name: string;
+        salary: number | null;
+        apply_paye: boolean | null;
+        apply_nhf: boolean | null;
+        apply_pension: boolean | null;
+    }>;
     getEmployees(company_id: string): Promise<{
         id: string;
         employee_number: number;
@@ -132,14 +145,14 @@ export declare class EmployeeService {
     createEmployeeGroup(company_id: string, dto: CreateEmployeeGroupDto): Promise<{
         id: string;
         name: string;
-        company_id: string;
+        createdAt: Date | null;
+        updatedAt: Date | null;
         is_demo: boolean | null;
+        company_id: string;
         apply_paye: boolean | null;
         apply_pension: boolean | null;
         apply_nhf: boolean | null;
         apply_additional: boolean | null;
-        createdAt: Date | null;
-        updatedAt: Date | null;
     }>;
     getEmployeeGroup(group_id: string): Promise<{
         id: string;

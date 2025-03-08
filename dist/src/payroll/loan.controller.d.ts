@@ -8,8 +8,8 @@ export declare class LoanController extends BaseController {
     requestLoan(employee_id: string, dto: LoanRequestDto): Promise<{
         id: string;
         company_id: string;
-        createdAt: Date;
         employee_id: string;
+        createdAt: Date;
         amount: string;
         total_paid: string;
         tenureMonths: number;

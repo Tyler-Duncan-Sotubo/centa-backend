@@ -30,13 +30,6 @@ let AuthService = class AuthService {
     }
     async login(payload, response) {
         const user = await this.validateUser(payload.email, payload.password);
-        let firstLogin = false;
-        if (user.role === 'employee' && user.last_login === null) {
-            firstLogin = true;
-        }
-        if (firstLogin) {
-            await this.passwordResetService.generatePasswordResetToken(user.email);
-        }
         await this.db
             .update(users_schema_1.users)
             .set({ last_login: new Date() })

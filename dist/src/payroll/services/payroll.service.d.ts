@@ -13,6 +13,8 @@ export declare class PayrollService {
     private calculatePAYE;
     calculatePayroll(employee_id: string, payrollMonth: string, payrollRunId: string, company_id: string): Promise<{
         id: string;
+        company_id: string;
+        employee_id: string;
         payroll_run_id: string;
         gross_salary: number;
         paye_tax: number;
@@ -33,11 +35,11 @@ export declare class PayrollService {
         approval_status: string | null;
         approval_date: string | null;
         approval_remarks: string | null;
-        employee_id: string;
-        company_id: string;
     }[]>;
     calculatePayrollForCompany(company_id: string, payrollMonth: string): Promise<{
         id: string;
+        company_id: string;
+        employee_id: string;
         payroll_run_id: string;
         gross_salary: number;
         paye_tax: number;
@@ -58,8 +60,6 @@ export declare class PayrollService {
         approval_status: string | null;
         approval_date: string | null;
         approval_remarks: string | null;
-        employee_id: string;
-        company_id: string;
     }[][]>;
     private getCompany;
     getPayrollSummary(companyId: string): Promise<{
@@ -123,9 +123,9 @@ export declare class PayrollService {
     deleteSalaryBreakdown(user_id: string): Promise<any>;
     createBonus(user_id: string, dto: createBonusDto): Promise<{
         id: string;
-        payroll_month: string;
-        employee_id: string;
         company_id: string;
+        employee_id: string;
+        payroll_month: string;
         amount: number;
         bonus_type: string | null;
         bonus_date: string;

@@ -30,6 +30,8 @@ import { ConfigService } from '@nestjs/config';
 const https = require('https');
 import * as jwt from 'jsonwebtoken';
 import { PasswordResetEmailService } from 'src/notification/services/password-reset.service';
+import { PasswordResetToken } from 'src/drizzle/schema/password-reset-token.schema';
+import { taxConfig } from 'src/drizzle/schema/deductions.schema';
 
 Injectable();
 export class EmployeeService {
@@ -109,7 +111,7 @@ export class EmployeeService {
       }
 
       // User creation, role assignment, and employee insertion
-      await trx
+      const user = await trx
         .insert(users)
         .values({
           email: dto.email.toLowerCase(),
@@ -139,6 +141,7 @@ export class EmployeeService {
           hourly_rate: dto.hourly_rate,
           bonus: dto.bonus,
           commission: dto.commission,
+          user_id: user[0].id,
         })
         .returning({
           id: employees.id,
@@ -157,9 +160,20 @@ export class EmployeeService {
       this.cache.set(cacheKey, employee[0]);
 
       const token = this.generateToken({ email: dto.email });
+      const expires_at = new Date(Date.now() + 1 * 60 * 60 * 1000);
+
+      await trx
+        .insert(PasswordResetToken)
+        .values({
+          user_id: user[0].id,
+          token,
+          expires_at,
+          is_used: false,
+        })
+        .execute();
 
       const inviteLink = `${this.config.get(
-        'CLIENT_URL',
+        'EMPLOYEE_PORTAL_URL',
       )}/auth/reset-password/${token}`;
 
       await this.passwordResetEmailService.sendPasswordResetEmail(
@@ -313,6 +327,36 @@ export class EmployeeService {
 
       return results;
     });
+  }
+
+  async getEmployeeByUserId(user_id: string) {
+    const result = await this.db
+      .select({
+        id: employees.id,
+        first_name: employees.first_name,
+        last_name: employees.last_name,
+        job_title: employees.job_title,
+        phone: employees.phone,
+        email: employees.email,
+        company_name: companies.name,
+        salary: employees.annual_gross,
+        apply_paye: taxConfig.apply_paye, // Boolean - applies PAYE or not
+        apply_nhf: taxConfig.apply_nhf, // Boolean - applies NHF or not
+        apply_pension: taxConfig.apply_pension, // Boolean - applies pension or not
+      })
+      .from(employees)
+      .innerJoin(companies, eq(companies.id, employees.company_id))
+      .innerJoin(taxConfig, eq(taxConfig.company_id, companies.id)) // Join taxConfig table
+      .where(eq(employees.user_id, user_id))
+      .execute();
+
+    if (result.length === 0) {
+      throw new BadRequestException(
+        'Employee not found, please provide a valid email',
+      );
+    }
+
+    return result[0];
   }
 
   async getEmployees(company_id: string) {

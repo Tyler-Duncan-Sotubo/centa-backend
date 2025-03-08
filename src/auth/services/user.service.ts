@@ -80,7 +80,7 @@ export class UserService {
     });
 
     // Seed demo data
-    // await this.demo.seedDemoData(newUser.id, company[0].id);
+    await this.demo.seedDemoData(newUser.id, company[0].id);
 
     // Generate verification token
     await this.verificationService.generateVerificationToken(newUser.id);

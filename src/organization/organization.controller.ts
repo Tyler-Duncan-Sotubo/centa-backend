@@ -230,6 +230,12 @@ export class OrganizationController extends BaseController {
     return this.employee.getEmployeesSummary(user.company_id);
   }
 
+  @Get('employee-active')
+  @UseGuards(JwtAuthGuard)
+  getActiveEmployees(@CurrentUser() user: User) {
+    return this.employee.getEmployeeByUserId(user.id);
+  }
+
   @Get('employee/:employeeId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'employee', 'hr_manager'])
@@ -251,7 +257,6 @@ export class OrganizationController extends BaseController {
     @Body() dto: UpdateEmployeeDto,
     @Param('employeeId') employeeId: string,
   ) {
-    console.log('dto', dto);
     return this.employee.updateEmployee(employeeId, dto);
   }
 

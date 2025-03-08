@@ -12,7 +12,8 @@ async function bootstrap() {
     app.setGlobalPrefix('api');
     const clientUrl = process.env.CLIENT_URL;
     const adminUrl = process.env.CLIENT_DASHBOARD_URL;
-    const allowedOrigins = [clientUrl, adminUrl].filter(Boolean);
+    const employeeUrl = process.env.EMPLOYEE_PORTAL_URL;
+    const allowedOrigins = [clientUrl, adminUrl, employeeUrl].filter(Boolean);
     app.enableCors({
         origin: (origin, callback) => {
             if (!origin || allowedOrigins.indexOf(origin) !== -1) {

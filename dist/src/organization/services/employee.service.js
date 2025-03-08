@@ -28,6 +28,8 @@ const config_1 = require("@nestjs/config");
 const https = require('https');
 const jwt = require("jsonwebtoken");
 const password_reset_service_1 = require("../../notification/services/password-reset.service");
+const password_reset_token_schema_1 = require("../../drizzle/schema/password-reset-token.schema");
+const deductions_schema_1 = require("../../drizzle/schema/deductions.schema");
 (0, common_1.Injectable)();
 let EmployeeService = class EmployeeService {
     constructor(db, aws, cache, config, passwordResetEmailService) {
@@ -85,7 +87,7 @@ let EmployeeService = class EmployeeService {
             if (emailExists.length > 0) {
                 throw new common_1.BadRequestException(`Employee with email ${dto.email} already exists. Please use a unique email`);
             }
-            await trx
+            const user = await trx
                 .insert(users_schema_1.users)
                 .values({
                 email: dto.email.toLowerCase(),
@@ -114,6 +116,7 @@ let EmployeeService = class EmployeeService {
                 hourly_rate: dto.hourly_rate,
                 bonus: dto.bonus,
                 commission: dto.commission,
+                user_id: user[0].id,
             })
                 .returning({
                 id: employee_schema_1.employees.id,
@@ -130,7 +133,17 @@ let EmployeeService = class EmployeeService {
             const cacheKey = `employee-${employee[0].id}`;
             this.cache.set(cacheKey, employee[0]);
             const token = this.generateToken({ email: dto.email });
-            const inviteLink = `${this.config.get('CLIENT_URL')}/auth/reset-password/${token}`;
+            const expires_at = new Date(Date.now() + 1 * 60 * 60 * 1000);
+            await trx
+                .insert(password_reset_token_schema_1.PasswordResetToken)
+                .values({
+                user_id: user[0].id,
+                token,
+                expires_at,
+                is_used: false,
+            })
+                .execute();
+            const inviteLink = `${this.config.get('EMPLOYEE_PORTAL_URL')}/auth/reset-password/${token}`;
             await this.passwordResetEmailService.sendPasswordResetEmail(employee[0].email, employee[0].first_name, inviteLink);
             return {
                 first_name: employee[0].first_name,
@@ -244,6 +257,31 @@ let EmployeeService = class EmployeeService {
             this.aws.uploadCsvToS3(results[0].company_id, dtoArray);
             return results;
         });
+    }
+    async getEmployeeByUserId(user_id) {
+        const result = await this.db
+            .select({
+            id: employee_schema_1.employees.id,
+            first_name: employee_schema_1.employees.first_name,
+            last_name: employee_schema_1.employees.last_name,
+            job_title: employee_schema_1.employees.job_title,
+            phone: employee_schema_1.employees.phone,
+            email: employee_schema_1.employees.email,
+            company_name: company_schema_1.companies.name,
+            salary: employee_schema_1.employees.annual_gross,
+            apply_paye: deductions_schema_1.taxConfig.apply_paye,
+            apply_nhf: deductions_schema_1.taxConfig.apply_nhf,
+            apply_pension: deductions_schema_1.taxConfig.apply_pension,
+        })
+            .from(employee_schema_1.employees)
+            .innerJoin(company_schema_1.companies, (0, drizzle_orm_1.eq)(company_schema_1.companies.id, employee_schema_1.employees.company_id))
+            .innerJoin(deductions_schema_1.taxConfig, (0, drizzle_orm_1.eq)(deductions_schema_1.taxConfig.company_id, company_schema_1.companies.id))
+            .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.user_id, user_id))
+            .execute();
+        if (result.length === 0) {
+            throw new common_1.BadRequestException('Employee not found, please provide a valid email');
+        }
+        return result[0];
     }
     async getEmployees(company_id) {
         const result = await this.db

@@ -13,8 +13,9 @@ async function bootstrap() {
   // Retrieve CLIENT_URL and ADMIN_URL from environment or config service
   const clientUrl = process.env.CLIENT_URL;
   const adminUrl = process.env.CLIENT_DASHBOARD_URL;
+  const employeeUrl = process.env.EMPLOYEE_PORTAL_URL;
 
-  const allowedOrigins = [clientUrl, adminUrl].filter(Boolean);
+  const allowedOrigins = [clientUrl, adminUrl, employeeUrl].filter(Boolean);
 
   // Enable CORS for specific origins
   app.enableCors({

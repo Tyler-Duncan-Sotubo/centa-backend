@@ -312,12 +312,21 @@ export class PayslipService {
     const paystubs = await this.db
       .select({
         payslip_id: payslips.id,
-        payroll_month: payroll.payroll_month,
+        payroll_date: payroll.payroll_month,
+        gross_salary: payroll.gross_salary,
+        net_salary: payroll.net_salary,
+        totalDeduction: payroll.total_deductions,
+        taxableIncome: payroll.taxable_income,
+        paye: payroll.paye_tax,
+        pensionContribution: payroll.pension_contribution,
+        nhfContribution: payroll.nhf_contribution,
+        salaryAdvance: payroll.salary_advance,
       })
       .from(payslips)
       .innerJoin(payroll, eq(payslips.payroll_id, payroll.id))
       .where(eq(payslips.employee_id, employee_id))
       .orderBy(asc(payslips.issued_at))
+      .limit(4)
       .execute();
 
     return paystubs;
