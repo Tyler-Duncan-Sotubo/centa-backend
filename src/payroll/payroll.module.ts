@@ -17,6 +17,7 @@ import { PdfService } from './services/pdf.service';
 import { LoanService } from './services/loan.service';
 import { PusherService } from 'src/notification/services/pusher.service';
 import * as redisStore from 'cache-manager-redis-store';
+import { OnboardingService } from 'src/organization/services/onboarding.service';
 @Module({
   imports: [
     CacheModule,
@@ -52,6 +53,7 @@ import * as redisStore from 'cache-manager-redis-store';
     PdfService,
     LoanService,
     PusherService,
+    OnboardingService,
   ],
 })
 export class PayrollModule {}

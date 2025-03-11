@@ -35,7 +35,7 @@ let PayrollController = class PayrollController extends base_controller_1.BaseCo
         this.pdfService = pdfService;
         this.formattedDate = () => {
             const date = new Date();
-            const month = String(date.getMonth() - 1).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
             const year = date.getFullYear();
             const formattedDate = `${year}-${month}`;
             return formattedDate;

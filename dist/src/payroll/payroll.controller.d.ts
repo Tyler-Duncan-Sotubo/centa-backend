@@ -30,7 +30,8 @@ export declare class PayrollController extends BaseController {
     deleteCustomDeduction(id: string): Promise<any>;
     calculatePayrollForCompany(user: User): Promise<{
         id: string;
-        payroll_month: string;
+        company_id: string;
+        employee_id: string;
         payroll_run_id: string;
         gross_salary: number;
         paye_tax: number;
@@ -41,6 +42,7 @@ export declare class PayrollController extends BaseController {
         net_salary: number;
         taxable_income: number;
         payroll_date: string;
+        payroll_month: string;
         custom_deductions: number | null;
         total_deductions: number;
         salary_advance: number | null;
@@ -50,8 +52,6 @@ export declare class PayrollController extends BaseController {
         approval_status: string | null;
         approval_date: string | null;
         approval_remarks: string | null;
-        employee_id: string;
-        company_id: string;
     }[][]>;
     getPayrollSummary(user: User): Promise<{
         payroll_run_id: string;
@@ -107,9 +107,9 @@ export declare class PayrollController extends BaseController {
     }[]>;
     createCompanyBonus(user: User, dto: createBonusDto): Promise<{
         id: string;
-        payroll_month: string;
-        employee_id: string;
         company_id: string;
+        employee_id: string;
+        payroll_month: string;
         amount: number;
         bonus_type: string | null;
         bonus_date: string;

@@ -1,0 +1,1 @@
+ALTER TABLE "onboarding_progress" ADD COLUMN "url" varchar(255) NOT NULL;

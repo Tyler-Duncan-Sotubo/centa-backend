@@ -23,6 +23,7 @@ import { addDays, addMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { CreatePayFrequencyDto } from '../dto/create-pay-frequency.dto';
 import { AwsService } from 'src/config/aws/aws.service';
 import { CreateCompanyTaxDto } from '../dto/create-company-tax.dto';
+import { OnboardingService } from './onboarding.service';
 
 @Injectable()
 export class CompanyService {
@@ -30,6 +31,7 @@ export class CompanyService {
     @Inject(DRIZZLE) private db: db,
     private readonly cache: CacheService,
     private readonly awsService: AwsService,
+    private readonly onboardingService: OnboardingService,
   ) {}
 
   async getCompanyByUserId(company_id: string) {
@@ -92,6 +94,11 @@ export class CompanyService {
         .where(eq(companies.id, company_id))
         .returning()
         .execute();
+
+      await this.onboardingService.completeTask(
+        company_id,
+        'completeYourCompanyProfile',
+      );
 
       // Clear cache
       await this.cache.del(`companies:${company_id}`);
@@ -248,6 +255,11 @@ export class CompanyService {
       // Clear cache
       await this.cache.del(`companies:${company_id}`);
 
+      await this.onboardingService.completeTask(
+        company_id,
+        'payrollScheduleUpdated',
+      );
+
       return 'Pay frequency updated successfully';
     } catch (error) {
       throw new BadRequestException(error.message);
@@ -258,7 +270,6 @@ export class CompanyService {
 
   async createCompanyTaxDetails(user_id: string, dto: CreateCompanyTaxDto) {
     const company = await this.getCompanyByUserId(user_id);
-    console.log('dto', dto);
     const taxDetails = await this.db
       .insert(company_tax_details)
       .values({
@@ -268,8 +279,7 @@ export class CompanyService {
       .returning()
       .execute();
 
-    // Clear cache
-    // await this.cache.del(`companies-tax-details:${user_id}`);
+    await this.onboardingService.completeTask(company.id, 'taxNumbersAdded');
 
     return taxDetails;
   }

@@ -199,6 +199,7 @@ let PayrollService = class PayrollService {
             })
                 .from(payroll_schema_1.payroll)
                 .where((0, drizzle_orm_1.eq)(payroll_schema_1.payroll.company_id, company_id))
+                .orderBy((0, drizzle_orm_1.desc)(payroll_schema_1.payroll.payroll_date))
                 .groupBy(payroll_schema_1.payroll.payroll_run_id, payroll_schema_1.payroll.payroll_date, payroll_schema_1.payroll.payroll_month, payroll_schema_1.payroll.approval_status, payroll_schema_1.payroll.payment_status)
                 .execute();
         });

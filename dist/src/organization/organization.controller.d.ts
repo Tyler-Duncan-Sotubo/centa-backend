@@ -6,17 +6,24 @@ import { CreateEmployeeTaxDetailsDto } from './dto/create-employee-tax-details.d
 import { UpdateEmployeeTaxDetailsDto } from './dto/update-employee-tax-details.dto';
 import { CreatePayFrequencyDto } from './dto/create-pay-frequency.dto';
 import { CreateCompanyTaxDto } from './dto/create-company-tax.dto';
+import { OnboardingService } from './services/onboarding.service';
 export declare class OrganizationController extends BaseController {
     private readonly company;
     private readonly department;
     private readonly employee;
-    constructor(company: CompanyService, department: DepartmentService, employee: EmployeeService);
+    private readonly onboarding;
+    constructor(company: CompanyService, department: DepartmentService, employee: EmployeeService, onboarding: OnboardingService);
+    getOnboardingTasks(user: User): Promise<{
+        id: string;
+        companyId: string;
+        taskKey: string;
+        completed: boolean;
+        url: string;
+        completedAt: Date | null;
+    }[]>;
     createCompany(dto: CreateCompanyDto, user: User): Promise<{
         id: string;
         name: string;
-        email: string | null;
-        created_at: Date;
-        updated_at: Date;
         country: string;
         address: string | null;
         city: string | null;
@@ -24,10 +31,13 @@ export declare class OrganizationController extends BaseController {
         industry: string | null;
         registration_number: string | null;
         phone_number: string | null;
+        email: string | null;
         logo_url: string | null;
         pay_frequency: string;
         pay_schedule: unknown;
         time_zone: string;
+        created_at: Date;
+        updated_at: Date;
     }[]>;
     getCompany(user: User): Promise<{
         id: string;
@@ -54,9 +64,9 @@ export declare class OrganizationController extends BaseController {
     createCompanyContact(dto: CreateCompanyContactDto, companyId: string): Promise<{
         id: string;
         name: string;
-        phone: string | null;
-        email: string;
         company_id: string;
+        email: string;
+        phone: string | null;
         position: string | null;
     }[]>;
     getCompanyContacts(companyId: string): Promise<{
@@ -75,9 +85,9 @@ export declare class OrganizationController extends BaseController {
     updatePayFrequency(dto: CreatePayFrequencyDto, user: User): Promise<string>;
     createCompanyTaxDetails(dto: CreateCompanyTaxDto, user: User): Promise<{
         id: string;
+        company_id: string;
         created_at: Date;
         updated_at: Date | null;
-        company_id: string;
         tin: string;
         vat_number: string | null;
         nhf_code: string | null;
@@ -239,14 +249,14 @@ export declare class OrganizationController extends BaseController {
     createEmployeeGroup(dto: CreateEmployeeGroupDto, user: User): Promise<{
         id: string;
         name: string;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-        is_demo: boolean | null;
         company_id: string;
+        is_demo: boolean | null;
         apply_paye: boolean | null;
         apply_pension: boolean | null;
         apply_nhf: boolean | null;
         apply_additional: boolean | null;
+        createdAt: Date | null;
+        updatedAt: Date | null;
     }>;
     getEmployeeGroups(user: User): Promise<{
         id: string;

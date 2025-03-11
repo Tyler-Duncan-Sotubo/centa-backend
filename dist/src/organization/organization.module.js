@@ -20,6 +20,7 @@ const services_2 = require("../auth/services");
 const password_reset_service_1 = require("../notification/services/password-reset.service");
 const jwt_1 = require("@nestjs/jwt");
 const auth_module_1 = require("../auth/auth.module");
+const onboarding_service_1 = require("./services/onboarding.service");
 let OrganizationModule = class OrganizationModule {
 };
 exports.OrganizationModule = OrganizationModule;
@@ -44,6 +45,7 @@ exports.OrganizationModule = OrganizationModule = __decorate([
             services_2.PasswordResetService,
             password_reset_service_1.PasswordResetEmailService,
             jwt_1.JwtService,
+            onboarding_service_1.OnboardingService,
         ],
     })
 ], OrganizationModule);

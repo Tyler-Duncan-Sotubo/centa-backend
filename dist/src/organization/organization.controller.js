@@ -30,12 +30,14 @@ const create_employee_tax_details_dto_1 = require("./dto/create-employee-tax-det
 const update_employee_tax_details_dto_1 = require("./dto/update-employee-tax-details.dto");
 const create_pay_frequency_dto_1 = require("./dto/create-pay-frequency.dto");
 const create_company_tax_dto_1 = require("./dto/create-company-tax.dto");
+const onboarding_service_1 = require("./services/onboarding.service");
 let OrganizationController = class OrganizationController extends base_controller_1.BaseController {
-    constructor(company, department, employee) {
+    constructor(company, department, employee, onboarding) {
         super();
         this.company = company;
         this.department = department;
         this.employee = employee;
+        this.onboarding = onboarding;
         this.fieldMapping = {
             'Employee Number': 'employee_number',
             'First Name': 'first_name',
@@ -53,6 +55,9 @@ let OrganizationController = class OrganizationController extends base_controlle
             Bonus: 'bonus',
             Commission: 'commission',
         };
+    }
+    getOnboardingTasks(user) {
+        return this.onboarding.getOnboardingTasks(user.company_id);
     }
     createCompany(dto, user) {
         return this.company.createCompany(dto, user.company_id);
@@ -237,6 +242,15 @@ let OrganizationController = class OrganizationController extends base_controlle
     }
 };
 exports.OrganizationController = OrganizationController;
+__decorate([
+    (0, common_1.Get)('onboarding-tasks'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], OrganizationController.prototype, "getOnboardingTasks", null);
 __decorate([
     (0, common_1.Post)('company'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
@@ -627,6 +641,7 @@ exports.OrganizationController = OrganizationController = __decorate([
     (0, common_1.Controller)(''),
     __metadata("design:paramtypes", [services_1.CompanyService,
         services_1.DepartmentService,
-        services_1.EmployeeService])
+        services_1.EmployeeService,
+        onboarding_service_1.OnboardingService])
 ], OrganizationController);
 //# sourceMappingURL=organization.controller.js.map

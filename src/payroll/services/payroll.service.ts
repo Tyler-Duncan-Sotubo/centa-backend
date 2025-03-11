@@ -2,7 +2,7 @@ import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from '../../drizzle/drizzle.module';
 import { employees } from 'src/drizzle/schema/employee.schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import {
   customDeductions,
   taxConfig,
@@ -315,6 +315,7 @@ export class PayrollService {
         })
         .from(payroll)
         .where(eq(payroll.company_id, company_id))
+        .orderBy(desc(payroll.payroll_date))
         .groupBy(
           payroll.payroll_run_id,
           payroll.payroll_date,

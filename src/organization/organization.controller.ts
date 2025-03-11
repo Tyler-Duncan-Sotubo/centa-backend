@@ -39,6 +39,7 @@ import { CreateEmployeeTaxDetailsDto } from './dto/create-employee-tax-details.d
 import { UpdateEmployeeTaxDetailsDto } from './dto/update-employee-tax-details.dto';
 import { CreatePayFrequencyDto } from './dto/create-pay-frequency.dto';
 import { CreateCompanyTaxDto } from './dto/create-company-tax.dto';
+import { OnboardingService } from './services/onboarding.service';
 
 @Controller('')
 export class OrganizationController extends BaseController {
@@ -46,8 +47,16 @@ export class OrganizationController extends BaseController {
     private readonly company: CompanyService,
     private readonly department: DepartmentService,
     private readonly employee: EmployeeService,
+    private readonly onboarding: OnboardingService,
   ) {
     super();
+  }
+
+  @Get('onboarding-tasks')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin'])
+  getOnboardingTasks(@CurrentUser() user: User) {
+    return this.onboarding.getOnboardingTasks(user.company_id);
   }
 
   @Post('company')

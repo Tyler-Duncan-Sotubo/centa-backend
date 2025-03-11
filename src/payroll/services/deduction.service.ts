@@ -11,12 +11,13 @@ import { companies } from 'src/drizzle/schema/company.schema';
 import { employees } from 'src/drizzle/schema/employee.schema';
 import { CacheService } from 'src/config/cache/cache.service';
 import { updateTaxConfigurationDto } from '../dto/update-tax-config.dto';
-
+import { OnboardingService } from 'src/organization/services/onboarding.service';
 @Injectable()
 export class DeductionService {
   constructor(
     @Inject(DRIZZLE) private db: db,
     private cache: CacheService,
+    private readonly onboardingService: OnboardingService,
   ) {}
 
   private getCompany = async (company_id: string) => {
@@ -40,6 +41,11 @@ export class DeductionService {
     dto: updateTaxConfigurationDto,
   ) {
     const companyId = await this.getCompany(company_id);
+
+    await this.onboardingService.completeTask(
+      companyId,
+      'payrollSettingsUpdated',
+    );
 
     return await this.db
       .update(taxConfig)

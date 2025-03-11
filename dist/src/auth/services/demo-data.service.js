@@ -79,7 +79,7 @@ let DemoDataService = class DemoDataService {
     }
     async seedDemoData(user_id, company_id) {
         const employeeData = faker_1.faker.helpers.multiple(this.generateEmployee, {
-            count: 2,
+            count: 4,
         });
         const savedEmployees = await this.db
             .insert(employee_schema_1.employees)

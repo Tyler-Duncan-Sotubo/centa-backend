@@ -22,4 +22,5 @@ __exportStar(require("./department.schema"), exports);
 __exportStar(require("./employee.schema"), exports);
 __exportStar(require("./payroll.schema"), exports);
 __exportStar(require("./deductions.schema"), exports);
+__exportStar(require("./onboarding_progress.schema"), exports);
 //# sourceMappingURL=schema.js.map

@@ -10,16 +10,18 @@ exports.NotificationModule = void 0;
 const common_1 = require("@nestjs/common");
 const notifications_controller_1 = require("./notifications.controller");
 const pusher_service_1 = require("./services/pusher.service");
+const chatbot_service_1 = require("./services/chatbot.service");
 const drizzle_module_1 = require("../drizzle/drizzle.module");
 const jwt_guard_1 = require("../auth/guards/jwt.guard");
+const cache_module_1 = require("../config/cache/cache.module");
 let NotificationModule = class NotificationModule {
 };
 exports.NotificationModule = NotificationModule;
 exports.NotificationModule = NotificationModule = __decorate([
     (0, common_1.Module)({
-        imports: [drizzle_module_1.DrizzleModule],
+        imports: [drizzle_module_1.DrizzleModule, cache_module_1.CacheModule],
         controllers: [notifications_controller_1.NotificationController],
-        providers: [pusher_service_1.PusherService, jwt_guard_1.JwtGuard],
+        providers: [pusher_service_1.PusherService, chatbot_service_1.ChatbotService, jwt_guard_1.JwtGuard],
     })
 ], NotificationModule);
 //# sourceMappingURL=notification.module.js.map

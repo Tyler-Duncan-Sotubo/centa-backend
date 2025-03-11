@@ -26,8 +26,9 @@ const config_1 = require("@nestjs/config");
 const invitation_service_1 = require("../../notification/services/invitation.service");
 const aws_service_1 = require("../../config/aws/aws.service");
 const deductions_schema_1 = require("../../drizzle/schema/deductions.schema");
+const onboarding_service_1 = require("../../organization/services/onboarding.service");
 let UserService = class UserService {
-    constructor(db, verificationService, demo, invitation, jwtService, configService, awsService) {
+    constructor(db, verificationService, demo, invitation, jwtService, configService, awsService, onboardingService) {
         this.db = db;
         this.verificationService = verificationService;
         this.demo = demo;
@@ -35,6 +36,7 @@ let UserService = class UserService {
         this.jwtService = jwtService;
         this.configService = configService;
         this.awsService = awsService;
+        this.onboardingService = onboardingService;
     }
     async register(dto) {
         const company = await this.db
@@ -73,6 +75,7 @@ let UserService = class UserService {
             });
             return user;
         });
+        await this.onboardingService.createOnboardingTasks(company[0].id);
         await this.verificationService.generateVerificationToken(newUser.id);
         return {
             user: newUser,
@@ -194,6 +197,7 @@ exports.UserService = UserService = __decorate([
         invitation_service_1.InvitationService,
         jwt_1.JwtService,
         config_1.ConfigService,
-        aws_service_1.AwsService])
+        aws_service_1.AwsService,
+        onboarding_service_1.OnboardingService])
 ], UserService);
 //# sourceMappingURL=user.service.js.map

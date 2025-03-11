@@ -1,1 +1,1 @@
-{"version":3,"file":"schema.js","sourceRoot":"","sources":["../../../../src/drizzle/schema/schema.ts"],"names":[],"mappings":";;;;;;;;;;;;;;;;AAAA,iDAA+B;AAC/B,8DAA4C;AAC5C,gEAA8C;AAC9C,mDAAiC;AACjC,sDAAoC;AACpC,oDAAkC;AAClC,mDAAiC;AACjC,sDAAoC"}
+{"version":3,"file":"schema.js","sourceRoot":"","sources":["../../../../src/drizzle/schema/schema.ts"],"names":[],"mappings":";;;;;;;;;;;;;;;;AAAA,iDAA+B;AAC/B,8DAA4C;AAC5C,gEAA8C;AAC9C,mDAAiC;AACjC,sDAAoC;AACpC,oDAAkC;AAClC,mDAAiC;AACjC,sDAAoC;AACpC,+DAA6C"}

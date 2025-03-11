@@ -19,6 +19,7 @@ const email_verification_service_1 = require("../notification/services/email-ver
 const password_reset_service_1 = require("../notification/services/password-reset.service");
 const invitation_service_1 = require("../notification/services/invitation.service");
 const aws_service_1 = require("../config/aws/aws.service");
+const onboarding_service_1 = require("../organization/services/onboarding.service");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
@@ -51,6 +52,7 @@ exports.AuthModule = AuthModule = __decorate([
             services_1.DemoDataService,
             config_1.ConfigService,
             aws_service_1.AwsService,
+            onboarding_service_1.OnboardingService,
         ],
     })
 ], AuthModule);

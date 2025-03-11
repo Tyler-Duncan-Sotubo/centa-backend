@@ -1,0 +1,1 @@
+ALTER TABLE "onboarding_progress" ALTER COLUMN "company_id" SET DATA TYPE uuid;

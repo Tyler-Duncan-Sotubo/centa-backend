@@ -32,6 +32,7 @@ import * as jwt from 'jsonwebtoken';
 import { PasswordResetEmailService } from 'src/notification/services/password-reset.service';
 import { PasswordResetToken } from 'src/drizzle/schema/password-reset-token.schema';
 import { taxConfig } from 'src/drizzle/schema/deductions.schema';
+import { OnboardingService } from './onboarding.service';
 
 Injectable();
 export class EmployeeService {
@@ -41,6 +42,7 @@ export class EmployeeService {
     private readonly cache: CacheService,
     private readonly config: ConfigService,
     private readonly passwordResetEmailService: PasswordResetEmailService,
+    private readonly onboardingService: OnboardingService,
   ) {}
 
   private generateToken(payload: any): string {
@@ -171,6 +173,9 @@ export class EmployeeService {
           is_used: false,
         })
         .execute();
+
+      // Update onboarding progress
+      await this.onboardingService.completeTask(company_id, 'addEmployees');
 
       const inviteLink = `${this.config.get(
         'EMPLOYEE_PORTAL_URL',
@@ -305,6 +310,9 @@ export class EmployeeService {
             status: 'Success',
             company_id: companyResult[0].id,
           });
+
+          // Update onboarding progress
+          await this.onboardingService.completeTask(company_id, 'addEmployees');
 
           // Add employee to the cache
           const cacheKey = `employee-${employee[0].id}`;

@@ -2,10 +2,12 @@ import { db } from 'src/drizzle/types/drizzle';
 import { CreateCustomDeduction, UpdateCustomDeductionDto } from '../dto';
 import { CacheService } from 'src/config/cache/cache.service';
 import { updateTaxConfigurationDto } from '../dto/update-tax-config.dto';
+import { OnboardingService } from 'src/organization/services/onboarding.service';
 export declare class DeductionService {
     private db;
     private cache;
-    constructor(db: db, cache: CacheService);
+    private readonly onboardingService;
+    constructor(db: db, cache: CacheService, onboardingService: OnboardingService);
     private getCompany;
     updateTaxConfiguration(company_id: string, dto: updateTaxConfigurationDto): Promise<any>;
     createCustomDeduction(user_id: string, dto: CreateCustomDeduction): Promise<any>;

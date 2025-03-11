@@ -20,10 +20,12 @@ const deductions_schema_1 = require("../../drizzle/schema/deductions.schema");
 const company_schema_1 = require("../../drizzle/schema/company.schema");
 const employee_schema_1 = require("../../drizzle/schema/employee.schema");
 const cache_service_1 = require("../../config/cache/cache.service");
+const onboarding_service_1 = require("../../organization/services/onboarding.service");
 let DeductionService = class DeductionService {
-    constructor(db, cache) {
+    constructor(db, cache, onboardingService) {
         this.db = db;
         this.cache = cache;
+        this.onboardingService = onboardingService;
         this.getCompany = async (company_id) => {
             const cacheKey = `company_id:${company_id}`;
             return this.cache.getOrSetCache(cacheKey, async () => {
@@ -40,6 +42,7 @@ let DeductionService = class DeductionService {
     }
     async updateTaxConfiguration(company_id, dto) {
         const companyId = await this.getCompany(company_id);
+        await this.onboardingService.completeTask(companyId, 'payrollSettingsUpdated');
         return await this.db
             .update(deductions_schema_1.taxConfig)
             .set({
@@ -103,6 +106,7 @@ exports.DeductionService = DeductionService;
 exports.DeductionService = DeductionService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, cache_service_1.CacheService])
+    __metadata("design:paramtypes", [Object, cache_service_1.CacheService,
+        onboarding_service_1.OnboardingService])
 ], DeductionService);
 //# sourceMappingURL=deduction.service.js.map

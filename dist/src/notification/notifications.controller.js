@@ -18,16 +18,21 @@ const pusher_service_1 = require("./services/pusher.service");
 const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 const current_user_decorator_1 = require("../auth/decorator/current-user.decorator");
 const base_controller_1 = require("../config/base.controller");
+const chatbot_service_1 = require("./services/chatbot.service");
 let NotificationController = class NotificationController extends base_controller_1.BaseController {
-    constructor(pusher) {
+    constructor(pusher, chatbotService) {
         super();
         this.pusher = pusher;
+        this.chatbotService = chatbotService;
     }
     async getUserNotifications(user) {
         return this.pusher.getUserNotifications(user.company_id);
     }
     async markAsRead(id) {
         return this.pusher.markAsRead(id);
+    }
+    async askAI(message, chatId) {
+        return await this.chatbotService.chatWithAI(message, chatId);
     }
 };
 exports.NotificationController = NotificationController;
@@ -47,8 +52,17 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "markAsRead", null);
+__decorate([
+    (0, common_1.Post)('chatbot/ask'),
+    __param(0, (0, common_1.Body)('message')),
+    __param(1, (0, common_1.Body)('chatId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], NotificationController.prototype, "askAI", null);
 exports.NotificationController = NotificationController = __decorate([
     (0, common_1.Controller)(''),
-    __metadata("design:paramtypes", [pusher_service_1.PusherService])
+    __metadata("design:paramtypes", [pusher_service_1.PusherService,
+        chatbot_service_1.ChatbotService])
 ], NotificationController);
 //# sourceMappingURL=notifications.controller.js.map

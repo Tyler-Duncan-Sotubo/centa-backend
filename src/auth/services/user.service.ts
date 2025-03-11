@@ -16,6 +16,7 @@ import { InvitationService } from 'src/notification/services/invitation.service'
 import { AwsService } from 'src/config/aws/aws.service';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { taxConfig } from 'src/drizzle/schema/deductions.schema';
+import { OnboardingService } from 'src/organization/services/onboarding.service';
 
 @Injectable()
 export class UserService {
@@ -27,6 +28,7 @@ export class UserService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private awsService: AwsService,
+    private onboardingService: OnboardingService,
   ) {}
 
   async register(dto: CreateUserDto) {
@@ -75,12 +77,11 @@ export class UserService {
         apply_paye: true,
         company_id: company[0].id,
       });
-
       return user; // Return the created user object
     });
 
-    // Seed demo data
-    await this.demo.seedDemoData(newUser.id, company[0].id);
+    // Create onboarding tasks
+    await this.onboardingService.createOnboardingTasks(company[0].id);
 
     // Generate verification token
     await this.verificationService.generateVerificationToken(newUser.id);

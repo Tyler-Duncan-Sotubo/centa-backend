@@ -20,11 +20,13 @@ const drizzle_module_1 = require("../../drizzle/drizzle.module");
 const cache_service_1 = require("../../config/cache/cache.service");
 const date_fns_1 = require("date-fns");
 const aws_service_1 = require("../../config/aws/aws.service");
+const onboarding_service_1 = require("./onboarding.service");
 let CompanyService = class CompanyService {
-    constructor(db, cache, awsService) {
+    constructor(db, cache, awsService, onboardingService) {
         this.db = db;
         this.cache = cache;
         this.awsService = awsService;
+        this.onboardingService = onboardingService;
         this.generatePaySchedule = (startDate, frequency, numPeriods = 6) => {
             const schedule = [];
             for (let i = 0; i < numPeriods; i++) {
@@ -98,6 +100,7 @@ let CompanyService = class CompanyService {
                 .where((0, drizzle_orm_1.eq)(company_schema_1.companies.id, company_id))
                 .returning()
                 .execute();
+            await this.onboardingService.completeTask(company_id, 'completeYourCompanyProfile');
             await this.cache.del(`companies:${company_id}`);
             return 'Company updated successfully';
         }
@@ -182,6 +185,7 @@ let CompanyService = class CompanyService {
                 .returning()
                 .execute();
             await this.cache.del(`companies:${company_id}`);
+            await this.onboardingService.completeTask(company_id, 'payrollScheduleUpdated');
             return 'Pay frequency updated successfully';
         }
         catch (error) {
@@ -190,7 +194,6 @@ let CompanyService = class CompanyService {
     }
     async createCompanyTaxDetails(user_id, dto) {
         const company = await this.getCompanyByUserId(user_id);
-        console.log('dto', dto);
         const taxDetails = await this.db
             .insert(company_schema_1.company_tax_details)
             .values({
@@ -199,6 +202,7 @@ let CompanyService = class CompanyService {
         })
             .returning()
             .execute();
+        await this.onboardingService.completeTask(company.id, 'taxNumbersAdded');
         return taxDetails;
     }
     async getCompanyTaxDetails(user_id) {
@@ -236,6 +240,7 @@ exports.CompanyService = CompanyService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, cache_service_1.CacheService,
-        aws_service_1.AwsService])
+        aws_service_1.AwsService,
+        onboarding_service_1.OnboardingService])
 ], CompanyService);
 //# sourceMappingURL=company.service.js.map

@@ -6,13 +6,15 @@ import { UpdateEmployeeTaxDetailsDto } from '../dto/update-employee-tax-details.
 import { CacheService } from 'src/config/cache/cache.service';
 import { ConfigService } from '@nestjs/config';
 import { PasswordResetEmailService } from 'src/notification/services/password-reset.service';
+import { OnboardingService } from './onboarding.service';
 export declare class EmployeeService {
     private db;
     private readonly aws;
     private readonly cache;
     private readonly config;
     private readonly passwordResetEmailService;
-    constructor(db: db, aws: AwsService, cache: CacheService, config: ConfigService, passwordResetEmailService: PasswordResetEmailService);
+    private readonly onboardingService;
+    constructor(db: db, aws: AwsService, cache: CacheService, config: ConfigService, passwordResetEmailService: PasswordResetEmailService, onboardingService: OnboardingService);
     private generateToken;
     addEmployee(dto: CreateEmployeeDto, company_id: string): Promise<{
         first_name: string;
@@ -145,14 +147,14 @@ export declare class EmployeeService {
     createEmployeeGroup(company_id: string, dto: CreateEmployeeGroupDto): Promise<{
         id: string;
         name: string;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-        is_demo: boolean | null;
         company_id: string;
+        is_demo: boolean | null;
         apply_paye: boolean | null;
         apply_pension: boolean | null;
         apply_nhf: boolean | null;
         apply_additional: boolean | null;
+        createdAt: Date | null;
+        updatedAt: Date | null;
     }>;
     getEmployeeGroup(group_id: string): Promise<{
         id: string;

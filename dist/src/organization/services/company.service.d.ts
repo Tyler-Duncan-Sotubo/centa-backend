@@ -4,11 +4,13 @@ import { CacheService } from 'src/config/cache/cache.service';
 import { CreatePayFrequencyDto } from '../dto/create-pay-frequency.dto';
 import { AwsService } from 'src/config/aws/aws.service';
 import { CreateCompanyTaxDto } from '../dto/create-company-tax.dto';
+import { OnboardingService } from './onboarding.service';
 export declare class CompanyService {
     private db;
     private readonly cache;
     private readonly awsService;
-    constructor(db: db, cache: CacheService, awsService: AwsService);
+    private readonly onboardingService;
+    constructor(db: db, cache: CacheService, awsService: AwsService, onboardingService: OnboardingService);
     getCompanyByUserId(company_id: string): Promise<{
         id: string;
         name: string;

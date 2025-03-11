@@ -30,14 +30,16 @@ const jwt = require("jsonwebtoken");
 const password_reset_service_1 = require("../../notification/services/password-reset.service");
 const password_reset_token_schema_1 = require("../../drizzle/schema/password-reset-token.schema");
 const deductions_schema_1 = require("../../drizzle/schema/deductions.schema");
+const onboarding_service_1 = require("./onboarding.service");
 (0, common_1.Injectable)();
 let EmployeeService = class EmployeeService {
-    constructor(db, aws, cache, config, passwordResetEmailService) {
+    constructor(db, aws, cache, config, passwordResetEmailService, onboardingService) {
         this.db = db;
         this.aws = aws;
         this.cache = cache;
         this.config = config;
         this.passwordResetEmailService = passwordResetEmailService;
+        this.onboardingService = onboardingService;
     }
     generateToken(payload) {
         const jwtSecret = this.config.get('JWT_SECRET') || 'defaultSecret';
@@ -143,6 +145,7 @@ let EmployeeService = class EmployeeService {
                 is_used: false,
             })
                 .execute();
+            await this.onboardingService.completeTask(company_id, 'addEmployees');
             const inviteLink = `${this.config.get('EMPLOYEE_PORTAL_URL')}/auth/reset-password/${token}`;
             await this.passwordResetEmailService.sendPasswordResetEmail(employee[0].email, employee[0].first_name, inviteLink);
             return {
@@ -242,6 +245,7 @@ let EmployeeService = class EmployeeService {
                         status: 'Success',
                         company_id: companyResult[0].id,
                     });
+                    await this.onboardingService.completeTask(company_id, 'addEmployees');
                     const cacheKey = `employee-${employee[0].id}`;
                     this.cache.set(cacheKey, employee[0]);
                 }
@@ -613,6 +617,7 @@ exports.EmployeeService = EmployeeService = __decorate([
     __metadata("design:paramtypes", [Object, aws_service_1.AwsService,
         cache_service_1.CacheService,
         config_1.ConfigService,
-        password_reset_service_1.PasswordResetEmailService])
+        password_reset_service_1.PasswordResetEmailService,
+        onboarding_service_1.OnboardingService])
 ], EmployeeService);
 //# sourceMappingURL=employee.service.js.map

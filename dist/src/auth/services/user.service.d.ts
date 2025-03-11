@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { InvitationService } from 'src/notification/services/invitation.service';
 import { AwsService } from 'src/config/aws/aws.service';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
+import { OnboardingService } from 'src/organization/services/onboarding.service';
 export declare class UserService {
     private db;
     private readonly verificationService;
@@ -16,7 +17,8 @@ export declare class UserService {
     private jwtService;
     private configService;
     private awsService;
-    constructor(db: db, verificationService: VerificationService, demo: DemoDataService, invitation: InvitationService, jwtService: JwtService, configService: ConfigService, awsService: AwsService);
+    private onboardingService;
+    constructor(db: db, verificationService: VerificationService, demo: DemoDataService, invitation: InvitationService, jwtService: JwtService, configService: ConfigService, awsService: AwsService, onboardingService: OnboardingService);
     register(dto: CreateUserDto): Promise<{
         user: {
             id: string;

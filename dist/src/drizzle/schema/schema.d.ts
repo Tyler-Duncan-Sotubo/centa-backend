@@ -6,3 +6,4 @@ export * from './department.schema';
 export * from './employee.schema';
 export * from './payroll.schema';
 export * from './deductions.schema';
+export * from './onboarding_progress.schema';

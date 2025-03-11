@@ -26,6 +26,7 @@ const pdf_service_1 = require("./services/pdf.service");
 const loan_service_1 = require("./services/loan.service");
 const pusher_service_1 = require("../notification/services/pusher.service");
 const redisStore = require("cache-manager-redis-store");
+const onboarding_service_1 = require("../organization/services/onboarding.service");
 let PayrollModule = class PayrollModule {
 };
 exports.PayrollModule = PayrollModule;
@@ -65,6 +66,7 @@ exports.PayrollModule = PayrollModule = __decorate([
             pdf_service_1.PdfService,
             loan_service_1.LoanService,
             pusher_service_1.PusherService,
+            onboarding_service_1.OnboardingService,
         ],
     })
 ], PayrollModule);

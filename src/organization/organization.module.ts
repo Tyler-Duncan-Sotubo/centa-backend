@@ -11,6 +11,8 @@ import { PasswordResetService } from 'src/auth/services';
 import { PasswordResetEmailService } from 'src/notification/services/password-reset.service';
 import { JwtService } from '@nestjs/jwt';
 import { AuthModule } from 'src/auth/auth.module';
+import { OnboardingService } from './services/onboarding.service';
+
 @Module({
   imports: [
     AuthModule,
@@ -30,7 +32,8 @@ import { AuthModule } from 'src/auth/auth.module';
     AwsService,
     PasswordResetService,
     PasswordResetEmailService,
-    JwtService, //
+    JwtService,
+    OnboardingService,
   ],
 })
 export class OrganizationModule {}
