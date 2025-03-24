@@ -37,16 +37,19 @@ export class TaxService {
         employee_id: employees.id,
         first_name: employees.first_name,
         last_name: employees.last_name,
-        basic_salary: payroll.gross_salary,
-        paye_tax: payroll.paye_tax,
-        pension_contribution: payroll.pension_contribution,
-        nhf_contribution: payroll.nhf_contribution,
-        employee_tin: employee_tax_details.tin, // Use actual TIN from employee schema
-        taxable_amount: payroll.taxable_income,
+        basic_salary: sql<number>`payroll.gross_salary`,
+        paye_tax: sql<number>`payroll.paye_tax`,
+        pension_contribution: sql<number>`payroll.pension_contribution`,
+        employer_pension_contribution: sql<number>`payroll.employer_pension_contribution`,
+        nhf_contribution: sql<number>`payroll.nhf_contribution`,
+        employee_tin: employee_tax_details.tin,
+        employee_pension_pin: employee_tax_details.pension_pin,
+        employee_nhf_number: employee_tax_details.nhf_number,
+        taxable_amount: sql<number>`payroll.taxable_income`,
       })
       .from(payroll)
       .innerJoin(employees, eq(payroll.employee_id, employees.id))
-      .innerJoin(employee_tax_details, eq(payroll.employee_id, employees.id))
+      .leftJoin(employee_tax_details, eq(payroll.employee_id, employees.id))
       .where(
         and(
           eq(payroll.company_id, company_id),
@@ -91,9 +94,12 @@ export class TaxService {
       basic_salary: number;
       taxable_amount: number;
       paye_tax: number;
-      pension_contribution: number;
-      nhf_contribution: number;
+      pension_contribution: number | null;
+      nhf_contribution: number | null;
       employee_tin: string | null;
+      employee_pension_pin: string | null;
+      employee_nhf_number: string | null;
+      employer_pension_contribution: number | null;
     };
 
     type TaxType = 'PAYE' | 'Pension' | 'NHF';
@@ -107,16 +113,20 @@ export class TaxService {
     // Categorize payroll records into tax types
     for (const record of payrollRecords) {
       if (record.paye_tax > 0) taxData.PAYE.push(record);
-      if (record.pension_contribution > 0) taxData.Pension.push(record);
-      if (record.nhf_contribution > 0) taxData.NHF.push(record);
+      if (record.pension_contribution && record.pension_contribution > 0) {
+        taxData.Pension.push(record);
+      }
+      if (record.nhf_contribution && record.nhf_contribution > 0) {
+        taxData.NHF.push(record);
+      }
     }
 
-    // Insert into tax_filings and tax_filing_details
+    // Only process tax types that have actual records
     for (const [taxType, records] of Object.entries(taxData) as [
       TaxType,
       PayrollRecord[],
     ][]) {
-      if (records.length === 0) continue;
+      if (records.length === 0) continue; // Skip tax types with no records
 
       const payrollMonth = records[0].payroll_month
         ? new Date(records[0].payroll_month).toISOString().split('T')[0]
@@ -141,16 +151,21 @@ export class TaxService {
         tax_filing_id: taxFilingId,
         employee_id: record.employee_id,
         name: `${record.first_name} ${record.last_name}`, // Properly formatted name
-        basic_salary: record.basic_salary.toString(),
+        basic_salary: record.basic_salary,
         contribution_amount:
           taxType === 'PAYE'
-            ? record.paye_tax.toString()
+            ? record.paye_tax
             : taxType === 'Pension'
-              ? record.pension_contribution.toString()
-              : record.nhf_contribution.toString(),
+              ? (record.pension_contribution ?? 0)
+              : (record.nhf_contribution ?? 0),
         tin: record.employee_tin,
-        taxable_amount: record.taxable_amount.toString(),
+        pension_pin: record.employee_pension_pin,
+        nhf_number: record.employee_nhf_number,
+        employer_contribution: record.employer_pension_contribution,
+        taxable_amount: record.taxable_amount,
       }));
+
+      // return taxDetails;
 
       await this.db.insert(tax_filing_details).values(taxDetails).execute();
     }
@@ -235,12 +250,15 @@ export class TaxService {
     const filingDetails = await this.db
       .selectDistinctOn([tax_filing_details.employee_id], {
         tin: tax_filing_details.tin,
+        pension_pin: tax_filing_details.pension_pin,
+        nhf_number: tax_filing_details.nhf_number,
         employee_id: employees.employee_number,
         role: employees.job_title,
         first_name: employees.first_name,
         last_name: employees.last_name,
         basic_salary: tax_filing_details.basic_salary,
         contribution_amount: tax_filing_details.contribution_amount,
+        employer_contribution: tax_filing_details.employer_contribution,
         taxable_amount: tax_filing_details.taxable_amount,
       })
       .from(tax_filing_details)
@@ -306,12 +324,12 @@ export class TaxService {
         worksheet.getCell(`E${rowIndex}`).value = detail.last_name;
         worksheet.getCell(`F${rowIndex}`).value = detail.first_name;
         worksheet.getCell(`G${rowIndex}`).value =
-          parseFloat(detail.basic_salary) || 0;
+          (detail.basic_salary || 0) / 100; // Convert to Naira
         worksheet.getCell(`H${rowIndex}`).value =
-          parseFloat(detail.contribution_amount) || 0;
+          (detail.contribution_amount || 0) / 100;
 
         // Ensure taxable income is divided and formatted
-        const taxableIncome = parseFloat(detail.taxable_amount) || 0;
+        const taxableIncome = (detail.taxable_amount || 0) / 100;
         worksheet.getCell(`I${rowIndex}`).value = taxableIncome / 12;
         worksheet.getCell(`I${rowIndex}`).numFmt = '#,##0.00'; // Format with commas
 
@@ -327,13 +345,12 @@ export class TaxService {
       let rowIndex = 9; // Start row for employees
 
       filingDetails.forEach((detail, index) => {
-        const basicSalary = parseFloat(detail.basic_salary) || 0;
-        const employeeContribution =
-          parseFloat(detail.contribution_amount) || 0;
-        const employerContribution = Math.round((basicSalary * 10) / 100);
+        const basicSalary = (detail.basic_salary || 0) / 100;
+        const employeeContribution = (detail.contribution_amount || 0) / 100;
+        const employerContribution = (detail.employer_contribution || 0) / 100;
 
         worksheet.getCell(`B${rowIndex}`).value = index + 1; // S/N
-        worksheet.getCell(`C${rowIndex}`).value = detail.tin || 'N/A';
+        worksheet.getCell(`C${rowIndex}`).value = detail.pension_pin || 'N/A';
         worksheet.getCell(`C${rowIndex}`).numFmt = '@'; // Forces text format
         worksheet.getCell(`D${rowIndex}`).value = detail.first_name;
         worksheet.getCell(`E${rowIndex}`).value = detail.last_name;
@@ -359,11 +376,11 @@ export class TaxService {
       let rowIndex = 10; // Start row for employees
 
       filingDetails.forEach((detail, index) => {
-        const basicSalary = parseFloat(detail.basic_salary) || 0;
+        const basicSalary = (detail.basic_salary || 0) / 100;
         const nhfContribution = Math.round((basicSalary * 2.5) / 100);
 
         worksheet.getCell(`B${rowIndex}`).value = index + 1; // S/N
-        worksheet.getCell(`C${rowIndex}`).value = detail.tin || 'N/A';
+        worksheet.getCell(`C${rowIndex}`).value = detail.nhf_number || 'N/A';
         worksheet.getCell(`C${rowIndex}`).numFmt = '@'; // Forces text format
         worksheet.getCell(`D${rowIndex}`).value = detail.first_name;
         worksheet.getCell(`E${rowIndex}`).value = detail.last_name;

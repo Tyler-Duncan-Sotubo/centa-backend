@@ -7,7 +7,6 @@ import {
   AuthService,
   VerificationService,
   PasswordResetService,
-  DemoDataService,
 } from './services';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -44,7 +43,6 @@ import { OnboardingService } from 'src/organization/services/onboarding.service'
     InvitationService,
     JwtGuard,
     PasswordResetEmailService,
-    DemoDataService,
     ConfigService,
     AwsService,
     OnboardingService,

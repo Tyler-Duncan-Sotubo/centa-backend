@@ -3,7 +3,6 @@ import {
   text,
   integer,
   timestamp,
-  decimal,
   uuid,
   index,
 } from 'drizzle-orm/pg-core';
@@ -22,18 +21,14 @@ export const salaryAdvance = pgTable(
     employee_id: uuid('employee_id')
       .references(() => employees.id)
       .notNull(),
-    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
-    total_paid: decimal('total_paid', { precision: 10, scale: 2 })
-      .default('0')
-      .notNull(), // NEW FIELD
-
+    name: text('name').notNull(),
+    amount: integer('amount').notNull(),
+    total_paid: integer('total_paid').default(0).notNull(), // NEW FIELD
     tenureMonths: integer('tenure_months').notNull(),
-    preferredMonthlyPayment: decimal('preferred_monthly_payment', {
-      precision: 10,
-      scale: 2,
-    }),
+    preferredMonthlyPayment: integer('preferred_monthly_payment').default(0),
 
     status: text('status').default('pending').notNull(),
+    payment_status: text('payment_status').default('open').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
@@ -51,7 +46,7 @@ export const repayments = pgTable(
     salary_advance_id: uuid('loan_id')
       .references(() => salaryAdvance.id)
       .notNull(),
-    amount_paid: decimal('amount_paid', { precision: 10, scale: 2 }).notNull(),
+    amount_paid: integer('amount_paid').notNull(),
     paidAt: timestamp('paid_at').defaultNow().notNull(),
   },
   (table) => [

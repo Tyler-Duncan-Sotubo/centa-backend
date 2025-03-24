@@ -5,10 +5,9 @@ import { CreateUserDto } from '../dto/create-user.dto';
 import { users } from '../../drizzle/schema/users.schema';
 import { DRIZZLE } from '../../drizzle/drizzle.module';
 import * as bcrypt from 'bcryptjs';
-import { eq } from 'drizzle-orm';
+import { eq, not, and } from 'drizzle-orm';
 import { VerificationService } from './verification.service';
 import { companies } from 'src/drizzle/schema/company.schema';
-import { DemoDataService } from './demo-data.service';
 import { JwtService } from '@nestjs/jwt';
 import { InviteUserDto } from '../dto/invite-user.dto';
 import { ConfigService } from '@nestjs/config';
@@ -17,13 +16,13 @@ import { AwsService } from 'src/config/aws/aws.service';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { taxConfig } from 'src/drizzle/schema/deductions.schema';
 import { OnboardingService } from 'src/organization/services/onboarding.service';
+import { salaryBreakdown } from 'src/drizzle/schema/payroll.schema';
 
 @Injectable()
 export class UserService {
   constructor(
     @Inject(DRIZZLE) private db: db,
     private readonly verificationService: VerificationService,
-    private readonly demo: DemoDataService,
     private readonly invitation: InvitationService,
     private jwtService: JwtService,
     private configService: ConfigService,
@@ -72,11 +71,19 @@ export class UserService {
         .execute();
 
       await trx.insert(taxConfig).values({
-        apply_nhf: true,
+        apply_nhf: false,
         apply_pension: true,
         apply_paye: true,
         company_id: company[0].id,
       });
+
+      await trx.insert(salaryBreakdown).values({
+        company_id: company[0].id,
+        basic: '50.0',
+        housing: '30.0',
+        transport: '20.0',
+      });
+
       return user; // Return the created user object
     });
 
@@ -171,7 +178,9 @@ export class UserService {
         avatar: users.avatar,
       })
       .from(users)
-      .where(eq(users.company_id, company_id))
+      .where(
+        and(eq(users.company_id, company_id), not(eq(users.role, 'employee'))),
+      )
       .execute();
 
     if (allUsers.length === 0) {

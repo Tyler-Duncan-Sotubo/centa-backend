@@ -22,6 +22,7 @@ const aws_service_1 = require("../../config/aws/aws.service");
 const drizzle_module_1 = require("../../drizzle/drizzle.module");
 const payroll_schema_1 = require("../../drizzle/schema/payroll.schema");
 const drizzle_orm_1 = require("drizzle-orm");
+const file_type_1 = require("file-type");
 let PdfService = class PdfService {
     constructor(db, payslipService, awsService) {
         this.db = db;
@@ -54,9 +55,15 @@ let PdfService = class PdfService {
                     responseType: 'arraybuffer',
                 });
                 logoBuffer = Buffer.from(response.data, 'binary');
+                const type = await (0, file_type_1.fileTypeFromBuffer)(logoBuffer);
+                if (!type ||
+                    !['image/png', 'image/jpeg', 'image/jpg'].includes(type.mime)) {
+                    console.warn(`Invalid image format: ${type?.mime || 'unknown'}. Skipping logo.`);
+                    logoBuffer = null;
+                }
             }
             catch (error) {
-                console.error('Failed to load logo:', error.message);
+                logoBuffer = null;
             }
             const leftX = 30;
             doc
@@ -66,7 +73,7 @@ let PdfService = class PdfService {
             doc
                 .fontSize(12)
                 .text(`${payslipData.company_address}, ${payslipData.company_city}`, leftX, 50);
-            doc.text(`Email ${payslipData.company_email}`, leftX, 65);
+            doc.text(`${payslipData.company_email}`, leftX, 65);
             if (logoBuffer) {
                 const logoWidth = 50;
                 const pageWidth = doc.page.width;
@@ -80,10 +87,10 @@ let PdfService = class PdfService {
             doc.moveDown();
             doc
                 .fontSize(12)
-                .text(`Employee: ${payslipData.first_name} ${payslipData.last_name}`, {
+                .text(`${payslipData.first_name} ${payslipData.last_name}`, {
                 align: 'right',
             });
-            doc.text(`Email: ${payslipData.email}`, { align: 'right' });
+            doc.text(`${payslipData.email}`, { align: 'right' });
             doc.text(`Issued At: ${payslipData.issued_at ? new Date(payslipData.issued_at).toDateString() : 'N/A'}`, {
                 align: 'right',
             });
@@ -96,11 +103,11 @@ let PdfService = class PdfService {
                 rows: [
                     [
                         'Net Pay This Period',
-                        `N${Number(payslipData.net_salary).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        `N${Number(payslipData.net_salary / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                     ],
                     [
                         'Gross Salary',
-                        `N${Number(payslipData.gross_salary).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        `N${Number(payslipData.gross_salary / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                     ],
                 ],
             };
@@ -119,27 +126,27 @@ let PdfService = class PdfService {
                 rows: [
                     [
                         'PAYE Tax',
-                        `N${Number(payslipData.paye_tax).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        `N${Number(payslipData.paye_tax / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                     ],
                     [
                         'Pension Contribution',
-                        `N${Number(payslipData.pension_contribution).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        `N${Number(payslipData.pension_contribution / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                     ],
                     [
                         'NHF Contribution',
-                        `N${Number(payslipData.nhf_contribution).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        `N${Number((payslipData.nhf_contribution ?? 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                     ],
                     ...(payslipData.salaryAdvance && payslipData.salaryAdvance > 0
                         ? [
                             [
                                 'Salary Advance',
-                                `N${Number(payslipData.salaryAdvance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                                `N${Number(payslipData.salaryAdvance / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                             ],
                         ]
                         : []),
                     [
                         'Total Deductions',
-                        `N${Number(payslipData.paye_tax + payslipData.pension_contribution + payslipData.nhf_contribution + (payslipData.salaryAdvance ?? 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        `N${Number(payslipData.paye_tax / 100 + payslipData.pension_contribution / 100 + (payslipData.nhf_contribution ?? 0) / 100 + (payslipData.salaryAdvance ?? 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                     ],
                 ],
             };

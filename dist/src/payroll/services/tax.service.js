@@ -50,16 +50,19 @@ let TaxService = class TaxService {
             employee_id: employee_schema_1.employees.id,
             first_name: employee_schema_1.employees.first_name,
             last_name: employee_schema_1.employees.last_name,
-            basic_salary: payroll_schema_1.payroll.gross_salary,
-            paye_tax: payroll_schema_1.payroll.paye_tax,
-            pension_contribution: payroll_schema_1.payroll.pension_contribution,
-            nhf_contribution: payroll_schema_1.payroll.nhf_contribution,
+            basic_salary: (0, drizzle_orm_1.sql) `payroll.gross_salary`,
+            paye_tax: (0, drizzle_orm_1.sql) `payroll.paye_tax`,
+            pension_contribution: (0, drizzle_orm_1.sql) `payroll.pension_contribution`,
+            employer_pension_contribution: (0, drizzle_orm_1.sql) `payroll.employer_pension_contribution`,
+            nhf_contribution: (0, drizzle_orm_1.sql) `payroll.nhf_contribution`,
             employee_tin: employee_schema_1.employee_tax_details.tin,
-            taxable_amount: payroll_schema_1.payroll.taxable_income,
+            employee_pension_pin: employee_schema_1.employee_tax_details.pension_pin,
+            employee_nhf_number: employee_schema_1.employee_tax_details.nhf_number,
+            taxable_amount: (0, drizzle_orm_1.sql) `payroll.taxable_income`,
         })
             .from(payroll_schema_1.payroll)
             .innerJoin(employee_schema_1.employees, (0, drizzle_orm_1.eq)(payroll_schema_1.payroll.employee_id, employee_schema_1.employees.id))
-            .innerJoin(employee_schema_1.employee_tax_details, (0, drizzle_orm_1.eq)(payroll_schema_1.payroll.employee_id, employee_schema_1.employees.id))
+            .leftJoin(employee_schema_1.employee_tax_details, (0, drizzle_orm_1.eq)(payroll_schema_1.payroll.employee_id, employee_schema_1.employees.id))
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_schema_1.payroll.company_id, company_id), (0, drizzle_orm_1.eq)(payroll_schema_1.payroll.payroll_month, payrollMonth), (0, drizzle_orm_1.eq)(payroll_schema_1.payroll.payroll_run_id, payrollRunId), (0, drizzle_orm_1.eq)(payroll_schema_1.payroll.payment_status, 'paid')))
             .execute();
         if (!payrollRecords.length) {
@@ -86,10 +89,12 @@ let TaxService = class TaxService {
         for (const record of payrollRecords) {
             if (record.paye_tax > 0)
                 taxData.PAYE.push(record);
-            if (record.pension_contribution > 0)
+            if (record.pension_contribution && record.pension_contribution > 0) {
                 taxData.Pension.push(record);
-            if (record.nhf_contribution > 0)
+            }
+            if (record.nhf_contribution && record.nhf_contribution > 0) {
                 taxData.NHF.push(record);
+            }
         }
         for (const [taxType, records] of Object.entries(taxData)) {
             if (records.length === 0)
@@ -114,14 +119,17 @@ let TaxService = class TaxService {
                 tax_filing_id: taxFilingId,
                 employee_id: record.employee_id,
                 name: `${record.first_name} ${record.last_name}`,
-                basic_salary: record.basic_salary.toString(),
+                basic_salary: record.basic_salary,
                 contribution_amount: taxType === 'PAYE'
-                    ? record.paye_tax.toString()
+                    ? record.paye_tax
                     : taxType === 'Pension'
-                        ? record.pension_contribution.toString()
-                        : record.nhf_contribution.toString(),
+                        ? (record.pension_contribution ?? 0)
+                        : (record.nhf_contribution ?? 0),
                 tin: record.employee_tin,
-                taxable_amount: record.taxable_amount.toString(),
+                pension_pin: record.employee_pension_pin,
+                nhf_number: record.employee_nhf_number,
+                employer_contribution: record.employer_pension_contribution,
+                taxable_amount: record.taxable_amount,
             }));
             await this.db.insert(tax_schema_1.tax_filing_details).values(taxDetails).execute();
         }
@@ -178,12 +186,15 @@ let TaxService = class TaxService {
         const filingDetails = await this.db
             .selectDistinctOn([tax_schema_1.tax_filing_details.employee_id], {
             tin: tax_schema_1.tax_filing_details.tin,
+            pension_pin: tax_schema_1.tax_filing_details.pension_pin,
+            nhf_number: tax_schema_1.tax_filing_details.nhf_number,
             employee_id: employee_schema_1.employees.employee_number,
             role: employee_schema_1.employees.job_title,
             first_name: employee_schema_1.employees.first_name,
             last_name: employee_schema_1.employees.last_name,
             basic_salary: tax_schema_1.tax_filing_details.basic_salary,
             contribution_amount: tax_schema_1.tax_filing_details.contribution_amount,
+            employer_contribution: tax_schema_1.tax_filing_details.employer_contribution,
             taxable_amount: tax_schema_1.tax_filing_details.taxable_amount,
         })
             .from(tax_schema_1.tax_filing_details)
@@ -234,10 +245,10 @@ let TaxService = class TaxService {
                 worksheet.getCell(`E${rowIndex}`).value = detail.last_name;
                 worksheet.getCell(`F${rowIndex}`).value = detail.first_name;
                 worksheet.getCell(`G${rowIndex}`).value =
-                    parseFloat(detail.basic_salary) || 0;
+                    (detail.basic_salary || 0) / 100;
                 worksheet.getCell(`H${rowIndex}`).value =
-                    parseFloat(detail.contribution_amount) || 0;
-                const taxableIncome = parseFloat(detail.taxable_amount) || 0;
+                    (detail.contribution_amount || 0) / 100;
+                const taxableIncome = (detail.taxable_amount || 0) / 100;
                 worksheet.getCell(`I${rowIndex}`).value = taxableIncome / 12;
                 worksheet.getCell(`I${rowIndex}`).numFmt = '#,##0.00';
                 rowIndex++;
@@ -251,11 +262,11 @@ let TaxService = class TaxService {
             worksheet.getCell('C6').value = taxFiling[0].company_address || 'N/A';
             let rowIndex = 9;
             filingDetails.forEach((detail, index) => {
-                const basicSalary = parseFloat(detail.basic_salary) || 0;
-                const employeeContribution = parseFloat(detail.contribution_amount) || 0;
-                const employerContribution = Math.round((basicSalary * 10) / 100);
+                const basicSalary = (detail.basic_salary || 0) / 100;
+                const employeeContribution = (detail.contribution_amount || 0) / 100;
+                const employerContribution = (detail.employer_contribution || 0) / 100;
                 worksheet.getCell(`B${rowIndex}`).value = index + 1;
-                worksheet.getCell(`C${rowIndex}`).value = detail.tin || 'N/A';
+                worksheet.getCell(`C${rowIndex}`).value = detail.pension_pin || 'N/A';
                 worksheet.getCell(`C${rowIndex}`).numFmt = '@';
                 worksheet.getCell(`D${rowIndex}`).value = detail.first_name;
                 worksheet.getCell(`E${rowIndex}`).value = detail.last_name;
@@ -279,10 +290,10 @@ let TaxService = class TaxService {
             worksheet.getCell('C6').value = taxFiling[0].company_address || 'N/A';
             let rowIndex = 10;
             filingDetails.forEach((detail, index) => {
-                const basicSalary = parseFloat(detail.basic_salary) || 0;
+                const basicSalary = (detail.basic_salary || 0) / 100;
                 const nhfContribution = Math.round((basicSalary * 2.5) / 100);
                 worksheet.getCell(`B${rowIndex}`).value = index + 1;
-                worksheet.getCell(`C${rowIndex}`).value = detail.tin || 'N/A';
+                worksheet.getCell(`C${rowIndex}`).value = detail.nhf_number || 'N/A';
                 worksheet.getCell(`C${rowIndex}`).numFmt = '@';
                 worksheet.getCell(`D${rowIndex}`).value = detail.first_name;
                 worksheet.getCell(`E${rowIndex}`).value = detail.last_name;

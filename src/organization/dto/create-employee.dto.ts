@@ -15,9 +15,9 @@ export enum EmploymentStatus {
 
 export class CreateEmployeeDto {
   // Personal Information
-  @IsNumber()
+  @IsString()
   @IsNotEmpty()
-  employee_number: number; // Assuming UUID for department
+  employee_number: string; // Assuming UUID for department
 
   @IsString()
   @IsNotEmpty()
@@ -41,7 +41,7 @@ export class CreateEmployeeDto {
 
   // Employment Information
   @IsEnum(EmploymentStatus)
-  @IsNotEmpty()
+  @IsOptional()
   employment_status: EmploymentStatus;
 
   @IsString()
@@ -51,7 +51,15 @@ export class CreateEmployeeDto {
   // Association with User and Department
   @IsString()
   @IsOptional()
+  department_name: string; // Assuming UUID for department reference
+
+  @IsString()
+  @IsOptional()
   department_id: string; // Assuming UUID for department reference
+
+  @IsString()
+  @IsNotEmpty()
+  group_name: string;
 
   // Active Status
   @IsBoolean()
@@ -74,4 +82,28 @@ export class CreateEmployeeDto {
   @IsNumber()
   @IsOptional()
   commission: number;
+
+  @IsString()
+  @IsNotEmpty()
+  bank_name: string;
+
+  @IsString()
+  @IsNotEmpty()
+  bank_account_number: string;
+
+  @IsString()
+  @IsNotEmpty()
+  apply_nhf: string;
+
+  @IsString()
+  @IsOptional()
+  tin: string;
+
+  @IsString()
+  @IsOptional()
+  pension_pin: string;
+
+  @IsString()
+  @IsOptional()
+  nhf_number: string;
 }

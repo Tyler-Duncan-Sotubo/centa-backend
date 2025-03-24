@@ -1,7 +1,6 @@
 import { db } from '../../drizzle/types/drizzle';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { VerificationService } from './verification.service';
-import { DemoDataService } from './demo-data.service';
 import { JwtService } from '@nestjs/jwt';
 import { InviteUserDto } from '../dto/invite-user.dto';
 import { ConfigService } from '@nestjs/config';
@@ -12,13 +11,12 @@ import { OnboardingService } from 'src/organization/services/onboarding.service'
 export declare class UserService {
     private db;
     private readonly verificationService;
-    private readonly demo;
     private readonly invitation;
     private jwtService;
     private configService;
     private awsService;
     private onboardingService;
-    constructor(db: db, verificationService: VerificationService, demo: DemoDataService, invitation: InvitationService, jwtService: JwtService, configService: ConfigService, awsService: AwsService, onboardingService: OnboardingService);
+    constructor(db: db, verificationService: VerificationService, invitation: InvitationService, jwtService: JwtService, configService: ConfigService, awsService: AwsService, onboardingService: OnboardingService);
     register(dto: CreateUserDto): Promise<{
         user: {
             id: string;

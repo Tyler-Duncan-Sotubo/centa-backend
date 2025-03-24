@@ -1,11 +1,4 @@
-import {
-  pgTable,
-  uuid,
-  timestamp,
-  index,
-  text,
-  boolean,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, timestamp, index, text } from 'drizzle-orm/pg-core';
 import { companies } from './company.schema';
 
 export const departments = pgTable(
@@ -18,7 +11,6 @@ export const departments = pgTable(
       .notNull()
       .references(() => companies.id, { onDelete: 'cascade' }), // ON DELETE CASCADE
     created_at: timestamp('created_at').notNull().defaultNow(),
-    is_demo: boolean('is_demo').default(false),
   },
   (table) => [index('idx_company_id_departments').on(table.company_id)],
 );

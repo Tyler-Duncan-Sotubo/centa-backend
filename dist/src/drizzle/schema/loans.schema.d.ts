@@ -53,13 +53,30 @@ export declare const salaryAdvance: import("drizzle-orm/pg-core").PgTableWithCol
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        name: import("drizzle-orm/pg-core").PgColumn<{
+            name: "name";
+            tableName: "salary_advance";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         amount: import("drizzle-orm/pg-core").PgColumn<{
             name: "amount";
             tableName: "salary_advance";
-            dataType: "string";
-            columnType: "PgNumeric";
-            data: string;
-            driverParam: string;
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
             notNull: true;
             hasDefault: false;
             isPrimaryKey: false;
@@ -73,10 +90,10 @@ export declare const salaryAdvance: import("drizzle-orm/pg-core").PgTableWithCol
         total_paid: import("drizzle-orm/pg-core").PgColumn<{
             name: "total_paid";
             tableName: "salary_advance";
-            dataType: "string";
-            columnType: "PgNumeric";
-            data: string;
-            driverParam: string;
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
             notNull: true;
             hasDefault: true;
             isPrimaryKey: false;
@@ -107,12 +124,12 @@ export declare const salaryAdvance: import("drizzle-orm/pg-core").PgTableWithCol
         preferredMonthlyPayment: import("drizzle-orm/pg-core").PgColumn<{
             name: "preferred_monthly_payment";
             tableName: "salary_advance";
-            dataType: "string";
-            columnType: "PgNumeric";
-            data: string;
-            driverParam: string;
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
             notNull: false;
-            hasDefault: false;
+            hasDefault: true;
             isPrimaryKey: false;
             isAutoincrement: false;
             hasRuntimeDefault: false;
@@ -123,6 +140,23 @@ export declare const salaryAdvance: import("drizzle-orm/pg-core").PgTableWithCol
         }, {}, {}>;
         status: import("drizzle-orm/pg-core").PgColumn<{
             name: "status";
+            tableName: "salary_advance";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        payment_status: import("drizzle-orm/pg-core").PgColumn<{
+            name: "payment_status";
             tableName: "salary_advance";
             dataType: "string";
             columnType: "PgText";
@@ -199,10 +233,10 @@ export declare const repayments: import("drizzle-orm/pg-core").PgTableWithColumn
         amount_paid: import("drizzle-orm/pg-core").PgColumn<{
             name: "amount_paid";
             tableName: "repayments";
-            dataType: "string";
-            columnType: "PgNumeric";
-            data: string;
-            driverParam: string;
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
             notNull: true;
             hasDefault: false;
             isPrimaryKey: false;

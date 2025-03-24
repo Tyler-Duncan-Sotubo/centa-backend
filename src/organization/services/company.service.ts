@@ -8,8 +8,9 @@ import {
   companies,
   company_contact,
   company_tax_details,
+  paySchedules,
 } from '../../drizzle/schema/company.schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from '../../drizzle/drizzle.module';
 import {
@@ -19,11 +20,19 @@ import {
   UpdateCompanyDto,
 } from '../dto';
 import { CacheService } from 'src/config/cache/cache.service';
-import { addDays, addMonths, startOfMonth, endOfMonth } from 'date-fns';
+import {
+  addDays,
+  addMonths,
+  startOfMonth,
+  endOfMonth,
+  isSaturday,
+  isSunday,
+} from 'date-fns';
 import { CreatePayFrequencyDto } from '../dto/create-pay-frequency.dto';
 import { AwsService } from 'src/config/aws/aws.service';
 import { CreateCompanyTaxDto } from '../dto/create-company-tax.dto';
 import { OnboardingService } from './onboarding.service';
+import axios from 'axios';
 
 @Injectable()
 export class CompanyService {
@@ -35,8 +44,6 @@ export class CompanyService {
   ) {}
 
   async getCompanyByUserId(company_id: string) {
-    // const cacheKey = `companies:${user_id}`;
-
     const result = await this.db
       .select()
       .from(companies)
@@ -97,7 +104,7 @@ export class CompanyService {
 
       await this.onboardingService.completeTask(
         company_id,
-        'completeYourCompanyProfile',
+        'setupCompanyProfile',
       );
 
       // Clear cache
@@ -181,91 +188,6 @@ export class CompanyService {
     }
   }
 
-  private generatePaySchedule = (
-    startDate: Date,
-    frequency: string,
-    numPeriods = 6,
-  ) => {
-    const schedule: Date[] = [];
-
-    for (let i = 0; i < numPeriods; i++) {
-      let payDate;
-
-      switch (frequency) {
-        case 'weekly':
-          payDate = addDays(startDate, i * 7);
-          break;
-
-        case 'biweekly':
-          payDate = addDays(startDate, i * 14);
-          break;
-
-        case 'semi-monthly':
-          // 1st and 15th of each month
-          const firstHalf = startOfMonth(addMonths(startDate, i));
-          const secondHalf = addDays(firstHalf, 14);
-          schedule.push(firstHalf, secondHalf);
-          continue;
-
-        case 'monthly':
-          payDate = endOfMonth(addMonths(startDate, i));
-          break;
-
-        default:
-          throw new Error('Invalid frequency');
-      }
-
-      schedule.push(payDate);
-    }
-
-    return schedule;
-  };
-
-  // Pay Frequency
-  async getPayFrequency(company_id: string) {
-    const payFrequency = await this.db
-      .select({
-        id: companies.id,
-        pay_frequency: companies.pay_frequency,
-      })
-      .from(companies)
-      .where(eq(companies.id, company_id))
-      .execute();
-
-    return payFrequency;
-  }
-
-  // Update Pay Frequency
-  async updatePayFrequency(company_id: string, dto: CreatePayFrequencyDto) {
-    const schedule = this.generatePaySchedule(
-      new Date(dto.startDate),
-      dto.pay_frequency,
-    );
-    try {
-      await this.db
-        .update(companies)
-        .set({
-          pay_frequency: dto.pay_frequency,
-          pay_schedule: schedule,
-        })
-        .where(eq(companies.id, company_id))
-        .returning()
-        .execute();
-
-      // Clear cache
-      await this.cache.del(`companies:${company_id}`);
-
-      await this.onboardingService.completeTask(
-        company_id,
-        'payrollScheduleUpdated',
-      );
-
-      return 'Pay frequency updated successfully';
-    } catch (error) {
-      throw new BadRequestException(error.message);
-    }
-  }
-
   // Company Tax Details
 
   async createCompanyTaxDetails(user_id: string, dto: CreateCompanyTaxDto) {
@@ -279,7 +201,7 @@ export class CompanyService {
       .returning()
       .execute();
 
-    await this.onboardingService.completeTask(company.id, 'taxNumbersAdded');
+    await this.onboardingService.completeTask(company.id, 'addTaxInformation');
 
     return taxDetails;
   }
@@ -315,6 +237,227 @@ export class CompanyService {
       // await this.cache.del(`companies-tax-details:${user_id}`);
 
       return 'Company tax details updated successfully';
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  // Pay Frequency --------------------------------------
+
+  async getPayFrequency(company_id: string) {
+    const payFrequency = await this.db
+      .select()
+      .from(paySchedules)
+      .where(eq(paySchedules.companyId, company_id))
+      .execute();
+
+    return payFrequency;
+  }
+
+  async getNextPayDate(company_id: string) {
+    const paySchedulesData = await this.db
+      .select({
+        paySchedule: paySchedules.paySchedule,
+      })
+      .from(paySchedules)
+      .where(eq(paySchedules.companyId, company_id))
+      .execute();
+
+    const today = new Date();
+
+    const allPayDates = paySchedulesData
+      .flatMap((schedule) => schedule.paySchedule)
+      .map((date) => new Date(date as string | number | Date))
+      .filter((date) => date > today)
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    return allPayDates.length > 0 ? allPayDates[0] : null;
+  }
+
+  async getPayFrequencySummary(company_id: string) {
+    const payFrequency = await this.db
+      .select({
+        payFrequency: paySchedules.payFrequency,
+        paySchedules: paySchedules.paySchedule,
+        id: paySchedules.id,
+      })
+      .from(paySchedules)
+      .where(eq(paySchedules.companyId, company_id))
+      .execute();
+
+    return payFrequency;
+  }
+
+  private async isPublicHoliday(
+    date: Date,
+    countryCode: string,
+  ): Promise<boolean> {
+    const formattedDate = date.toISOString().split('T')[0]; // Convert to YYYY-MM-DD
+
+    const url = `https://date.nager.at/api/v3/publicholidays/${date.getFullYear()}/${countryCode}`;
+    try {
+      const response = await axios.get(url);
+      const holidays = response.data;
+      return holidays.some((holiday: any) => holiday.date === formattedDate);
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  /**
+   * Adjust pay date if it falls on a weekend or public holiday
+   */
+  /**
+   * Adjust pay date if it falls on a weekend or public holiday
+   */
+  private async adjustForWeekendAndHoliday(
+    date: Date,
+    countryCode: string,
+  ): Promise<Date> {
+    let adjustedDate = date;
+
+    // Handle weekends (Strict -1/-2 rule)
+    if (isSaturday(adjustedDate)) {
+      adjustedDate = addDays(adjustedDate, -1); // Move to Friday
+    } else if (isSunday(adjustedDate)) {
+      adjustedDate = addDays(adjustedDate, -2); // Move to Friday
+    }
+
+    // Handle public holidays
+    while (await this.isPublicHoliday(adjustedDate, countryCode)) {
+      adjustedDate = addDays(adjustedDate, -1); // Keep moving back 1 day
+    }
+
+    return adjustedDate;
+  }
+
+  /**
+   * Generate Pay Schedule based on pay frequency, ensuring it avoids weekends & holidays
+   */
+  private async generatePaySchedule(
+    startDate: Date,
+    frequency: string,
+    numPeriods = 6,
+    countryCode: string,
+  ): Promise<Date[]> {
+    const schedule: Date[] = [];
+
+    for (let i = 0; i < numPeriods; i++) {
+      let payDate: Date;
+
+      switch (frequency) {
+        case 'weekly':
+          payDate = addDays(startDate, i * 7);
+          break;
+
+        case 'biweekly':
+          payDate = addDays(startDate, i * 14);
+          break;
+
+        case 'semi-monthly':
+          const firstHalf = startOfMonth(addMonths(startDate, i));
+          const secondHalf = addDays(firstHalf, 14);
+
+          schedule.push(
+            await this.adjustForWeekendAndHoliday(firstHalf, countryCode),
+            await this.adjustForWeekendAndHoliday(secondHalf, countryCode),
+          );
+          continue;
+
+        case 'monthly':
+          payDate = endOfMonth(addMonths(startDate, i));
+          break;
+
+        default:
+          throw new Error('Invalid frequency');
+      }
+
+      schedule.push(
+        await this.adjustForWeekendAndHoliday(payDate, countryCode),
+      );
+    }
+
+    return schedule;
+  }
+
+  async createPayFrequency(company_id: string, dto: CreatePayFrequencyDto) {
+    const schedule = await this.generatePaySchedule(
+      new Date(dto.startDate),
+      dto.pay_frequency,
+      6,
+      dto.countryCode,
+    );
+
+    try {
+      // **Create a new schedule if none exists**
+      const paySchedule = await this.db.insert(paySchedules).values({
+        companyId: company_id,
+        payFrequency: dto.pay_frequency,
+        paySchedule: schedule,
+        startDate: dto.startDate,
+        weekendAdjustment: dto.weekendAdjustment,
+        holidayAdjustment: dto.holidayAdjustment,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      // Clear cache
+      await this.cache.del(`companies:${company_id}`);
+
+      await this.onboardingService.completeTask(
+        company_id,
+        'configurePayrollSchedule',
+      );
+
+      return paySchedule;
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  /**
+   * Update a company's pay frequency and generate a new pay schedule
+   */
+  async updatePayFrequency(
+    company_id: string,
+    dto: CreatePayFrequencyDto,
+    payFrequencyId: string,
+  ) {
+    const schedule = await this.generatePaySchedule(
+      new Date(dto.startDate),
+      dto.pay_frequency,
+      6,
+      dto.countryCode,
+    );
+
+    try {
+      await this.db
+        .update(paySchedules)
+        .set({
+          payFrequency: dto.pay_frequency,
+          paySchedule: schedule,
+          startDate: dto.startDate,
+          weekendAdjustment: dto.weekendAdjustment,
+          holidayAdjustment: dto.holidayAdjustment,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(paySchedules.companyId, company_id),
+            eq(paySchedules.id, payFrequencyId),
+          ),
+        )
+        .execute();
+
+      // Clear cache
+      await this.cache.del(`companies:${company_id}`);
+
+      await this.onboardingService.completeTask(
+        company_id,
+        'configurePayrollSchedule',
+      );
+
+      return 'Pay frequency updated successfully';
     } catch (error) {
       throw new BadRequestException(error.message);
     }

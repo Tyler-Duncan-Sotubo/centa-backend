@@ -20,18 +20,17 @@ const bcrypt = require("bcryptjs");
 const drizzle_orm_1 = require("drizzle-orm");
 const verification_service_1 = require("./verification.service");
 const company_schema_1 = require("../../drizzle/schema/company.schema");
-const demo_data_service_1 = require("./demo-data.service");
 const jwt_1 = require("@nestjs/jwt");
 const config_1 = require("@nestjs/config");
 const invitation_service_1 = require("../../notification/services/invitation.service");
 const aws_service_1 = require("../../config/aws/aws.service");
 const deductions_schema_1 = require("../../drizzle/schema/deductions.schema");
 const onboarding_service_1 = require("../../organization/services/onboarding.service");
+const payroll_schema_1 = require("../../drizzle/schema/payroll.schema");
 let UserService = class UserService {
-    constructor(db, verificationService, demo, invitation, jwtService, configService, awsService, onboardingService) {
+    constructor(db, verificationService, invitation, jwtService, configService, awsService, onboardingService) {
         this.db = db;
         this.verificationService = verificationService;
-        this.demo = demo;
         this.invitation = invitation;
         this.jwtService = jwtService;
         this.configService = configService;
@@ -68,10 +67,16 @@ let UserService = class UserService {
             })
                 .execute();
             await trx.insert(deductions_schema_1.taxConfig).values({
-                apply_nhf: true,
+                apply_nhf: false,
                 apply_pension: true,
                 apply_paye: true,
                 company_id: company[0].id,
+            });
+            await trx.insert(payroll_schema_1.salaryBreakdown).values({
+                company_id: company[0].id,
+                basic: '50.0',
+                housing: '30.0',
+                transport: '20.0',
             });
             return user;
         });
@@ -139,7 +144,7 @@ let UserService = class UserService {
             avatar: users_schema_1.users.avatar,
         })
             .from(users_schema_1.users)
-            .where((0, drizzle_orm_1.eq)(users_schema_1.users.company_id, company_id))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(users_schema_1.users.company_id, company_id), (0, drizzle_orm_1.not)((0, drizzle_orm_1.eq)(users_schema_1.users.role, 'employee'))))
             .execute();
         if (allUsers.length === 0) {
             new common_1.BadRequestException('No users found for this company.');
@@ -193,7 +198,6 @@ exports.UserService = UserService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, verification_service_1.VerificationService,
-        demo_data_service_1.DemoDataService,
         invitation_service_1.InvitationService,
         jwt_1.JwtService,
         config_1.ConfigService,

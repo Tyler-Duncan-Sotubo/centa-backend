@@ -9,9 +9,13 @@ import {
 } from 'src/drizzle/schema/deductions.schema';
 import {
   bonus,
+  companyAllowances,
+  payGroups,
   payroll,
+  payrollAllowances,
   payslips,
   salaryBreakdown,
+  ytdPayroll,
 } from 'src/drizzle/schema/payroll.schema';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -20,6 +24,7 @@ import { companies } from 'src/drizzle/schema/company.schema';
 import { CacheService } from 'src/config/cache/cache.service';
 import { v4 as uuidv4 } from 'uuid';
 import { LoanService } from './loan.service';
+import { TaxService } from './tax.service';
 
 @Injectable()
 export class PayrollService {
@@ -28,6 +33,7 @@ export class PayrollService {
     @InjectQueue('payrollQueue') private payrollQueue: Queue,
     private cache: CacheService,
     private loanService: LoanService,
+    private taxService: TaxService,
   ) {}
 
   private formattedDate = () => {
@@ -41,51 +47,55 @@ export class PayrollService {
 
   private calculatePAYE(
     annualSalary: number,
-    applyPension: boolean | null,
-    applyNHF: boolean | null,
+    pensionDeduction: number,
+    nhfDeduction: number,
   ): { paye: number; taxableIncome: number } {
     let paye = 0;
 
-    // 1️⃣ Compute Personal Allowance
-    const personalAllowance = 200000 + 0.2 * annualSalary;
+    const redefinedAnnualSalary =
+      annualSalary - pensionDeduction * 12 - nhfDeduction * 12;
 
-    // 2️⃣ Initial taxable income before deductions
-    let taxableIncome = Math.max(annualSalary - personalAllowance, 0);
+    // Compute Personal Allowance correctly in kobo
+    const personalAllowance = 200000 * 100 + 0.2 * redefinedAnnualSalary;
 
-    // 3️⃣ Apply Pension (8%) if enabled
-    const pensionDeduction = applyPension ? 0.08 * annualSalary : 0;
-    taxableIncome -= pensionDeduction;
+    // Compute Taxable Income (Ensuring it's non-negative)
+    const taxableIncome = Math.max(
+      annualSalary -
+        personalAllowance -
+        pensionDeduction * 12 -
+        nhfDeduction * 12,
+      0,
+    );
 
-    // 4️⃣ Apply NHF (2.5%) if enabled
-    const nhfDeduction = applyNHF ? 0.025 * annualSalary : 0;
-    taxableIncome -= nhfDeduction;
-
-    // Ensure taxable income never goes below zero
-    taxableIncome = Math.max(taxableIncome, 0);
-
-    // 5️⃣ PAYE Tax Brackets (Nigerian system)
+    // PAYE Tax Brackets (Nigerian System in Kobo)
     const brackets = [
-      { limit: 300000, rate: 0.07 }, // 7%
-      { limit: 300000, rate: 0.11 }, // 11%
-      { limit: 500000, rate: 0.15 }, // 15%
-      { limit: 500000, rate: 0.19 }, // 19%
-      { limit: 1600000, rate: 0.21 }, // 21%
-      { limit: Infinity, rate: 0.24 }, // 24% for income above ₦3.2M
+      { limit: 300000 * 100, rate: 0.07 }, // First ₦300,000
+      { limit: 600000 * 100, rate: 0.11 }, // Next ₦300,000
+      { limit: 1100000 * 100, rate: 0.15 }, // Next ₦500,000
+      { limit: 1600000 * 100, rate: 0.19 }, // Next ₦500,000
+      { limit: 3200000 * 100, rate: 0.21 }, // Next ₦1,600,000
+      { limit: Infinity, rate: 0.24 }, // Above ₦3,200,000
     ];
 
     // 6️⃣ Apply PAYE Tax Brackets
     let remainingIncome = taxableIncome;
+    let previousLimit = 0;
     for (const bracket of brackets) {
       if (remainingIncome <= 0) break;
 
-      const taxableAmount = Math.min(bracket.limit, remainingIncome);
+      // Tax only the portion within the bracket range
+      const taxableAmount = Math.min(
+        remainingIncome,
+        bracket.limit - previousLimit,
+      );
       paye += taxableAmount * bracket.rate;
       remainingIncome -= taxableAmount;
+      previousLimit = bracket.limit;
     }
 
     return {
       paye: Math.floor(paye), // PAYE Tax
-      taxableIncome: Math.floor(taxableIncome), // Final taxable income after deductions
+      taxableIncome: Math.floor(taxableIncome), // Taxable Income
     };
   }
 
@@ -95,6 +105,7 @@ export class PayrollService {
     payrollRunId: string,
     company_id: string,
   ) {
+    // Fetch employee data
     const employee = await this.db
       .select()
       .from(employees)
@@ -104,7 +115,14 @@ export class PayrollService {
     if (!employee.length) throw new BadRequestException('Employee not found');
 
     // Fetch required data in parallel
-    const [customDeduction, bonuses, unpaidAdvance, tax] = await Promise.all([
+    const [
+      customDeduction,
+      bonuses,
+      unpaidAdvance,
+      companyTaxConfig,
+      salary,
+      allowances,
+    ] = await Promise.all([
       this.db
         .select()
         .from(customDeductions)
@@ -122,105 +140,169 @@ export class PayrollService {
         .execute(),
       this.loanService.getUnpaidAdvanceDeductions(employee_id),
       this.db
-        .select({
-          apply_pension: taxConfig.apply_pension,
-          apply_paye: taxConfig.apply_paye,
-          apply_nhf: taxConfig.apply_nhf,
-        })
+        .select()
         .from(taxConfig)
         .where(eq(taxConfig.company_id, company_id))
         .execute(),
+      this.db
+        .select()
+        .from(salaryBreakdown)
+        .where(eq(salaryBreakdown.company_id, company_id))
+        .execute(),
+      this.db
+        .select()
+        .from(companyAllowances)
+        .where(eq(companyAllowances.company_id, company_id))
+        .execute(),
     ]);
 
-    const unpaidAdvanceAmount = Math.floor(
-      unpaidAdvance?.[0]?.monthlyDeduction || 0,
-    );
+    // Validate Salary Structure
+    if (!salary.length)
+      throw new BadRequestException('Salary structure not found');
 
-    // Prepare Payroll Calculation
-    const grossSalary =
-      Math.floor(Number(employee[0].annual_gross) / 12) -
-      Math.floor(unpaidAdvanceAmount);
+    // Compute Base Monthly Salary & Unpaid Advance Deduction
+    const unpaidAdvanceAmount = unpaidAdvance?.[0]?.monthlyDeduction || 0;
+    const grossSalaryBeforeDeductions = Number(employee[0].annual_gross) / 12;
+    const grossSalary = grossSalaryBeforeDeductions;
 
-    const annualGross = Number(employee[0].annual_gross);
+    // Compute BHT
+    const basic = (Number(salary[0].basic) / 100) * grossSalary;
+    const housing = (Number(salary[0].housing) / 100) * grossSalary;
+    const transport = (Number(salary[0].transport) / 100) * grossSalary;
+    const BHT = basic + housing + transport;
 
-    const applyPension = tax[0].apply_pension;
-    const applyNHF = tax[0].apply_nhf;
+    // Compute Allowances
 
-    // Calculate PAYE & taxable income
+    const payrollAllowancesData = allowances.map((allowance) => {
+      const amount = Math.floor(
+        (Number(allowance.allowance_percentage) / 100) * grossSalary,
+      );
+
+      return {
+        allowance_type: allowance.allowance_type,
+        allowance_amount: amount,
+      };
+    });
+
+    // Compute Final Gross Salary
+
+    // Check if pension and NHF should be applied
+    let applyPension = false;
+    let applyNHF = false;
+
+    // Fetch employee's pay group (which includes tax settings)
+    const payGroup = await this.db
+      .select()
+      .from(payGroups)
+      .where(eq(payGroups.id, employee[0].group_id!))
+      .execute();
+
+    // Handle missing pay group
+    if (!payGroup.length) {
+      applyPension = companyTaxConfig[0]?.apply_pension || false;
+      applyNHF = companyTaxConfig[0]?.apply_nhf || false;
+    } else {
+      // Use pay group settings
+      applyPension = payGroup[0]?.apply_pension || false;
+      applyNHF = payGroup[0]?.apply_nhf || false;
+    }
+
+    // Compute Pension Contributions (Based on BHT)
+    const employeePensionContribution = applyPension ? (BHT * 8) / 100 : 0;
+    const employerPensionContribution = applyPension ? (BHT * 10) / 100 : 0;
+
+    // Compute NHF Contribution
+    const nhfContribution =
+      applyNHF && employee[0].apply_nhf ? (basic * 2.5) / 100 : 0;
+
+    // Compute PAYE Tax
     const { paye, taxableIncome } = this.calculatePAYE(
-      annualGross,
-      applyPension,
-      applyNHF,
+      Number(employee[0].annual_gross),
+      employeePensionContribution,
+      nhfContribution,
     );
 
-    // Compute monthly PAYE
-    const monthlyPAYE = Math.floor(paye / 12);
-
-    // Compute Employee Pension Contribution (8%)
-    const employeePensionContribution = applyPension
-      ? Math.floor((grossSalary * 8) / 100)
-      : 0;
-
-    // Compute Employer Pension Contribution (10%)
-    const employerPensionContribution = applyPension
-      ? Math.floor((grossSalary * 10) / 100)
-      : 0;
-
-    // Compute NHF Contribution (2.5%)
-    const nhfContribution = applyNHF
-      ? Math.floor((grossSalary * 2.5) / 100)
-      : 0;
-
-    // Sum custom deductions
-    const totalCustomDeductions = Math.floor(
-      (customDeduction || []).reduce(
-        (sum, deduction) => sum + (deduction.amount || 0),
-        0,
-      ),
-    );
-
-    // Sum total bonuses
-    const totalBonuses = Math.floor(
-      (bonuses || []).reduce((sum, bonus) => sum + Number(bonus.amount), 0),
-    );
+    const monthlyPAYE = paye / 12;
 
     // Compute Total Deductions
-    const totalDeductions = Math.floor(
-      monthlyPAYE +
-        employeePensionContribution +
-        nhfContribution +
-        totalCustomDeductions,
+    const totalCustomDeductions = (customDeduction || []).reduce(
+      (sum, deduction) => sum + (deduction.amount || 0),
+      0,
     );
+
+    // Compute Total Bonuses
+    const totalBonuses = (bonuses || []).reduce(
+      (sum, bonus) => sum + Number(bonus.amount),
+      0,
+    );
+
+    const totalDeductions =
+      monthlyPAYE +
+      employeePensionContribution +
+      nhfContribution +
+      totalCustomDeductions;
 
     // Compute Net Salary (Ensure it doesn't go negative)
     const netSalary = Math.max(
       0,
-      Math.floor(grossSalary + totalBonuses - totalDeductions),
+      grossSalary + totalBonuses - totalDeductions - unpaidAdvanceAmount,
     );
 
     // Save Payroll Calculation
     const savedPayroll = await this.db
       .insert(payroll)
       .values({
+        payroll_run_id: payrollRunId,
         employee_id: employee_id,
-        company_id: employee[0].company_id,
-        gross_salary: grossSalary,
-        bonuses: totalBonuses,
-        paye_tax: monthlyPAYE,
-        pension_contribution: employeePensionContribution,
-        employer_pension_contribution: employerPensionContribution,
-        nhf_contribution: nhfContribution,
-        custom_deductions: totalCustomDeductions,
-        net_salary: netSalary,
+        company_id: company_id,
+        basic: Math.floor(basic),
+        housing: Math.floor(housing),
+        transport: Math.floor(transport),
+        gross_salary: Math.floor(grossSalary),
+        pension_contribution: Math.floor(employeePensionContribution),
+        employer_pension_contribution: Math.floor(employerPensionContribution),
+        bonuses: Math.floor(totalBonuses),
+        nhf_contribution: Math.floor(nhfContribution),
+        paye_tax: Math.floor(monthlyPAYE),
+        salary_advance: unpaidAdvanceAmount,
+        custom_deductions: Math.floor(totalCustomDeductions),
+        total_deductions: Math.floor(totalDeductions),
+        taxable_income: Math.floor(taxableIncome),
+        net_salary: Math.floor(netSalary),
         payroll_date: new Date().toISOString().split('T')[0],
         payroll_month: payrollMonth,
-        total_deductions: totalDeductions,
-        payroll_run_id: payrollRunId,
-        taxable_income: taxableIncome,
-        salary_advance: unpaidAdvanceAmount,
       })
       .returning()
       .execute();
+
+    // Save YTD Payroll
+    await this.db
+      .insert(ytdPayroll)
+      .values({
+        employee_id: employee_id,
+        payroll_month: payrollMonth,
+        payroll_id: savedPayroll[0].id,
+        company_id: company_id,
+        year: new Date().getFullYear(),
+        gross_salary: Math.floor(grossSalary),
+        net_salary: Math.floor(netSalary),
+        total_deductions: Math.floor(totalDeductions),
+        bonuses: Math.floor(totalBonuses),
+      })
+      .execute();
+
+    // Save Allowances
+    if (payrollAllowancesData.length > 0) {
+      await this.db
+        .insert(payrollAllowances)
+        .values(
+          payrollAllowancesData.map((allowance) => ({
+            payroll_id: savedPayroll[0].id,
+            ...allowance,
+          })),
+        )
+        .execute();
+    }
 
     return savedPayroll;
   }
@@ -306,12 +388,16 @@ export class PayrollService {
               'employee_count',
             ),
           total_deductions:
-            sql<number>`SUM(${payroll.paye_tax} + ${payroll.pension_contribution} + ${payroll.nhf_contribution})`.as(
+            sql<number>`SUM(${payroll.paye_tax} + ${payroll.pension_contribution} + ${payroll.nhf_contribution} + + ${payroll.employer_pension_contribution})`.as(
               'total_deductions',
             ),
           total_net_salary: sql<number>`SUM(${payroll.net_salary})`.as(
             'total_net_salary',
           ),
+          totalPayrollCost:
+            sql<number>`SUM(${payroll.gross_salary}+ ${payroll.pension_contribution} + ${payroll.nhf_contribution} + + ${payroll.employer_pension_contribution})`.as(
+              'totalPayrollCost',
+            ),
         })
         .from(payroll)
         .where(eq(payroll.company_id, company_id))
@@ -405,11 +491,11 @@ export class PayrollService {
     await this.cache.del(`payroll_summary_${user_id}`);
     await this.cache.del(`payroll_status_${user_id}`);
 
-    await this.payrollQueue.add('populateTaxDetails', {
+    await this.taxService.onPayrollApproval(
       company_id,
-      payrollMonth: result[0].payroll_month,
-      payrollRunId: payroll_run_id,
-    });
+      result[0].payroll_month,
+      payroll_run_id,
+    );
 
     const getPayslips = await this.db
       .select()
@@ -451,16 +537,21 @@ export class PayrollService {
   // Salary Breakdown
   async getSalaryBreakdown(user_id: string) {
     const company_id = await this.getCompany(user_id);
-
     const result = await this.db
       .select({
         id: salaryBreakdown.id,
         basic: salaryBreakdown.basic,
         housing: salaryBreakdown.housing,
         transport: salaryBreakdown.transport,
-        others: salaryBreakdown.others,
+        allowance_percentage: companyAllowances.allowance_percentage,
+        allowance_type: companyAllowances.allowance_type,
+        allowance_id: companyAllowances.id,
       })
       .from(salaryBreakdown)
+      .leftJoin(
+        companyAllowances,
+        eq(salaryBreakdown.company_id, companyAllowances.company_id),
+      )
       .where(eq(salaryBreakdown.company_id, company_id))
       .execute();
 
@@ -468,51 +559,95 @@ export class PayrollService {
       return null;
     }
 
-    return result[0];
+    // Group allowances into an array
+    const formattedResult = {
+      id: result[0].id,
+      basic: result[0].basic,
+      housing: result[0].housing,
+      transport: result[0].transport,
+      allowances: result
+        .filter((row) => row.allowance_type) // Exclude null allowances
+        .map((row) => ({
+          type: row.allowance_type,
+          percentage: row.allowance_percentage,
+          id: row.allowance_id,
+        })),
+    };
+
+    return formattedResult;
   }
 
-  async createSalaryBreakdown(user_id: string, dto: any) {
+  async createUpdateSalaryBreakdown(user_id: string, dto: any) {
     const company_id = await this.getCompany(user_id);
 
-    const existingBreakdown = await this.db
-      .select()
-      .from(salaryBreakdown)
+    // Extract allowances separately
+    const { allowances, ...salaryBreakdownData } = dto;
+
+    // ✅ Update existing salary breakdown
+    const result = await this.db
+      .update(salaryBreakdown)
+      .set(salaryBreakdownData)
       .where(eq(salaryBreakdown.company_id, company_id))
+      .returning()
       .execute();
 
-    if (existingBreakdown.length > 0) {
-      const result = await this.db
-        .update(salaryBreakdown)
-        .set(dto)
-        .where(eq(salaryBreakdown.company_id, company_id))
-        .returning()
-        .execute();
+    // Handle Allowances
+    if (Array.isArray(allowances) && allowances.length > 0) {
+      for (const allowance of allowances) {
+        const { allowance_type, allowance_percentage } = allowance;
 
-      return result;
-    } else {
-      const result = await this.db
-        .insert(salaryBreakdown)
-        .values({
-          company_id,
-          ...dto,
-        })
-        .returning()
-        .execute();
+        if (!allowance_type || !allowance_percentage) {
+          continue; // Skip invalid entries
+        }
 
-      return result;
+        // Check if allowance already exists
+        const existingAllowance = await this.db
+          .select()
+          .from(companyAllowances)
+          .where(
+            and(
+              eq(companyAllowances.company_id, company_id),
+              eq(companyAllowances.allowance_type, allowance_type),
+            ),
+          )
+          .execute();
+
+        if (existingAllowance.length > 0) {
+          // Update existing allowance
+          await this.db
+            .update(companyAllowances)
+            .set({ allowance_percentage })
+            .where(
+              and(
+                eq(companyAllowances.company_id, company_id),
+                eq(companyAllowances.allowance_type, allowance_type),
+              ),
+            )
+            .execute();
+        } else {
+          // Insert new allowance
+          await this.db
+            .insert(companyAllowances)
+            .values({
+              company_id,
+              allowance_type,
+              allowance_percentage,
+            })
+            .execute();
+        }
+      }
     }
+
+    return result;
   }
 
   // delete salary breakdown
-  async deleteSalaryBreakdown(user_id: string) {
-    const company_id = await this.getCompany(user_id);
-
-    const result = await this.db
-      .delete(salaryBreakdown)
-      .where(eq(salaryBreakdown.company_id, company_id))
+  async deleteSalaryBreakdown(user_id: string, id: string) {
+    console.log(id);
+    await this.db
+      .delete(companyAllowances)
+      .where(eq(companyAllowances.id, id))
       .execute();
-
-    return result;
   }
 
   // Bonus
@@ -525,6 +660,7 @@ export class PayrollService {
         company_id,
         payroll_month: this.formattedDate(),
         ...dto,
+        amount: dto.amount * 100,
       })
       .returning()
       .execute();
@@ -562,5 +698,48 @@ export class PayrollService {
       .execute();
 
     return result;
+  }
+
+  // Payroll Preview Details
+
+  async getPayrollPreviewDetails(company_id: string) {
+    const allEmployees = await this.db
+      .select({
+        id: employees.id,
+        employee_number: employees.employee_number,
+        first_name: employees.first_name,
+        last_name: employees.last_name,
+        email: employees.email,
+        annual_gross: employees.annual_gross,
+        employment_status: employees.employment_status,
+        group_id: employees.group_id,
+        apply_nhf: employees.apply_nhf,
+      })
+      .from(employees)
+      .where(eq(employees.company_id, company_id))
+      .execute();
+
+    const groups = await this.db
+      .select({
+        id: payGroups.id,
+        name: payGroups.name,
+        apply_pension: payGroups.apply_pension,
+        apply_nhf: payGroups.apply_nhf,
+        apply_paye: payGroups.apply_paye,
+        apply_additional: payGroups.apply_additional,
+      })
+      .from(payGroups)
+      .where(eq(payGroups.company_id, company_id))
+      .execute();
+
+    const payrollSummary = await this.getPayrollSummary(company_id);
+    const salaryBreakdown = await this.getSalaryBreakdown(company_id);
+
+    return {
+      allEmployees,
+      groups,
+      payrollSummary,
+      salaryBreakdown,
+    };
   }
 }

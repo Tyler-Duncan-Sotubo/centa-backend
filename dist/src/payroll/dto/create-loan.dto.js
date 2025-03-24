@@ -16,9 +16,14 @@ class LoanRequestDto {
 exports.LoanRequestDto = LoanRequestDto;
 __decorate([
     (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], LoanRequestDto.prototype, "name", void 0);
+__decorate([
+    (0, class_validator_1.IsNotEmpty)(),
     (0, class_validator_1.IsNumber)(),
     (0, class_validator_1.Min)(1),
-    __metadata("design:type", String)
+    __metadata("design:type", Number)
 ], LoanRequestDto.prototype, "amount", void 0);
 __decorate([
     (0, class_validator_1.IsNotEmpty)(),
@@ -28,7 +33,7 @@ __decorate([
 ], LoanRequestDto.prototype, "tenureMonths", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", String)
+    __metadata("design:type", Number)
 ], LoanRequestDto.prototype, "preferredMonthlyPayment", void 0);
 class UpdateLoanStatusDto {
 }

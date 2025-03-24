@@ -44,7 +44,7 @@ export class DeductionService {
 
     await this.onboardingService.completeTask(
       companyId,
-      'payrollSettingsUpdated',
+      'updatePayrollSettings',
     );
 
     return await this.db

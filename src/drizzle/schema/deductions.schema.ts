@@ -9,7 +9,7 @@ import {
 import { companies } from './company.schema';
 import { employees } from './employee.schema';
 
-export const taxConfig = pgTable('tax-config', {
+export const taxConfig = pgTable('tax_config', {
   id: uuid('id').defaultRandom().primaryKey(),
   apply_paye: boolean('apply_paye').default(false),
   apply_nhf: boolean('apply_nhf').default(false),

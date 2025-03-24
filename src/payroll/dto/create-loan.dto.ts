@@ -9,9 +9,13 @@ import {
 // DTO for Loan Request
 export class LoanRequestDto {
   @IsNotEmpty()
+  @IsString()
+  name: string;
+
+  @IsNotEmpty()
   @IsNumber()
   @Min(1)
-  amount: string;
+  amount: number;
 
   @IsNotEmpty()
   @IsNumber()
@@ -19,7 +23,7 @@ export class LoanRequestDto {
   tenureMonths: number;
 
   @IsOptional()
-  preferredMonthlyPayment: string;
+  preferredMonthlyPayment: number;
 }
 
 // DTO for Updating Loan Status

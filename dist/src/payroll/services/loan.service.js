@@ -69,12 +69,13 @@ let LoanService = class LoanService {
             const [loan] = await tx
                 .insert(loans_schema_1.salaryAdvance)
                 .values({
+                name: dto.name,
                 employee_id: employee_id,
                 company_id: employee.company_id,
-                amount: dto.amount,
+                amount: dto.amount * 100,
                 status: 'pending',
                 tenureMonths: dto.tenureMonths,
-                preferredMonthlyPayment: dto.preferredMonthlyPayment,
+                preferredMonthlyPayment: dto.preferredMonthlyPayment * 100,
             })
                 .returning();
             await tx.insert(loans_schema_1.salaryAdvanceHistory).values({
@@ -90,6 +91,7 @@ let LoanService = class LoanService {
     async getAdvances(company_id) {
         const allLoans = await this.db
             .select({
+            name: loans_schema_1.salaryAdvance.name,
             loanId: loans_schema_1.salaryAdvance.id,
             amount: loans_schema_1.salaryAdvance.amount,
             status: loans_schema_1.salaryAdvance.status,
@@ -97,6 +99,7 @@ let LoanService = class LoanService {
             tenureMonths: loans_schema_1.salaryAdvance.tenureMonths,
             preferredMonthlyPayment: loans_schema_1.salaryAdvance.preferredMonthlyPayment,
             employeeName: (0, drizzle_orm_1.sql) `${employee_schema_1.employees.first_name} || ' ' || ${employee_schema_1.employees.last_name}`,
+            outstandingBalance: (0, drizzle_orm_1.sql) `(${loans_schema_1.salaryAdvance.amount} - ${loans_schema_1.salaryAdvance.total_paid})`.as('outstandingBalance'),
         })
             .from(loans_schema_1.salaryAdvance)
             .innerJoin(employee_schema_1.employees, (0, drizzle_orm_1.eq)(loans_schema_1.salaryAdvance.employee_id, employee_schema_1.employees.id))
@@ -160,9 +163,9 @@ let LoanService = class LoanService {
         if (!loan) {
             throw new common_1.BadRequestException('Loan not found');
         }
-        const loanAmount = parseFloat(loan.amount);
-        const previousTotalPaid = parseFloat(loan.total_paid || '0');
-        const repaymentAmount = parseFloat(amount);
+        const loanAmount = loan.amount;
+        const previousTotalPaid = loan.total_paid || 0;
+        const repaymentAmount = amount;
         const newTotalPaid = previousTotalPaid + repaymentAmount;
         if (newTotalPaid > loanAmount) {
             throw new common_1.BadRequestException('Repayment exceeds the loan amount');
@@ -178,7 +181,7 @@ let LoanService = class LoanService {
             await tx
                 .update(loans_schema_1.salaryAdvance)
                 .set({
-                total_paid: newTotalPaid.toString(),
+                total_paid: newTotalPaid,
                 status: newTotalPaid === loanAmount ? 'paid' : loan.status,
             })
                 .where((0, drizzle_orm_1.eq)(loans_schema_1.salaryAdvance.id, loan_id))
@@ -201,6 +204,10 @@ let LoanService = class LoanService {
             amount: loans_schema_1.salaryAdvance.amount,
             status: loans_schema_1.salaryAdvance.status,
             totalPaid: loans_schema_1.salaryAdvance.total_paid,
+            tenureMonths: loans_schema_1.salaryAdvance.tenureMonths,
+            preferredMonthlyPayment: loans_schema_1.salaryAdvance.preferredMonthlyPayment,
+            name: loans_schema_1.salaryAdvance.name,
+            paymentStatus: loans_schema_1.salaryAdvance.payment_status,
             outstandingBalance: (0, drizzle_orm_1.sql) `(${loans_schema_1.salaryAdvance.amount} - ${loans_schema_1.salaryAdvance.total_paid})`.as('outstandingBalance'),
         })
             .from(loans_schema_1.salaryAdvance)

@@ -16,7 +16,6 @@ const payroll_processor_1 = require("./payroll.processor");
 const drizzle_module_1 = require("../drizzle/drizzle.module");
 const payslip_service_1 = require("./services/payslip.service");
 const deduction_service_1 = require("./services/deduction.service");
-const config_1 = require("@nestjs/config");
 const jwt_guard_1 = require("../auth/guards/jwt.guard");
 const cache_module_1 = require("../config/cache/cache.module");
 const cache_service_1 = require("../config/cache/cache.service");
@@ -25,8 +24,8 @@ const tax_service_1 = require("./services/tax.service");
 const pdf_service_1 = require("./services/pdf.service");
 const loan_service_1 = require("./services/loan.service");
 const pusher_service_1 = require("../notification/services/pusher.service");
-const redisStore = require("cache-manager-redis-store");
 const onboarding_service_1 = require("../organization/services/onboarding.service");
+const pay_group_service_1 = require("./services/pay-group.service");
 let PayrollModule = class PayrollModule {
 };
 exports.PayrollModule = PayrollModule;
@@ -35,20 +34,6 @@ exports.PayrollModule = PayrollModule = __decorate([
         imports: [
             cache_module_1.CacheModule,
             drizzle_module_1.DrizzleModule,
-            bullmq_1.BullModule.forRootAsync({
-                imports: [config_1.ConfigModule],
-                inject: [config_1.ConfigService],
-                useFactory: async (configService) => ({
-                    connection: {
-                        host: configService.get('REDIS_HOST'),
-                        port: configService.get('REDIS_PORT'),
-                        password: configService.get('REDIS_PASSWORD'),
-                    },
-                    store: redisStore,
-                    ttl: configService.get('CACHE_TTL'),
-                    isGlobal: true,
-                }),
-            }),
             bullmq_1.BullModule.registerQueue({
                 name: 'payrollQueue',
             }),
@@ -67,6 +52,7 @@ exports.PayrollModule = PayrollModule = __decorate([
             loan_service_1.LoanService,
             pusher_service_1.PusherService,
             onboarding_service_1.OnboardingService,
+            pay_group_service_1.PayGroupService,
         ],
     })
 ], PayrollModule);

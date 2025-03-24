@@ -1,10 +1,10 @@
 export declare const taxConfig: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "tax-config";
+    name: "tax_config";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "tax-config";
+            tableName: "tax_config";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -21,7 +21,7 @@ export declare const taxConfig: import("drizzle-orm/pg-core").PgTableWithColumns
         }, {}, {}>;
         apply_paye: import("drizzle-orm/pg-core").PgColumn<{
             name: "apply_paye";
-            tableName: "tax-config";
+            tableName: "tax_config";
             dataType: "boolean";
             columnType: "PgBoolean";
             data: boolean;
@@ -38,7 +38,7 @@ export declare const taxConfig: import("drizzle-orm/pg-core").PgTableWithColumns
         }, {}, {}>;
         apply_nhf: import("drizzle-orm/pg-core").PgColumn<{
             name: "apply_nhf";
-            tableName: "tax-config";
+            tableName: "tax_config";
             dataType: "boolean";
             columnType: "PgBoolean";
             data: boolean;
@@ -55,7 +55,7 @@ export declare const taxConfig: import("drizzle-orm/pg-core").PgTableWithColumns
         }, {}, {}>;
         apply_pension: import("drizzle-orm/pg-core").PgColumn<{
             name: "apply_pension";
-            tableName: "tax-config";
+            tableName: "tax_config";
             dataType: "boolean";
             columnType: "PgBoolean";
             data: boolean;
@@ -72,7 +72,7 @@ export declare const taxConfig: import("drizzle-orm/pg-core").PgTableWithColumns
         }, {}, {}>;
         company_id: import("drizzle-orm/pg-core").PgColumn<{
             name: "company_id";
-            tableName: "tax-config";
+            tableName: "tax_config";
             dataType: "string";
             columnType: "PgUUID";
             data: string;

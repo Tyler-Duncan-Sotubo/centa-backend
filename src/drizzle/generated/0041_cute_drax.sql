@@ -1,0 +1,1 @@
+ALTER TABLE "company_allowances" ALTER COLUMN "allowance_percentage" SET DATA TYPE numeric(5, 2);

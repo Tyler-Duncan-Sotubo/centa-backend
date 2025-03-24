@@ -22,19 +22,29 @@ let OnboardingService = class OnboardingService {
         this.db = db;
         this.defaultTasks = [
             {
-                taskKey: 'completeYourCompanyProfile',
+                taskKey: 'setupCompanyProfile',
                 url: '/dashboard/settings/organization',
             },
-            { taskKey: 'taxNumbersAdded', url: '/dashboard/settings/taxes' },
             {
-                taskKey: 'payrollSettingsUpdated',
-                url: '/dashboard/settings/payroll-settings',
+                taskKey: 'addTaxInformation',
+                url: '/dashboard/settings/taxes',
             },
             {
-                taskKey: 'payrollScheduleUpdated',
+                taskKey: 'configurePayrollSchedule',
                 url: '/dashboard/settings/pay-frequency',
             },
-            { taskKey: 'addEmployees', url: '/dashboard/employees' },
+            {
+                taskKey: 'setupPayGroups',
+                url: '/dashboard/groups',
+            },
+            {
+                taskKey: 'addTeamMembers',
+                url: '/dashboard/employees',
+            },
+            {
+                taskKey: 'updatePayrollSettings',
+                url: '/dashboard/settings/payroll-settings',
+            },
         ];
     }
     async createOnboardingTasks(companyId) {
@@ -53,12 +63,14 @@ let OnboardingService = class OnboardingService {
             .execute();
     }
     async getOnboardingTasks(companyId) {
-        return this.db
+        const tasks = await this.db
             .select()
             .from(onboarding_progress_schema_1.onboardingProgress)
             .where((0, drizzle_orm_1.eq)(onboarding_progress_schema_1.onboardingProgress.companyId, companyId))
-            .orderBy(onboarding_progress_schema_1.onboardingProgress.taskKey)
             .execute();
+        const taskOrderMap = new Map(this.defaultTasks.map((task, index) => [task.taskKey, index]));
+        return tasks.sort((a, b) => (taskOrderMap.get(a.taskKey) ?? Number.MAX_VALUE) -
+            (taskOrderMap.get(b.taskKey) ?? Number.MAX_VALUE));
     }
 };
 exports.OnboardingService = OnboardingService;

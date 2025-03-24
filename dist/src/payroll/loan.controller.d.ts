@@ -7,71 +7,87 @@ export declare class LoanController extends BaseController {
     constructor(loanService: LoanService);
     requestLoan(employee_id: string, dto: LoanRequestDto): Promise<{
         id: string;
+        name: string;
         company_id: string;
-        createdAt: Date;
         employee_id: string;
-        amount: string;
-        total_paid: string;
+        createdAt: Date;
+        amount: number;
+        total_paid: number;
         tenureMonths: number;
-        preferredMonthlyPayment: string | null;
+        preferredMonthlyPayment: number | null;
         status: string;
+        payment_status: string;
     }>;
     getLoans(user: User): Promise<{
+        name: string;
         loanId: string;
-        amount: string;
+        amount: number;
         status: string;
-        totalPaid: string;
+        totalPaid: number;
         tenureMonths: number;
-        preferredMonthlyPayment: string | null;
+        preferredMonthlyPayment: number | null;
         employeeName: unknown;
+        outstandingBalance: number;
     }[]>;
     getLoansByEmployee(employee_id: string): Promise<{
         loanId: string;
-        amount: string;
+        amount: number;
         status: string;
-        totalPaid: string;
+        totalPaid: number;
+        tenureMonths: number;
+        preferredMonthlyPayment: number | null;
+        name: string;
+        paymentStatus: string;
         outstandingBalance: number;
     }[]>;
     getLoanById(loan_id: string): Promise<{
         id: string;
         company_id: string;
         employee_id: string;
-        amount: string;
-        total_paid: string;
+        name: string;
+        amount: number;
+        total_paid: number;
         tenureMonths: number;
-        preferredMonthlyPayment: string | null;
+        preferredMonthlyPayment: number | null;
         status: string;
+        payment_status: string;
         createdAt: Date;
     }>;
     updateLoanStatus(loan_id: string, dto: UpdateLoanStatusDto, user: User): Promise<{
         id: string;
         company_id: string;
         employee_id: string;
-        amount: string;
-        total_paid: string;
+        name: string;
+        amount: number;
+        total_paid: number;
         tenureMonths: number;
-        preferredMonthlyPayment: string | null;
+        preferredMonthlyPayment: number | null;
         status: string;
+        payment_status: string;
         createdAt: Date;
     }>;
     deleteLoan(loan_id: string): Promise<any>;
-    repayLoan(loan_id: string, amount: string): Promise<{
+    repayLoan(loan_id: string, amount: number): Promise<{
         id: string;
         salary_advance_id: string;
-        amount_paid: string;
+        amount_paid: number;
         paidAt: Date;
     }>;
     getRepaymentsByEmployee(employee_id: string): Promise<{
         loanId: string;
-        amount: string;
+        amount: number;
         status: string;
-        totalPaid: string;
+        totalPaid: number;
+        tenureMonths: number;
+        preferredMonthlyPayment: number | null;
+        name: string;
+        paymentStatus: string;
         outstandingBalance: number;
     }[]>;
     getRepaymentsByLoan(loan_id: string): Promise<{
         id: string;
         salary_advance_id: string;
-        amount_paid: string;
+        amount_paid: number;
         paidAt: Date;
     }>;
     getLoanHistoryByCompany(user: User): Promise<{
@@ -86,11 +102,13 @@ export declare class LoanController extends BaseController {
             id: string;
             company_id: string;
             employee_id: string;
-            amount: string;
-            total_paid: string;
+            name: string;
+            amount: number;
+            total_paid: number;
             tenureMonths: number;
-            preferredMonthlyPayment: string | null;
+            preferredMonthlyPayment: number | null;
             status: string;
+            payment_status: string;
             createdAt: Date;
         };
         salary_advance_history: {

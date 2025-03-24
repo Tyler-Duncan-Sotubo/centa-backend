@@ -23,6 +23,4 @@ __exportStar(require("./create-company-contact.dto"), exports);
 __exportStar(require("./update-company-contact.dto"), exports);
 __exportStar(require("./create-employee-bank-details.dto"), exports);
 __exportStar(require("./update-employee-bank-details.dto"), exports);
-__exportStar(require("./create-employee-group.dto"), exports);
-__exportStar(require("./update-employee-group.dto"), exports);
 //# sourceMappingURL=index.js.map

@@ -1,7 +1,8 @@
 export declare class LoanRequestDto {
-    amount: string;
+    name: string;
+    amount: number;
     tenureMonths: number;
-    preferredMonthlyPayment: string;
+    preferredMonthlyPayment: number;
 }
 export declare class UpdateLoanStatusDto {
     status: string;

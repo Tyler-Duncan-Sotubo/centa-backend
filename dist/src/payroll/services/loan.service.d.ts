@@ -14,75 +14,89 @@ export declare class LoanService {
     }[]>;
     salaryAdvanceRequest(dto: LoanRequestDto, employee_id: string): Promise<{
         id: string;
+        name: string;
         company_id: string;
-        createdAt: Date;
         employee_id: string;
-        amount: string;
-        total_paid: string;
+        createdAt: Date;
+        amount: number;
+        total_paid: number;
         tenureMonths: number;
-        preferredMonthlyPayment: string | null;
+        preferredMonthlyPayment: number | null;
         status: string;
+        payment_status: string;
     }>;
     getAdvances(company_id: string): Promise<{
+        name: string;
         loanId: string;
-        amount: string;
+        amount: number;
         status: string;
-        totalPaid: string;
+        totalPaid: number;
         tenureMonths: number;
-        preferredMonthlyPayment: string | null;
+        preferredMonthlyPayment: number | null;
         employeeName: unknown;
+        outstandingBalance: number;
     }[]>;
     getAdvancesByEmployee(employee_id: string): Promise<{
         id: string;
         company_id: string;
         employee_id: string;
-        amount: string;
-        total_paid: string;
+        name: string;
+        amount: number;
+        total_paid: number;
         tenureMonths: number;
-        preferredMonthlyPayment: string | null;
+        preferredMonthlyPayment: number | null;
         status: string;
+        payment_status: string;
         createdAt: Date;
     }[]>;
     getAdvanceById(loan_id: string): Promise<{
         id: string;
         company_id: string;
         employee_id: string;
-        amount: string;
-        total_paid: string;
+        name: string;
+        amount: number;
+        total_paid: number;
         tenureMonths: number;
-        preferredMonthlyPayment: string | null;
+        preferredMonthlyPayment: number | null;
         status: string;
+        payment_status: string;
         createdAt: Date;
     }>;
     updateAdvanceStatus(loan_id: string, dto: UpdateLoanStatusDto, user_id: string): Promise<{
         id: string;
         company_id: string;
         employee_id: string;
-        amount: string;
-        total_paid: string;
+        name: string;
+        amount: number;
+        total_paid: number;
         tenureMonths: number;
-        preferredMonthlyPayment: string | null;
+        preferredMonthlyPayment: number | null;
         status: string;
+        payment_status: string;
         createdAt: Date;
     }>;
     deleteAdvance(loan_id: string): Promise<any>;
-    repayAdvance(loan_id: string, amount: string): Promise<{
+    repayAdvance(loan_id: string, amount: number): Promise<{
         id: string;
         salary_advance_id: string;
-        amount_paid: string;
+        amount_paid: number;
         paidAt: Date;
     }>;
     getAdvancesAndRepaymentsByEmployee(employee_id: string): Promise<{
         loanId: string;
-        amount: string;
+        amount: number;
         status: string;
-        totalPaid: string;
+        totalPaid: number;
+        tenureMonths: number;
+        preferredMonthlyPayment: number | null;
+        name: string;
+        paymentStatus: string;
         outstandingBalance: number;
     }[]>;
     getRepaymentByLoan(loan_id: string): Promise<{
         id: string;
         salary_advance_id: string;
-        amount_paid: string;
+        amount_paid: number;
         paidAt: Date;
     }>;
     getAdvanceHistoryByEmployee(employee_id: string): Promise<{
@@ -90,11 +104,13 @@ export declare class LoanService {
             id: string;
             company_id: string;
             employee_id: string;
-            amount: string;
-            total_paid: string;
+            name: string;
+            amount: number;
+            total_paid: number;
             tenureMonths: number;
-            preferredMonthlyPayment: string | null;
+            preferredMonthlyPayment: number | null;
             status: string;
+            payment_status: string;
             createdAt: Date;
         };
         salary_advance_history: {

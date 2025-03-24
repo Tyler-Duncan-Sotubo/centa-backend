@@ -4,7 +4,7 @@ exports.customDeductions = exports.taxConfig = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 const company_schema_1 = require("./company.schema");
 const employee_schema_1 = require("./employee.schema");
-exports.taxConfig = (0, pg_core_1.pgTable)('tax-config', {
+exports.taxConfig = (0, pg_core_1.pgTable)('tax_config', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
     apply_paye: (0, pg_core_1.boolean)('apply_paye').default(false),
     apply_nhf: (0, pg_core_1.boolean)('apply_nhf').default(false),

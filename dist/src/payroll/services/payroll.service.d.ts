@@ -3,33 +3,39 @@ import { Queue } from 'bullmq';
 import { createBonusDto } from '../dto';
 import { CacheService } from 'src/config/cache/cache.service';
 import { LoanService } from './loan.service';
+import { TaxService } from './tax.service';
 export declare class PayrollService {
     private db;
     private payrollQueue;
     private cache;
     private loanService;
-    constructor(db: db, payrollQueue: Queue, cache: CacheService, loanService: LoanService);
+    private taxService;
+    constructor(db: db, payrollQueue: Queue, cache: CacheService, loanService: LoanService, taxService: TaxService);
     private formattedDate;
     private calculatePAYE;
     calculatePayroll(employee_id: string, payrollMonth: string, payrollRunId: string, company_id: string): Promise<{
+        salary_advance: number | null;
         id: string;
         company_id: string;
         employee_id: string;
+        payment_status: string | null;
         payroll_run_id: string;
+        basic: number;
+        housing: number;
+        transport: number;
         gross_salary: number;
-        paye_tax: number;
         pension_contribution: number;
         employer_pension_contribution: number;
-        nhf_contribution: number;
         bonuses: number | null;
+        nhf_enrolled: number | null;
+        nhf_contribution: number | null;
+        paye_tax: number;
+        custom_deductions: number | null;
+        total_deductions: number;
         net_salary: number;
         taxable_income: number;
         payroll_date: string;
         payroll_month: string;
-        custom_deductions: number | null;
-        total_deductions: number;
-        salary_advance: number | null;
-        payment_status: string | null;
         payment_date: string | null;
         payment_reference: string | null;
         approval_status: string | null;
@@ -37,24 +43,28 @@ export declare class PayrollService {
         approval_remarks: string | null;
     }[]>;
     calculatePayrollForCompany(company_id: string, payrollMonth: string): Promise<{
+        salary_advance: number | null;
         id: string;
         company_id: string;
         employee_id: string;
+        payment_status: string | null;
         payroll_run_id: string;
+        basic: number;
+        housing: number;
+        transport: number;
         gross_salary: number;
-        paye_tax: number;
         pension_contribution: number;
         employer_pension_contribution: number;
-        nhf_contribution: number;
         bonuses: number | null;
+        nhf_enrolled: number | null;
+        nhf_contribution: number | null;
+        paye_tax: number;
+        custom_deductions: number | null;
+        total_deductions: number;
         net_salary: number;
         taxable_income: number;
         payroll_date: string;
         payroll_month: string;
-        custom_deductions: number | null;
-        total_deductions: number;
-        salary_advance: number | null;
-        payment_status: string | null;
         payment_date: string | null;
         payment_reference: string | null;
         approval_status: string | null;
@@ -72,6 +82,7 @@ export declare class PayrollService {
         employee_count: number;
         total_deductions: number;
         total_net_salary: number;
+        totalPayrollCost: number;
     }[]>;
     getPayrollStatus(companyId: string): Promise<{
         payroll_run_id: string;
@@ -79,27 +90,31 @@ export declare class PayrollService {
     updatePayrollApprovalStatus(user_id: string, payroll_run_id: string, approval_status: string): Promise<{
         id: string;
         payroll_run_id: string;
+        employee_id: string;
+        company_id: string;
+        basic: number;
+        housing: number;
+        transport: number;
         gross_salary: number;
-        paye_tax: number;
         pension_contribution: number;
         employer_pension_contribution: number;
-        nhf_contribution: number;
+        salary_advance: number | null;
         bonuses: number | null;
+        nhf_enrolled: number | null;
+        nhf_contribution: number | null;
+        paye_tax: number;
+        custom_deductions: number | null;
+        total_deductions: number;
         net_salary: number;
         taxable_income: number;
         payroll_date: string;
         payroll_month: string;
-        custom_deductions: number | null;
-        total_deductions: number;
-        salary_advance: number | null;
         payment_status: string | null;
         payment_date: string | null;
         payment_reference: string | null;
         approval_status: string | null;
         approval_date: string | null;
         approval_remarks: string | null;
-        employee_id: string;
-        company_id: string;
     }[]>;
     updatePayrollPaymentStatus(user_id: string, payroll_run_id: string, payment_status: string): Promise<{
         payroll_month: string;
@@ -107,26 +122,30 @@ export declare class PayrollService {
     deletePayroll(company_id: string, payroll_run_id: string): Promise<any>;
     getSalaryBreakdown(user_id: string): Promise<{
         id: string;
-        basic: number;
-        housing: number;
-        transport: number;
-        others: number;
+        basic: string;
+        housing: string;
+        transport: string;
+        allowances: {
+            type: string | null;
+            percentage: string | null;
+            id: string | null;
+        }[];
     } | null>;
-    createSalaryBreakdown(user_id: string, dto: any): Promise<{
+    createUpdateSalaryBreakdown(user_id: string, dto: any): Promise<{
         id: string;
         company_id: string;
-        basic: number;
-        housing: number;
-        transport: number;
-        others: number;
+        basic: string;
+        housing: string;
+        transport: string;
+        createdAt: string | null;
     }[]>;
-    deleteSalaryBreakdown(user_id: string): Promise<any>;
+    deleteSalaryBreakdown(user_id: string, id: string): Promise<void>;
     createBonus(user_id: string, dto: createBonusDto): Promise<{
         id: string;
         company_id: string;
         employee_id: string;
-        payroll_month: string;
         amount: number;
+        payroll_month: string;
         bonus_type: string | null;
         bonus_date: string;
     }[]>;
@@ -140,4 +159,48 @@ export declare class PayrollService {
         payroll_month: string;
     }[]>;
     deleteBonus(user_id: string, id: string): Promise<any>;
+    getPayrollPreviewDetails(company_id: string): Promise<{
+        allEmployees: {
+            id: string;
+            employee_number: string | null;
+            first_name: string;
+            last_name: string;
+            email: string;
+            annual_gross: number | null;
+            employment_status: string | null;
+            group_id: string | null;
+            apply_nhf: boolean | null;
+        }[];
+        groups: {
+            id: string;
+            name: string;
+            apply_pension: boolean | null;
+            apply_nhf: boolean | null;
+            apply_paye: boolean | null;
+            apply_additional: boolean | null;
+        }[];
+        payrollSummary: {
+            payroll_run_id: string;
+            payroll_date: string;
+            payroll_month: string;
+            approval_status: string | null;
+            payment_status: string | null;
+            total_gross_salary: number;
+            employee_count: number;
+            total_deductions: number;
+            total_net_salary: number;
+            totalPayrollCost: number;
+        }[];
+        salaryBreakdown: {
+            id: string;
+            basic: string;
+            housing: string;
+            transport: string;
+            allowances: {
+                type: string | null;
+                percentage: string | null;
+                id: string | null;
+            }[];
+        } | null;
+    }>;
 }

@@ -19,5 +19,4 @@ __exportStar(require("./auth.service"), exports);
 __exportStar(require("./token-generator.service"), exports);
 __exportStar(require("./verification.service"), exports);
 __exportStar(require("./password-reset.service"), exports);
-__exportStar(require("./demo-data.service"), exports);
 //# sourceMappingURL=index.js.map

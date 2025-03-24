@@ -119,7 +119,7 @@ __decorate([
     __param(0, (0, common_1.Param)('loan_id')),
     __param(1, (0, common_1.Body)('amount')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [String, Number]),
     __metadata("design:returntype", Promise)
 ], LoanController.prototype, "repayLoan", null);
 __decorate([

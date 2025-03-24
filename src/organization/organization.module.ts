@@ -12,6 +12,8 @@ import { PasswordResetEmailService } from 'src/notification/services/password-re
 import { JwtService } from '@nestjs/jwt';
 import { AuthModule } from 'src/auth/auth.module';
 import { OnboardingService } from './services/onboarding.service';
+import { EmailQueueProcessor } from 'src/notification/services/email-queue.processor';
+import { BullModule } from '@nestjs/bullmq';
 
 @Module({
   imports: [
@@ -20,6 +22,9 @@ import { OnboardingService } from './services/onboarding.service';
     CacheModule,
     MulterModule.register({
       dest: './src/organization/temp', // Directory for storing uploaded files
+    }),
+    BullModule.registerQueue({
+      name: 'emailQueue',
     }),
   ],
   controllers: [OrganizationController],
@@ -34,6 +39,7 @@ import { OnboardingService } from './services/onboarding.service';
     PasswordResetEmailService,
     JwtService,
     OnboardingService,
+    EmailQueueProcessor,
   ],
 })
 export class OrganizationModule {}

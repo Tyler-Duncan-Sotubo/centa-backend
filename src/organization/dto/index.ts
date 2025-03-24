@@ -7,5 +7,3 @@ export * from './create-company-contact.dto';
 export * from './update-company-contact.dto';
 export * from './create-employee-bank-details.dto';
 export * from './update-employee-bank-details.dto';
-export * from './create-employee-group.dto';
-export * from './update-employee-group.dto';

@@ -10,19 +10,29 @@ export class OnboardingService {
 
   defaultTasks = [
     {
-      taskKey: 'completeYourCompanyProfile',
+      taskKey: 'setupCompanyProfile',
       url: '/dashboard/settings/organization',
     },
-    { taskKey: 'taxNumbersAdded', url: '/dashboard/settings/taxes' },
     {
-      taskKey: 'payrollSettingsUpdated',
-      url: '/dashboard/settings/payroll-settings',
+      taskKey: 'addTaxInformation',
+      url: '/dashboard/settings/taxes',
     },
     {
-      taskKey: 'payrollScheduleUpdated',
+      taskKey: 'configurePayrollSchedule',
       url: '/dashboard/settings/pay-frequency',
     },
-    { taskKey: 'addEmployees', url: '/dashboard/employees' },
+    {
+      taskKey: 'setupPayGroups',
+      url: '/dashboard/groups',
+    },
+    {
+      taskKey: 'addTeamMembers',
+      url: '/dashboard/employees',
+    },
+    {
+      taskKey: 'updatePayrollSettings',
+      url: '/dashboard/settings/payroll-settings',
+    },
   ];
 
   async createOnboardingTasks(companyId: string) {
@@ -49,11 +59,22 @@ export class OnboardingService {
   }
 
   async getOnboardingTasks(companyId: string) {
-    return this.db
+    const tasks = await this.db
       .select()
       .from(onboardingProgress)
       .where(eq(onboardingProgress.companyId, companyId))
-      .orderBy(onboardingProgress.taskKey)
-      .execute();
+      .execute(); // Removed orderBy since we will sort manually
+
+    // Create a map for the default task order
+    const taskOrderMap = new Map(
+      this.defaultTasks.map((task, index) => [task.taskKey, index]),
+    );
+
+    // Sort tasks based on predefined order
+    return tasks.sort(
+      (a, b) =>
+        (taskOrderMap.get(a.taskKey) ?? Number.MAX_VALUE) -
+        (taskOrderMap.get(b.taskKey) ?? Number.MAX_VALUE),
+    );
   }
 }

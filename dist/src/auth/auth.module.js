@@ -49,7 +49,6 @@ exports.AuthModule = AuthModule = __decorate([
             invitation_service_1.InvitationService,
             jwt_guard_1.JwtGuard,
             password_reset_service_1.PasswordResetEmailService,
-            services_1.DemoDataService,
             config_1.ConfigService,
             aws_service_1.AwsService,
             onboarding_service_1.OnboardingService,

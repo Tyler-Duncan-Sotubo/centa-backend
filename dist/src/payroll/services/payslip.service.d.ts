@@ -10,14 +10,14 @@ export declare class PayslipService {
     constructor(db: db, cache: CacheService, aws: AwsService, pusher: PusherService);
     createPayslip(employee_id: string, payrollMonth: string): Promise<{
         id: string;
-        company_id: string;
-        employee_id: string;
-        payroll_month: string;
         issued_at: string | null;
+        payroll_month: string;
         slip_status: string | null;
         employer_remarks: string | null;
         pdf_url: string | null;
         payroll_id: string;
+        employee_id: string;
+        company_id: string;
     }[]>;
     private getCompany;
     generatePayslipsForCompany(company_id: string, payrollMonth: string): Promise<{
@@ -31,7 +31,7 @@ export declare class PayslipService {
         paye_tax: number;
         pension_contribution: number;
         employer_pension_contribution: number;
-        nhf_contribution: number;
+        nhf_contribution: number | null;
         additionalDeductions: number | null;
         payroll_month: string;
         first_name: string;
@@ -53,8 +53,9 @@ export declare class PayslipService {
         taxableIncome: number;
         paye: number;
         pensionContribution: number;
-        nhfContribution: number;
+        nhfContribution: number | null;
         salaryAdvance: number | null;
+        payslip_pdf_url: string | null;
     }[]>;
     getEmployeePayslip(payslip_id: string): Promise<{
         id: string;
@@ -67,7 +68,7 @@ export declare class PayslipService {
         pdf_url: string | null;
         salaryAdvance: number | null;
         pension_contribution: number;
-        nhf_contribution: number;
+        nhf_contribution: number | null;
         payroll_month: string;
         first_name: string;
         last_name: string;

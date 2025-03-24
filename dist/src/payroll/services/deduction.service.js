@@ -42,7 +42,7 @@ let DeductionService = class DeductionService {
     }
     async updateTaxConfiguration(company_id, dto) {
         const companyId = await this.getCompany(company_id);
-        await this.onboardingService.completeTask(companyId, 'payrollSettingsUpdated');
+        await this.onboardingService.completeTask(companyId, 'updatePayrollSettings');
         return await this.db
             .update(deductions_schema_1.taxConfig)
             .set({

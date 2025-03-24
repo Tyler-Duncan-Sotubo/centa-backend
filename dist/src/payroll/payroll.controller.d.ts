@@ -8,13 +8,17 @@ import { BaseController } from 'src/config/base.controller';
 import { TaxService } from './services/tax.service';
 import { PdfService } from './services/pdf.service';
 import { updateTaxConfigurationDto } from './dto/update-tax-config.dto';
+import { PayGroupService } from './services/pay-group.service';
+import { CreateEmployeeGroupDto } from './dto/create-employee-group.dto';
+import { UpdateEmployeeGroupDto } from './dto/update-employee-group.dto';
 export declare class PayrollController extends BaseController {
     private readonly payrollService;
     private readonly deductionService;
     private readonly payslipService;
     private readonly taxService;
     private readonly pdfService;
-    constructor(payrollService: PayrollService, deductionService: DeductionService, payslipService: PayslipService, taxService: TaxService, pdfService: PdfService);
+    private readonly payGroup;
+    constructor(payrollService: PayrollService, deductionService: DeductionService, payslipService: PayslipService, taxService: TaxService, pdfService: PdfService, payGroup: PayGroupService);
     private formattedDate;
     updateTaxConfiguration(user: User, dto: updateTaxConfigurationDto): Promise<any>;
     createCustomDeduction(user: User, dto: CreateCustomDeduction): Promise<any>;
@@ -29,24 +33,28 @@ export declare class PayrollController extends BaseController {
     updateCustomDeduction(user: User, dto: UpdateCustomDeductionDto, id: string): Promise<any>;
     deleteCustomDeduction(id: string): Promise<any>;
     calculatePayrollForCompany(user: User): Promise<{
+        salary_advance: number | null;
         id: string;
         company_id: string;
         employee_id: string;
+        payment_status: string | null;
         payroll_run_id: string;
+        basic: number;
+        housing: number;
+        transport: number;
         gross_salary: number;
-        paye_tax: number;
         pension_contribution: number;
         employer_pension_contribution: number;
-        nhf_contribution: number;
         bonuses: number | null;
+        nhf_enrolled: number | null;
+        nhf_contribution: number | null;
+        paye_tax: number;
+        custom_deductions: number | null;
+        total_deductions: number;
         net_salary: number;
         taxable_income: number;
         payroll_date: string;
         payroll_month: string;
-        custom_deductions: number | null;
-        total_deductions: number;
-        salary_advance: number | null;
-        payment_status: string | null;
         payment_date: string | null;
         payment_reference: string | null;
         approval_status: string | null;
@@ -63,6 +71,7 @@ export declare class PayrollController extends BaseController {
         employee_count: number;
         total_deductions: number;
         total_net_salary: number;
+        totalPayrollCost: number;
     }[]>;
     getCompanyPayrollStatus(user: User): Promise<{
         payroll_run_id: string;
@@ -70,27 +79,31 @@ export declare class PayrollController extends BaseController {
     deleteCompanyPayroll(user: User, id: string, status: 'pending' | 'approved' | 'rejected'): Promise<{
         id: string;
         payroll_run_id: string;
+        employee_id: string;
+        company_id: string;
+        basic: number;
+        housing: number;
+        transport: number;
         gross_salary: number;
-        paye_tax: number;
         pension_contribution: number;
         employer_pension_contribution: number;
-        nhf_contribution: number;
+        salary_advance: number | null;
         bonuses: number | null;
+        nhf_enrolled: number | null;
+        nhf_contribution: number | null;
+        paye_tax: number;
+        custom_deductions: number | null;
+        total_deductions: number;
         net_salary: number;
         taxable_income: number;
         payroll_date: string;
         payroll_month: string;
-        custom_deductions: number | null;
-        total_deductions: number;
-        salary_advance: number | null;
         payment_status: string | null;
         payment_date: string | null;
         payment_reference: string | null;
         approval_status: string | null;
         approval_date: string | null;
         approval_remarks: string | null;
-        employee_id: string;
-        company_id: string;
     }[]>;
     updatePayrollPaymentStatus(user: User, id: string, status: 'paid' | 'pending'): Promise<{
         payroll_month: string;
@@ -109,8 +122,8 @@ export declare class PayrollController extends BaseController {
         id: string;
         company_id: string;
         employee_id: string;
-        payroll_month: string;
         amount: number;
+        payroll_month: string;
         bonus_type: string | null;
         bonus_date: string;
     }[]>;
@@ -123,7 +136,7 @@ export declare class PayrollController extends BaseController {
         paye_tax: number;
         pension_contribution: number;
         employer_pension_contribution: number;
-        nhf_contribution: number;
+        nhf_contribution: number | null;
         additionalDeductions: number | null;
         payroll_month: string;
         first_name: string;
@@ -145,8 +158,9 @@ export declare class PayrollController extends BaseController {
         taxableIncome: number;
         paye: number;
         pensionContribution: number;
-        nhfContribution: number;
+        nhfContribution: number | null;
         salaryAdvance: number | null;
+        payslip_pdf_url: string | null;
     }[]>;
     getEmployeePayslips(employeeId: string, user: User): Promise<{
         payslip_id: string;
@@ -157,8 +171,9 @@ export declare class PayrollController extends BaseController {
         taxableIncome: number;
         paye: number;
         pensionContribution: number;
-        nhfContribution: number;
+        nhfContribution: number | null;
         salaryAdvance: number | null;
+        payslip_pdf_url: string | null;
     }[]>;
     getEmployeePayslip(payslipId: string): Promise<{
         id: string;
@@ -171,7 +186,7 @@ export declare class PayrollController extends BaseController {
         pdf_url: string | null;
         salaryAdvance: number | null;
         pension_contribution: number;
-        nhf_contribution: number;
+        nhf_contribution: number | null;
         payroll_month: string;
         first_name: string;
         last_name: string;
@@ -184,20 +199,24 @@ export declare class PayrollController extends BaseController {
     }>;
     getSalaryBreakdown(user: User): Promise<{
         id: string;
-        basic: number;
-        housing: number;
-        transport: number;
-        others: number;
+        basic: string;
+        housing: string;
+        transport: string;
+        allowances: {
+            type: string | null;
+            percentage: string | null;
+            id: string | null;
+        }[];
     } | null>;
     createSalaryBreakdown(user: User, dto: any): Promise<{
         id: string;
         company_id: string;
-        basic: number;
-        housing: number;
-        transport: number;
-        others: number;
+        basic: string;
+        housing: string;
+        transport: string;
+        createdAt: string | null;
     }[]>;
-    deleteSalaryBreakdown(user: User): Promise<any>;
+    deleteSalaryBreakdown(user: User, id: string): Promise<void>;
     getCompanyTaxFilings(user: User): Promise<{
         id: string;
         tax_type: string;
@@ -207,4 +226,98 @@ export declare class PayrollController extends BaseController {
     }[]>;
     updateCompanyTaxFilings(id: string, status: string): Promise<any>;
     downloadExcel(tax_filing_id: string, res: Response): Promise<void>;
+    createEmployeeGroup(dto: CreateEmployeeGroupDto, user: User): Promise<{
+        id: string;
+        name: string;
+        company_id: string;
+        createdAt: Date | null;
+        updatedAt: Date | null;
+        apply_nhf: boolean | null;
+        apply_paye: boolean | null;
+        apply_pension: boolean | null;
+        apply_additional: boolean | null;
+        is_demo: boolean | null;
+        pay_schedule_id: string;
+    }>;
+    getEmployeeGroups(user: User): Promise<{
+        id: string;
+        name: string;
+        pay_schedule_id: string;
+        apply_nhf: boolean | null;
+        apply_pension: boolean | null;
+        apply_paye: boolean | null;
+        apply_additional: boolean | null;
+        payFrequency: string;
+        createdAt: Date | null;
+    }[]>;
+    getEmployeeGroup(groupId: string): Promise<{
+        id: string;
+        name: string;
+        apply_paye: boolean | null;
+        apply_pension: boolean | null;
+        apply_nhf: boolean | null;
+        apply_additional: boolean | null;
+        is_demo: boolean | null;
+        pay_schedule_id: string;
+        createdAt: Date | null;
+        updatedAt: Date | null;
+        company_id: string;
+    }>;
+    updateEmployeeGroup(dto: UpdateEmployeeGroupDto, groupId: string): Promise<string>;
+    deleteEmployeeGroup(groupId: string): Promise<{
+        message: string;
+    }>;
+    getEmployeesInGroup(groupId: string): Promise<{
+        id: string;
+        first_name: string;
+        last_name: string;
+    }[]>;
+    addEmployeeToGroup(employees: string | string[], groupId: string): Promise<string>;
+    removeEmployeeFromGroup(employeeIds: {
+        employee_id: string;
+    }): Promise<string>;
+    getPayrollPreview(user: User): Promise<{
+        allEmployees: {
+            id: string;
+            employee_number: string | null;
+            first_name: string;
+            last_name: string;
+            email: string;
+            annual_gross: number | null;
+            employment_status: string | null;
+            group_id: string | null;
+            apply_nhf: boolean | null;
+        }[];
+        groups: {
+            id: string;
+            name: string;
+            apply_pension: boolean | null;
+            apply_nhf: boolean | null;
+            apply_paye: boolean | null;
+            apply_additional: boolean | null;
+        }[];
+        payrollSummary: {
+            payroll_run_id: string;
+            payroll_date: string;
+            payroll_month: string;
+            approval_status: string | null;
+            payment_status: string | null;
+            total_gross_salary: number;
+            employee_count: number;
+            total_deductions: number;
+            total_net_salary: number;
+            totalPayrollCost: number;
+        }[];
+        salaryBreakdown: {
+            id: string;
+            basic: string;
+            housing: string;
+            transport: string;
+            allowances: {
+                type: string | null;
+                percentage: string | null;
+                id: string | null;
+            }[];
+        } | null;
+    }>;
 }

@@ -80,7 +80,7 @@ export class LoanController extends BaseController {
   @Post('repay/:loan_id')
   async repayLoan(
     @Param('loan_id') loan_id: string,
-    @Body('amount') amount: string,
+    @Body('amount') amount: number,
   ) {
     return this.loanService.repayAdvance(loan_id, amount);
   }

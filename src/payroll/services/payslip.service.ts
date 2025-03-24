@@ -1,7 +1,7 @@
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from '../../drizzle/drizzle.module';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, sql } from 'drizzle-orm';
 import { payroll, payslips } from 'src/drizzle/schema/payroll.schema';
 import {
   employee_bank_details,
@@ -212,12 +212,15 @@ export class PayslipService {
         email: employees.email,
         issued_at: payslips.issued_at,
         employer_remarks: payslips.employer_remarks,
-        gross_salary: payroll.gross_salary,
-        net_salary: payroll.net_salary,
-        paye_tax: payroll.paye_tax,
-        pension_contribution: payroll.pension_contribution,
-        employer_pension_contribution: payroll.employer_pension_contribution,
-        nhf_contribution: payroll.nhf_contribution,
+
+        // Convert kobo to naira by dividing by 100
+        gross_salary: sql<number>`payroll.gross_salary / 100`,
+        net_salary: sql<number>`payroll.net_salary / 100`,
+        paye_tax: sql<number>`payroll.paye_tax / 100`,
+        pension_contribution: sql<number>`payroll.pension_contribution / 100`,
+        employer_pension_contribution: sql<number>`payroll.employer_pension_contribution / 100`,
+        nhf_contribution: sql<number>`payroll.nhf_contribution / 100`,
+
         payroll_month: payroll.payroll_month,
         bank_name: employee_bank_details.bank_name,
         bank_account_number: employee_bank_details.bank_account_number,
@@ -321,6 +324,7 @@ export class PayslipService {
         pensionContribution: payroll.pension_contribution,
         nhfContribution: payroll.nhf_contribution,
         salaryAdvance: payroll.salary_advance,
+        payslip_pdf_url: payslips.pdf_url,
       })
       .from(payslips)
       .innerJoin(payroll, eq(payslips.payroll_id, payroll.id))

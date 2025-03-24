@@ -16,6 +16,8 @@ const organization_module_1 = require("./organization/organization.module");
 const payroll_module_1 = require("./payroll/payroll.module");
 const Joi = require("joi");
 const notification_module_1 = require("./notification/notification.module");
+const analytics_module_1 = require("./analytics/analytics.module");
+const bullmq_1 = require("@nestjs/bullmq");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -50,10 +52,23 @@ exports.AppModule = AppModule = __decorate([
                     PUSHER_ENCRYPTED: Joi.string().required(),
                 }),
             }),
+            bullmq_1.BullModule.forRootAsync({
+                imports: [config_1.ConfigModule],
+                inject: [config_1.ConfigService],
+                useFactory: async (configService) => ({
+                    connection: {
+                        host: configService.get('REDIS_HOST'),
+                        port: configService.get('REDIS_PORT'),
+                        password: configService.get('REDIS_PASSWORD'),
+                    },
+                    isGlobal: true,
+                }),
+            }),
             auth_module_1.AuthModule,
             organization_module_1.OrganizationModule,
             payroll_module_1.PayrollModule,
             notification_module_1.NotificationModule,
+            analytics_module_1.AnalyticsModule,
         ],
     })
 ], AppModule);

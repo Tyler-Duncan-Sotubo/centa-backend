@@ -15,32 +15,52 @@ export class PayrollProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<void> {
-    const { name, data } = job;
+    console.log(`🔄 Processing job: ${job.name}`);
 
     try {
-      if (name === 'generatePayslips') {
-        const { company_id, payrollMonth } = data;
-        await this.payslipService.generatePayslipsForCompany(
-          company_id,
-          payrollMonth,
-        );
-      } else if (name === 'populateTaxDetails') {
-        const { company_id, payrollMonth, payrollRunId } = data;
-        await this.taxService.onPayrollApproval(
-          company_id,
-          payrollMonth,
-          payrollRunId,
-        );
-      } else if (name === 'generatePayslipPdf') {
-        const { payslipId } = data;
+      switch (job.name) {
+        case 'generatePayslips':
+          await this.handleGeneratePayslips(job.data);
+          break;
 
-        await this.pdfService.generatePayslipPdf(payslipId);
-      } else {
-        console.warn(`Unhandled job name: ${name}`);
+        case 'populateTaxDetails':
+          await this.handlePopulateTaxDetails(job.data);
+          break;
+
+        case 'generatePayslipPdf':
+          await this.handleGeneratePayslipPdf(job.data);
+          break;
+
+        default:
+          console.warn(`⚠️ Unhandled job: ${job.name}`);
       }
+
+      console.log(`✅ Job completed: ${job.name}`);
     } catch (error) {
-      console.error(`Failed to process job (${name}): ${error.message}`);
+      console.error(`❌ Error processing job (${job.name}):`, error);
       throw error;
     }
+  }
+
+  private async handleGeneratePayslips(data: any) {
+    const { company_id, payrollMonth } = data;
+    await this.payslipService.generatePayslipsForCompany(
+      company_id,
+      payrollMonth,
+    );
+  }
+
+  private async handlePopulateTaxDetails(data: any) {
+    const { company_id, payrollMonth, payrollRunId } = data;
+    await this.taxService.onPayrollApproval(
+      company_id,
+      payrollMonth,
+      payrollRunId,
+    );
+  }
+
+  private async handleGeneratePayslipPdf(data: any) {
+    const { payslipId } = data;
+    await this.pdfService.generatePayslipPdf(payslipId);
   }
 }

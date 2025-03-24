@@ -25,12 +25,14 @@ const company_schema_1 = require("../../drizzle/schema/company.schema");
 const cache_service_1 = require("../../config/cache/cache.service");
 const uuid_1 = require("uuid");
 const loan_service_1 = require("./loan.service");
+const tax_service_1 = require("./tax.service");
 let PayrollService = class PayrollService {
-    constructor(db, payrollQueue, cache, loanService) {
+    constructor(db, payrollQueue, cache, loanService, taxService) {
         this.db = db;
         this.payrollQueue = payrollQueue;
         this.cache = cache;
         this.loanService = loanService;
+        this.taxService = taxService;
         this.formattedDate = () => {
             const date = new Date();
             const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -52,30 +54,31 @@ let PayrollService = class PayrollService {
             });
         };
     }
-    calculatePAYE(annualSalary, applyPension, applyNHF) {
+    calculatePAYE(annualSalary, pensionDeduction, nhfDeduction) {
         let paye = 0;
-        const personalAllowance = 200000 + 0.2 * annualSalary;
-        let taxableIncome = Math.max(annualSalary - personalAllowance, 0);
-        const pensionDeduction = applyPension ? 0.08 * annualSalary : 0;
-        taxableIncome -= pensionDeduction;
-        const nhfDeduction = applyNHF ? 0.025 * annualSalary : 0;
-        taxableIncome -= nhfDeduction;
-        taxableIncome = Math.max(taxableIncome, 0);
+        const redefinedAnnualSalary = annualSalary - pensionDeduction * 12 - nhfDeduction * 12;
+        const personalAllowance = 200000 * 100 + 0.2 * redefinedAnnualSalary;
+        const taxableIncome = Math.max(annualSalary -
+            personalAllowance -
+            pensionDeduction * 12 -
+            nhfDeduction * 12, 0);
         const brackets = [
-            { limit: 300000, rate: 0.07 },
-            { limit: 300000, rate: 0.11 },
-            { limit: 500000, rate: 0.15 },
-            { limit: 500000, rate: 0.19 },
-            { limit: 1600000, rate: 0.21 },
+            { limit: 300000 * 100, rate: 0.07 },
+            { limit: 600000 * 100, rate: 0.11 },
+            { limit: 1100000 * 100, rate: 0.15 },
+            { limit: 1600000 * 100, rate: 0.19 },
+            { limit: 3200000 * 100, rate: 0.21 },
             { limit: Infinity, rate: 0.24 },
         ];
         let remainingIncome = taxableIncome;
+        let previousLimit = 0;
         for (const bracket of brackets) {
             if (remainingIncome <= 0)
                 break;
-            const taxableAmount = Math.min(bracket.limit, remainingIncome);
+            const taxableAmount = Math.min(remainingIncome, bracket.limit - previousLimit);
             paye += taxableAmount * bracket.rate;
             remainingIncome -= taxableAmount;
+            previousLimit = bracket.limit;
         }
         return {
             paye: Math.floor(paye),
@@ -90,7 +93,7 @@ let PayrollService = class PayrollService {
             .execute();
         if (!employee.length)
             throw new common_1.BadRequestException('Employee not found');
-        const [customDeduction, bonuses, unpaidAdvance, tax] = await Promise.all([
+        const [customDeduction, bonuses, unpaidAdvance, companyTaxConfig, salary, allowances,] = await Promise.all([
             this.db
                 .select()
                 .from(deductions_schema_1.customDeductions)
@@ -103,61 +106,112 @@ let PayrollService = class PayrollService {
                 .execute(),
             this.loanService.getUnpaidAdvanceDeductions(employee_id),
             this.db
-                .select({
-                apply_pension: deductions_schema_1.taxConfig.apply_pension,
-                apply_paye: deductions_schema_1.taxConfig.apply_paye,
-                apply_nhf: deductions_schema_1.taxConfig.apply_nhf,
-            })
+                .select()
                 .from(deductions_schema_1.taxConfig)
                 .where((0, drizzle_orm_1.eq)(deductions_schema_1.taxConfig.company_id, company_id))
                 .execute(),
+            this.db
+                .select()
+                .from(payroll_schema_1.salaryBreakdown)
+                .where((0, drizzle_orm_1.eq)(payroll_schema_1.salaryBreakdown.company_id, company_id))
+                .execute(),
+            this.db
+                .select()
+                .from(payroll_schema_1.companyAllowances)
+                .where((0, drizzle_orm_1.eq)(payroll_schema_1.companyAllowances.company_id, company_id))
+                .execute(),
         ]);
-        const unpaidAdvanceAmount = Math.floor(unpaidAdvance?.[0]?.monthlyDeduction || 0);
-        const grossSalary = Math.floor(Number(employee[0].annual_gross) / 12) -
-            Math.floor(unpaidAdvanceAmount);
-        const annualGross = Number(employee[0].annual_gross);
-        const applyPension = tax[0].apply_pension;
-        const applyNHF = tax[0].apply_nhf;
-        const { paye, taxableIncome } = this.calculatePAYE(annualGross, applyPension, applyNHF);
-        const monthlyPAYE = Math.floor(paye / 12);
-        const employeePensionContribution = applyPension
-            ? Math.floor((grossSalary * 8) / 100)
-            : 0;
-        const employerPensionContribution = applyPension
-            ? Math.floor((grossSalary * 10) / 100)
-            : 0;
-        const nhfContribution = applyNHF
-            ? Math.floor((grossSalary * 2.5) / 100)
-            : 0;
-        const totalCustomDeductions = Math.floor((customDeduction || []).reduce((sum, deduction) => sum + (deduction.amount || 0), 0));
-        const totalBonuses = Math.floor((bonuses || []).reduce((sum, bonus) => sum + Number(bonus.amount), 0));
-        const totalDeductions = Math.floor(monthlyPAYE +
+        if (!salary.length)
+            throw new common_1.BadRequestException('Salary structure not found');
+        const unpaidAdvanceAmount = unpaidAdvance?.[0]?.monthlyDeduction || 0;
+        const grossSalaryBeforeDeductions = Number(employee[0].annual_gross) / 12;
+        const grossSalary = grossSalaryBeforeDeductions;
+        const basic = (Number(salary[0].basic) / 100) * grossSalary;
+        const housing = (Number(salary[0].housing) / 100) * grossSalary;
+        const transport = (Number(salary[0].transport) / 100) * grossSalary;
+        const BHT = basic + housing + transport;
+        const payrollAllowancesData = allowances.map((allowance) => {
+            const amount = Math.floor((Number(allowance.allowance_percentage) / 100) * grossSalary);
+            return {
+                allowance_type: allowance.allowance_type,
+                allowance_amount: amount,
+            };
+        });
+        let applyPension = false;
+        let applyNHF = false;
+        const payGroup = await this.db
+            .select()
+            .from(payroll_schema_1.payGroups)
+            .where((0, drizzle_orm_1.eq)(payroll_schema_1.payGroups.id, employee[0].group_id))
+            .execute();
+        if (!payGroup.length) {
+            applyPension = companyTaxConfig[0]?.apply_pension || false;
+            applyNHF = companyTaxConfig[0]?.apply_nhf || false;
+        }
+        else {
+            applyPension = payGroup[0]?.apply_pension || false;
+            applyNHF = payGroup[0]?.apply_nhf || false;
+        }
+        const employeePensionContribution = applyPension ? (BHT * 8) / 100 : 0;
+        const employerPensionContribution = applyPension ? (BHT * 10) / 100 : 0;
+        const nhfContribution = applyNHF && employee[0].apply_nhf ? (basic * 2.5) / 100 : 0;
+        const { paye, taxableIncome } = this.calculatePAYE(Number(employee[0].annual_gross), employeePensionContribution, nhfContribution);
+        const monthlyPAYE = paye / 12;
+        const totalCustomDeductions = (customDeduction || []).reduce((sum, deduction) => sum + (deduction.amount || 0), 0);
+        const totalBonuses = (bonuses || []).reduce((sum, bonus) => sum + Number(bonus.amount), 0);
+        const totalDeductions = monthlyPAYE +
             employeePensionContribution +
             nhfContribution +
-            totalCustomDeductions);
-        const netSalary = Math.max(0, Math.floor(grossSalary + totalBonuses - totalDeductions));
+            totalCustomDeductions;
+        const netSalary = Math.max(0, grossSalary + totalBonuses - totalDeductions - unpaidAdvanceAmount);
         const savedPayroll = await this.db
             .insert(payroll_schema_1.payroll)
             .values({
+            payroll_run_id: payrollRunId,
             employee_id: employee_id,
-            company_id: employee[0].company_id,
-            gross_salary: grossSalary,
-            bonuses: totalBonuses,
-            paye_tax: monthlyPAYE,
-            pension_contribution: employeePensionContribution,
-            employer_pension_contribution: employerPensionContribution,
-            nhf_contribution: nhfContribution,
-            custom_deductions: totalCustomDeductions,
-            net_salary: netSalary,
+            company_id: company_id,
+            basic: Math.floor(basic),
+            housing: Math.floor(housing),
+            transport: Math.floor(transport),
+            gross_salary: Math.floor(grossSalary),
+            pension_contribution: Math.floor(employeePensionContribution),
+            employer_pension_contribution: Math.floor(employerPensionContribution),
+            bonuses: Math.floor(totalBonuses),
+            nhf_contribution: Math.floor(nhfContribution),
+            paye_tax: Math.floor(monthlyPAYE),
+            salary_advance: unpaidAdvanceAmount,
+            custom_deductions: Math.floor(totalCustomDeductions),
+            total_deductions: Math.floor(totalDeductions),
+            taxable_income: Math.floor(taxableIncome),
+            net_salary: Math.floor(netSalary),
             payroll_date: new Date().toISOString().split('T')[0],
             payroll_month: payrollMonth,
-            total_deductions: totalDeductions,
-            payroll_run_id: payrollRunId,
-            taxable_income: taxableIncome,
-            salary_advance: unpaidAdvanceAmount,
         })
             .returning()
             .execute();
+        await this.db
+            .insert(payroll_schema_1.ytdPayroll)
+            .values({
+            employee_id: employee_id,
+            payroll_month: payrollMonth,
+            payroll_id: savedPayroll[0].id,
+            company_id: company_id,
+            year: new Date().getFullYear(),
+            gross_salary: Math.floor(grossSalary),
+            net_salary: Math.floor(netSalary),
+            total_deductions: Math.floor(totalDeductions),
+            bonuses: Math.floor(totalBonuses),
+        })
+            .execute();
+        if (payrollAllowancesData.length > 0) {
+            await this.db
+                .insert(payroll_schema_1.payrollAllowances)
+                .values(payrollAllowancesData.map((allowance) => ({
+                payroll_id: savedPayroll[0].id,
+                ...allowance,
+            })))
+                .execute();
+        }
         return savedPayroll;
     }
     async calculatePayrollForCompany(company_id, payrollMonth) {
@@ -194,8 +248,9 @@ let PayrollService = class PayrollService {
                 payment_status: payroll_schema_1.payroll.payment_status,
                 total_gross_salary: (0, drizzle_orm_1.sql) `SUM(${payroll_schema_1.payroll.gross_salary})`.as('total_gross_salary'),
                 employee_count: (0, drizzle_orm_1.sql) `COUNT(DISTINCT ${payroll_schema_1.payroll.employee_id})`.as('employee_count'),
-                total_deductions: (0, drizzle_orm_1.sql) `SUM(${payroll_schema_1.payroll.paye_tax} + ${payroll_schema_1.payroll.pension_contribution} + ${payroll_schema_1.payroll.nhf_contribution})`.as('total_deductions'),
+                total_deductions: (0, drizzle_orm_1.sql) `SUM(${payroll_schema_1.payroll.paye_tax} + ${payroll_schema_1.payroll.pension_contribution} + ${payroll_schema_1.payroll.nhf_contribution} + + ${payroll_schema_1.payroll.employer_pension_contribution})`.as('total_deductions'),
                 total_net_salary: (0, drizzle_orm_1.sql) `SUM(${payroll_schema_1.payroll.net_salary})`.as('total_net_salary'),
+                totalPayrollCost: (0, drizzle_orm_1.sql) `SUM(${payroll_schema_1.payroll.gross_salary}+ ${payroll_schema_1.payroll.pension_contribution} + ${payroll_schema_1.payroll.nhf_contribution} + + ${payroll_schema_1.payroll.employer_pension_contribution})`.as('totalPayrollCost'),
             })
                 .from(payroll_schema_1.payroll)
                 .where((0, drizzle_orm_1.eq)(payroll_schema_1.payroll.company_id, company_id))
@@ -244,11 +299,7 @@ let PayrollService = class PayrollService {
             .execute();
         await this.cache.del(`payroll_summary_${user_id}`);
         await this.cache.del(`payroll_status_${user_id}`);
-        await this.payrollQueue.add('populateTaxDetails', {
-            company_id,
-            payrollMonth: result[0].payroll_month,
-            payrollRunId: payroll_run_id,
-        });
+        await this.taxService.onPayrollApproval(company_id, result[0].payroll_month, payroll_run_id);
         const getPayslips = await this.db
             .select()
             .from(payroll_schema_1.payslips)
@@ -279,51 +330,79 @@ let PayrollService = class PayrollService {
             basic: payroll_schema_1.salaryBreakdown.basic,
             housing: payroll_schema_1.salaryBreakdown.housing,
             transport: payroll_schema_1.salaryBreakdown.transport,
-            others: payroll_schema_1.salaryBreakdown.others,
+            allowance_percentage: payroll_schema_1.companyAllowances.allowance_percentage,
+            allowance_type: payroll_schema_1.companyAllowances.allowance_type,
+            allowance_id: payroll_schema_1.companyAllowances.id,
         })
             .from(payroll_schema_1.salaryBreakdown)
+            .leftJoin(payroll_schema_1.companyAllowances, (0, drizzle_orm_1.eq)(payroll_schema_1.salaryBreakdown.company_id, payroll_schema_1.companyAllowances.company_id))
             .where((0, drizzle_orm_1.eq)(payroll_schema_1.salaryBreakdown.company_id, company_id))
             .execute();
         if (result.length === 0) {
             return null;
         }
-        return result[0];
+        const formattedResult = {
+            id: result[0].id,
+            basic: result[0].basic,
+            housing: result[0].housing,
+            transport: result[0].transport,
+            allowances: result
+                .filter((row) => row.allowance_type)
+                .map((row) => ({
+                type: row.allowance_type,
+                percentage: row.allowance_percentage,
+                id: row.allowance_id,
+            })),
+        };
+        return formattedResult;
     }
-    async createSalaryBreakdown(user_id, dto) {
+    async createUpdateSalaryBreakdown(user_id, dto) {
         const company_id = await this.getCompany(user_id);
-        const existingBreakdown = await this.db
-            .select()
-            .from(payroll_schema_1.salaryBreakdown)
-            .where((0, drizzle_orm_1.eq)(payroll_schema_1.salaryBreakdown.company_id, company_id))
-            .execute();
-        if (existingBreakdown.length > 0) {
-            const result = await this.db
-                .update(payroll_schema_1.salaryBreakdown)
-                .set(dto)
-                .where((0, drizzle_orm_1.eq)(payroll_schema_1.salaryBreakdown.company_id, company_id))
-                .returning()
-                .execute();
-            return result;
-        }
-        else {
-            const result = await this.db
-                .insert(payroll_schema_1.salaryBreakdown)
-                .values({
-                company_id,
-                ...dto,
-            })
-                .returning()
-                .execute();
-            return result;
-        }
-    }
-    async deleteSalaryBreakdown(user_id) {
-        const company_id = await this.getCompany(user_id);
+        const { allowances, ...salaryBreakdownData } = dto;
         const result = await this.db
-            .delete(payroll_schema_1.salaryBreakdown)
+            .update(payroll_schema_1.salaryBreakdown)
+            .set(salaryBreakdownData)
             .where((0, drizzle_orm_1.eq)(payroll_schema_1.salaryBreakdown.company_id, company_id))
+            .returning()
             .execute();
+        if (Array.isArray(allowances) && allowances.length > 0) {
+            for (const allowance of allowances) {
+                const { allowance_type, allowance_percentage } = allowance;
+                if (!allowance_type || !allowance_percentage) {
+                    continue;
+                }
+                const existingAllowance = await this.db
+                    .select()
+                    .from(payroll_schema_1.companyAllowances)
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_schema_1.companyAllowances.company_id, company_id), (0, drizzle_orm_1.eq)(payroll_schema_1.companyAllowances.allowance_type, allowance_type)))
+                    .execute();
+                if (existingAllowance.length > 0) {
+                    await this.db
+                        .update(payroll_schema_1.companyAllowances)
+                        .set({ allowance_percentage })
+                        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_schema_1.companyAllowances.company_id, company_id), (0, drizzle_orm_1.eq)(payroll_schema_1.companyAllowances.allowance_type, allowance_type)))
+                        .execute();
+                }
+                else {
+                    await this.db
+                        .insert(payroll_schema_1.companyAllowances)
+                        .values({
+                        company_id,
+                        allowance_type,
+                        allowance_percentage,
+                    })
+                        .execute();
+                }
+            }
+        }
         return result;
+    }
+    async deleteSalaryBreakdown(user_id, id) {
+        console.log(id);
+        await this.db
+            .delete(payroll_schema_1.companyAllowances)
+            .where((0, drizzle_orm_1.eq)(payroll_schema_1.companyAllowances.id, id))
+            .execute();
     }
     async createBonus(user_id, dto) {
         const company_id = await this.getCompany(user_id);
@@ -333,6 +412,7 @@ let PayrollService = class PayrollService {
             company_id,
             payroll_month: this.formattedDate(),
             ...dto,
+            amount: dto.amount * 100,
         })
             .returning()
             .execute();
@@ -364,6 +444,43 @@ let PayrollService = class PayrollService {
             .execute();
         return result;
     }
+    async getPayrollPreviewDetails(company_id) {
+        const allEmployees = await this.db
+            .select({
+            id: employee_schema_1.employees.id,
+            employee_number: employee_schema_1.employees.employee_number,
+            first_name: employee_schema_1.employees.first_name,
+            last_name: employee_schema_1.employees.last_name,
+            email: employee_schema_1.employees.email,
+            annual_gross: employee_schema_1.employees.annual_gross,
+            employment_status: employee_schema_1.employees.employment_status,
+            group_id: employee_schema_1.employees.group_id,
+            apply_nhf: employee_schema_1.employees.apply_nhf,
+        })
+            .from(employee_schema_1.employees)
+            .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.company_id, company_id))
+            .execute();
+        const groups = await this.db
+            .select({
+            id: payroll_schema_1.payGroups.id,
+            name: payroll_schema_1.payGroups.name,
+            apply_pension: payroll_schema_1.payGroups.apply_pension,
+            apply_nhf: payroll_schema_1.payGroups.apply_nhf,
+            apply_paye: payroll_schema_1.payGroups.apply_paye,
+            apply_additional: payroll_schema_1.payGroups.apply_additional,
+        })
+            .from(payroll_schema_1.payGroups)
+            .where((0, drizzle_orm_1.eq)(payroll_schema_1.payGroups.company_id, company_id))
+            .execute();
+        const payrollSummary = await this.getPayrollSummary(company_id);
+        const salaryBreakdown = await this.getSalaryBreakdown(company_id);
+        return {
+            allEmployees,
+            groups,
+            payrollSummary,
+            salaryBreakdown,
+        };
+    }
 };
 exports.PayrollService = PayrollService;
 exports.PayrollService = PayrollService = __decorate([
@@ -372,6 +489,7 @@ exports.PayrollService = PayrollService = __decorate([
     __param(1, (0, bullmq_1.InjectQueue)('payrollQueue')),
     __metadata("design:paramtypes", [Object, bullmq_2.Queue,
         cache_service_1.CacheService,
-        loan_service_1.LoanService])
+        loan_service_1.LoanService,
+        tax_service_1.TaxService])
 ], PayrollService);
 //# sourceMappingURL=payroll.service.js.map

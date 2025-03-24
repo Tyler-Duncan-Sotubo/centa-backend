@@ -19,10 +19,8 @@ import {
   CreateDepartmentDto,
   CreateEmployeeBankDetailsDto,
   CreateEmployeeDto,
-  CreateEmployeeGroupDto,
   UpdateCompanyContactDto,
   UpdateEmployeeDto,
-  UpdateEmployeeGroupDto,
 } from './dto';
 import { CurrentUser } from '../auth/decorator/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -114,6 +112,20 @@ export class OrganizationController extends BaseController {
     return this.company.updateContactInCompany(dto, companyId);
   }
 
+  @Get('pay-frequency-summary')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin'])
+  getPayFrequencySummary(@CurrentUser() user: User) {
+    return this.company.getPayFrequencySummary(user.company_id);
+  }
+
+  @Get('next-pay-date')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin'])
+  getNetPayDate(@CurrentUser() user: User) {
+    return this.company.getNextPayDate(user.company_id);
+  }
+
   @Get('pay-frequency')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
@@ -121,14 +133,29 @@ export class OrganizationController extends BaseController {
     return this.company.getPayFrequency(user.company_id);
   }
 
-  @Put('pay-frequency')
+  @Post('pay-frequency')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
-  updatePayFrequency(
+  createPayFrequency(
     @Body() dto: CreatePayFrequencyDto,
     @CurrentUser() user: User,
   ) {
-    return this.company.updatePayFrequency(user.company_id, dto);
+    return this.company.createPayFrequency(user.company_id, dto);
+  }
+
+  @Put('pay-frequency/:payFrequencyId')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin'])
+  updatePayFrequency(
+    @Param('payFrequencyId') payFrequencyId: string,
+    @Body() dto: CreatePayFrequencyDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.company.updatePayFrequency(
+      user.company_id,
+      dto,
+      payFrequencyId,
+    );
   }
 
   @Post('company-tax-details')
@@ -174,7 +201,6 @@ export class OrganizationController extends BaseController {
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
   getDepartment(@CurrentUser() user: User) {
-    console.log(user);
     return this.department.getDepartments(user.company_id);
   }
 
@@ -299,6 +325,11 @@ export class OrganizationController extends BaseController {
           employees.push(this.transformRowWithMapping(row));
         })
         .on('end', async () => {
+          if (employees.length > 200) {
+            reject(new BadRequestException('Maximum 50 employees per upload.'));
+            return;
+          }
+
           try {
             // Validate and map CSV data to CreateEmployeeDto
             const dtos = await this.validateAndMapToDto(employees);
@@ -320,21 +351,22 @@ export class OrganizationController extends BaseController {
   }
 
   private fieldMapping = {
-    'Employee Number': 'employee_number',
     'First Name': 'first_name',
     'Last Name': 'last_name',
     'Job Title': 'job_title',
     Email: 'email',
-    Phone: 'phone',
-    'Employment Status': 'employment_status',
-    'Start Date': 'start_date',
-    'Company ID': 'company_id',
-    'Department ID': 'department_id',
-    'Is Active': 'is_active',
+    'Employee Id': 'employee_number',
+    'Phone Number': 'phone',
+    Department: 'department_name',
     'Annual Gross': 'annual_gross',
-    'Hourly Rate': 'hourly_rate',
-    Bonus: 'bonus',
-    Commission: 'commission',
+    'Bank Name': 'bank_name',
+    'Account Number': 'bank_account_number',
+    'Start Date': 'start_date',
+    'Pay Group': 'group_name',
+    'Apply NHF': 'apply_nhf',
+    TIN: 'tin',
+    'Pension Pin': 'pension_pin',
+    'NHF Number': 'nhf_number',
   };
 
   private transformRowWithMapping(row: any): any {
@@ -345,7 +377,6 @@ export class OrganizationController extends BaseController {
         transformedRow[mappedKey] = value;
       }
     }
-
     // Apply type conversions after mapping
     return this.transformRow(transformedRow);
   }
@@ -353,13 +384,9 @@ export class OrganizationController extends BaseController {
   private transformRow(row: any): any {
     return {
       ...row,
-      employee_number: Number(row.employee_number),
-      annual_gross: row.annual_gross ? Number(row.annual_gross) : null,
-      hourly_rate: row.hourly_rate ? Number(row.hourly_rate) : null,
-      bonus: row.bonus ? Number(row.bonus) : null,
-      commission: row.commission ? Number(row.commission) : null,
-      is_active: row.is_active === 'true' || row.is_active === '1',
-      employment_status: row.employment_status,
+      annual_gross: row.annual_gross
+        ? Number(row.annual_gross.replace(/,/g, ''))
+        : null,
     };
   }
 
@@ -423,75 +450,6 @@ export class OrganizationController extends BaseController {
     @Param('employeeId') employeeId: string,
   ) {
     return this.employee.updateEmployeeTaxDetails(employeeId, dto);
-  }
-
-  // Employee Group CRUD Endpoints   ---------------------------------------------------
-  @Post('employee-groups')
-  @UseGuards(JwtAuthGuard)
-  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
-  createEmployeeGroup(
-    @Body() dto: CreateEmployeeGroupDto,
-    @CurrentUser() user: User,
-  ) {
-    return this.employee.createEmployeeGroup(user.company_id, dto);
-  }
-
-  @Get('employee-groups')
-  @UseGuards(JwtAuthGuard)
-  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
-  getEmployeeGroups(@CurrentUser() user: User) {
-    return this.employee.getEmployeeGroups(user.company_id);
-  }
-
-  @Get('employee-group/:groupId')
-  @UseGuards(JwtAuthGuard)
-  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
-  getEmployeeGroup(@Param('groupId') groupId: string) {
-    return this.employee.getEmployeeGroup(groupId);
-  }
-
-  @Put('employee-group/:groupId')
-  @UseGuards(JwtAuthGuard)
-  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
-  updateEmployeeGroup(
-    @Body() dto: UpdateEmployeeGroupDto,
-    @Param('groupId') groupId: string,
-  ) {
-    return this.employee.updateEmployeeGroup(groupId, dto);
-  }
-
-  @Delete('employee-group/:groupId')
-  @UseGuards(JwtAuthGuard)
-  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
-  deleteEmployeeGroup(@Param('groupId') groupId: string) {
-    return this.employee.deleteEmployeeGroup(groupId);
-  }
-
-  @Get('employee-group/:groupId/employees')
-  @UseGuards(JwtAuthGuard)
-  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
-  getEmployeesInGroup(@Param('groupId') groupId: string) {
-    return this.employee.getEmployeesInGroup(groupId);
-  }
-
-  @Post('employee-group/:groupId/employees')
-  @UseGuards(JwtAuthGuard)
-  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
-  addEmployeeToGroup(
-    @Body() employees: string | string[],
-    @Param('groupId') groupId: string,
-  ) {
-    console.log(employees);
-    return this.employee.addEmployeesToGroup(employees, groupId);
-  }
-
-  @Delete('employee-group/:groupId/employees')
-  @UseGuards(JwtAuthGuard)
-  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
-  removeEmployeeFromGroup(@Body() employeeIds: { employee_id: string }) {
-    const obj = employeeIds;
-    const employeeId = obj.employee_id;
-    return this.employee.removeEmployeesFromGroup(employeeId);
   }
 
   @Get('verify-account/:accountNumber/:bankCode')

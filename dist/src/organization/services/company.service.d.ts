@@ -54,10 +54,10 @@ export declare class CompanyService {
     addContactToCompany(dto: CreateCompanyContactDto, company_id: string): Promise<{
         id: string;
         name: string;
-        company_id: string;
         email: string;
-        phone: string | null;
         position: string | null;
+        phone: string | null;
+        company_id: string;
     }[]>;
     getContactInCompany(company_id: string): Promise<{
         id: string;
@@ -68,17 +68,11 @@ export declare class CompanyService {
         company_id: string;
     }[]>;
     updateContactInCompany(dto: UpdateCompanyContactDto, company_id: string): Promise<string>;
-    private generatePaySchedule;
-    getPayFrequency(company_id: string): Promise<{
-        id: string;
-        pay_frequency: string;
-    }[]>;
-    updatePayFrequency(company_id: string, dto: CreatePayFrequencyDto): Promise<string>;
     createCompanyTaxDetails(user_id: string, dto: CreateCompanyTaxDto): Promise<{
         id: string;
-        company_id: string;
         created_at: Date;
         updated_at: Date | null;
+        company_id: string;
         tin: string;
         vat_number: string | null;
         nhf_code: string | null;
@@ -95,4 +89,26 @@ export declare class CompanyService {
         updated_at: Date | null;
     }>;
     updateCompanyTaxDetails(user_id: string, dto: CreateCompanyTaxDto): Promise<string>;
+    getPayFrequency(company_id: string): Promise<{
+        id: string;
+        companyId: string;
+        startDate: string;
+        paySchedule: unknown;
+        payFrequency: string;
+        weekendAdjustment: string;
+        holidayAdjustment: string;
+        createdAt: Date | null;
+        updatedAt: Date | null;
+    }[]>;
+    getNextPayDate(company_id: string): Promise<Date | null>;
+    getPayFrequencySummary(company_id: string): Promise<{
+        payFrequency: string;
+        paySchedules: unknown;
+        id: string;
+    }[]>;
+    private isPublicHoliday;
+    private adjustForWeekendAndHoliday;
+    private generatePaySchedule;
+    createPayFrequency(company_id: string, dto: CreatePayFrequencyDto): Promise<QueryResult<import("drizzle-orm").Assume<this["row"], QueryResultRow>>>;
+    updatePayFrequency(company_id: string, dto: CreatePayFrequencyDto, payFrequencyId: string): Promise<string>;
 }

@@ -150,12 +150,12 @@ let PayslipService = class PayslipService {
             email: employee_schema_1.employees.email,
             issued_at: payroll_schema_1.payslips.issued_at,
             employer_remarks: payroll_schema_1.payslips.employer_remarks,
-            gross_salary: payroll_schema_1.payroll.gross_salary,
-            net_salary: payroll_schema_1.payroll.net_salary,
-            paye_tax: payroll_schema_1.payroll.paye_tax,
-            pension_contribution: payroll_schema_1.payroll.pension_contribution,
-            employer_pension_contribution: payroll_schema_1.payroll.employer_pension_contribution,
-            nhf_contribution: payroll_schema_1.payroll.nhf_contribution,
+            gross_salary: (0, drizzle_orm_1.sql) `payroll.gross_salary / 100`,
+            net_salary: (0, drizzle_orm_1.sql) `payroll.net_salary / 100`,
+            paye_tax: (0, drizzle_orm_1.sql) `payroll.paye_tax / 100`,
+            pension_contribution: (0, drizzle_orm_1.sql) `payroll.pension_contribution / 100`,
+            employer_pension_contribution: (0, drizzle_orm_1.sql) `payroll.employer_pension_contribution / 100`,
+            nhf_contribution: (0, drizzle_orm_1.sql) `payroll.nhf_contribution / 100`,
             payroll_month: payroll_schema_1.payroll.payroll_month,
             bank_name: employee_schema_1.employee_bank_details.bank_name,
             bank_account_number: employee_schema_1.employee_bank_details.bank_account_number,
@@ -227,6 +227,7 @@ let PayslipService = class PayslipService {
             pensionContribution: payroll_schema_1.payroll.pension_contribution,
             nhfContribution: payroll_schema_1.payroll.nhf_contribution,
             salaryAdvance: payroll_schema_1.payroll.salary_advance,
+            payslip_pdf_url: payroll_schema_1.payslips.pdf_url,
         })
             .from(payroll_schema_1.payslips)
             .innerJoin(payroll_schema_1.payroll, (0, drizzle_orm_1.eq)(payroll_schema_1.payslips.payroll_id, payroll_schema_1.payroll.id))

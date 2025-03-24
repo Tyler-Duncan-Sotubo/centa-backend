@@ -11,6 +11,5 @@ exports.departments = (0, pg_core_1.pgTable)('departments', {
         .notNull()
         .references(() => company_schema_1.companies.id, { onDelete: 'cascade' }),
     created_at: (0, pg_core_1.timestamp)('created_at').notNull().defaultNow(),
-    is_demo: (0, pg_core_1.boolean)('is_demo').default(false),
 }, (table) => [(0, pg_core_1.index)('idx_company_id_departments').on(table.company_id)]);
 //# sourceMappingURL=department.schema.js.map

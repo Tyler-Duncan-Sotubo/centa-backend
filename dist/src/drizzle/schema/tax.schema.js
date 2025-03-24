@@ -37,20 +37,14 @@ exports.tax_filing_details = (0, pg_core_1.pgTable)('tax_filing_details', {
         .notNull()
         .references(() => employee_schema_1.employees.id, { onDelete: 'cascade' }),
     name: (0, pg_core_1.text)('name').notNull(),
-    basic_salary: (0, pg_core_1.decimal)('basic_salary', {
-        precision: 10,
-        scale: 2,
-    }).notNull(),
-    contribution_amount: (0, pg_core_1.decimal)('contribution_amount', {
-        precision: 10,
-        scale: 2,
-    }).notNull(),
-    taxable_amount: (0, pg_core_1.decimal)('taxable_amount', {
-        precision: 10,
-        scale: 2,
-    }).notNull(),
+    basic_salary: (0, pg_core_1.integer)('basic_salary').notNull(),
+    contribution_amount: (0, pg_core_1.integer)('contribution_amount').notNull(),
+    taxable_amount: (0, pg_core_1.integer)('taxable_amount').notNull(),
     tin: (0, pg_core_1.text)('tin'),
+    pension_pin: (0, pg_core_1.text)('pension_pin'),
+    nhf_number: (0, pg_core_1.text)('nhf_number'),
     reference_number: (0, pg_core_1.text)('reference_number'),
+    employer_contribution: (0, pg_core_1.integer)('employer_contribution'),
     created_at: (0, pg_core_1.timestamp)('created_at').defaultNow(),
     updated_at: (0, pg_core_1.timestamp)('updated_at').defaultNow(),
 }, (table) => [

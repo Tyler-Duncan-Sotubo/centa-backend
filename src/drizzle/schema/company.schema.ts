@@ -5,6 +5,7 @@ import {
   index,
   text,
   jsonb,
+  date,
 } from 'drizzle-orm/pg-core';
 import { employees } from './employee.schema';
 
@@ -35,6 +36,32 @@ export const companies = pgTable(
     index('idx_company_name').on(table.name), // Index for faster name lookups
     index('idx_registration_number').on(table.registration_number), // Index for quick lookups by reg number
     index('idx_country').on(table.country), // Optimize queries by country
+  ],
+);
+
+export const paySchedules = pgTable(
+  'pay_schedules',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, { onDelete: 'cascade' }),
+    startDate: date('start_date').notNull(), // New field to track when schedule starts
+    paySchedule: jsonb('pay_schedule'),
+    payFrequency: text('pay_frequency').notNull().default('monthly'),
+    weekendAdjustment: text('weekend_adjustment') // 'friday', 'monday', 'none'
+      .notNull()
+      .default('none'),
+    holidayAdjustment: text('holiday_adjustment') // 'previous', 'next', 'none'
+      .notNull()
+      .default('none'),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+  },
+  (table) => [
+    index('pay_schedules_company_id_idx').on(table.companyId),
+    index('pay_schedules_pay_schedule_idx').on(table.paySchedule),
+    index('pay_schedules_start_date_idx').on(table.startDate), // Index for filtering by start date
   ],
 );
 

@@ -7,7 +7,6 @@ import { PayrollProcessor } from './payroll.processor';
 import { DrizzleModule } from 'src/drizzle/drizzle.module';
 import { PayslipService } from './services/payslip.service';
 import { DeductionService } from './services/deduction.service';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
 import { CacheModule } from 'src/config/cache/cache.module';
 import { CacheService } from 'src/config/cache/cache.service';
@@ -16,26 +15,13 @@ import { TaxService } from './services/tax.service';
 import { PdfService } from './services/pdf.service';
 import { LoanService } from './services/loan.service';
 import { PusherService } from 'src/notification/services/pusher.service';
-import * as redisStore from 'cache-manager-redis-store';
 import { OnboardingService } from 'src/organization/services/onboarding.service';
+import { PayGroupService } from './services/pay-group.service';
+
 @Module({
   imports: [
     CacheModule,
     DrizzleModule,
-    BullModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        connection: {
-          host: configService.get('REDIS_HOST'),
-          port: configService.get<number>('REDIS_PORT'),
-          password: configService.get('REDIS_PASSWORD'),
-        },
-        store: redisStore,
-        ttl: configService.get<number>('CACHE_TTL'),
-        isGlobal: true,
-      }),
-    }),
     BullModule.registerQueue({
       name: 'payrollQueue',
     }),
@@ -54,6 +40,7 @@ import { OnboardingService } from 'src/organization/services/onboarding.service'
     LoanService,
     PusherService,
     OnboardingService,
+    PayGroupService,
   ],
 })
 export class PayrollModule {}

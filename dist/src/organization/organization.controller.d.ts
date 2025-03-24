@@ -1,5 +1,5 @@
 import { CompanyService, DepartmentService, EmployeeService } from './services';
-import { CreateCompanyContactDto, CreateCompanyDto, CreateDepartmentDto, CreateEmployeeBankDetailsDto, CreateEmployeeDto, CreateEmployeeGroupDto, UpdateCompanyContactDto, UpdateEmployeeDto, UpdateEmployeeGroupDto } from './dto';
+import { CreateCompanyContactDto, CreateCompanyDto, CreateDepartmentDto, CreateEmployeeBankDetailsDto, CreateEmployeeDto, UpdateCompanyContactDto, UpdateEmployeeDto } from './dto';
 import { User } from 'src/types/user.type';
 import { BaseController } from 'src/config/base.controller';
 import { CreateEmployeeTaxDetailsDto } from './dto/create-employee-tax-details.dto';
@@ -64,10 +64,10 @@ export declare class OrganizationController extends BaseController {
     createCompanyContact(dto: CreateCompanyContactDto, companyId: string): Promise<{
         id: string;
         name: string;
-        company_id: string;
         email: string;
-        phone: string | null;
         position: string | null;
+        phone: string | null;
+        company_id: string;
     }[]>;
     getCompanyContacts(companyId: string): Promise<{
         id: string;
@@ -78,16 +78,30 @@ export declare class OrganizationController extends BaseController {
         company_id: string;
     }[]>;
     updateCompanyContact(dto: UpdateCompanyContactDto, companyId: string): Promise<string>;
+    getPayFrequencySummary(user: User): Promise<{
+        payFrequency: string;
+        paySchedules: unknown;
+        id: string;
+    }[]>;
+    getNetPayDate(user: User): Promise<Date | null>;
     getPayFrequency(user: User): Promise<{
         id: string;
-        pay_frequency: string;
+        companyId: string;
+        startDate: string;
+        paySchedule: unknown;
+        payFrequency: string;
+        weekendAdjustment: string;
+        holidayAdjustment: string;
+        createdAt: Date | null;
+        updatedAt: Date | null;
     }[]>;
-    updatePayFrequency(dto: CreatePayFrequencyDto, user: User): Promise<string>;
+    createPayFrequency(dto: CreatePayFrequencyDto, user: User): Promise<QueryResult<import("drizzle-orm").Assume<this["row"], QueryResultRow>>>;
+    updatePayFrequency(payFrequencyId: string, dto: CreatePayFrequencyDto, user: User): Promise<string>;
     createCompanyTaxDetails(dto: CreateCompanyTaxDto, user: User): Promise<{
         id: string;
-        company_id: string;
         created_at: Date;
         updated_at: Date | null;
+        company_id: string;
         tin: string;
         vat_number: string | null;
         nhf_code: string | null;
@@ -132,22 +146,21 @@ export declare class OrganizationController extends BaseController {
     addEmployee(dto: CreateEmployeeDto, user: User): Promise<void>;
     getEmployee(user: User): Promise<{
         id: string;
-        employee_number: number;
+        employee_number: string | null;
         first_name: string;
         last_name: string;
         job_title: string;
         phone: string | null;
         email: string;
-        employment_status: string;
+        employment_status: string | null;
         start_date: string;
         is_active: boolean | null;
         createdAt: Date | null;
         updatedAt: Date | null;
         annual_gross: number | null;
-        hourly_rate: number | null;
         bonus: number | null;
         commission: number | null;
-        is_demo: boolean | null;
+        apply_nhf: boolean | null;
         user_id: string | null;
         company_id: string;
         department_id: string | null;
@@ -159,17 +172,39 @@ export declare class OrganizationController extends BaseController {
         id: string;
     }[]>;
     getActiveEmployees(user: User): Promise<{
-        id: string;
         first_name: string;
         last_name: string;
         job_title: string;
         phone: string | null;
         email: string;
+        employment_status: string | null;
+        start_date: string;
+        employee_number: string | null;
+        department_id: string | null;
+        annual_gross: number | null;
+        group_id: string | null;
+        employee_bank_details: {
+            id: string;
+            bank_account_number: string | null;
+            bank_account_name: string | null;
+            bank_name: string | null;
+            employee_id: string;
+        } | null;
+        employee_tax_details: {
+            id: string;
+            tin: string;
+            pension_pin: string | null;
+            nhf_number: string | null;
+            consolidated_relief_allowance: number | null;
+            state_of_residence: string | null;
+            createdAt: Date | null;
+            updatedAt: Date | null;
+            employee_id: string;
+        } | null;
+        companyId: string;
+        id: string;
         company_name: string;
-        salary: number | null;
-        apply_paye: boolean | null;
         apply_nhf: boolean | null;
-        apply_pension: boolean | null;
     }>;
     getEmployeeById(employeeId: string): Promise<{
         first_name: string;
@@ -177,13 +212,12 @@ export declare class OrganizationController extends BaseController {
         job_title: string;
         phone: string | null;
         email: string;
-        employment_status: string;
+        employment_status: string | null;
         start_date: string;
         is_active: boolean | null;
-        employee_number: number;
+        employee_number: string | null;
         department_id: string | null;
         annual_gross: number | null;
-        hourly_rate: number | null;
         bonus: number | null;
         commission: number | null;
         group_id: string | null;
@@ -197,11 +231,10 @@ export declare class OrganizationController extends BaseController {
         employee_tax_details: {
             id: string;
             tin: string;
+            pension_pin: string | null;
+            nhf_number: string | null;
             consolidated_relief_allowance: number | null;
-            other_reliefs: number | null;
-            state_of_residence: string;
-            has_exemptions: boolean | null;
-            additional_details: unknown;
+            state_of_residence: string | null;
             createdAt: Date | null;
             updatedAt: Date | null;
             employee_id: string;
@@ -212,7 +245,7 @@ export declare class OrganizationController extends BaseController {
         last_name: string;
         job_title: string;
         email: string;
-        employment_status: string;
+        employment_status: string | null;
         start_date: string;
         is_active: boolean | null;
     }[]>;
@@ -235,65 +268,15 @@ export declare class OrganizationController extends BaseController {
     updateEmployeeBankDetails(dto: CreateEmployeeBankDetailsDto, employeeId: string): Promise<string>;
     createEmployeeTaxDetails(dto: CreateEmployeeTaxDetailsDto, employeeId: string): Promise<{
         id: string;
+        tin: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         employee_id: string;
-        tin: string;
+        pension_pin: string | null;
+        nhf_number: string | null;
         consolidated_relief_allowance: number | null;
-        other_reliefs: number | null;
-        state_of_residence: string;
-        has_exemptions: boolean | null;
-        additional_details: unknown;
+        state_of_residence: string | null;
     }>;
     updateEmployeeTaxDetails(dto: UpdateEmployeeTaxDetailsDto, employeeId: string): Promise<string>;
-    createEmployeeGroup(dto: CreateEmployeeGroupDto, user: User): Promise<{
-        id: string;
-        name: string;
-        company_id: string;
-        is_demo: boolean | null;
-        apply_paye: boolean | null;
-        apply_pension: boolean | null;
-        apply_nhf: boolean | null;
-        apply_additional: boolean | null;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-    }>;
-    getEmployeeGroups(user: User): Promise<{
-        id: string;
-        name: string;
-        apply_paye: boolean | null;
-        apply_pension: boolean | null;
-        apply_nhf: boolean | null;
-        apply_additional: boolean | null;
-        is_demo: boolean | null;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-        company_id: string;
-    }[]>;
-    getEmployeeGroup(groupId: string): Promise<{
-        id: string;
-        name: string;
-        apply_paye: boolean | null;
-        apply_pension: boolean | null;
-        apply_nhf: boolean | null;
-        apply_additional: boolean | null;
-        is_demo: boolean | null;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-        company_id: string;
-    }>;
-    updateEmployeeGroup(dto: UpdateEmployeeGroupDto, groupId: string): Promise<string>;
-    deleteEmployeeGroup(groupId: string): Promise<{
-        message: string;
-    }>;
-    getEmployeesInGroup(groupId: string): Promise<{
-        id: string;
-        first_name: string;
-        last_name: string;
-    }[]>;
-    addEmployeeToGroup(employees: string | string[], groupId: string): Promise<string>;
-    removeEmployeeFromGroup(employeeIds: {
-        employee_id: string;
-    }): Promise<string>;
     verifyAccount(accountNumber: string, bankCode: string): Promise<unknown>;
 }

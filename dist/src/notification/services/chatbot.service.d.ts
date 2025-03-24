@@ -22,7 +22,7 @@ export declare class ChatbotService {
         paye_tax: number;
         pension_contribution: number;
         employer_pension_contribution: number;
-        nhf_contribution: number;
+        nhf_contribution: number | null;
         additionalDeductions: number | null;
         payroll_month: string;
         first_name: string;

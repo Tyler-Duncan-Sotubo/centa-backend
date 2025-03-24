@@ -1,10 +1,9 @@
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, and } from 'drizzle-orm';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from '../../drizzle/drizzle.module';
 import {
   employee_bank_details,
-  employee_groups,
   employee_tax_details,
   employees,
 } from '../../drizzle/schema/employee.schema';
@@ -12,10 +11,8 @@ import { companies } from '../../drizzle/schema/company.schema';
 import {
   CreateEmployeeBankDetailsDto,
   CreateEmployeeDto,
-  CreateEmployeeGroupDto,
   UpdateEmployeeBankDetailsDto,
   UpdateEmployeeDto,
-  UpdateEmployeeGroupDto,
 } from '../dto';
 import { departments } from 'src/drizzle/schema/department.schema';
 import * as bcrypt from 'bcryptjs';
@@ -31,8 +28,10 @@ const https = require('https');
 import * as jwt from 'jsonwebtoken';
 import { PasswordResetEmailService } from 'src/notification/services/password-reset.service';
 import { PasswordResetToken } from 'src/drizzle/schema/password-reset-token.schema';
-import { taxConfig } from 'src/drizzle/schema/deductions.schema';
 import { OnboardingService } from './onboarding.service';
+import { payGroups } from 'src/drizzle/schema/payroll.schema';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 Injectable();
 export class EmployeeService {
@@ -43,6 +42,7 @@ export class EmployeeService {
     private readonly config: ConfigService,
     private readonly passwordResetEmailService: PasswordResetEmailService,
     private readonly onboardingService: OnboardingService,
+    @InjectQueue('emailQueue') private emailQueue: Queue,
   ) {}
 
   private generateToken(payload: any): string {
@@ -55,51 +55,75 @@ export class EmployeeService {
   async addEmployee(dto: CreateEmployeeDto, company_id: string) {
     return this.db.transaction(async (trx) => {
       // Run company and department checks in parallel
-      const [companyResult, departmentResult] = await Promise.all([
-        trx
-          .select()
-          .from(companies)
-          .where(eq(companies.id, company_id))
-          .execute(),
-        dto.department_id
-          ? trx
-              .select()
-              .from(departments)
-              .where(eq(departments.id, dto.department_id))
-              .execute()
-          : null,
-      ]);
+      const [companyResult, existingDepartment, existingGroups] =
+        await Promise.all([
+          trx
+            .select()
+            .from(companies)
+            .where(eq(companies.id, company_id))
+            .execute(),
+          dto.department_name
+            ? trx
+                .select()
+                .from(departments)
+                .where(
+                  and(
+                    eq(departments.name, dto.department_name),
+                    eq(departments.company_id, company_id), // Ensure department belongs to the company
+                  ),
+                )
+                .execute()
+            : null,
+          dto.group_name
+            ? trx
+                .select()
+                .from(payGroups)
+                .where(
+                  and(
+                    eq(payGroups.name, dto.group_name),
+                    eq(payGroups.company_id, company_id), // Ensure group belongs to the company
+                  ),
+                )
+                .execute()
+            : null,
+        ]);
 
       if (companyResult.length === 0) {
         throw new BadRequestException('Company not found');
       }
 
-      if (
-        dto.department_id &&
-        departmentResult &&
-        departmentResult.length === 0
-      ) {
-        throw new BadRequestException('Department not found');
+      // Check if group exists
+      let groupId: string | null = null;
+      if (dto.group_name) {
+        if (existingGroups && existingGroups.length > 0) {
+          groupId = existingGroups[0].id;
+        }
+      }
+
+      let departmentId: string | null = null;
+      if (dto.department_name) {
+        if (existingDepartment && existingDepartment.length > 0) {
+          departmentId = existingDepartment[0].id;
+        } else {
+          // ✅ If department does not exist, create it
+          const [newDepartment] = await trx
+            .insert(departments)
+            .values({
+              name: dto.department_name,
+              company_id: company_id,
+            })
+            .returning({ id: departments.id })
+            .execute();
+
+          departmentId = newDepartment.id;
+        }
       }
 
       // Hash the generated password
       const randomPassword = randomBytes(12).toString('hex');
       const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
-      // check if employee number already exists
-      const employeeNumberExists = await trx
-        .select()
-        .from(employees)
-        .where(eq(employees.employee_number, dto.employee_number))
-        .execute();
-
-      if (employeeNumberExists.length > 0) {
-        throw new BadRequestException(
-          `Employee number ${dto.employee_number} already exists. Please use a unique employee number`,
-        );
-      }
-
-      // check if email already exists
+      // Check if email already exists
       const emailExists = await trx
         .select()
         .from(users)
@@ -112,20 +136,20 @@ export class EmployeeService {
         );
       }
 
-      // User creation, role assignment, and employee insertion
-      const user = await trx
+      // Create user
+      const [user] = await trx
         .insert(users)
         .values({
           email: dto.email.toLowerCase(),
           password: hashedPassword,
           first_name: dto.first_name,
           last_name: dto.last_name,
+          company_id: company_id,
         })
-        .returning({
-          id: users.id,
-        })
+        .returning({ id: users.id })
         .execute();
 
+      // Insert employee with correct department ID
       const employee = await trx
         .insert(employees)
         .values({
@@ -135,48 +159,62 @@ export class EmployeeService {
           job_title: dto.job_title,
           email: dto.email,
           phone: dto.phone,
-          employment_status: dto.employment_status,
           start_date: dto.start_date,
           company_id: company_id,
-          department_id: dto.department_id || null,
-          annual_gross: dto.annual_gross,
-          hourly_rate: dto.hourly_rate,
+          department_id: departmentId,
+          annual_gross: dto.annual_gross * 100,
           bonus: dto.bonus,
           commission: dto.commission,
-          user_id: user[0].id,
+          user_id: user.id,
+          group_id: groupId,
+          apply_nhf: dto.apply_nhf === 'Yes' ? true : false,
         })
         .returning({
           id: employees.id,
           employee_number: employees.employee_number,
           first_name: employees.first_name,
           email: employees.email,
-          annual_gross: employees.annual_gross,
-          hourly_rate: employees.hourly_rate,
-          bonus: employees.bonus,
-          commission: employees.commission,
-          group_id: employees.group_id,
         })
         .execute();
 
-      const cacheKey = `employee-${employee[0].id}`;
-      this.cache.set(cacheKey, employee[0]);
-
+      // Generate password reset token
       const token = this.generateToken({ email: dto.email });
       const expires_at = new Date(Date.now() + 1 * 60 * 60 * 1000);
 
       await trx
         .insert(PasswordResetToken)
         .values({
-          user_id: user[0].id,
+          user_id: user.id,
           token,
           expires_at,
           is_used: false,
         })
         .execute();
 
-      // Update onboarding progress
-      await this.onboardingService.completeTask(company_id, 'addEmployees');
+      await trx
+        .insert(employee_bank_details)
+        .values({
+          employee_id: employee[0].id,
+          bank_name: dto.bank_name,
+          bank_account_number: dto.bank_account_number,
+          bank_account_name: dto.first_name + ' ' + dto.last_name,
+        })
+        .execute();
 
+      await trx
+        .insert(employee_tax_details)
+        .values({
+          employee_id: employee[0].id,
+          tin: dto.tin,
+          pension_pin: dto.pension_pin,
+          nhf_number: dto.nhf_number,
+        })
+        .execute();
+
+      // Update onboarding progress
+      await this.onboardingService.completeTask(company_id, 'addTeamMembers');
+
+      // Send password reset email
       const inviteLink = `${this.config.get(
         'EMPLOYEE_PORTAL_URL',
       )}/auth/reset-password/${token}`;
@@ -200,161 +238,245 @@ export class EmployeeService {
     company_id: string,
   ) {
     return this.db.transaction(async (trx) => {
-      const results: any = [];
+      // ✅ Step 1: Fetch Company Once (No Need to Fetch in Loop)
+      const companyExists = await trx
+        .select({ id: companies.id })
+        .from(companies)
+        .where(eq(companies.id, company_id))
+        .execute();
 
-      // Step 1: Batch fetch existing data for validation
-      const departmentIds = Array.from(
-        new Set(dtoArray.map((dto) => dto.department_id).filter((id) => id)),
+      if (companyExists.length === 0) {
+        throw new BadRequestException('Company not found');
+      }
+
+      // ✅ Step 2: Prepare Batch Fetch Queries
+      const departmentNames = new Set(
+        dtoArray
+          .map((dto) => dto.department_name?.trim().toLowerCase())
+          .filter(Boolean),
+      );
+      const groupNames = new Set(
+        dtoArray
+          .map((dto) => dto.group_name?.trim().toLowerCase())
+          .filter(Boolean),
       );
       const emails = dtoArray.map((dto) => dto.email.toLowerCase());
 
-      const [existingDepartments, existingUsers] = await Promise.all([
-        departmentIds.length
-          ? trx
-              .select()
-              .from(departments)
-              .where(inArray(departments.id, departmentIds))
-              .execute()
-          : Promise.resolve([]),
-        trx.select().from(users).where(inArray(users.email, emails)).execute(),
-      ]);
+      const [existingDepartments, existingGroups, existingUsers] =
+        await Promise.all([
+          departmentNames.size
+            ? trx
+                .select({ id: departments.id, name: departments.name })
+                .from(departments)
+                .where(
+                  and(
+                    inArray(departments.name, [...departmentNames]),
+                    eq(departments.company_id, company_id),
+                  ),
+                )
+                .execute()
+            : Promise.resolve([]),
+          groupNames.size
+            ? trx
+                .select({ id: payGroups.id, name: payGroups.name })
+                .from(payGroups)
+                .where(
+                  and(
+                    inArray(payGroups.name, [...groupNames]),
+                    eq(payGroups.company_id, company_id),
+                  ),
+                )
+                .execute()
+            : Promise.resolve([]),
+          trx
+            .select()
+            .from(users)
+            .where(inArray(users.email, emails))
+            .execute(),
+        ]);
 
+      // ✅ Step 3: Convert to Maps for Fast Lookups
       const departmentMap = new Map(
-        existingDepartments.map((department) => [department.id, department]),
+        existingDepartments.map((d) => [d.name.toLowerCase(), d.id]),
       );
-      const emailSet = new Set(existingUsers.map((user) => user.email));
+      const groupMap = new Map(
+        existingGroups.map((g) => [g.name.toLowerCase(), g.id]),
+      );
+      const existingEmails = new Set(existingUsers.map((u) => u.email));
 
-      for (const dto of dtoArray) {
-        const lowerCaseEmail = dto.email.toLowerCase();
-
-        // Check if email already exists
-        if (emailSet.has(lowerCaseEmail)) {
-          throw new BadRequestException(
-            `Employee with email ${dto.email} already exists. Please use a unique email`,
-          );
-        }
-
-        // Check if department exists (if provided)
-        if (dto.department_id && !departmentMap.has(dto.department_id)) {
-          results.push({
-            email: dto.email,
-            status: 'Failed',
-            reason: 'Department not found',
-          });
-          continue;
-        }
-
-        const companyResult = await trx
-          .select()
-          .from(companies)
-          .where(eq(companies.id, company_id))
+      // ✅ Step 4: Batch Insert Missing Departments
+      const newDepartments = [...departmentNames].filter(
+        (name) => !departmentMap.has(name),
+      );
+      if (newDepartments.length) {
+        const insertedDepartments = await trx
+          .insert(departments)
+          .values(newDepartments.map((name) => ({ name, company_id })))
+          .returning({ id: departments.id, name: departments.name })
           .execute();
-
-        if (companyResult.length === 0) {
-          throw new BadRequestException('Company not found');
-        }
-
-        const randomPassword = randomBytes(12).toString('hex');
-        const hashedPassword = await bcrypt.hash(randomPassword, 10);
-
-        try {
-          await trx
-            .insert(users)
-            .values({
-              email: lowerCaseEmail,
-              password: hashedPassword,
-              first_name: dto.first_name,
-              last_name: dto.last_name,
-            })
-            .returning({
-              id: users.id,
-            })
-            .execute();
-
-          const employee = await trx
-            .insert(employees)
-            .values({
-              employee_number: dto.employee_number,
-              first_name: dto.first_name,
-              last_name: dto.last_name,
-              job_title: dto.job_title,
-              email: dto.email,
-              phone: dto.phone,
-              employment_status: dto.employment_status,
-              start_date: dto.start_date,
-              company_id: company_id,
-              department_id: dto.department_id || null,
-              annual_gross: dto.annual_gross,
-              hourly_rate: dto.hourly_rate,
-              bonus: dto.bonus,
-              commission: dto.commission,
-            })
-            .returning({
-              id: employees.id,
-              employee_number: employees.employee_number,
-              first_name: employees.first_name,
-              email: employees.email,
-              annual_gross: employees.annual_gross,
-              hourly_rate: employees.hourly_rate,
-              bonus: employees.bonus,
-              commission: employees.commission,
-              group_id: employees.group_id,
-            })
-            .execute();
-
-          results.push({
-            email: employee[0].email,
-            employee_number: employee[0].employee_number,
-            first_name: employee[0].first_name,
-            password: randomPassword,
-            status: 'Success',
-            company_id: companyResult[0].id,
-          });
-
-          // Update onboarding progress
-          await this.onboardingService.completeTask(company_id, 'addEmployees');
-
-          // Add employee to the cache
-          const cacheKey = `employee-${employee[0].id}`;
-          this.cache.set(cacheKey, employee[0]);
-        } catch (error) {
-          // Check for unique constraint violation on employee_number
-          if (error.message.includes('employees_employee_number_unique')) {
-            throw new BadRequestException(
-              `Duplicate employee number: ${dto.employee_number}. Please use a unique employee number`,
-            );
-          } else {
-            throw new BadRequestException(
-              `Error during employee creation: ' + ${error.message}`,
-            );
-          }
-        }
+        insertedDepartments.forEach((d) =>
+          departmentMap.set(d.name.toLowerCase(), d.id),
+        );
       }
 
-      this.aws.uploadCsvToS3(results[0].company_id, dtoArray);
+      // ✅ Step 5: Hash All Passwords in Parallel (CPU Intensive)
+      const hashedPasswords = await Promise.all(
+        dtoArray.map(() => bcrypt.hash(randomBytes(12).toString('hex'), 10)),
+      );
 
-      return results;
+      // ✅ Step 6: Prepare User Inserts
+      const usersToInsert = dtoArray
+        .filter((dto) => !existingEmails.has(dto.email.toLowerCase()))
+        .map((dto, index) => ({
+          email: dto.email.toLowerCase(),
+          password: hashedPasswords[index],
+          first_name: dto.first_name,
+          last_name: dto.last_name,
+          company_id,
+        }));
+
+      // ✅ Step 7: Insert Users in Bulk
+      const insertedUsers = await trx
+        .insert(users)
+        .values(usersToInsert)
+        .returning({ id: users.id, email: users.email })
+        .execute();
+
+      const userMap = new Map(
+        insertedUsers.map((user) => [user.email, user.id]),
+      );
+
+      // ✅ Step 8: Prepare Employee Inserts
+      const employeesToInsert = dtoArray.map((dto) => ({
+        employee_number: dto.employee_number,
+        first_name: dto.first_name,
+        last_name: dto.last_name,
+        job_title: dto.job_title,
+        email: dto.email,
+        phone: dto.phone,
+        start_date: dto.start_date,
+        company_id,
+        department_id:
+          departmentMap.get(dto.department_name?.trim().toLowerCase()) || null,
+        annual_gross: dto.annual_gross * 100,
+        bonus: dto.bonus,
+        commission: dto.commission,
+        user_id: userMap.get(dto.email.toLowerCase()),
+        group_id: groupMap.get(dto.group_name?.trim().toLowerCase()) || null,
+        apply_nhf: dto.apply_nhf === 'Yes',
+      }));
+
+      // ✅ Step 9: Bulk Insert Employees
+      const insertedEmployees = await trx
+        .insert(employees)
+        .values(employeesToInsert)
+        .returning({
+          id: employees.id,
+          email: employees.email,
+          first_name: employees.first_name, // ✅ Add this
+        })
+        .execute();
+
+      const employeeMap = new Map(
+        insertedEmployees.map((e) => [e.email, e.id]),
+      );
+
+      // ✅ Step 10: Bulk Insert Bank & Tax Details
+      await Promise.all([
+        trx
+          .insert(employee_bank_details)
+          .values(
+            dtoArray.map((dto) => ({
+              employee_id: employeeMap.get(dto.email) || '',
+              bank_name: dto.bank_name,
+              bank_account_number: dto.bank_account_number,
+              bank_account_name: `${dto.first_name} ${dto.last_name}`,
+            })),
+          )
+          .execute(),
+        trx
+          .insert(employee_tax_details)
+          .values(
+            dtoArray.map((dto) => ({
+              employee_id: employeeMap.get(dto.email) || '',
+              tin: dto.tin,
+              pension_pin: dto.pension_pin,
+              nhf_number: dto.nhf_number,
+            })),
+          )
+          .execute(),
+      ]);
+
+      // ✅ Step 11: Generate Password Reset Tokens
+      const tokensToInsert = insertedEmployees.map((employee) => ({
+        user_id: userMap.get(employee.email) || '',
+        token: this.generateToken({ email: employee.email }),
+        expires_at: new Date(Date.now() + 1 * 60 * 60 * 1000),
+        is_used: false,
+      }));
+
+      await trx.insert(PasswordResetToken).values(tokensToInsert).execute();
+
+      const employeePortalUrl = this.config.get('EMPLOYEE_PORTAL_URL');
+
+      await Promise.all(
+        insertedEmployees.map((employee) => {
+          const token = tokensToInsert.find(
+            (t) => t.user_id === userMap.get(employee.email),
+          )?.token;
+          const inviteLink = `${employeePortalUrl}/auth/reset-password/${token}`;
+
+          this.emailQueue.add('sendPasswordResetEmail', {
+            email: employee.email,
+            name: employee.first_name,
+            resetLink: inviteLink,
+          });
+        }),
+      );
+
+      // ✅ Step 11: Update Onboarding Progress
+      await this.onboardingService.completeTask(company_id, 'addTeamMembers');
+
+      // ✅ Step 12: Return Results
+      return insertedEmployees.map((employee) => ({
+        email: employee.email,
+        status: 'Success',
+        company_id,
+      }));
     });
   }
 
   async getEmployeeByUserId(user_id: string) {
     const result = await this.db
       .select({
-        id: employees.id,
         first_name: employees.first_name,
         last_name: employees.last_name,
         job_title: employees.job_title,
         phone: employees.phone,
         email: employees.email,
+        employment_status: employees.employment_status,
+        start_date: employees.start_date,
+        employee_number: employees.employee_number,
+        department_id: employees.department_id,
+        annual_gross: employees.annual_gross,
+        group_id: employees.group_id,
+        employee_bank_details: employee_bank_details,
+        employee_tax_details: employee_tax_details,
+        companyId: companies.id,
+        id: employees.id,
         company_name: companies.name,
-        salary: employees.annual_gross,
-        apply_paye: taxConfig.apply_paye, // Boolean - applies PAYE or not
-        apply_nhf: taxConfig.apply_nhf, // Boolean - applies NHF or not
-        apply_pension: taxConfig.apply_pension, // Boolean - applies pension or not
+        apply_nhf: employees.apply_nhf,
       })
       .from(employees)
       .innerJoin(companies, eq(companies.id, employees.company_id))
-      .innerJoin(taxConfig, eq(taxConfig.company_id, companies.id)) // Join taxConfig table
+      .leftJoin(
+        employee_bank_details,
+        eq(employee_bank_details.employee_id, user_id),
+      )
+      .leftJoin(
+        employee_tax_details,
+        eq(employee_tax_details.employee_id, user_id),
+      )
       .where(eq(employees.user_id, user_id))
       .execute();
 
@@ -421,7 +543,6 @@ export class EmployeeService {
         employee_number: employees.employee_number,
         department_id: employees.department_id,
         annual_gross: employees.annual_gross,
-        hourly_rate: employees.hourly_rate,
         bonus: employees.bonus,
         commission: employees.commission,
         group_id: employees.group_id,
@@ -488,7 +609,6 @@ export class EmployeeService {
         department_id: dto.department_id,
         is_active: dto.is_active,
         annual_gross: dto.annual_gross,
-        hourly_rate: dto.hourly_rate,
       })
       .where(eq(employees.id, employee_id))
       .execute();
@@ -586,177 +706,6 @@ export class EmployeeService {
       .execute();
 
     return 'Employee tax details updated successfully';
-  }
-
-  // Employee Group Service ---------------------------------------------------
-  async getEmployeeGroups(company_id: string) {
-    const result = await this.db
-      .select()
-      .from(employee_groups)
-      .where(eq(employee_groups.company_id, company_id))
-      .execute();
-
-    return result;
-  }
-
-  async createEmployeeGroup(company_id: string, dto: CreateEmployeeGroupDto) {
-    const result = await this.db
-      .insert(employee_groups)
-      .values({
-        ...dto,
-        company_id: company_id,
-      })
-      .returning()
-      .execute();
-
-    if (dto.employees && dto.employees.length > 0) {
-      await this.addEmployeesToGroup(dto.employees, result[0].id);
-    }
-
-    const cacheKey = `employee-group-${result[0].id}`;
-    this.cache.set(cacheKey, result[0]);
-
-    return result[0];
-  }
-
-  async getEmployeeGroup(group_id: string) {
-    const cacheKey = `employee-group-${group_id}`;
-    return this.cache.getOrSetCache(cacheKey, async () => {
-      const result = await this.db
-        .select()
-        .from(employee_groups)
-        .where(eq(employee_groups.id, group_id))
-        .execute();
-
-      if (result.length === 0) {
-        throw new BadRequestException(
-          'Employee group not found, please provide a valid group id',
-        );
-      }
-
-      return result[0];
-    });
-  }
-
-  async updateEmployeeGroup(group_id: string, dto: UpdateEmployeeGroupDto) {
-    await this.getEmployeeGroup(group_id);
-
-    await this.db
-      .update(employee_groups)
-      .set({
-        ...dto,
-      })
-      .where(eq(employee_groups.id, group_id))
-      .execute();
-
-    return 'Employee group updated successfully';
-  }
-
-  async deleteEmployeeGroup(group_id: string) {
-    const result = await this.db
-      .select({
-        id: employees.id,
-      })
-      .from(employees)
-      .where(eq(employees.group_id, group_id))
-      .execute();
-
-    await this.removeEmployeesFromGroup(result.map((employee) => employee.id));
-
-    await this.db
-      .delete(employee_groups)
-      .where(eq(employee_groups.id, group_id))
-      .execute();
-
-    return { message: 'Employee group deleted successfully' };
-  }
-
-  async getEmployeesInGroup(group_id: string) {
-    const result = await this.db
-      .select({
-        id: employees.id,
-        first_name: employees.first_name,
-        last_name: employees.last_name,
-      })
-      .from(employees)
-      .where(eq(employees.group_id, group_id))
-      .execute();
-
-    if (result.length === 0) {
-      throw new BadRequestException('No employees found in this group');
-    }
-
-    return result;
-  }
-
-  // Add Employees to a Group (supports both single and multiple employee IDs)
-  async addEmployeesToGroup(employee_ids: string | string[], group_id: string) {
-    // Ensure employee_ids is always an array
-    const employeeIdArray = Array.isArray(employee_ids)
-      ? employee_ids
-      : [employee_ids];
-
-    // Validate that each employee exists
-    for (const employee_id of employeeIdArray) {
-      await this.getEmployeeById(employee_id); // Ensure each employee exists
-    }
-
-    // Update all employees in the array to belong to the given group
-    const updatePromises = employeeIdArray.map((employee_id) =>
-      this.db
-        .update(employees)
-        .set({ group_id: group_id })
-        .where(eq(employees.id, employee_id))
-        .execute(),
-    );
-
-    await Promise.all(updatePromises); // Wait for all updates to complete
-    // Update the cache for each employee
-    const cacheUpdatePromises = employeeIdArray.map(async (employeeId) => {
-      const cacheKey = `employee-${employeeId}`; //  Cache key for the employee
-      this.cache.del(cacheKey); // Remove the employee from the cache
-      const employeeData = await this.getEmployeeById(employeeId); // Fetch the updated employee data
-      return this.cache.set(cacheKey, employeeData);
-    });
-
-    await Promise.all(cacheUpdatePromises);
-
-    return `${employeeIdArray.length} employees added to group ${group_id} successfully`;
-  }
-
-  async removeEmployeesFromGroup(employee_ids: string | string[]) {
-    console.log(employee_ids);
-    // Ensure employee_ids is always an array
-    const employeeIdArray = Array.isArray(employee_ids)
-      ? employee_ids
-      : [employee_ids];
-
-    // Validate that each employee exists
-    for (const employee_id of employeeIdArray) {
-      await this.getEmployeeById(employee_id); // Ensure each employee exists
-    }
-
-    // Update all employees in the array to set group_id to null (removing them from the group)
-    const updatePromises = employeeIdArray.map((employee_id) =>
-      this.db
-        .update(employees)
-        .set({ group_id: null }) // Remove the employee from the group
-        .where(eq(employees.id, employee_id))
-        .execute(),
-    );
-
-    await Promise.all(updatePromises); // Wait for all updates to complete
-
-    const cacheUpdatePromises = employeeIdArray.map(async (employeeId) => {
-      const cacheKey = `employee-${employeeId}`; //  Cache key for the employee
-      this.cache.del(cacheKey); // Remove the employee from the cache
-      const employeeData = await this.getEmployeeById(employeeId); // Fetch the updated employee data
-      return this.cache.set(cacheKey, employeeData);
-    });
-
-    await Promise.all(cacheUpdatePromises);
-
-    return `${employeeIdArray.length} employees removed from the group successfully`;
   }
 
   async verifyBankAccount(accountNumber, bankCode) {

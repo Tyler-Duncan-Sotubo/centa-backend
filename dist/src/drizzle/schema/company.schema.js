@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.company_files = exports.company_tax_details = exports.company_contact = exports.companies = void 0;
+exports.company_files = exports.company_tax_details = exports.company_contact = exports.paySchedules = exports.companies = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 const employee_schema_1 = require("./employee.schema");
 exports.companies = (0, pg_core_1.pgTable)('companies', {
@@ -24,6 +24,27 @@ exports.companies = (0, pg_core_1.pgTable)('companies', {
     (0, pg_core_1.index)('idx_company_name').on(table.name),
     (0, pg_core_1.index)('idx_registration_number').on(table.registration_number),
     (0, pg_core_1.index)('idx_country').on(table.country),
+]);
+exports.paySchedules = (0, pg_core_1.pgTable)('pay_schedules', {
+    id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
+    companyId: (0, pg_core_1.uuid)('company_id')
+        .notNull()
+        .references(() => exports.companies.id, { onDelete: 'cascade' }),
+    startDate: (0, pg_core_1.date)('start_date').notNull(),
+    paySchedule: (0, pg_core_1.jsonb)('pay_schedule'),
+    payFrequency: (0, pg_core_1.text)('pay_frequency').notNull().default('monthly'),
+    weekendAdjustment: (0, pg_core_1.text)('weekend_adjustment')
+        .notNull()
+        .default('none'),
+    holidayAdjustment: (0, pg_core_1.text)('holiday_adjustment')
+        .notNull()
+        .default('none'),
+    createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow(),
+    updatedAt: (0, pg_core_1.timestamp)('updated_at').defaultNow(),
+}, (table) => [
+    (0, pg_core_1.index)('pay_schedules_company_id_idx').on(table.companyId),
+    (0, pg_core_1.index)('pay_schedules_pay_schedule_idx').on(table.paySchedule),
+    (0, pg_core_1.index)('pay_schedules_start_date_idx').on(table.startDate),
 ]);
 exports.company_contact = (0, pg_core_1.pgTable)('company_contact', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),

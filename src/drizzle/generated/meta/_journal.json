@@ -204,6 +204,118 @@
       "when": 1741625258787,
       "tag": "0028_great_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1741788213186,
+      "tag": "0029_solid_iron_lad",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1741789877549,
+      "tag": "0030_fast_korath",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1741808885901,
+      "tag": "0031_loud_squadron_supreme",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1742047173278,
+      "tag": "0032_serious_rogue",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1742130418883,
+      "tag": "0033_bumpy_spirit",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1742164158881,
+      "tag": "0034_sparkling_mathemanic",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1742164633526,
+      "tag": "0035_daffy_forgotten_one",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1742207137922,
+      "tag": "0036_low_micromacro",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1742391798790,
+      "tag": "0037_absent_mattie_franklin",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1742455668273,
+      "tag": "0038_brown_wasp",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1742468895426,
+      "tag": "0039_chunky_drax",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1742473312991,
+      "tag": "0040_needy_groot",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1742473365156,
+      "tag": "0041_cute_drax",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1742602720686,
+      "tag": "0042_strange_nitro",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1742644947660,
+      "tag": "0043_white_silver_fox",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1742740935399,
+      "tag": "0044_yielding_robin_chapel",
+      "breakpoints": true
     }
   ]
 }

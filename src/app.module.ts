@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 import { LoggerModule } from './config/logger';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DrizzleModule } from './drizzle/drizzle.module';
 import { AuthModule } from './auth/auth.module';
 import { OrganizationModule } from './organization/organization.module';
 import { PayrollModule } from './payroll/payroll.module';
 import * as Joi from 'joi';
 import { NotificationModule } from './notification/notification.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { BullModule } from '@nestjs/bullmq';
 
 @Module({
   imports: [
@@ -38,11 +40,24 @@ import { NotificationModule } from './notification/notification.module';
         PUSHER_ENCRYPTED: Joi.string().required(),
       }),
     }),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => ({
+        connection: {
+          host: configService.get('REDIS_HOST'),
+          port: configService.get<number>('REDIS_PORT'),
+          password: configService.get('REDIS_PASSWORD'),
+        },
+        isGlobal: true,
+      }),
+    }),
 
     AuthModule,
     OrganizationModule,
     PayrollModule,
     NotificationModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule {}

@@ -22,28 +22,39 @@ let PayrollProcessor = class PayrollProcessor extends bullmq_1.WorkerHost {
         this.pdfService = pdfService;
     }
     async process(job) {
-        const { name, data } = job;
+        console.log(`🔄 Processing job: ${job.name}`);
         try {
-            if (name === 'generatePayslips') {
-                const { company_id, payrollMonth } = data;
-                await this.payslipService.generatePayslipsForCompany(company_id, payrollMonth);
+            switch (job.name) {
+                case 'generatePayslips':
+                    await this.handleGeneratePayslips(job.data);
+                    break;
+                case 'populateTaxDetails':
+                    await this.handlePopulateTaxDetails(job.data);
+                    break;
+                case 'generatePayslipPdf':
+                    await this.handleGeneratePayslipPdf(job.data);
+                    break;
+                default:
+                    console.warn(`⚠️ Unhandled job: ${job.name}`);
             }
-            else if (name === 'populateTaxDetails') {
-                const { company_id, payrollMonth, payrollRunId } = data;
-                await this.taxService.onPayrollApproval(company_id, payrollMonth, payrollRunId);
-            }
-            else if (name === 'generatePayslipPdf') {
-                const { payslipId } = data;
-                await this.pdfService.generatePayslipPdf(payslipId);
-            }
-            else {
-                console.warn(`Unhandled job name: ${name}`);
-            }
+            console.log(`✅ Job completed: ${job.name}`);
         }
         catch (error) {
-            console.error(`Failed to process job (${name}): ${error.message}`);
+            console.error(`❌ Error processing job (${job.name}):`, error);
             throw error;
         }
+    }
+    async handleGeneratePayslips(data) {
+        const { company_id, payrollMonth } = data;
+        await this.payslipService.generatePayslipsForCompany(company_id, payrollMonth);
+    }
+    async handlePopulateTaxDetails(data) {
+        const { company_id, payrollMonth, payrollRunId } = data;
+        await this.taxService.onPayrollApproval(company_id, payrollMonth, payrollRunId);
+    }
+    async handleGeneratePayslipPdf(data) {
+        const { payslipId } = data;
+        await this.pdfService.generatePayslipPdf(payslipId);
     }
 };
 exports.PayrollProcessor = PayrollProcessor;

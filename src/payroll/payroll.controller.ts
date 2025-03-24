@@ -27,6 +27,9 @@ import { BaseController } from 'src/config/base.controller';
 import { TaxService } from './services/tax.service';
 import { PdfService } from './services/pdf.service';
 import { updateTaxConfigurationDto } from './dto/update-tax-config.dto';
+import { PayGroupService } from './services/pay-group.service';
+import { CreateEmployeeGroupDto } from './dto/create-employee-group.dto';
+import { UpdateEmployeeGroupDto } from './dto/update-employee-group.dto';
 
 @Controller('')
 export class PayrollController extends BaseController {
@@ -36,6 +39,7 @@ export class PayrollController extends BaseController {
     private readonly payslipService: PayslipService,
     private readonly taxService: TaxService,
     private readonly pdfService: PdfService,
+    private readonly payGroup: PayGroupService,
   ) {
     super();
   }
@@ -273,7 +277,7 @@ export class PayrollController extends BaseController {
   // Salary
   @Get('salary-breakdown')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('roles', ['super_admin', 'admin'])
+  @SetMetadata('roles', ['super_admin', 'admin', 'employee'])
   async getSalaryBreakdown(@CurrentUser() user: User) {
     return this.payrollService.getSalaryBreakdown(user.company_id);
   }
@@ -282,14 +286,20 @@ export class PayrollController extends BaseController {
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
   async createSalaryBreakdown(@CurrentUser() user: User, @Body() dto: any) {
-    return this.payrollService.createSalaryBreakdown(user.company_id, dto);
+    return this.payrollService.createUpdateSalaryBreakdown(
+      user.company_id,
+      dto,
+    );
   }
 
-  @Delete('salary-breakdown')
+  @Delete('salary-breakdown/:id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
-  async deleteSalaryBreakdown(@CurrentUser() user: User) {
-    return this.payrollService.deleteSalaryBreakdown(user.company_id);
+  async deleteSalaryBreakdown(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+  ) {
+    return this.payrollService.deleteSalaryBreakdown(user.company_id, id);
   }
 
   // Taxes and Compliances
@@ -334,4 +344,83 @@ export class PayrollController extends BaseController {
         .json({ message: 'Error generating Excel file', error: error.message });
     }
   }
+
+  // Employee Group CRUD Endpoints   ---------------------------------------------------
+
+  @Post('pay-groups')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  createEmployeeGroup(
+    @Body() dto: CreateEmployeeGroupDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.payGroup.createEmployeeGroup(user.company_id, dto);
+  }
+
+  @Get('pay-groups')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager', 'employee'])
+  getEmployeeGroups(@CurrentUser() user: User) {
+    return this.payGroup.getEmployeeGroups(user.company_id);
+  }
+
+  @Get('pay-groups/:groupId')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  getEmployeeGroup(@Param('groupId') groupId: string) {
+    return this.payGroup.getEmployeeGroup(groupId);
+  }
+
+  @Put('pay-groups/:groupId')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  updateEmployeeGroup(
+    @Body() dto: UpdateEmployeeGroupDto,
+    @Param('groupId') groupId: string,
+  ) {
+    return this.payGroup.updateEmployeeGroup(groupId, dto);
+  }
+
+  @Delete('pay-groups/:groupId')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  deleteEmployeeGroup(@Param('groupId') groupId: string) {
+    return this.payGroup.deleteEmployeeGroup(groupId);
+  }
+
+  @Get('pay-groups/:groupId/employees')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  getEmployeesInGroup(@Param('groupId') groupId: string) {
+    return this.payGroup.getEmployeesInGroup(groupId);
+  }
+
+  @Post('pay-groups/:groupId/employees')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  addEmployeeToGroup(
+    @Body() employees: string | string[],
+    @Param('groupId') groupId: string,
+  ) {
+    return this.payGroup.addEmployeesToGroup(employees, groupId);
+  }
+
+  @Delete('pay-groups/:groupId/employees')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  removeEmployeeFromGroup(@Body() employeeIds: { employee_id: string }) {
+    const obj = employeeIds;
+    const employeeId = obj.employee_id;
+    return this.payGroup.removeEmployeesFromGroup(employeeId);
+  }
+
+  // Payroll Preview Details
+  @Get('payroll-preview')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  async getPayrollPreview(@CurrentUser() user: User) {
+    return this.payrollService.getPayrollPreviewDetails(user.company_id);
+  }
+
+  // testing on approval
 }

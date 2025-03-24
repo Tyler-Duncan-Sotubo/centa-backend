@@ -9,4 +9,7 @@ export declare class PayrollProcessor extends WorkerHost {
     private readonly pdfService;
     constructor(payslipService: PayslipService, taxService: TaxService, pdfService: PdfService);
     process(job: Job): Promise<void>;
+    private handleGeneratePayslips;
+    private handlePopulateTaxDetails;
+    private handleGeneratePayslipPdf;
 }

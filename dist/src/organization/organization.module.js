@@ -21,6 +21,8 @@ const password_reset_service_1 = require("../notification/services/password-rese
 const jwt_1 = require("@nestjs/jwt");
 const auth_module_1 = require("../auth/auth.module");
 const onboarding_service_1 = require("./services/onboarding.service");
+const email_queue_processor_1 = require("../notification/services/email-queue.processor");
+const bullmq_1 = require("@nestjs/bullmq");
 let OrganizationModule = class OrganizationModule {
 };
 exports.OrganizationModule = OrganizationModule;
@@ -32,6 +34,9 @@ exports.OrganizationModule = OrganizationModule = __decorate([
             cache_module_1.CacheModule,
             platform_express_1.MulterModule.register({
                 dest: './src/organization/temp',
+            }),
+            bullmq_1.BullModule.registerQueue({
+                name: 'emailQueue',
             }),
         ],
         controllers: [organization_controller_1.OrganizationController],
@@ -46,6 +51,7 @@ exports.OrganizationModule = OrganizationModule = __decorate([
             password_reset_service_1.PasswordResetEmailService,
             jwt_1.JwtService,
             onboarding_service_1.OnboardingService,
+            email_queue_processor_1.EmailQueueProcessor,
         ],
     })
 ], OrganizationModule);

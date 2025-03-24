@@ -284,10 +284,10 @@ export declare const tax_filing_details: import("drizzle-orm/pg-core").PgTableWi
         basic_salary: import("drizzle-orm/pg-core").PgColumn<{
             name: "basic_salary";
             tableName: "tax_filing_details";
-            dataType: "string";
-            columnType: "PgNumeric";
-            data: string;
-            driverParam: string;
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
             notNull: true;
             hasDefault: false;
             isPrimaryKey: false;
@@ -301,10 +301,10 @@ export declare const tax_filing_details: import("drizzle-orm/pg-core").PgTableWi
         contribution_amount: import("drizzle-orm/pg-core").PgColumn<{
             name: "contribution_amount";
             tableName: "tax_filing_details";
-            dataType: "string";
-            columnType: "PgNumeric";
-            data: string;
-            driverParam: string;
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
             notNull: true;
             hasDefault: false;
             isPrimaryKey: false;
@@ -318,10 +318,10 @@ export declare const tax_filing_details: import("drizzle-orm/pg-core").PgTableWi
         taxable_amount: import("drizzle-orm/pg-core").PgColumn<{
             name: "taxable_amount";
             tableName: "tax_filing_details";
-            dataType: "string";
-            columnType: "PgNumeric";
-            data: string;
-            driverParam: string;
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
             notNull: true;
             hasDefault: false;
             isPrimaryKey: false;
@@ -334,6 +334,40 @@ export declare const tax_filing_details: import("drizzle-orm/pg-core").PgTableWi
         }, {}, {}>;
         tin: import("drizzle-orm/pg-core").PgColumn<{
             name: "tin";
+            tableName: "tax_filing_details";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        pension_pin: import("drizzle-orm/pg-core").PgColumn<{
+            name: "pension_pin";
+            tableName: "tax_filing_details";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        nhf_number: import("drizzle-orm/pg-core").PgColumn<{
+            name: "nhf_number";
             tableName: "tax_filing_details";
             dataType: "string";
             columnType: "PgText";
@@ -362,6 +396,23 @@ export declare const tax_filing_details: import("drizzle-orm/pg-core").PgTableWi
             isAutoincrement: false;
             hasRuntimeDefault: false;
             enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        employer_contribution: import("drizzle-orm/pg-core").PgColumn<{
+            name: "employer_contribution";
+            tableName: "tax_filing_details";
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
             baseColumn: never;
             identity: undefined;
             generated: undefined;

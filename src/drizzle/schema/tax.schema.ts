@@ -1,11 +1,11 @@
 import {
   date,
   index,
-  decimal,
   pgTable,
   text,
   timestamp,
   uuid,
+  integer,
 } from 'drizzle-orm/pg-core';
 import { companies } from './company.schema';
 import { employees } from './employee.schema';
@@ -61,24 +61,16 @@ export const tax_filing_details = pgTable(
 
     name: text('name').notNull(),
 
-    basic_salary: decimal('basic_salary', {
-      precision: 10,
-      scale: 2,
-    }).notNull(),
-
-    contribution_amount: decimal('contribution_amount', {
-      precision: 10,
-      scale: 2,
-    }).notNull(),
-
-    taxable_amount: decimal('taxable_amount', {
-      precision: 10,
-      scale: 2,
-    }).notNull(),
+    basic_salary: integer('basic_salary').notNull(),
+    contribution_amount: integer('contribution_amount').notNull(),
+    taxable_amount: integer('taxable_amount').notNull(),
 
     tin: text('tin'),
+    pension_pin: text('pension_pin'),
+    nhf_number: text('nhf_number'),
     reference_number: text('reference_number'), // NHF/Pension reference number if applicable
 
+    employer_contribution: integer('employer_contribution'),
     created_at: timestamp('created_at').defaultNow(),
     updated_at: timestamp('updated_at').defaultNow(),
   },

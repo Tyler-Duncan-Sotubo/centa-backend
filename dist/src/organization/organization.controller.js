@@ -39,21 +39,22 @@ let OrganizationController = class OrganizationController extends base_controlle
         this.employee = employee;
         this.onboarding = onboarding;
         this.fieldMapping = {
-            'Employee Number': 'employee_number',
             'First Name': 'first_name',
             'Last Name': 'last_name',
             'Job Title': 'job_title',
             Email: 'email',
-            Phone: 'phone',
-            'Employment Status': 'employment_status',
-            'Start Date': 'start_date',
-            'Company ID': 'company_id',
-            'Department ID': 'department_id',
-            'Is Active': 'is_active',
+            'Employee Id': 'employee_number',
+            'Phone Number': 'phone',
+            Department: 'department_name',
             'Annual Gross': 'annual_gross',
-            'Hourly Rate': 'hourly_rate',
-            Bonus: 'bonus',
-            Commission: 'commission',
+            'Bank Name': 'bank_name',
+            'Account Number': 'bank_account_number',
+            'Start Date': 'start_date',
+            'Pay Group': 'group_name',
+            'Apply NHF': 'apply_nhf',
+            TIN: 'tin',
+            'Pension Pin': 'pension_pin',
+            'NHF Number': 'nhf_number',
         };
     }
     getOnboardingTasks(user) {
@@ -80,11 +81,20 @@ let OrganizationController = class OrganizationController extends base_controlle
     updateCompanyContact(dto, companyId) {
         return this.company.updateContactInCompany(dto, companyId);
     }
+    getPayFrequencySummary(user) {
+        return this.company.getPayFrequencySummary(user.company_id);
+    }
+    getNetPayDate(user) {
+        return this.company.getNextPayDate(user.company_id);
+    }
     getPayFrequency(user) {
         return this.company.getPayFrequency(user.company_id);
     }
-    updatePayFrequency(dto, user) {
-        return this.company.updatePayFrequency(user.company_id, dto);
+    createPayFrequency(dto, user) {
+        return this.company.createPayFrequency(user.company_id, dto);
+    }
+    updatePayFrequency(payFrequencyId, dto, user) {
+        return this.company.updatePayFrequency(user.company_id, dto, payFrequencyId);
     }
     createCompanyTaxDetails(dto, user) {
         return this.company.createCompanyTaxDetails(user.company_id, dto);
@@ -99,7 +109,6 @@ let OrganizationController = class OrganizationController extends base_controlle
         return this.department.createDepartment(dto, user.company_id);
     }
     getDepartment(user) {
-        console.log(user);
         return this.department.getDepartments(user.company_id);
     }
     getDepartmentById(departmentId) {
@@ -151,6 +160,10 @@ let OrganizationController = class OrganizationController extends base_controlle
                 employees.push(this.transformRowWithMapping(row));
             })
                 .on('end', async () => {
+                if (employees.length > 200) {
+                    reject(new common_1.BadRequestException('Maximum 50 employees per upload.'));
+                    return;
+                }
                 try {
                     const dtos = await this.validateAndMapToDto(employees);
                     const result = await this.employee.addMultipleEmployees(dtos, user.company_id);
@@ -177,13 +190,9 @@ let OrganizationController = class OrganizationController extends base_controlle
     transformRow(row) {
         return {
             ...row,
-            employee_number: Number(row.employee_number),
-            annual_gross: row.annual_gross ? Number(row.annual_gross) : null,
-            hourly_rate: row.hourly_rate ? Number(row.hourly_rate) : null,
-            bonus: row.bonus ? Number(row.bonus) : null,
-            commission: row.commission ? Number(row.commission) : null,
-            is_active: row.is_active === 'true' || row.is_active === '1',
-            employment_status: row.employment_status,
+            annual_gross: row.annual_gross
+                ? Number(row.annual_gross.replace(/,/g, ''))
+                : null,
         };
     }
     async validateAndMapToDto(rows) {
@@ -209,33 +218,6 @@ let OrganizationController = class OrganizationController extends base_controlle
     }
     updateEmployeeTaxDetails(dto, employeeId) {
         return this.employee.updateEmployeeTaxDetails(employeeId, dto);
-    }
-    createEmployeeGroup(dto, user) {
-        return this.employee.createEmployeeGroup(user.company_id, dto);
-    }
-    getEmployeeGroups(user) {
-        return this.employee.getEmployeeGroups(user.company_id);
-    }
-    getEmployeeGroup(groupId) {
-        return this.employee.getEmployeeGroup(groupId);
-    }
-    updateEmployeeGroup(dto, groupId) {
-        return this.employee.updateEmployeeGroup(groupId, dto);
-    }
-    deleteEmployeeGroup(groupId) {
-        return this.employee.deleteEmployeeGroup(groupId);
-    }
-    getEmployeesInGroup(groupId) {
-        return this.employee.getEmployeesInGroup(groupId);
-    }
-    addEmployeeToGroup(employees, groupId) {
-        console.log(employees);
-        return this.employee.addEmployeesToGroup(employees, groupId);
-    }
-    removeEmployeeFromGroup(employeeIds) {
-        const obj = employeeIds;
-        const employeeId = obj.employee_id;
-        return this.employee.removeEmployeesFromGroup(employeeId);
     }
     verifyAccount(accountNumber, bankCode) {
         return this.employee.verifyBankAccount(accountNumber, bankCode);
@@ -319,6 +301,24 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], OrganizationController.prototype, "updateCompanyContact", null);
 __decorate([
+    (0, common_1.Get)('pay-frequency-summary'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], OrganizationController.prototype, "getPayFrequencySummary", null);
+__decorate([
+    (0, common_1.Get)('next-pay-date'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], OrganizationController.prototype, "getNetPayDate", null);
+__decorate([
     (0, common_1.Get)('pay-frequency'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
@@ -328,13 +328,24 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], OrganizationController.prototype, "getPayFrequency", null);
 __decorate([
-    (0, common_1.Put)('pay-frequency'),
+    (0, common_1.Post)('pay-frequency'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [create_pay_frequency_dto_1.CreatePayFrequencyDto, Object]),
+    __metadata("design:returntype", void 0)
+], OrganizationController.prototype, "createPayFrequency", null);
+__decorate([
+    (0, common_1.Put)('pay-frequency/:payFrequencyId'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    __param(0, (0, common_1.Param)('payFrequencyId')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, create_pay_frequency_dto_1.CreatePayFrequencyDto, Object]),
     __metadata("design:returntype", void 0)
 ], OrganizationController.prototype, "updatePayFrequency", null);
 __decorate([
@@ -554,81 +565,6 @@ __decorate([
     __metadata("design:paramtypes", [update_employee_tax_details_dto_1.UpdateEmployeeTaxDetailsDto, String]),
     __metadata("design:returntype", void 0)
 ], OrganizationController.prototype, "updateEmployeeTaxDetails", null);
-__decorate([
-    (0, common_1.Post)('employee-groups'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
-    __param(0, (0, common_1.Body)()),
-    __param(1, (0, current_user_decorator_1.CurrentUser)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [dto_1.CreateEmployeeGroupDto, Object]),
-    __metadata("design:returntype", void 0)
-], OrganizationController.prototype, "createEmployeeGroup", null);
-__decorate([
-    (0, common_1.Get)('employee-groups'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
-    __param(0, (0, current_user_decorator_1.CurrentUser)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
-], OrganizationController.prototype, "getEmployeeGroups", null);
-__decorate([
-    (0, common_1.Get)('employee-group/:groupId'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
-    __param(0, (0, common_1.Param)('groupId')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", void 0)
-], OrganizationController.prototype, "getEmployeeGroup", null);
-__decorate([
-    (0, common_1.Put)('employee-group/:groupId'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
-    __param(0, (0, common_1.Body)()),
-    __param(1, (0, common_1.Param)('groupId')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [dto_1.UpdateEmployeeGroupDto, String]),
-    __metadata("design:returntype", void 0)
-], OrganizationController.prototype, "updateEmployeeGroup", null);
-__decorate([
-    (0, common_1.Delete)('employee-group/:groupId'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
-    __param(0, (0, common_1.Param)('groupId')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", void 0)
-], OrganizationController.prototype, "deleteEmployeeGroup", null);
-__decorate([
-    (0, common_1.Get)('employee-group/:groupId/employees'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
-    __param(0, (0, common_1.Param)('groupId')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", void 0)
-], OrganizationController.prototype, "getEmployeesInGroup", null);
-__decorate([
-    (0, common_1.Post)('employee-group/:groupId/employees'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
-    __param(0, (0, common_1.Body)()),
-    __param(1, (0, common_1.Param)('groupId')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", void 0)
-], OrganizationController.prototype, "addEmployeeToGroup", null);
-__decorate([
-    (0, common_1.Delete)('employee-group/:groupId/employees'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
-    __param(0, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
-], OrganizationController.prototype, "removeEmployeeFromGroup", null);
 __decorate([
     (0, common_1.Get)('verify-account/:accountNumber/:bankCode'),
     __param(0, (0, common_1.Param)('accountNumber')),

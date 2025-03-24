@@ -29,17 +29,20 @@ const https = require('https');
 const jwt = require("jsonwebtoken");
 const password_reset_service_1 = require("../../notification/services/password-reset.service");
 const password_reset_token_schema_1 = require("../../drizzle/schema/password-reset-token.schema");
-const deductions_schema_1 = require("../../drizzle/schema/deductions.schema");
 const onboarding_service_1 = require("./onboarding.service");
+const payroll_schema_1 = require("../../drizzle/schema/payroll.schema");
+const bullmq_1 = require("@nestjs/bullmq");
+const bullmq_2 = require("bullmq");
 (0, common_1.Injectable)();
 let EmployeeService = class EmployeeService {
-    constructor(db, aws, cache, config, passwordResetEmailService, onboardingService) {
+    constructor(db, aws, cache, config, passwordResetEmailService, onboardingService, emailQueue) {
         this.db = db;
         this.aws = aws;
         this.cache = cache;
         this.config = config;
         this.passwordResetEmailService = passwordResetEmailService;
         this.onboardingService = onboardingService;
+        this.emailQueue = emailQueue;
     }
     generateToken(payload) {
         const jwtSecret = this.config.get('JWT_SECRET') || 'defaultSecret';
@@ -49,38 +52,55 @@ let EmployeeService = class EmployeeService {
     }
     async addEmployee(dto, company_id) {
         return this.db.transaction(async (trx) => {
-            const [companyResult, departmentResult] = await Promise.all([
+            const [companyResult, existingDepartment, existingGroups] = await Promise.all([
                 trx
                     .select()
                     .from(company_schema_1.companies)
                     .where((0, drizzle_orm_1.eq)(company_schema_1.companies.id, company_id))
                     .execute(),
-                dto.department_id
+                dto.department_name
                     ? trx
                         .select()
                         .from(department_schema_1.departments)
-                        .where((0, drizzle_orm_1.eq)(department_schema_1.departments.id, dto.department_id))
+                        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(department_schema_1.departments.name, dto.department_name), (0, drizzle_orm_1.eq)(department_schema_1.departments.company_id, company_id)))
+                        .execute()
+                    : null,
+                dto.group_name
+                    ? trx
+                        .select()
+                        .from(payroll_schema_1.payGroups)
+                        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_schema_1.payGroups.name, dto.group_name), (0, drizzle_orm_1.eq)(payroll_schema_1.payGroups.company_id, company_id)))
                         .execute()
                     : null,
             ]);
             if (companyResult.length === 0) {
                 throw new common_1.BadRequestException('Company not found');
             }
-            if (dto.department_id &&
-                departmentResult &&
-                departmentResult.length === 0) {
-                throw new common_1.BadRequestException('Department not found');
+            let groupId = null;
+            if (dto.group_name) {
+                if (existingGroups && existingGroups.length > 0) {
+                    groupId = existingGroups[0].id;
+                }
+            }
+            let departmentId = null;
+            if (dto.department_name) {
+                if (existingDepartment && existingDepartment.length > 0) {
+                    departmentId = existingDepartment[0].id;
+                }
+                else {
+                    const [newDepartment] = await trx
+                        .insert(department_schema_1.departments)
+                        .values({
+                        name: dto.department_name,
+                        company_id: company_id,
+                    })
+                        .returning({ id: department_schema_1.departments.id })
+                        .execute();
+                    departmentId = newDepartment.id;
+                }
             }
             const randomPassword = (0, crypto_1.randomBytes)(12).toString('hex');
             const hashedPassword = await bcrypt.hash(randomPassword, 10);
-            const employeeNumberExists = await trx
-                .select()
-                .from(employee_schema_1.employees)
-                .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.employee_number, dto.employee_number))
-                .execute();
-            if (employeeNumberExists.length > 0) {
-                throw new common_1.BadRequestException(`Employee number ${dto.employee_number} already exists. Please use a unique employee number`);
-            }
             const emailExists = await trx
                 .select()
                 .from(users_schema_1.users)
@@ -89,17 +109,16 @@ let EmployeeService = class EmployeeService {
             if (emailExists.length > 0) {
                 throw new common_1.BadRequestException(`Employee with email ${dto.email} already exists. Please use a unique email`);
             }
-            const user = await trx
+            const [user] = await trx
                 .insert(users_schema_1.users)
                 .values({
                 email: dto.email.toLowerCase(),
                 password: hashedPassword,
                 first_name: dto.first_name,
                 last_name: dto.last_name,
+                company_id: company_id,
             })
-                .returning({
-                id: users_schema_1.users.id,
-            })
+                .returning({ id: users_schema_1.users.id })
                 .execute();
             const employee = await trx
                 .insert(employee_schema_1.employees)
@@ -110,42 +129,53 @@ let EmployeeService = class EmployeeService {
                 job_title: dto.job_title,
                 email: dto.email,
                 phone: dto.phone,
-                employment_status: dto.employment_status,
                 start_date: dto.start_date,
                 company_id: company_id,
-                department_id: dto.department_id || null,
-                annual_gross: dto.annual_gross,
-                hourly_rate: dto.hourly_rate,
+                department_id: departmentId,
+                annual_gross: dto.annual_gross * 100,
                 bonus: dto.bonus,
                 commission: dto.commission,
-                user_id: user[0].id,
+                user_id: user.id,
+                group_id: groupId,
+                apply_nhf: dto.apply_nhf === 'Yes' ? true : false,
             })
                 .returning({
                 id: employee_schema_1.employees.id,
                 employee_number: employee_schema_1.employees.employee_number,
                 first_name: employee_schema_1.employees.first_name,
                 email: employee_schema_1.employees.email,
-                annual_gross: employee_schema_1.employees.annual_gross,
-                hourly_rate: employee_schema_1.employees.hourly_rate,
-                bonus: employee_schema_1.employees.bonus,
-                commission: employee_schema_1.employees.commission,
-                group_id: employee_schema_1.employees.group_id,
             })
                 .execute();
-            const cacheKey = `employee-${employee[0].id}`;
-            this.cache.set(cacheKey, employee[0]);
             const token = this.generateToken({ email: dto.email });
             const expires_at = new Date(Date.now() + 1 * 60 * 60 * 1000);
             await trx
                 .insert(password_reset_token_schema_1.PasswordResetToken)
                 .values({
-                user_id: user[0].id,
+                user_id: user.id,
                 token,
                 expires_at,
                 is_used: false,
             })
                 .execute();
-            await this.onboardingService.completeTask(company_id, 'addEmployees');
+            await trx
+                .insert(employee_schema_1.employee_bank_details)
+                .values({
+                employee_id: employee[0].id,
+                bank_name: dto.bank_name,
+                bank_account_number: dto.bank_account_number,
+                bank_account_name: dto.first_name + ' ' + dto.last_name,
+            })
+                .execute();
+            await trx
+                .insert(employee_schema_1.employee_tax_details)
+                .values({
+                employee_id: employee[0].id,
+                tin: dto.tin,
+                pension_pin: dto.pension_pin,
+                nhf_number: dto.nhf_number,
+            })
+                .execute();
+            await this.onboardingService.completeTask(company_id, 'addTeamMembers');
             const inviteLink = `${this.config.get('EMPLOYEE_PORTAL_URL')}/auth/reset-password/${token}`;
             await this.passwordResetEmailService.sendPasswordResetEmail(employee[0].email, employee[0].first_name, inviteLink);
             return {
@@ -156,130 +186,167 @@ let EmployeeService = class EmployeeService {
     }
     async addMultipleEmployees(dtoArray, company_id) {
         return this.db.transaction(async (trx) => {
-            const results = [];
-            const departmentIds = Array.from(new Set(dtoArray.map((dto) => dto.department_id).filter((id) => id)));
+            const companyExists = await trx
+                .select({ id: company_schema_1.companies.id })
+                .from(company_schema_1.companies)
+                .where((0, drizzle_orm_1.eq)(company_schema_1.companies.id, company_id))
+                .execute();
+            if (companyExists.length === 0) {
+                throw new common_1.BadRequestException('Company not found');
+            }
+            const departmentNames = new Set(dtoArray
+                .map((dto) => dto.department_name?.trim().toLowerCase())
+                .filter(Boolean));
+            const groupNames = new Set(dtoArray
+                .map((dto) => dto.group_name?.trim().toLowerCase())
+                .filter(Boolean));
             const emails = dtoArray.map((dto) => dto.email.toLowerCase());
-            const [existingDepartments, existingUsers] = await Promise.all([
-                departmentIds.length
+            const [existingDepartments, existingGroups, existingUsers] = await Promise.all([
+                departmentNames.size
                     ? trx
-                        .select()
+                        .select({ id: department_schema_1.departments.id, name: department_schema_1.departments.name })
                         .from(department_schema_1.departments)
-                        .where((0, drizzle_orm_1.inArray)(department_schema_1.departments.id, departmentIds))
+                        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.inArray)(department_schema_1.departments.name, [...departmentNames]), (0, drizzle_orm_1.eq)(department_schema_1.departments.company_id, company_id)))
                         .execute()
                     : Promise.resolve([]),
-                trx.select().from(users_schema_1.users).where((0, drizzle_orm_1.inArray)(users_schema_1.users.email, emails)).execute(),
-            ]);
-            const departmentMap = new Map(existingDepartments.map((department) => [department.id, department]));
-            const emailSet = new Set(existingUsers.map((user) => user.email));
-            for (const dto of dtoArray) {
-                const lowerCaseEmail = dto.email.toLowerCase();
-                if (emailSet.has(lowerCaseEmail)) {
-                    throw new common_1.BadRequestException(`Employee with email ${dto.email} already exists. Please use a unique email`);
-                }
-                if (dto.department_id && !departmentMap.has(dto.department_id)) {
-                    results.push({
-                        email: dto.email,
-                        status: 'Failed',
-                        reason: 'Department not found',
-                    });
-                    continue;
-                }
-                const companyResult = await trx
+                groupNames.size
+                    ? trx
+                        .select({ id: payroll_schema_1.payGroups.id, name: payroll_schema_1.payGroups.name })
+                        .from(payroll_schema_1.payGroups)
+                        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.inArray)(payroll_schema_1.payGroups.name, [...groupNames]), (0, drizzle_orm_1.eq)(payroll_schema_1.payGroups.company_id, company_id)))
+                        .execute()
+                    : Promise.resolve([]),
+                trx
                     .select()
-                    .from(company_schema_1.companies)
-                    .where((0, drizzle_orm_1.eq)(company_schema_1.companies.id, company_id))
+                    .from(users_schema_1.users)
+                    .where((0, drizzle_orm_1.inArray)(users_schema_1.users.email, emails))
+                    .execute(),
+            ]);
+            const departmentMap = new Map(existingDepartments.map((d) => [d.name.toLowerCase(), d.id]));
+            const groupMap = new Map(existingGroups.map((g) => [g.name.toLowerCase(), g.id]));
+            const existingEmails = new Set(existingUsers.map((u) => u.email));
+            const newDepartments = [...departmentNames].filter((name) => !departmentMap.has(name));
+            if (newDepartments.length) {
+                const insertedDepartments = await trx
+                    .insert(department_schema_1.departments)
+                    .values(newDepartments.map((name) => ({ name, company_id })))
+                    .returning({ id: department_schema_1.departments.id, name: department_schema_1.departments.name })
                     .execute();
-                if (companyResult.length === 0) {
-                    throw new common_1.BadRequestException('Company not found');
-                }
-                const randomPassword = (0, crypto_1.randomBytes)(12).toString('hex');
-                const hashedPassword = await bcrypt.hash(randomPassword, 10);
-                try {
-                    await trx
-                        .insert(users_schema_1.users)
-                        .values({
-                        email: lowerCaseEmail,
-                        password: hashedPassword,
-                        first_name: dto.first_name,
-                        last_name: dto.last_name,
-                    })
-                        .returning({
-                        id: users_schema_1.users.id,
-                    })
-                        .execute();
-                    const employee = await trx
-                        .insert(employee_schema_1.employees)
-                        .values({
-                        employee_number: dto.employee_number,
-                        first_name: dto.first_name,
-                        last_name: dto.last_name,
-                        job_title: dto.job_title,
-                        email: dto.email,
-                        phone: dto.phone,
-                        employment_status: dto.employment_status,
-                        start_date: dto.start_date,
-                        company_id: company_id,
-                        department_id: dto.department_id || null,
-                        annual_gross: dto.annual_gross,
-                        hourly_rate: dto.hourly_rate,
-                        bonus: dto.bonus,
-                        commission: dto.commission,
-                    })
-                        .returning({
-                        id: employee_schema_1.employees.id,
-                        employee_number: employee_schema_1.employees.employee_number,
-                        first_name: employee_schema_1.employees.first_name,
-                        email: employee_schema_1.employees.email,
-                        annual_gross: employee_schema_1.employees.annual_gross,
-                        hourly_rate: employee_schema_1.employees.hourly_rate,
-                        bonus: employee_schema_1.employees.bonus,
-                        commission: employee_schema_1.employees.commission,
-                        group_id: employee_schema_1.employees.group_id,
-                    })
-                        .execute();
-                    results.push({
-                        email: employee[0].email,
-                        employee_number: employee[0].employee_number,
-                        first_name: employee[0].first_name,
-                        password: randomPassword,
-                        status: 'Success',
-                        company_id: companyResult[0].id,
-                    });
-                    await this.onboardingService.completeTask(company_id, 'addEmployees');
-                    const cacheKey = `employee-${employee[0].id}`;
-                    this.cache.set(cacheKey, employee[0]);
-                }
-                catch (error) {
-                    if (error.message.includes('employees_employee_number_unique')) {
-                        throw new common_1.BadRequestException(`Duplicate employee number: ${dto.employee_number}. Please use a unique employee number`);
-                    }
-                    else {
-                        throw new common_1.BadRequestException(`Error during employee creation: ' + ${error.message}`);
-                    }
-                }
+                insertedDepartments.forEach((d) => departmentMap.set(d.name.toLowerCase(), d.id));
             }
-            this.aws.uploadCsvToS3(results[0].company_id, dtoArray);
-            return results;
+            const hashedPasswords = await Promise.all(dtoArray.map(() => bcrypt.hash((0, crypto_1.randomBytes)(12).toString('hex'), 10)));
+            const usersToInsert = dtoArray
+                .filter((dto) => !existingEmails.has(dto.email.toLowerCase()))
+                .map((dto, index) => ({
+                email: dto.email.toLowerCase(),
+                password: hashedPasswords[index],
+                first_name: dto.first_name,
+                last_name: dto.last_name,
+                company_id,
+            }));
+            const insertedUsers = await trx
+                .insert(users_schema_1.users)
+                .values(usersToInsert)
+                .returning({ id: users_schema_1.users.id, email: users_schema_1.users.email })
+                .execute();
+            const userMap = new Map(insertedUsers.map((user) => [user.email, user.id]));
+            const employeesToInsert = dtoArray.map((dto) => ({
+                employee_number: dto.employee_number,
+                first_name: dto.first_name,
+                last_name: dto.last_name,
+                job_title: dto.job_title,
+                email: dto.email,
+                phone: dto.phone,
+                start_date: dto.start_date,
+                company_id,
+                department_id: departmentMap.get(dto.department_name?.trim().toLowerCase()) || null,
+                annual_gross: dto.annual_gross * 100,
+                bonus: dto.bonus,
+                commission: dto.commission,
+                user_id: userMap.get(dto.email.toLowerCase()),
+                group_id: groupMap.get(dto.group_name?.trim().toLowerCase()) || null,
+                apply_nhf: dto.apply_nhf === 'Yes',
+            }));
+            const insertedEmployees = await trx
+                .insert(employee_schema_1.employees)
+                .values(employeesToInsert)
+                .returning({
+                id: employee_schema_1.employees.id,
+                email: employee_schema_1.employees.email,
+                first_name: employee_schema_1.employees.first_name,
+            })
+                .execute();
+            const employeeMap = new Map(insertedEmployees.map((e) => [e.email, e.id]));
+            await Promise.all([
+                trx
+                    .insert(employee_schema_1.employee_bank_details)
+                    .values(dtoArray.map((dto) => ({
+                    employee_id: employeeMap.get(dto.email) || '',
+                    bank_name: dto.bank_name,
+                    bank_account_number: dto.bank_account_number,
+                    bank_account_name: `${dto.first_name} ${dto.last_name}`,
+                })))
+                    .execute(),
+                trx
+                    .insert(employee_schema_1.employee_tax_details)
+                    .values(dtoArray.map((dto) => ({
+                    employee_id: employeeMap.get(dto.email) || '',
+                    tin: dto.tin,
+                    pension_pin: dto.pension_pin,
+                    nhf_number: dto.nhf_number,
+                })))
+                    .execute(),
+            ]);
+            const tokensToInsert = insertedEmployees.map((employee) => ({
+                user_id: userMap.get(employee.email) || '',
+                token: this.generateToken({ email: employee.email }),
+                expires_at: new Date(Date.now() + 1 * 60 * 60 * 1000),
+                is_used: false,
+            }));
+            await trx.insert(password_reset_token_schema_1.PasswordResetToken).values(tokensToInsert).execute();
+            const employeePortalUrl = this.config.get('EMPLOYEE_PORTAL_URL');
+            await Promise.all(insertedEmployees.map((employee) => {
+                const token = tokensToInsert.find((t) => t.user_id === userMap.get(employee.email))?.token;
+                const inviteLink = `${employeePortalUrl}/auth/reset-password/${token}`;
+                this.emailQueue.add('sendPasswordResetEmail', {
+                    email: employee.email,
+                    name: employee.first_name,
+                    resetLink: inviteLink,
+                });
+            }));
+            await this.onboardingService.completeTask(company_id, 'addTeamMembers');
+            return insertedEmployees.map((employee) => ({
+                email: employee.email,
+                status: 'Success',
+                company_id,
+            }));
         });
     }
     async getEmployeeByUserId(user_id) {
         const result = await this.db
             .select({
-            id: employee_schema_1.employees.id,
             first_name: employee_schema_1.employees.first_name,
             last_name: employee_schema_1.employees.last_name,
             job_title: employee_schema_1.employees.job_title,
             phone: employee_schema_1.employees.phone,
             email: employee_schema_1.employees.email,
+            employment_status: employee_schema_1.employees.employment_status,
+            start_date: employee_schema_1.employees.start_date,
+            employee_number: employee_schema_1.employees.employee_number,
+            department_id: employee_schema_1.employees.department_id,
+            annual_gross: employee_schema_1.employees.annual_gross,
+            group_id: employee_schema_1.employees.group_id,
+            employee_bank_details: employee_schema_1.employee_bank_details,
+            employee_tax_details: employee_schema_1.employee_tax_details,
+            companyId: company_schema_1.companies.id,
+            id: employee_schema_1.employees.id,
             company_name: company_schema_1.companies.name,
-            salary: employee_schema_1.employees.annual_gross,
-            apply_paye: deductions_schema_1.taxConfig.apply_paye,
-            apply_nhf: deductions_schema_1.taxConfig.apply_nhf,
-            apply_pension: deductions_schema_1.taxConfig.apply_pension,
+            apply_nhf: employee_schema_1.employees.apply_nhf,
         })
             .from(employee_schema_1.employees)
             .innerJoin(company_schema_1.companies, (0, drizzle_orm_1.eq)(company_schema_1.companies.id, employee_schema_1.employees.company_id))
-            .innerJoin(deductions_schema_1.taxConfig, (0, drizzle_orm_1.eq)(deductions_schema_1.taxConfig.company_id, company_schema_1.companies.id))
+            .leftJoin(employee_schema_1.employee_bank_details, (0, drizzle_orm_1.eq)(employee_schema_1.employee_bank_details.employee_id, user_id))
+            .leftJoin(employee_schema_1.employee_tax_details, (0, drizzle_orm_1.eq)(employee_schema_1.employee_tax_details.employee_id, user_id))
             .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.user_id, user_id))
             .execute();
         if (result.length === 0) {
@@ -330,7 +397,6 @@ let EmployeeService = class EmployeeService {
             employee_number: employee_schema_1.employees.employee_number,
             department_id: employee_schema_1.employees.department_id,
             annual_gross: employee_schema_1.employees.annual_gross,
-            hourly_rate: employee_schema_1.employees.hourly_rate,
             bonus: employee_schema_1.employees.bonus,
             commission: employee_schema_1.employees.commission,
             group_id: employee_schema_1.employees.group_id,
@@ -382,7 +448,6 @@ let EmployeeService = class EmployeeService {
             department_id: dto.department_id,
             is_active: dto.is_active,
             annual_gross: dto.annual_gross,
-            hourly_rate: dto.hourly_rate,
         })
             .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.id, employee_id))
             .execute();
@@ -448,130 +513,6 @@ let EmployeeService = class EmployeeService {
             .execute();
         return 'Employee tax details updated successfully';
     }
-    async getEmployeeGroups(company_id) {
-        const result = await this.db
-            .select()
-            .from(employee_schema_1.employee_groups)
-            .where((0, drizzle_orm_1.eq)(employee_schema_1.employee_groups.company_id, company_id))
-            .execute();
-        return result;
-    }
-    async createEmployeeGroup(company_id, dto) {
-        const result = await this.db
-            .insert(employee_schema_1.employee_groups)
-            .values({
-            ...dto,
-            company_id: company_id,
-        })
-            .returning()
-            .execute();
-        if (dto.employees && dto.employees.length > 0) {
-            await this.addEmployeesToGroup(dto.employees, result[0].id);
-        }
-        const cacheKey = `employee-group-${result[0].id}`;
-        this.cache.set(cacheKey, result[0]);
-        return result[0];
-    }
-    async getEmployeeGroup(group_id) {
-        const cacheKey = `employee-group-${group_id}`;
-        return this.cache.getOrSetCache(cacheKey, async () => {
-            const result = await this.db
-                .select()
-                .from(employee_schema_1.employee_groups)
-                .where((0, drizzle_orm_1.eq)(employee_schema_1.employee_groups.id, group_id))
-                .execute();
-            if (result.length === 0) {
-                throw new common_1.BadRequestException('Employee group not found, please provide a valid group id');
-            }
-            return result[0];
-        });
-    }
-    async updateEmployeeGroup(group_id, dto) {
-        await this.getEmployeeGroup(group_id);
-        await this.db
-            .update(employee_schema_1.employee_groups)
-            .set({
-            ...dto,
-        })
-            .where((0, drizzle_orm_1.eq)(employee_schema_1.employee_groups.id, group_id))
-            .execute();
-        return 'Employee group updated successfully';
-    }
-    async deleteEmployeeGroup(group_id) {
-        const result = await this.db
-            .select({
-            id: employee_schema_1.employees.id,
-        })
-            .from(employee_schema_1.employees)
-            .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.group_id, group_id))
-            .execute();
-        await this.removeEmployeesFromGroup(result.map((employee) => employee.id));
-        await this.db
-            .delete(employee_schema_1.employee_groups)
-            .where((0, drizzle_orm_1.eq)(employee_schema_1.employee_groups.id, group_id))
-            .execute();
-        return { message: 'Employee group deleted successfully' };
-    }
-    async getEmployeesInGroup(group_id) {
-        const result = await this.db
-            .select({
-            id: employee_schema_1.employees.id,
-            first_name: employee_schema_1.employees.first_name,
-            last_name: employee_schema_1.employees.last_name,
-        })
-            .from(employee_schema_1.employees)
-            .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.group_id, group_id))
-            .execute();
-        if (result.length === 0) {
-            throw new common_1.BadRequestException('No employees found in this group');
-        }
-        return result;
-    }
-    async addEmployeesToGroup(employee_ids, group_id) {
-        const employeeIdArray = Array.isArray(employee_ids)
-            ? employee_ids
-            : [employee_ids];
-        for (const employee_id of employeeIdArray) {
-            await this.getEmployeeById(employee_id);
-        }
-        const updatePromises = employeeIdArray.map((employee_id) => this.db
-            .update(employee_schema_1.employees)
-            .set({ group_id: group_id })
-            .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.id, employee_id))
-            .execute());
-        await Promise.all(updatePromises);
-        const cacheUpdatePromises = employeeIdArray.map(async (employeeId) => {
-            const cacheKey = `employee-${employeeId}`;
-            this.cache.del(cacheKey);
-            const employeeData = await this.getEmployeeById(employeeId);
-            return this.cache.set(cacheKey, employeeData);
-        });
-        await Promise.all(cacheUpdatePromises);
-        return `${employeeIdArray.length} employees added to group ${group_id} successfully`;
-    }
-    async removeEmployeesFromGroup(employee_ids) {
-        console.log(employee_ids);
-        const employeeIdArray = Array.isArray(employee_ids)
-            ? employee_ids
-            : [employee_ids];
-        for (const employee_id of employeeIdArray) {
-            await this.getEmployeeById(employee_id);
-        }
-        const updatePromises = employeeIdArray.map((employee_id) => this.db
-            .update(employee_schema_1.employees)
-            .set({ group_id: null })
-            .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.id, employee_id))
-            .execute());
-        await Promise.all(updatePromises);
-        const cacheUpdatePromises = employeeIdArray.map(async (employeeId) => {
-            const cacheKey = `employee-${employeeId}`;
-            this.cache.del(cacheKey);
-            const employeeData = await this.getEmployeeById(employeeId);
-            return this.cache.set(cacheKey, employeeData);
-        });
-        await Promise.all(cacheUpdatePromises);
-        return `${employeeIdArray.length} employees removed from the group successfully`;
-    }
     async verifyBankAccount(accountNumber, bankCode) {
         return new Promise((resolve, reject) => {
             const options = {
@@ -614,10 +555,12 @@ let EmployeeService = class EmployeeService {
 exports.EmployeeService = EmployeeService;
 exports.EmployeeService = EmployeeService = __decorate([
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
+    __param(6, (0, bullmq_1.InjectQueue)('emailQueue')),
     __metadata("design:paramtypes", [Object, aws_service_1.AwsService,
         cache_service_1.CacheService,
         config_1.ConfigService,
         password_reset_service_1.PasswordResetEmailService,
-        onboarding_service_1.OnboardingService])
+        onboarding_service_1.OnboardingService,
+        bullmq_2.Queue])
 ], EmployeeService);
 //# sourceMappingURL=employee.service.js.map

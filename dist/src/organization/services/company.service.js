@@ -21,38 +21,13 @@ const cache_service_1 = require("../../config/cache/cache.service");
 const date_fns_1 = require("date-fns");
 const aws_service_1 = require("../../config/aws/aws.service");
 const onboarding_service_1 = require("./onboarding.service");
+const axios_1 = require("axios");
 let CompanyService = class CompanyService {
     constructor(db, cache, awsService, onboardingService) {
         this.db = db;
         this.cache = cache;
         this.awsService = awsService;
         this.onboardingService = onboardingService;
-        this.generatePaySchedule = (startDate, frequency, numPeriods = 6) => {
-            const schedule = [];
-            for (let i = 0; i < numPeriods; i++) {
-                let payDate;
-                switch (frequency) {
-                    case 'weekly':
-                        payDate = (0, date_fns_1.addDays)(startDate, i * 7);
-                        break;
-                    case 'biweekly':
-                        payDate = (0, date_fns_1.addDays)(startDate, i * 14);
-                        break;
-                    case 'semi-monthly':
-                        const firstHalf = (0, date_fns_1.startOfMonth)((0, date_fns_1.addMonths)(startDate, i));
-                        const secondHalf = (0, date_fns_1.addDays)(firstHalf, 14);
-                        schedule.push(firstHalf, secondHalf);
-                        continue;
-                    case 'monthly':
-                        payDate = (0, date_fns_1.endOfMonth)((0, date_fns_1.addMonths)(startDate, i));
-                        break;
-                    default:
-                        throw new Error('Invalid frequency');
-                }
-                schedule.push(payDate);
-            }
-            return schedule;
-        };
     }
     async getCompanyByUserId(company_id) {
         const result = await this.db
@@ -100,7 +75,7 @@ let CompanyService = class CompanyService {
                 .where((0, drizzle_orm_1.eq)(company_schema_1.companies.id, company_id))
                 .returning()
                 .execute();
-            await this.onboardingService.completeTask(company_id, 'completeYourCompanyProfile');
+            await this.onboardingService.completeTask(company_id, 'setupCompanyProfile');
             await this.cache.del(`companies:${company_id}`);
             return 'Company updated successfully';
         }
@@ -161,37 +136,6 @@ let CompanyService = class CompanyService {
             throw new common_1.BadRequestException(error.message);
         }
     }
-    async getPayFrequency(company_id) {
-        const payFrequency = await this.db
-            .select({
-            id: company_schema_1.companies.id,
-            pay_frequency: company_schema_1.companies.pay_frequency,
-        })
-            .from(company_schema_1.companies)
-            .where((0, drizzle_orm_1.eq)(company_schema_1.companies.id, company_id))
-            .execute();
-        return payFrequency;
-    }
-    async updatePayFrequency(company_id, dto) {
-        const schedule = this.generatePaySchedule(new Date(dto.startDate), dto.pay_frequency);
-        try {
-            await this.db
-                .update(company_schema_1.companies)
-                .set({
-                pay_frequency: dto.pay_frequency,
-                pay_schedule: schedule,
-            })
-                .where((0, drizzle_orm_1.eq)(company_schema_1.companies.id, company_id))
-                .returning()
-                .execute();
-            await this.cache.del(`companies:${company_id}`);
-            await this.onboardingService.completeTask(company_id, 'payrollScheduleUpdated');
-            return 'Pay frequency updated successfully';
-        }
-        catch (error) {
-            throw new common_1.BadRequestException(error.message);
-        }
-    }
     async createCompanyTaxDetails(user_id, dto) {
         const company = await this.getCompanyByUserId(user_id);
         const taxDetails = await this.db
@@ -202,7 +146,7 @@ let CompanyService = class CompanyService {
         })
             .returning()
             .execute();
-        await this.onboardingService.completeTask(company.id, 'taxNumbersAdded');
+        await this.onboardingService.completeTask(company.id, 'addTaxInformation');
         return taxDetails;
     }
     async getCompanyTaxDetails(user_id) {
@@ -229,6 +173,137 @@ let CompanyService = class CompanyService {
                 .returning()
                 .execute();
             return 'Company tax details updated successfully';
+        }
+        catch (error) {
+            throw new common_1.BadRequestException(error.message);
+        }
+    }
+    async getPayFrequency(company_id) {
+        const payFrequency = await this.db
+            .select()
+            .from(company_schema_1.paySchedules)
+            .where((0, drizzle_orm_1.eq)(company_schema_1.paySchedules.companyId, company_id))
+            .execute();
+        return payFrequency;
+    }
+    async getNextPayDate(company_id) {
+        const paySchedulesData = await this.db
+            .select({
+            paySchedule: company_schema_1.paySchedules.paySchedule,
+        })
+            .from(company_schema_1.paySchedules)
+            .where((0, drizzle_orm_1.eq)(company_schema_1.paySchedules.companyId, company_id))
+            .execute();
+        const today = new Date();
+        const allPayDates = paySchedulesData
+            .flatMap((schedule) => schedule.paySchedule)
+            .map((date) => new Date(date))
+            .filter((date) => date > today)
+            .sort((a, b) => a.getTime() - b.getTime());
+        return allPayDates.length > 0 ? allPayDates[0] : null;
+    }
+    async getPayFrequencySummary(company_id) {
+        const payFrequency = await this.db
+            .select({
+            payFrequency: company_schema_1.paySchedules.payFrequency,
+            paySchedules: company_schema_1.paySchedules.paySchedule,
+            id: company_schema_1.paySchedules.id,
+        })
+            .from(company_schema_1.paySchedules)
+            .where((0, drizzle_orm_1.eq)(company_schema_1.paySchedules.companyId, company_id))
+            .execute();
+        return payFrequency;
+    }
+    async isPublicHoliday(date, countryCode) {
+        const formattedDate = date.toISOString().split('T')[0];
+        const url = `https://date.nager.at/api/v3/publicholidays/${date.getFullYear()}/${countryCode}`;
+        try {
+            const response = await axios_1.default.get(url);
+            const holidays = response.data;
+            return holidays.some((holiday) => holiday.date === formattedDate);
+        }
+        catch (error) {
+            throw new common_1.BadRequestException(error.message);
+        }
+    }
+    async adjustForWeekendAndHoliday(date, countryCode) {
+        let adjustedDate = date;
+        if ((0, date_fns_1.isSaturday)(adjustedDate)) {
+            adjustedDate = (0, date_fns_1.addDays)(adjustedDate, -1);
+        }
+        else if ((0, date_fns_1.isSunday)(adjustedDate)) {
+            adjustedDate = (0, date_fns_1.addDays)(adjustedDate, -2);
+        }
+        while (await this.isPublicHoliday(adjustedDate, countryCode)) {
+            adjustedDate = (0, date_fns_1.addDays)(adjustedDate, -1);
+        }
+        return adjustedDate;
+    }
+    async generatePaySchedule(startDate, frequency, numPeriods = 6, countryCode) {
+        const schedule = [];
+        for (let i = 0; i < numPeriods; i++) {
+            let payDate;
+            switch (frequency) {
+                case 'weekly':
+                    payDate = (0, date_fns_1.addDays)(startDate, i * 7);
+                    break;
+                case 'biweekly':
+                    payDate = (0, date_fns_1.addDays)(startDate, i * 14);
+                    break;
+                case 'semi-monthly':
+                    const firstHalf = (0, date_fns_1.startOfMonth)((0, date_fns_1.addMonths)(startDate, i));
+                    const secondHalf = (0, date_fns_1.addDays)(firstHalf, 14);
+                    schedule.push(await this.adjustForWeekendAndHoliday(firstHalf, countryCode), await this.adjustForWeekendAndHoliday(secondHalf, countryCode));
+                    continue;
+                case 'monthly':
+                    payDate = (0, date_fns_1.endOfMonth)((0, date_fns_1.addMonths)(startDate, i));
+                    break;
+                default:
+                    throw new Error('Invalid frequency');
+            }
+            schedule.push(await this.adjustForWeekendAndHoliday(payDate, countryCode));
+        }
+        return schedule;
+    }
+    async createPayFrequency(company_id, dto) {
+        const schedule = await this.generatePaySchedule(new Date(dto.startDate), dto.pay_frequency, 6, dto.countryCode);
+        try {
+            const paySchedule = await this.db.insert(company_schema_1.paySchedules).values({
+                companyId: company_id,
+                payFrequency: dto.pay_frequency,
+                paySchedule: schedule,
+                startDate: dto.startDate,
+                weekendAdjustment: dto.weekendAdjustment,
+                holidayAdjustment: dto.holidayAdjustment,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            });
+            await this.cache.del(`companies:${company_id}`);
+            await this.onboardingService.completeTask(company_id, 'configurePayrollSchedule');
+            return paySchedule;
+        }
+        catch (error) {
+            throw new common_1.BadRequestException(error.message);
+        }
+    }
+    async updatePayFrequency(company_id, dto, payFrequencyId) {
+        const schedule = await this.generatePaySchedule(new Date(dto.startDate), dto.pay_frequency, 6, dto.countryCode);
+        try {
+            await this.db
+                .update(company_schema_1.paySchedules)
+                .set({
+                payFrequency: dto.pay_frequency,
+                paySchedule: schedule,
+                startDate: dto.startDate,
+                weekendAdjustment: dto.weekendAdjustment,
+                holidayAdjustment: dto.holidayAdjustment,
+                updatedAt: new Date(),
+            })
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(company_schema_1.paySchedules.companyId, company_id), (0, drizzle_orm_1.eq)(company_schema_1.paySchedules.id, payFrequencyId)))
+                .execute();
+            await this.cache.del(`companies:${company_id}`);
+            await this.onboardingService.completeTask(company_id, 'configurePayrollSchedule');
+            return 'Pay frequency updated successfully';
         }
         catch (error) {
             throw new common_1.BadRequestException(error.message);

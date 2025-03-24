@@ -13,16 +13,13 @@ exports.salaryAdvance = (0, pg_core_1.pgTable)('salary_advance', {
     employee_id: (0, pg_core_1.uuid)('employee_id')
         .references(() => employee_schema_1.employees.id)
         .notNull(),
-    amount: (0, pg_core_1.decimal)('amount', { precision: 10, scale: 2 }).notNull(),
-    total_paid: (0, pg_core_1.decimal)('total_paid', { precision: 10, scale: 2 })
-        .default('0')
-        .notNull(),
+    name: (0, pg_core_1.text)('name').notNull(),
+    amount: (0, pg_core_1.integer)('amount').notNull(),
+    total_paid: (0, pg_core_1.integer)('total_paid').default(0).notNull(),
     tenureMonths: (0, pg_core_1.integer)('tenure_months').notNull(),
-    preferredMonthlyPayment: (0, pg_core_1.decimal)('preferred_monthly_payment', {
-        precision: 10,
-        scale: 2,
-    }),
+    preferredMonthlyPayment: (0, pg_core_1.integer)('preferred_monthly_payment').default(0),
     status: (0, pg_core_1.text)('status').default('pending').notNull(),
+    payment_status: (0, pg_core_1.text)('payment_status').default('open').notNull(),
     createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
 }, (table) => [
     (0, pg_core_1.index)('idx_company_id_loans').on(table.company_id),
@@ -34,7 +31,7 @@ exports.repayments = (0, pg_core_1.pgTable)('repayments', {
     salary_advance_id: (0, pg_core_1.uuid)('loan_id')
         .references(() => exports.salaryAdvance.id)
         .notNull(),
-    amount_paid: (0, pg_core_1.decimal)('amount_paid', { precision: 10, scale: 2 }).notNull(),
+    amount_paid: (0, pg_core_1.integer)('amount_paid').notNull(),
     paidAt: (0, pg_core_1.timestamp)('paid_at').defaultNow().notNull(),
 }, (table) => [
     (0, pg_core_1.index)('idx_loan_id_repayments').on(table.salary_advance_id),
