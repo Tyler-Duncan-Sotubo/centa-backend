@@ -42,8 +42,8 @@ let AuthService = class AuthService {
                 response.cookie('Authentication', refresh_token, {
                     httpOnly: true,
                     secure: true,
-                    expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                    sameSite: 'none',
+                    expires: new Date(Date.now() + 6 * 60 * 60 * 1000),
+                    sameSite: 'lax',
                 });
                 response.setHeader('Authorization', `Bearer ${access_token}`);
                 response.setHeader('X-Refresh-Token', refresh_token);
@@ -77,7 +77,11 @@ let AuthService = class AuthService {
         return user;
     }
     async logout(response) {
-        response.clearCookie('Authentication');
+        response.clearCookie('Authentication', {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+        });
         response.json({
             success: true,
             message: 'Logout successful',

@@ -47,8 +47,8 @@ export class AuthService {
         response.cookie('Authentication', refresh_token, {
           httpOnly: true,
           secure: true, // Required for HTTPS
-          expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          sameSite: 'none',
+          expires: new Date(Date.now() + 6 * 60 * 60 * 1000),
+          sameSite: 'lax',
         });
 
         // Set both tokens in the HTTP headers
@@ -90,7 +90,11 @@ export class AuthService {
   }
 
   async logout(response: Response) {
-    response.clearCookie('Authentication');
+    response.clearCookie('Authentication', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+    });
     response.json({
       success: true,
       message: 'Logout successful',

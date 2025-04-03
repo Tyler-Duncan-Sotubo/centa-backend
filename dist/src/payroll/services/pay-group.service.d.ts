@@ -23,10 +23,10 @@ export declare class PayGroupService {
     createEmployeeGroup(company_id: string, dto: CreateEmployeeGroupDto): Promise<{
         id: string;
         name: string;
+        company_id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         apply_nhf: boolean | null;
-        company_id: string;
         apply_paye: boolean | null;
         apply_pension: boolean | null;
         apply_additional: boolean | null;
