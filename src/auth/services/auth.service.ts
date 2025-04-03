@@ -28,10 +28,17 @@ export class AuthService {
   async login(payload: LoginDto, response: Response) {
     const user = await this.validateUser(payload.email, payload.password);
     // Update last login
-    await this.db
+    const updatedUser = await this.db
       .update(users)
       .set({ last_login: new Date() })
       .where(eq(users.email, payload.email.toLowerCase()))
+      .returning({
+        id: users.id,
+        email: users.email,
+        first_name: users.first_name,
+        last_name: users.last_name,
+        company_id: users.company_id,
+      })
       .execute();
 
     // Generate token
@@ -39,7 +46,8 @@ export class AuthService {
       await this.tokenGeneratorService.generateToken(user);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password, last_login, ...userWithoutPassword } = user; // Remove password from user object
+    const { password, last_login, role, created_at, ...userWithoutPassword } =
+      user; // Remove password from user object
 
     try {
       if (userWithoutPassword) {
@@ -59,7 +67,7 @@ export class AuthService {
         response.json({
           success: true,
           message: 'Login successful',
-          user: user,
+          user: updatedUser[0],
           token: access_token,
         });
       } else {

@@ -30,13 +30,20 @@ let AuthService = class AuthService {
     }
     async login(payload, response) {
         const user = await this.validateUser(payload.email, payload.password);
-        await this.db
+        const updatedUser = await this.db
             .update(users_schema_1.users)
             .set({ last_login: new Date() })
             .where((0, drizzle_orm_1.eq)(users_schema_1.users.email, payload.email.toLowerCase()))
+            .returning({
+            id: users_schema_1.users.id,
+            email: users_schema_1.users.email,
+            first_name: users_schema_1.users.first_name,
+            last_name: users_schema_1.users.last_name,
+            company_id: users_schema_1.users.company_id,
+        })
             .execute();
         const { access_token, refresh_token } = await this.tokenGeneratorService.generateToken(user);
-        const { password, last_login, ...userWithoutPassword } = user;
+        const { password, last_login, role, created_at, ...userWithoutPassword } = user;
         try {
             if (userWithoutPassword) {
                 response.cookie('Authentication', refresh_token, {
@@ -50,7 +57,7 @@ let AuthService = class AuthService {
                 response.json({
                     success: true,
                     message: 'Login successful',
-                    user: user,
+                    user: updatedUser[0],
                     token: access_token,
                 });
             }
