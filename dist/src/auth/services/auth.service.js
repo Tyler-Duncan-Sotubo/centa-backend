@@ -39,13 +39,11 @@ let AuthService = class AuthService {
         const { password, last_login, ...userWithoutPassword } = user;
         try {
             if (userWithoutPassword) {
-                const domain = new URL(process.env.CLIENT_DASHBOARD_URL || 'http://localhost').hostname;
                 response.cookie('Authentication', refresh_token, {
                     httpOnly: true,
                     secure: true,
                     expires: new Date(Date.now() + 6 * 60 * 60 * 1000),
                     sameSite: 'none',
-                    domain: domain,
                 });
                 response.setHeader('Authorization', `Bearer ${access_token}`);
                 response.setHeader('X-Refresh-Token', refresh_token);
@@ -79,12 +77,10 @@ let AuthService = class AuthService {
         return user;
     }
     async logout(response) {
-        const domain = new URL(process.env.CLIENT_DASHBOARD_URL || 'http://localhost').hostname;
         response.clearCookie('Authentication', {
             httpOnly: true,
             secure: true,
             sameSite: 'none',
-            domain: domain,
         });
         response.json({
             success: true,
