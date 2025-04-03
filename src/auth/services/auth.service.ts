@@ -48,7 +48,8 @@ export class AuthService {
           httpOnly: true,
           secure: true, // Required for HTTPS
           expires: new Date(Date.now() + 6 * 60 * 60 * 1000),
-          sameSite: 'lax',
+          sameSite: 'none',
+          domain: process.env.CLIENT_DASHBOARD_URL,
         });
 
         // Set both tokens in the HTTP headers
@@ -93,7 +94,8 @@ export class AuthService {
     response.clearCookie('Authentication', {
       httpOnly: true,
       secure: true,
-      sameSite: 'lax',
+      sameSite: 'none',
+      domain: process.env.CLIENT_DASHBOARD_URL,
     });
     response.json({
       success: true,

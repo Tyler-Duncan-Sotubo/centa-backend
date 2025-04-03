@@ -43,7 +43,8 @@ let AuthService = class AuthService {
                     httpOnly: true,
                     secure: true,
                     expires: new Date(Date.now() + 6 * 60 * 60 * 1000),
-                    sameSite: 'lax',
+                    sameSite: 'none',
+                    domain: process.env.CLIENT_DASHBOARD_URL,
                 });
                 response.setHeader('Authorization', `Bearer ${access_token}`);
                 response.setHeader('X-Refresh-Token', refresh_token);
@@ -80,7 +81,8 @@ let AuthService = class AuthService {
         response.clearCookie('Authentication', {
             httpOnly: true,
             secure: true,
-            sameSite: 'lax',
+            sameSite: 'none',
+            domain: process.env.CLIENT_DASHBOARD_URL,
         });
         response.json({
             success: true,
