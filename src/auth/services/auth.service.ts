@@ -43,13 +43,17 @@ export class AuthService {
 
     try {
       if (userWithoutPassword) {
+        const domain = new URL(
+          process.env.CLIENT_DASHBOARD_URL || 'http://localhost',
+        ).hostname;
+
         // Set the refresh token as a cookie (optional)
         response.cookie('Authentication', refresh_token, {
           httpOnly: true,
           secure: true, // Required for HTTPS
           expires: new Date(Date.now() + 6 * 60 * 60 * 1000),
           sameSite: 'none',
-          domain: process.env.CLIENT_DASHBOARD_URL,
+          domain: domain,
         });
 
         // Set both tokens in the HTTP headers
@@ -91,11 +95,15 @@ export class AuthService {
   }
 
   async logout(response: Response) {
+    const domain = new URL(
+      process.env.CLIENT_DASHBOARD_URL || 'http://localhost',
+    ).hostname;
+
     response.clearCookie('Authentication', {
       httpOnly: true,
-      secure: true,
+      secure: true, // Required for HTTPS
       sameSite: 'none',
-      domain: process.env.CLIENT_DASHBOARD_URL,
+      domain: domain,
     });
     response.json({
       success: true,
