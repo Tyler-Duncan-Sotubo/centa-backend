@@ -26,6 +26,7 @@ const loan_service_1 = require("./services/loan.service");
 const pusher_service_1 = require("../notification/services/pusher.service");
 const onboarding_service_1 = require("../organization/services/onboarding.service");
 const pay_group_service_1 = require("./services/pay-group.service");
+const audit_service_1 = require("../audit/audit.service");
 let PayrollModule = class PayrollModule {
 };
 exports.PayrollModule = PayrollModule;
@@ -53,6 +54,7 @@ exports.PayrollModule = PayrollModule = __decorate([
             pusher_service_1.PusherService,
             onboarding_service_1.OnboardingService,
             pay_group_service_1.PayGroupService,
+            audit_service_1.AuditService,
         ],
     })
 ], PayrollModule);

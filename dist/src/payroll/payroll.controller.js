@@ -28,6 +28,8 @@ const update_tax_config_dto_1 = require("./dto/update-tax-config.dto");
 const pay_group_service_1 = require("./services/pay-group.service");
 const create_employee_group_dto_1 = require("./dto/create-employee-group.dto");
 const update_employee_group_dto_1 = require("./dto/update-employee-group.dto");
+const audit_interceptor_1 = require("../audit/audit.interceptor");
+const audit_decorator_1 = require("../audit/audit.decorator");
 let PayrollController = class PayrollController extends base_controller_1.BaseController {
     constructor(payrollService, deductionService, payslipService, taxService, pdfService, payGroup) {
         super();
@@ -70,7 +72,6 @@ let PayrollController = class PayrollController extends base_controller_1.BaseCo
         return this.payrollService.getPayrollStatus(user.company_id);
     }
     async deleteCompanyPayroll(user, id, status) {
-        console.log(id);
         return this.payrollService.updatePayrollApprovalStatus(user.company_id, id, status);
     }
     async updatePayrollPaymentStatus(user, id, status) {
@@ -189,6 +190,7 @@ exports.PayrollController = PayrollController;
 __decorate([
     (0, common_1.Put)('tax-config'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, audit_decorator_1.Audit)({ action: 'Created Tax Config', entity: 'Remittance' }),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
@@ -200,6 +202,7 @@ __decorate([
     (0, common_1.Post)('custom-deduction'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Created Custom Deduction', entity: 'Payroll' }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -219,6 +222,7 @@ __decorate([
     (0, common_1.Put)('custom-deduction/:id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Updated Custom Deduction', entity: 'Payroll' }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Param)('id')),
@@ -239,6 +243,7 @@ __decorate([
     (0, common_1.Post)('calculate-payroll-for-company'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Payroll Run', entity: 'Payroll' }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -266,6 +271,7 @@ __decorate([
     (0, common_1.Put)('company-payroll/:id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Updated Payroll Approval Status', entity: 'Payroll' }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id')),
     __param(2, (0, common_1.Body)('status')),
@@ -277,6 +283,7 @@ __decorate([
     (0, common_1.Put)('company-payroll-payment-status/:id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Updated Payroll Payment Status', entity: 'Payroll' }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id')),
     __param(2, (0, common_1.Body)('status')),
@@ -288,6 +295,7 @@ __decorate([
     (0, common_1.Delete)('company-payroll/:id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Deleted Payroll', entity: 'Payroll' }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
@@ -307,6 +315,7 @@ __decorate([
     (0, common_1.Post)('company-bonuses'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Created Bonus', entity: 'Payroll' }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -317,6 +326,7 @@ __decorate([
     (0, common_1.Delete)('company-bonuses/:id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Deleted Bonus', entity: 'Payroll' }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
@@ -337,6 +347,7 @@ __decorate([
     (0, common_1.Get)('payslip-download/:id/:format'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Downloaded Payslip', entity: 'Payslip' }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id')),
     __param(2, (0, common_1.Param)('format')),
@@ -386,6 +397,7 @@ __decorate([
     (0, common_1.Post)('salary-breakdown'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Created Salary Breakdown', entity: 'Payroll' }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -396,6 +408,7 @@ __decorate([
     (0, common_1.Delete)('salary-breakdown/:id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Deleted Salary Breakdown', entity: 'Payroll' }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
@@ -415,6 +428,7 @@ __decorate([
     (0, common_1.Put)('tax-filings/:id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Update Company Tax Filings', entity: 'Tax' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)('status')),
     __metadata("design:type", Function),
@@ -423,6 +437,7 @@ __decorate([
 ], PayrollController.prototype, "updateCompanyTaxFilings", null);
 __decorate([
     (0, common_1.Get)('tax-filings-download/:id/'),
+    (0, audit_decorator_1.Audit)({ action: 'Download Company Tax Filing', entity: 'Tax' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Res)()),
     __metadata("design:type", Function),
@@ -433,6 +448,7 @@ __decorate([
     (0, common_1.Post)('pay-groups'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Created Employee Group', entity: 'Payroll' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -461,6 +477,7 @@ __decorate([
     (0, common_1.Put)('pay-groups/:groupId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Updated Employee Group', entity: 'Payroll' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Param)('groupId')),
     __metadata("design:type", Function),
@@ -471,6 +488,7 @@ __decorate([
     (0, common_1.Delete)('pay-groups/:groupId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Deleted Employee Group', entity: 'Payroll' }),
     __param(0, (0, common_1.Param)('groupId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -489,6 +507,7 @@ __decorate([
     (0, common_1.Post)('pay-groups/:groupId/employees'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Added Employee To Group', entity: 'Payroll' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Param)('groupId')),
     __metadata("design:type", Function),
@@ -499,6 +518,7 @@ __decorate([
     (0, common_1.Delete)('pay-groups/:groupId/employees'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Deleted Employee From Group', entity: 'Payroll' }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -514,6 +534,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], PayrollController.prototype, "getPayrollPreview", null);
 exports.PayrollController = PayrollController = __decorate([
+    (0, common_1.UseInterceptors)(audit_interceptor_1.AuditInterceptor),
     (0, common_1.Controller)(''),
     __metadata("design:paramtypes", [payroll_service_1.PayrollService,
         deduction_service_1.DeductionService,

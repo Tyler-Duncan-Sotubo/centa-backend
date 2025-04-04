@@ -33,7 +33,10 @@ import { User } from 'src/types/user.type';
 import { ResponseInterceptor } from '../config/interceptor/error-interceptor';
 import { InviteUserDto } from './dto/invite-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { AuditInterceptor } from 'src/audit/audit.interceptor';
+import { Audit } from 'src/audit/audit.decorator';
 
+@UseInterceptors(AuditInterceptor)
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -56,6 +59,7 @@ export class AuthController {
   @Post('invite')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin'])
+  @Audit({ action: 'New User Invite', entity: 'User' })
   async Invite(@Body() dto: InviteUserDto, @CurrentUser() user: User) {
     return this.user.inviteUser(dto, user.company_id);
   }
@@ -70,6 +74,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(ResponseInterceptor)
   @UseGuards(JwtAuthGuard)
+  @Audit({ action: 'Updated User Role', entity: 'User' })
   @Put('edit-user-role/:id')
   async EditUserRole(@Body() dto: InviteUserDto, @Param('id') id: string) {
     return this.user.editUserRole(id, dto);
@@ -117,6 +122,7 @@ export class AuthController {
   }
 
   @Post('password-reset')
+  @Audit({ action: 'Password Reset Request', entity: 'User' })
   @UseInterceptors(ResponseInterceptor)
   async passwordReset(@Body() dto: RequestPasswordResetDto): Promise<string> {
     return this.password.generatePasswordResetToken(dto.email);
@@ -124,6 +130,7 @@ export class AuthController {
 
   @HttpCode(HttpStatus.OK)
   @Post('reset-password/:token')
+  @Audit({ action: 'Reset Password', entity: 'User' })
   @UseInterceptors(ResponseInterceptor)
   async resetPassword(
     @Param('token') token: string,

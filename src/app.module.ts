@@ -9,6 +9,7 @@ import * as Joi from 'joi';
 import { NotificationModule } from './notification/notification.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { BullModule } from '@nestjs/bullmq';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { BullModule } from '@nestjs/bullmq';
     PayrollModule,
     NotificationModule,
     AnalyticsModule,
+    AuditModule,
   ],
 })
 export class AppModule {}

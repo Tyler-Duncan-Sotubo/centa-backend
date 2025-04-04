@@ -19,6 +19,8 @@ const loan_service_1 = require("./services/loan.service");
 const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 const current_user_decorator_1 = require("../auth/decorator/current-user.decorator");
 const create_loan_dto_1 = require("./dto/create-loan.dto");
+const audit_interceptor_1 = require("../audit/audit.interceptor");
+const audit_decorator_1 = require("../audit/audit.decorator");
 let LoanController = class LoanController extends base_controller_1.BaseController {
     constructor(loanService) {
         super();
@@ -63,6 +65,7 @@ __decorate([
     (0, common_1.Post)('request/:employee_id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'employee']),
+    (0, audit_decorator_1.Audit)({ action: 'Loan Request', entity: 'Loan' }),
     __param(0, (0, common_1.Param)('employee_id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -98,6 +101,7 @@ __decorate([
     (0, common_1.Patch)('update-status/:loan_id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Updated Loan', entity: 'Loan' }),
     __param(0, (0, common_1.Param)('loan_id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, current_user_decorator_1.CurrentUser)()),
@@ -109,6 +113,7 @@ __decorate([
     (0, common_1.Delete)(':loan_id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Deleted Loan', entity: 'Loan' }),
     __param(0, (0, common_1.Param)('loan_id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -116,6 +121,7 @@ __decorate([
 ], LoanController.prototype, "deleteLoan", null);
 __decorate([
     (0, common_1.Post)('repay/:loan_id'),
+    (0, audit_decorator_1.Audit)({ action: 'Created Repayment', entity: 'Loan' }),
     __param(0, (0, common_1.Param)('loan_id')),
     __param(1, (0, common_1.Body)('amount')),
     __metadata("design:type", Function),
@@ -152,6 +158,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], LoanController.prototype, "getLoanHistoryByEmployee", null);
 exports.LoanController = LoanController = __decorate([
+    (0, common_1.UseInterceptors)(audit_interceptor_1.AuditInterceptor),
     (0, common_1.Controller)('loans'),
     __metadata("design:paramtypes", [loan_service_1.LoanService])
 ], LoanController);

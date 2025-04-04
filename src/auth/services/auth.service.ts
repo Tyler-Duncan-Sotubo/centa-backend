@@ -14,14 +14,14 @@ import { users } from 'src/drizzle/schema/users.schema';
 import { DRIZZLE } from '../../drizzle/drizzle.module';
 import { eq } from 'drizzle-orm';
 import { Response } from 'express';
-import { PasswordResetService } from './password-reset.service';
+import { AuditService } from 'src/audit/audit.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly tokenGeneratorService: TokenGeneratorService,
-    private readonly passwordResetService: PasswordResetService,
+    private readonly auditService: AuditService,
     @Inject(DRIZZLE) private db: db,
   ) {}
 
@@ -40,6 +40,9 @@ export class AuthService {
         company_id: users.company_id,
       })
       .execute();
+
+    // Log the login event
+    await this.auditService.logAction('Login', 'Authentication', user.id);
 
     // Generate token
     const { access_token, refresh_token } =

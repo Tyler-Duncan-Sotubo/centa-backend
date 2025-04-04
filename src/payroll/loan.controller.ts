@@ -8,6 +8,7 @@ import {
   UseGuards,
   SetMetadata,
   Delete,
+  UseInterceptors,
 } from '@nestjs/common';
 import { BaseController } from 'src/config/base.controller';
 import { LoanService } from './services/loan.service';
@@ -15,7 +16,10 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { CurrentUser } from 'src/auth/decorator/current-user.decorator';
 import { User } from 'src/types/user.type';
 import { LoanRequestDto, UpdateLoanStatusDto } from './dto/create-loan.dto';
+import { AuditInterceptor } from 'src/audit/audit.interceptor';
+import { Audit } from 'src/audit/audit.decorator';
 
+@UseInterceptors(AuditInterceptor)
 @Controller('loans')
 export class LoanController extends BaseController {
   constructor(private readonly loanService: LoanService) {
@@ -26,6 +30,7 @@ export class LoanController extends BaseController {
   @Post('request/:employee_id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'employee'])
+  @Audit({ action: 'Loan Request', entity: 'Loan' })
   async requestLoan(
     @Param('employee_id') employee_id: string,
     @Body() dto: LoanRequestDto,
@@ -59,6 +64,7 @@ export class LoanController extends BaseController {
   @Patch('update-status/:loan_id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Updated Loan', entity: 'Loan' })
   async updateLoanStatus(
     @Param('loan_id') loan_id: string,
     @Body() dto: UpdateLoanStatusDto,
@@ -71,6 +77,7 @@ export class LoanController extends BaseController {
   @Delete(':loan_id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Deleted Loan', entity: 'Loan' })
   async deleteLoan(@Param('loan_id') loan_id: string) {
     return this.loanService.deleteAdvance(loan_id);
   }
@@ -78,6 +85,7 @@ export class LoanController extends BaseController {
   // Repayments ---------------------------------------------
   // Repay a loan
   @Post('repay/:loan_id')
+  @Audit({ action: 'Created Repayment', entity: 'Loan' })
   async repayLoan(
     @Param('loan_id') loan_id: string,
     @Body('amount') amount: number,

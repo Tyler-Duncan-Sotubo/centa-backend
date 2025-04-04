@@ -31,6 +31,8 @@ const update_employee_tax_details_dto_1 = require("./dto/update-employee-tax-det
 const create_pay_frequency_dto_1 = require("./dto/create-pay-frequency.dto");
 const create_company_tax_dto_1 = require("./dto/create-company-tax.dto");
 const onboarding_service_1 = require("./services/onboarding.service");
+const audit_interceptor_1 = require("../audit/audit.interceptor");
+const audit_decorator_1 = require("../audit/audit.decorator");
 let OrganizationController = class OrganizationController extends base_controller_1.BaseController {
     constructor(company, department, employee, onboarding) {
         super();
@@ -331,6 +333,7 @@ __decorate([
     (0, common_1.Post)('pay-frequency'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Created Pay Schedule', entity: 'Company' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -341,6 +344,7 @@ __decorate([
     (0, common_1.Put)('pay-frequency/:payFrequencyId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Updated Pay Schedule', entity: 'Company' }),
     __param(0, (0, common_1.Param)('payFrequencyId')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, current_user_decorator_1.CurrentUser)()),
@@ -352,6 +356,7 @@ __decorate([
     (0, common_1.Post)('company-tax-details'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Created Tax Details', entity: 'Tax' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -371,6 +376,7 @@ __decorate([
     (0, common_1.Put)('company-tax-details'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Updated Tax Details', entity: 'Tax' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -381,6 +387,7 @@ __decorate([
     (0, common_1.Post)('departments'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Created Department', entity: 'Company' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -409,6 +416,7 @@ __decorate([
     (0, common_1.Put)('department/:departmentId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Updated Department', entity: 'Company' }),
     __param(0, (0, common_1.Param)('departmentId')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -419,6 +427,7 @@ __decorate([
     (0, common_1.Delete)('department/:departmentId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Deleted Department', entity: 'Company' }),
     __param(0, (0, common_1.Param)('departmentId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -428,6 +437,7 @@ __decorate([
     (0, common_1.Post)('departments/:departmentId/employees'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Added Employee To Department', entity: 'Company' }),
     __param(0, (0, common_1.Param)('departmentId')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -438,6 +448,7 @@ __decorate([
     (0, common_1.Delete)('departments/:departmentId/employees/:employeeId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Removed Employee To Department', entity: 'Company' }),
     __param(0, (0, common_1.Param)('employeeId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -447,6 +458,7 @@ __decorate([
     (0, common_1.Post)('employees'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Created Single Employee', entity: 'Employee' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -499,6 +511,7 @@ __decorate([
     (0, common_1.Put)('employee/:employeeId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'employee', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Updated Employee', entity: 'Employee' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Param)('employeeId')),
     __metadata("design:type", Function),
@@ -509,6 +522,7 @@ __decorate([
     (0, common_1.Delete)('employee/:employeeId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Deleted Employee', entity: 'Employee' }),
     __param(0, (0, common_1.Param)('employeeId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -518,6 +532,7 @@ __decorate([
     (0, common_1.Post)('employees/multiple'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Created Multiple Employee', entity: 'Employee' }),
     (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file')),
     __param(0, (0, common_1.UploadedFile)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
@@ -529,6 +544,7 @@ __decorate([
     (0, common_1.Post)('employee/bank-details/:employeeId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'employee', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Created Bank Details', entity: 'Employee' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Param)('employeeId')),
     __metadata("design:type", Function),
@@ -539,6 +555,7 @@ __decorate([
     (0, common_1.Put)('employee/bank-details/:employeeId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'employee', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Updated Bank Details', entity: 'Employee' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Param)('employeeId')),
     __metadata("design:type", Function),
@@ -549,6 +566,7 @@ __decorate([
     (0, common_1.Post)('employee/tax-details/:employeeId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'employee', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Created Employee Tax Details', entity: 'Tax' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Param)('employeeId')),
     __metadata("design:type", Function),
@@ -559,6 +577,7 @@ __decorate([
     (0, common_1.Put)('employee/tax-details/:employeeId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'employee', 'hr_manager']),
+    (0, audit_decorator_1.Audit)({ action: 'Updated Employee Tax Details', entity: 'Tax' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Param)('employeeId')),
     __metadata("design:type", Function),
@@ -574,6 +593,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], OrganizationController.prototype, "verifyAccount", null);
 exports.OrganizationController = OrganizationController = __decorate([
+    (0, common_1.UseInterceptors)(audit_interceptor_1.AuditInterceptor),
     (0, common_1.Controller)(''),
     __metadata("design:paramtypes", [services_1.CompanyService,
         services_1.DepartmentService,

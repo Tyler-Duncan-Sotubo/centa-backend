@@ -38,7 +38,10 @@ import { UpdateEmployeeTaxDetailsDto } from './dto/update-employee-tax-details.d
 import { CreatePayFrequencyDto } from './dto/create-pay-frequency.dto';
 import { CreateCompanyTaxDto } from './dto/create-company-tax.dto';
 import { OnboardingService } from './services/onboarding.service';
+import { AuditInterceptor } from 'src/audit/audit.interceptor';
+import { Audit } from 'src/audit/audit.decorator';
 
+@UseInterceptors(AuditInterceptor)
 @Controller('')
 export class OrganizationController extends BaseController {
   constructor(
@@ -136,6 +139,7 @@ export class OrganizationController extends BaseController {
   @Post('pay-frequency')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Created Pay Schedule', entity: 'Company' })
   createPayFrequency(
     @Body() dto: CreatePayFrequencyDto,
     @CurrentUser() user: User,
@@ -146,6 +150,7 @@ export class OrganizationController extends BaseController {
   @Put('pay-frequency/:payFrequencyId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Updated Pay Schedule', entity: 'Company' })
   updatePayFrequency(
     @Param('payFrequencyId') payFrequencyId: string,
     @Body() dto: CreatePayFrequencyDto,
@@ -161,11 +166,11 @@ export class OrganizationController extends BaseController {
   @Post('company-tax-details')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Created Tax Details', entity: 'Tax' })
   createCompanyTaxDetails(
     @Body() dto: CreateCompanyTaxDto,
     @CurrentUser() user: User,
   ) {
-    // console.log(user);
     return this.company.createCompanyTaxDetails(user.company_id, dto);
   }
 
@@ -179,6 +184,7 @@ export class OrganizationController extends BaseController {
   @Put('company-tax-details')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Updated Tax Details', entity: 'Tax' })
   updateCompanyTaxDetails(
     @Body() dto: CreateCompanyTaxDto,
     @CurrentUser() user: User,
@@ -190,6 +196,7 @@ export class OrganizationController extends BaseController {
   @Post('departments')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  @Audit({ action: 'Created Department', entity: 'Company' })
   createDepartment(
     @Body() dto: CreateDepartmentDto,
     @CurrentUser() user: User,
@@ -214,6 +221,7 @@ export class OrganizationController extends BaseController {
   @Put('department/:departmentId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  @Audit({ action: 'Updated Department', entity: 'Company' })
   updateDepartment(
     @Param('departmentId') departmentId: string,
     @Body() dto: CreateDepartmentDto,
@@ -224,6 +232,7 @@ export class OrganizationController extends BaseController {
   @Delete('department/:departmentId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  @Audit({ action: 'Deleted Department', entity: 'Company' })
   deleteDepartment(@Param('departmentId') departmentId: string) {
     return this.department.deleteDepartment(departmentId);
   }
@@ -231,6 +240,7 @@ export class OrganizationController extends BaseController {
   @Post('departments/:departmentId/employees')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  @Audit({ action: 'Added Employee To Department', entity: 'Company' })
   addEmployeeToDepartment(
     @Param('departmentId') departmentId: string,
     @Body() dto: string[] | string,
@@ -241,6 +251,7 @@ export class OrganizationController extends BaseController {
   @Delete('departments/:departmentId/employees/:employeeId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  @Audit({ action: 'Removed Employee To Department', entity: 'Company' })
   removeEmployeeFromDepartment(@Param('employeeId') employeeId: string) {
     return this.department.removeEmployeeFromDepartment(employeeId);
   }
@@ -249,6 +260,7 @@ export class OrganizationController extends BaseController {
   @Post('employees')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  @Audit({ action: 'Created Single Employee', entity: 'Employee' })
   async addEmployee(@Body() dto: CreateEmployeeDto, @CurrentUser() user: User) {
     await this.employee.addEmployee(dto, user.company_id);
   }
@@ -288,6 +300,7 @@ export class OrganizationController extends BaseController {
   @Put('employee/:employeeId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'employee', 'hr_manager'])
+  @Audit({ action: 'Updated Employee', entity: 'Employee' })
   updateEmployee(
     @Body() dto: UpdateEmployeeDto,
     @Param('employeeId') employeeId: string,
@@ -298,6 +311,7 @@ export class OrganizationController extends BaseController {
   @Delete('employee/:employeeId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  @Audit({ action: 'Deleted Employee', entity: 'Employee' })
   deleteEmployee(@Param('employeeId') employeeId: string) {
     return this.employee.deleteEmployee(employeeId);
   }
@@ -306,6 +320,7 @@ export class OrganizationController extends BaseController {
   @Post('employees/multiple')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  @Audit({ action: 'Created Multiple Employee', entity: 'Employee' })
   @UseInterceptors(FileInterceptor('file'))
   async addEmployees(@UploadedFile() file: any, @CurrentUser() user: User) {
     const filePath = join(
@@ -413,6 +428,7 @@ export class OrganizationController extends BaseController {
   @Post('employee/bank-details/:employeeId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'employee', 'hr_manager'])
+  @Audit({ action: 'Created Bank Details', entity: 'Employee' })
   createEmployeeBankDetails(
     @Body() dto: CreateEmployeeBankDetailsDto,
     @Param('employeeId') employeeId: string,
@@ -423,6 +439,7 @@ export class OrganizationController extends BaseController {
   @Put('employee/bank-details/:employeeId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'employee', 'hr_manager'])
+  @Audit({ action: 'Updated Bank Details', entity: 'Employee' })
   updateEmployeeBankDetails(
     @Body() dto: CreateEmployeeBankDetailsDto,
     @Param('employeeId') employeeId: string,
@@ -431,10 +448,10 @@ export class OrganizationController extends BaseController {
   }
 
   // Employee Tax Details Endpoints ----------------------------
-
   @Post('employee/tax-details/:employeeId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'employee', 'hr_manager'])
+  @Audit({ action: 'Created Employee Tax Details', entity: 'Tax' })
   createEmployeeTaxDetails(
     @Body() dto: CreateEmployeeTaxDetailsDto,
     @Param('employeeId') employeeId: string,
@@ -445,6 +462,7 @@ export class OrganizationController extends BaseController {
   @Put('employee/tax-details/:employeeId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'employee', 'hr_manager'])
+  @Audit({ action: 'Updated Employee Tax Details', entity: 'Tax' })
   updateEmployeeTaxDetails(
     @Body() dto: UpdateEmployeeTaxDetailsDto,
     @Param('employeeId') employeeId: string,

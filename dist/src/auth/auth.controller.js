@@ -21,6 +21,8 @@ const current_user_decorator_1 = require("./decorator/current-user.decorator");
 const error_interceptor_1 = require("../config/interceptor/error-interceptor");
 const invite_user_dto_1 = require("./dto/invite-user.dto");
 const update_profile_dto_1 = require("./dto/update-profile.dto");
+const audit_interceptor_1 = require("../audit/audit.interceptor");
+const audit_decorator_1 = require("../audit/audit.decorator");
 let AuthController = class AuthController {
     constructor(auth, user, token, verification, password) {
         this.auth = auth;
@@ -91,6 +93,7 @@ __decorate([
     (0, common_1.Post)('invite'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin']),
+    (0, audit_decorator_1.Audit)({ action: 'New User Invite', entity: 'User' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -110,6 +113,7 @@ __decorate([
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     (0, common_1.UseInterceptors)(error_interceptor_1.ResponseInterceptor),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, audit_decorator_1.Audit)({ action: 'Updated User Role', entity: 'User' }),
     (0, common_1.Put)('edit-user-role/:id'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Param)('id')),
@@ -170,6 +174,7 @@ __decorate([
 ], AuthController.prototype, "verifyEmail", null);
 __decorate([
     (0, common_1.Post)('password-reset'),
+    (0, audit_decorator_1.Audit)({ action: 'Password Reset Request', entity: 'User' }),
     (0, common_1.UseInterceptors)(error_interceptor_1.ResponseInterceptor),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -179,6 +184,7 @@ __decorate([
 __decorate([
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     (0, common_1.Post)('reset-password/:token'),
+    (0, audit_decorator_1.Audit)({ action: 'Reset Password', entity: 'User' }),
     (0, common_1.UseInterceptors)(error_interceptor_1.ResponseInterceptor),
     __param(0, (0, common_1.Param)('token')),
     __param(1, (0, common_1.Body)()),
@@ -218,6 +224,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "GetUserProfile", null);
 exports.AuthController = AuthController = __decorate([
+    (0, common_1.UseInterceptors)(audit_interceptor_1.AuditInterceptor),
     (0, common_1.Controller)('auth'),
     __metadata("design:paramtypes", [services_1.AuthService,
         services_1.UserService,

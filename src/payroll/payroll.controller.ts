@@ -9,6 +9,7 @@ import {
   Res,
   SetMetadata,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { PayrollService } from './services/payroll.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -30,7 +31,10 @@ import { updateTaxConfigurationDto } from './dto/update-tax-config.dto';
 import { PayGroupService } from './services/pay-group.service';
 import { CreateEmployeeGroupDto } from './dto/create-employee-group.dto';
 import { UpdateEmployeeGroupDto } from './dto/update-employee-group.dto';
+import { AuditInterceptor } from 'src/audit/audit.interceptor';
+import { Audit } from 'src/audit/audit.decorator';
 
+@UseInterceptors(AuditInterceptor)
 @Controller('')
 export class PayrollController extends BaseController {
   constructor(
@@ -56,6 +60,7 @@ export class PayrollController extends BaseController {
   // Tax Config
   @Put('tax-config')
   @UseGuards(JwtAuthGuard)
+  @Audit({ action: 'Created Tax Config', entity: 'Remittance' })
   @SetMetadata('roles', ['super_admin', 'admin'])
   async updateTaxConfiguration(
     @CurrentUser() user: User,
@@ -68,6 +73,7 @@ export class PayrollController extends BaseController {
   @Post('custom-deduction')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Created Custom Deduction', entity: 'Payroll' })
   async createCustomDeduction(
     @CurrentUser() user: User,
     @Body() dto: CreateCustomDeduction,
@@ -85,6 +91,7 @@ export class PayrollController extends BaseController {
   @Put('custom-deduction/:id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Updated Custom Deduction', entity: 'Payroll' })
   async updateCustomDeduction(
     @CurrentUser() user: User,
     @Body() dto: UpdateCustomDeductionDto,
@@ -108,6 +115,7 @@ export class PayrollController extends BaseController {
   @Post('calculate-payroll-for-company')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Payroll Run', entity: 'Payroll' })
   async calculatePayrollForCompany(@CurrentUser() user: User) {
     return this.payrollService.calculatePayrollForCompany(
       user.company_id,
@@ -132,12 +140,12 @@ export class PayrollController extends BaseController {
   @Put('company-payroll/:id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Updated Payroll Approval Status', entity: 'Payroll' })
   async deleteCompanyPayroll(
     @CurrentUser() user: User,
     @Param('id') id: string,
     @Body('status') status: 'pending' | 'approved' | 'rejected',
   ) {
-    console.log(id);
     return this.payrollService.updatePayrollApprovalStatus(
       user.company_id,
       id,
@@ -148,6 +156,7 @@ export class PayrollController extends BaseController {
   @Put('company-payroll-payment-status/:id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Updated Payroll Payment Status', entity: 'Payroll' })
   async updatePayrollPaymentStatus(
     @CurrentUser() user: User,
     @Param('id') id: string,
@@ -163,6 +172,7 @@ export class PayrollController extends BaseController {
   @Delete('company-payroll/:id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Deleted Payroll', entity: 'Payroll' })
   async deleteCompanyPayrollById(
     @CurrentUser() user: User,
     @Param('id') id: string,
@@ -181,6 +191,7 @@ export class PayrollController extends BaseController {
   @Post('company-bonuses')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Created Bonus', entity: 'Payroll' })
   async createCompanyBonus(
     @CurrentUser() user: User,
     @Body() dto: createBonusDto,
@@ -191,6 +202,7 @@ export class PayrollController extends BaseController {
   @Delete('company-bonuses/:id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Deleted Bonus', entity: 'Payroll' })
   async deleteCompanyBonuses(
     @CurrentUser() user: User,
     @Param('id') id: string,
@@ -209,6 +221,7 @@ export class PayrollController extends BaseController {
   @Get('payslip-download/:id/:format')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Downloaded Payslip', entity: 'Payslip' })
   async downloadPayslipCSV(
     @CurrentUser() user: User,
     @Param('id') id: string,
@@ -285,6 +298,7 @@ export class PayrollController extends BaseController {
   @Post('salary-breakdown')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Created Salary Breakdown', entity: 'Payroll' })
   async createSalaryBreakdown(@CurrentUser() user: User, @Body() dto: any) {
     return this.payrollService.createUpdateSalaryBreakdown(
       user.company_id,
@@ -295,6 +309,7 @@ export class PayrollController extends BaseController {
   @Delete('salary-breakdown/:id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Deleted Salary Breakdown', entity: 'Payroll' })
   async deleteSalaryBreakdown(
     @CurrentUser() user: User,
     @Param('id') id: string,
@@ -313,6 +328,7 @@ export class PayrollController extends BaseController {
   @Put('tax-filings/:id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Update Company Tax Filings', entity: 'Tax' })
   async updateCompanyTaxFilings(
     @Param('id') id: string,
     @Body('status') status: string,
@@ -321,6 +337,7 @@ export class PayrollController extends BaseController {
   }
 
   @Get('tax-filings-download/:id/')
+  @Audit({ action: 'Download Company Tax Filing', entity: 'Tax' })
   async downloadExcel(
     @Param('id') tax_filing_id: string,
     @Res() res: Response,
@@ -350,6 +367,7 @@ export class PayrollController extends BaseController {
   @Post('pay-groups')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  @Audit({ action: 'Created Employee Group', entity: 'Payroll' })
   createEmployeeGroup(
     @Body() dto: CreateEmployeeGroupDto,
     @CurrentUser() user: User,
@@ -374,6 +392,7 @@ export class PayrollController extends BaseController {
   @Put('pay-groups/:groupId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  @Audit({ action: 'Updated Employee Group', entity: 'Payroll' })
   updateEmployeeGroup(
     @Body() dto: UpdateEmployeeGroupDto,
     @Param('groupId') groupId: string,
@@ -384,6 +403,7 @@ export class PayrollController extends BaseController {
   @Delete('pay-groups/:groupId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  @Audit({ action: 'Deleted Employee Group', entity: 'Payroll' })
   deleteEmployeeGroup(@Param('groupId') groupId: string) {
     return this.payGroup.deleteEmployeeGroup(groupId);
   }
@@ -398,6 +418,7 @@ export class PayrollController extends BaseController {
   @Post('pay-groups/:groupId/employees')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  @Audit({ action: 'Added Employee To Group', entity: 'Payroll' })
   addEmployeeToGroup(
     @Body() employees: string | string[],
     @Param('groupId') groupId: string,
@@ -408,6 +429,7 @@ export class PayrollController extends BaseController {
   @Delete('pay-groups/:groupId/employees')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  @Audit({ action: 'Deleted Employee From Group', entity: 'Payroll' })
   removeEmployeeFromGroup(@Body() employeeIds: { employee_id: string }) {
     const obj = employeeIds;
     const employeeId = obj.employee_id;
@@ -421,6 +443,4 @@ export class PayrollController extends BaseController {
   async getPayrollPreview(@CurrentUser() user: User) {
     return this.payrollService.getPayrollPreviewDetails(user.company_id);
   }
-
-  // testing on approval
 }

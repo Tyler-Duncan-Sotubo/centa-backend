@@ -14,6 +14,7 @@ import { AuthModule } from 'src/auth/auth.module';
 import { OnboardingService } from './services/onboarding.service';
 import { EmailQueueProcessor } from 'src/notification/services/email-queue.processor';
 import { BullModule } from '@nestjs/bullmq';
+import { AuditService } from 'src/audit/audit.service';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { BullModule } from '@nestjs/bullmq';
     JwtService,
     OnboardingService,
     EmailQueueProcessor,
+    AuditService,
   ],
 })
 export class OrganizationModule {}

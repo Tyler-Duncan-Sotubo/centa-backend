@@ -8,6 +8,7 @@ import { InvitationService } from 'src/notification/services/invitation.service'
 import { AwsService } from 'src/config/aws/aws.service';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { OnboardingService } from 'src/organization/services/onboarding.service';
+import { AuditService } from 'src/audit/audit.service';
 export declare class UserService {
     private db;
     private readonly verificationService;
@@ -16,7 +17,8 @@ export declare class UserService {
     private configService;
     private awsService;
     private onboardingService;
-    constructor(db: db, verificationService: VerificationService, invitation: InvitationService, jwtService: JwtService, configService: ConfigService, awsService: AwsService, onboardingService: OnboardingService);
+    private auditService;
+    constructor(db: db, verificationService: VerificationService, invitation: InvitationService, jwtService: JwtService, configService: ConfigService, awsService: AwsService, onboardingService: OnboardingService, auditService: AuditService);
     register(dto: CreateUserDto): Promise<{
         user: {
             id: string;

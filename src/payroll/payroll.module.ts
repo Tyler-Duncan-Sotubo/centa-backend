@@ -17,7 +17,7 @@ import { LoanService } from './services/loan.service';
 import { PusherService } from 'src/notification/services/pusher.service';
 import { OnboardingService } from 'src/organization/services/onboarding.service';
 import { PayGroupService } from './services/pay-group.service';
-
+import { AuditService } from 'src/audit/audit.service';
 @Module({
   imports: [
     CacheModule,
@@ -41,6 +41,7 @@ import { PayGroupService } from './services/pay-group.service';
     PusherService,
     OnboardingService,
     PayGroupService,
+    AuditService,
   ],
 })
 export class PayrollModule {}

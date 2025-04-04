@@ -27,8 +27,9 @@ const aws_service_1 = require("../../config/aws/aws.service");
 const deductions_schema_1 = require("../../drizzle/schema/deductions.schema");
 const onboarding_service_1 = require("../../organization/services/onboarding.service");
 const payroll_schema_1 = require("../../drizzle/schema/payroll.schema");
+const audit_service_1 = require("../../audit/audit.service");
 let UserService = class UserService {
-    constructor(db, verificationService, invitation, jwtService, configService, awsService, onboardingService) {
+    constructor(db, verificationService, invitation, jwtService, configService, awsService, onboardingService, auditService) {
         this.db = db;
         this.verificationService = verificationService;
         this.invitation = invitation;
@@ -36,6 +37,7 @@ let UserService = class UserService {
         this.configService = configService;
         this.awsService = awsService;
         this.onboardingService = onboardingService;
+        this.auditService = auditService;
     }
     async register(dto) {
         const company = await this.db
@@ -80,6 +82,7 @@ let UserService = class UserService {
             });
             return user;
         });
+        await this.auditService.logAction(`Created ${dto.company_name}`, `Company`, newUser.id);
         await this.onboardingService.createOnboardingTasks(company[0].id);
         await this.verificationService.generateVerificationToken(newUser.id);
         return {
@@ -202,6 +205,7 @@ exports.UserService = UserService = __decorate([
         jwt_1.JwtService,
         config_1.ConfigService,
         aws_service_1.AwsService,
-        onboarding_service_1.OnboardingService])
+        onboarding_service_1.OnboardingService,
+        audit_service_1.AuditService])
 ], UserService);
 //# sourceMappingURL=user.service.js.map

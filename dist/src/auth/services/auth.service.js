@@ -20,12 +20,12 @@ const token_generator_service_1 = require("./token-generator.service");
 const users_schema_1 = require("../../drizzle/schema/users.schema");
 const drizzle_module_1 = require("../../drizzle/drizzle.module");
 const drizzle_orm_1 = require("drizzle-orm");
-const password_reset_service_1 = require("./password-reset.service");
+const audit_service_1 = require("../../audit/audit.service");
 let AuthService = class AuthService {
-    constructor(userService, tokenGeneratorService, passwordResetService, db) {
+    constructor(userService, tokenGeneratorService, auditService, db) {
         this.userService = userService;
         this.tokenGeneratorService = tokenGeneratorService;
-        this.passwordResetService = passwordResetService;
+        this.auditService = auditService;
         this.db = db;
     }
     async login(payload, response) {
@@ -42,6 +42,7 @@ let AuthService = class AuthService {
             company_id: users_schema_1.users.company_id,
         })
             .execute();
+        await this.auditService.logAction('Login', 'Authentication', user.id);
         const { access_token, refresh_token } = await this.tokenGeneratorService.generateToken(user);
         const { password, last_login, role, created_at, ...userWithoutPassword } = user;
         try {
@@ -101,6 +102,6 @@ exports.AuthService = AuthService = __decorate([
     __param(3, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [user_service_1.UserService,
         token_generator_service_1.TokenGeneratorService,
-        password_reset_service_1.PasswordResetService, Object])
+        audit_service_1.AuditService, Object])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

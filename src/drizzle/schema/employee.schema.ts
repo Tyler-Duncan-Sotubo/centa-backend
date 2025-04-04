@@ -6,7 +6,6 @@ import {
   text,
   boolean,
   integer,
-  json,
 } from 'drizzle-orm/pg-core';
 import { companies } from './company.schema';
 import { departments } from './department.schema';

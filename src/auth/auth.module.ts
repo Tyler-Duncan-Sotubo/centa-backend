@@ -17,6 +17,7 @@ import { PasswordResetEmailService } from 'src/notification/services/password-re
 import { InvitationService } from 'src/notification/services/invitation.service';
 import { AwsService } from 'src/config/aws/aws.service';
 import { OnboardingService } from 'src/organization/services/onboarding.service';
+import { AuditService } from 'src/audit/audit.service';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { OnboardingService } from 'src/organization/services/onboarding.service'
     ConfigService,
     AwsService,
     OnboardingService,
+    AuditService,
   ],
 })
 export class AuthModule {}

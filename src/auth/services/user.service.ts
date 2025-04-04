@@ -17,6 +17,7 @@ import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { taxConfig } from 'src/drizzle/schema/deductions.schema';
 import { OnboardingService } from 'src/organization/services/onboarding.service';
 import { salaryBreakdown } from 'src/drizzle/schema/payroll.schema';
+import { AuditService } from 'src/audit/audit.service';
 
 @Injectable()
 export class UserService {
@@ -28,6 +29,7 @@ export class UserService {
     private configService: ConfigService,
     private awsService: AwsService,
     private onboardingService: OnboardingService,
+    private auditService: AuditService,
   ) {}
 
   async register(dto: CreateUserDto) {
@@ -86,6 +88,13 @@ export class UserService {
 
       return user; // Return the created user object
     });
+
+    // Log the company creation
+    await this.auditService.logAction(
+      `Created ${dto.company_name}`,
+      `Company`,
+      newUser.id,
+    );
 
     // Create onboarding tasks
     await this.onboardingService.createOnboardingTasks(company[0].id);

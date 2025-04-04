@@ -11,8 +11,8 @@ export declare class LoanController extends BaseController {
         company_id: string;
         createdAt: Date;
         employee_id: string;
-        payment_status: string;
         amount: number;
+        payment_status: string;
         total_paid: number;
         tenureMonths: number;
         preferredMonthlyPayment: number | null;
