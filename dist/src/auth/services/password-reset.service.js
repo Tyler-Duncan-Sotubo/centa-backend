@@ -43,15 +43,32 @@ let PasswordResetService = class PasswordResetService {
         }
         const inviteLink = `${this.configService.get('CLIENT_URL')}/auth/reset-password/${token}`;
         await this.passwordResetEmailService.sendPasswordResetEmail(email, user[0].first_name || 'User', inviteLink);
-        await this.db
-            .insert(schema_1.PasswordResetToken)
-            .values({
-            user_id: user[0].id,
-            token,
-            expires_at,
-            is_used: false,
-        })
-            .execute();
+        const existingToken = await this.db
+            .select()
+            .from(schema_1.PasswordResetToken)
+            .where((0, drizzle_orm_1.eq)(schema_1.PasswordResetToken.user_id, user[0].id));
+        if (existingToken.length > 0) {
+            await this.db
+                .update(schema_1.PasswordResetToken)
+                .set({
+                token,
+                expires_at,
+                is_used: false,
+            })
+                .where((0, drizzle_orm_1.eq)(schema_1.PasswordResetToken.user_id, user[0].id))
+                .execute();
+        }
+        else {
+            await this.db
+                .insert(schema_1.PasswordResetToken)
+                .values({
+                user_id: user[0].id,
+                token,
+                expires_at,
+                is_used: false,
+            })
+                .execute();
+        }
         return token;
     }
     async resetPassword(token, password) {

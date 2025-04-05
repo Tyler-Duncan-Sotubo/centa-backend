@@ -60,15 +60,32 @@ export class PasswordResetService {
       inviteLink,
     );
 
-    await this.db
-      .insert(PasswordResetToken)
-      .values({
-        user_id: user[0].id,
-        token,
-        expires_at,
-        is_used: false,
-      })
-      .execute();
+    const existingToken = await this.db
+      .select()
+      .from(PasswordResetToken)
+      .where(eq(PasswordResetToken.user_id, user[0].id));
+
+    if (existingToken.length > 0) {
+      await this.db
+        .update(PasswordResetToken)
+        .set({
+          token,
+          expires_at,
+          is_used: false,
+        })
+        .where(eq(PasswordResetToken.user_id, user[0].id))
+        .execute();
+    } else {
+      await this.db
+        .insert(PasswordResetToken)
+        .values({
+          user_id: user[0].id,
+          token,
+          expires_at,
+          is_used: false,
+        })
+        .execute();
+    }
 
     return token;
   }
