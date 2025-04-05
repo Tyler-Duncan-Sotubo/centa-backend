@@ -90,13 +90,20 @@ let UserService = class UserService {
         };
     }
     async inviteUser(dto, company_id) {
+        const company = await this.db
+            .select({
+            name: company_schema_1.companies.name,
+        })
+            .from(company_schema_1.companies)
+            .where((0, drizzle_orm_1.eq)(company_schema_1.companies.id, company_id))
+            .execute();
         const token = this.jwtService.sign({
             email: dto.email,
             role: dto.role,
             company_id,
         });
         const inviteLink = `${this.configService.get('CLIENT_URL')}/auth/invite/${token}`;
-        await this.invitation.sendInvitationEmail(dto.email, dto.name, inviteLink);
+        await this.invitation.sendInvitationEmail(dto.email, dto.name, company[0].name, dto.role, inviteLink);
     }
     async verifyInvite(token) {
         const decoded = await this.jwtService.verify(token);

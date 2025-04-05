@@ -17,18 +17,21 @@ let InvitationService = class InvitationService {
     constructor(config) {
         this.config = config;
     }
-    async sendInvitationEmail(email, name, url) {
+    async sendInvitationEmail(email, name, companyName, role, url) {
         sgMail.setApiKey(this.config.get('SEND_GRID_KEY') || '');
         const msg = {
             to: email,
             from: {
-                name: 'Password Reset',
+                name: `Invitation to Join as ${role}`,
                 email: 'noreply@centa.africa',
             },
             templateId: this.config.get('INVITE_TEMPLATE_ID'),
             dynamicTemplateData: {
                 name: name,
                 verifyLink: url,
+                companyName: companyName,
+                role: role,
+                subject: `Invitation to Join ${companyName} as ${role}`,
             },
         };
         (async () => {

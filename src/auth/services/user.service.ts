@@ -109,6 +109,14 @@ export class UserService {
 
   //Invite User to Company Assign Admin Role
   async inviteUser(dto: InviteUserDto, company_id: string) {
+    const company = await this.db
+      .select({
+        name: companies.name,
+      })
+      .from(companies)
+      .where(eq(companies.id, company_id))
+      .execute();
+
     const token = this.jwtService.sign({
       email: dto.email,
       role: dto.role,
@@ -119,7 +127,13 @@ export class UserService {
       'CLIENT_URL',
     )}/auth/invite/${token}`;
 
-    await this.invitation.sendInvitationEmail(dto.email, dto.name, inviteLink);
+    await this.invitation.sendInvitationEmail(
+      dto.email,
+      dto.name,
+      company[0].name,
+      dto.role,
+      inviteLink,
+    );
   }
 
   async verifyInvite(token: string) {
