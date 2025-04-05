@@ -32,6 +32,7 @@ import { OnboardingService } from './onboarding.service';
 import { payGroups } from 'src/drizzle/schema/payroll.schema';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { salaryAdvance } from 'src/drizzle/schema/loans.schema';
 
 Injectable();
 export class EmployeeService {
@@ -618,6 +619,20 @@ export class EmployeeService {
 
   async deleteEmployee(employee_id: string) {
     const existingEmployee = await this.getEmployeeById(employee_id);
+
+    // check if employee has active loan
+
+    const hasActiveLoan = await this.db
+      .select()
+      .from(salaryAdvance)
+      .where(and(eq(salaryAdvance.employee_id, employee_id)))
+      .execute();
+
+    if (hasActiveLoan.length > 0) {
+      throw new BadRequestException(
+        'Employee has an active loan. Please clear the loan before deleting the employee.',
+      );
+    }
 
     await this.db
       .delete(employees)

@@ -33,6 +33,7 @@ const onboarding_service_1 = require("./onboarding.service");
 const payroll_schema_1 = require("../../drizzle/schema/payroll.schema");
 const bullmq_1 = require("@nestjs/bullmq");
 const bullmq_2 = require("bullmq");
+const loans_schema_1 = require("../../drizzle/schema/loans.schema");
 (0, common_1.Injectable)();
 let EmployeeService = class EmployeeService {
     constructor(db, aws, cache, config, passwordResetEmailService, onboardingService, emailQueue) {
@@ -455,6 +456,14 @@ let EmployeeService = class EmployeeService {
     }
     async deleteEmployee(employee_id) {
         const existingEmployee = await this.getEmployeeById(employee_id);
+        const hasActiveLoan = await this.db
+            .select()
+            .from(loans_schema_1.salaryAdvance)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(loans_schema_1.salaryAdvance.employee_id, employee_id)))
+            .execute();
+        if (hasActiveLoan.length > 0) {
+            throw new common_1.BadRequestException('Employee has an active loan. Please clear the loan before deleting the employee.');
+        }
         await this.db
             .delete(employee_schema_1.employees)
             .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.id, employee_id))
