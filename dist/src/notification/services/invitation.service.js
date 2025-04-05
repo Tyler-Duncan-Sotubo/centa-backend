@@ -23,7 +23,7 @@ let InvitationService = class InvitationService {
             to: email,
             from: {
                 name: 'Password Reset',
-                email: 'noreply@iconaistudio.com',
+                email: 'noreply@centa.africa',
             },
             templateId: this.config.get('INVITE_TEMPLATE_ID'),
             dynamicTemplateData: {

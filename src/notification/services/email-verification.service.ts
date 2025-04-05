@@ -11,7 +11,7 @@ export class EmailVerificationService {
       to: email,
       from: {
         name: 'Verify Email',
-        email: 'welcome@iconaistudio.com',
+        email: 'welcome@centa.africa',
       },
       templateId: this.config.get('VERIFY_TEMPLATE_ID'),
       dynamicTemplateData: {

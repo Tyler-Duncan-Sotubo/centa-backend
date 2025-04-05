@@ -64,10 +64,10 @@ export declare class OrganizationController extends BaseController {
     createCompanyContact(dto: CreateCompanyContactDto, companyId: string): Promise<{
         id: string;
         name: string;
+        phone: string | null;
         email: string;
         company_id: string;
         position: string | null;
-        phone: string | null;
     }[]>;
     getCompanyContacts(companyId: string): Promise<{
         id: string;
@@ -270,8 +270,8 @@ export declare class OrganizationController extends BaseController {
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
-        tin: string;
         employee_id: string;
+        tin: string;
         pension_pin: string | null;
         nhf_number: string | null;
         consolidated_relief_allowance: number | null;

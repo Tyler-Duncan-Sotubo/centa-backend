@@ -33,14 +33,13 @@ export declare class PayrollController extends BaseController {
     updateCustomDeduction(user: User, dto: UpdateCustomDeductionDto, id: string): Promise<any>;
     deleteCustomDeduction(id: string): Promise<any>;
     calculatePayrollForCompany(user: User): Promise<{
+        transport: number;
         id: string;
         company_id: string;
         basic: number;
         housing: number;
-        transport: number;
-        employee_id: string;
-        custom_deductions: number | null;
         payroll_run_id: string;
+        employee_id: string;
         gross_salary: number;
         pension_contribution: number;
         employer_pension_contribution: number;
@@ -49,6 +48,7 @@ export declare class PayrollController extends BaseController {
         nhf_enrolled: number | null;
         nhf_contribution: number | null;
         paye_tax: number;
+        custom_deductions: number | null;
         total_deductions: number;
         net_salary: number;
         taxable_income: number;
@@ -122,8 +122,8 @@ export declare class PayrollController extends BaseController {
         id: string;
         company_id: string;
         employee_id: string;
-        amount: number;
         payroll_month: string;
+        amount: number;
         bonus_type: string | null;
         bonus_date: string;
     }[]>;
@@ -231,10 +231,10 @@ export declare class PayrollController extends BaseController {
         name: string;
         company_id: string;
         createdAt: Date | null;
-        apply_paye: boolean | null;
-        apply_nhf: boolean | null;
-        apply_pension: boolean | null;
         updatedAt: Date | null;
+        apply_nhf: boolean | null;
+        apply_paye: boolean | null;
+        apply_pension: boolean | null;
         apply_additional: boolean | null;
         is_demo: boolean | null;
         pay_schedule_id: string;

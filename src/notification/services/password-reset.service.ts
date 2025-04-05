@@ -12,7 +12,7 @@ export class PasswordResetEmailService {
       to: email,
       from: {
         name: 'Password Reset',
-        email: 'noreply@iconaistudio.com',
+        email: 'noreply@centa.africa',
       },
       templateId: this.config.get('PASSWORD_RESET_TEMPLATE_ID'),
       dynamicTemplateData: {
