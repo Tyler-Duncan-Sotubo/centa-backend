@@ -5,7 +5,7 @@ import { CreateEmployeeTaxDetailsDto } from '../dto/create-employee-tax-details.
 import { UpdateEmployeeTaxDetailsDto } from '../dto/update-employee-tax-details.dto';
 import { CacheService } from 'src/config/cache/cache.service';
 import { ConfigService } from '@nestjs/config';
-import { PasswordResetEmailService } from 'src/notification/services/password-reset.service';
+import { EmployeeInvitationService } from 'src/notification/services/employee-invitation.service';
 import { OnboardingService } from './onboarding.service';
 import { Queue } from 'bullmq';
 export declare class EmployeeService {
@@ -13,10 +13,10 @@ export declare class EmployeeService {
     private readonly aws;
     private readonly cache;
     private readonly config;
-    private readonly passwordResetEmailService;
     private readonly onboardingService;
+    private readonly employeeInvitationService;
     private emailQueue;
-    constructor(db: db, aws: AwsService, cache: CacheService, config: ConfigService, passwordResetEmailService: PasswordResetEmailService, onboardingService: OnboardingService, emailQueue: Queue);
+    constructor(db: db, aws: AwsService, cache: CacheService, config: ConfigService, onboardingService: OnboardingService, employeeInvitationService: EmployeeInvitationService, emailQueue: Queue);
     private generateToken;
     addEmployee(dto: CreateEmployeeDto, company_id: string): Promise<{
         first_name: string;

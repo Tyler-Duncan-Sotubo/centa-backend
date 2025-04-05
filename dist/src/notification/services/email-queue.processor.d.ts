@@ -1,9 +1,9 @@
 import { WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
-import { PasswordResetEmailService } from './password-reset.service';
+import { EmployeeInvitationService } from './employee-invitation.service';
 export declare class EmailQueueProcessor extends WorkerHost {
-    private readonly passwordResetEmailService;
-    constructor(passwordResetEmailService: PasswordResetEmailService);
+    private readonly employeeInvitationService;
+    constructor(employeeInvitationService: EmployeeInvitationService);
     process(job: Job): Promise<void>;
-    private handlePasswordResetEmail;
+    private handleEmployeeInvitationEmail;
 }

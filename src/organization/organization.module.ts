@@ -9,6 +9,7 @@ import { CacheService } from 'src/config/cache/cache.service';
 import { AwsService } from 'src/config/aws/aws.service';
 import { PasswordResetService } from 'src/auth/services';
 import { PasswordResetEmailService } from 'src/notification/services/password-reset.service';
+import { EmployeeInvitationService } from 'src/notification/services/employee-invitation.service';
 import { JwtService } from '@nestjs/jwt';
 import { AuthModule } from 'src/auth/auth.module';
 import { OnboardingService } from './services/onboarding.service';
@@ -37,6 +38,7 @@ import { AuditService } from 'src/audit/audit.service';
     CacheService,
     AwsService,
     PasswordResetService,
+    EmployeeInvitationService,
     PasswordResetEmailService,
     JwtService,
     OnboardingService,

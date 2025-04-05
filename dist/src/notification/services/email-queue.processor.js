@@ -11,17 +11,17 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EmailQueueProcessor = void 0;
 const bullmq_1 = require("@nestjs/bullmq");
-const password_reset_service_1 = require("./password-reset.service");
+const employee_invitation_service_1 = require("./employee-invitation.service");
 let EmailQueueProcessor = class EmailQueueProcessor extends bullmq_1.WorkerHost {
-    constructor(passwordResetEmailService) {
+    constructor(employeeInvitationService) {
         super();
-        this.passwordResetEmailService = passwordResetEmailService;
+        this.employeeInvitationService = employeeInvitationService;
     }
     async process(job) {
         try {
             switch (job.name) {
                 case 'sendPasswordResetEmail':
-                    await this.handlePasswordResetEmail(job.data);
+                    await this.handleEmployeeInvitationEmail(job.data);
                     break;
                 default:
                     console.warn(`⚠️ Unhandled email job: ${job.name}`);
@@ -32,14 +32,14 @@ let EmailQueueProcessor = class EmailQueueProcessor extends bullmq_1.WorkerHost 
             throw error;
         }
     }
-    async handlePasswordResetEmail(data) {
-        const { email, name, resetLink } = data;
-        await this.passwordResetEmailService.sendPasswordResetEmail(email, name, resetLink);
+    async handleEmployeeInvitationEmail(data) {
+        const { email, name, companyName, role, resetLink } = data;
+        await this.employeeInvitationService.sendInvitationEmail(email, name, companyName, role, resetLink);
     }
 };
 exports.EmailQueueProcessor = EmailQueueProcessor;
 exports.EmailQueueProcessor = EmailQueueProcessor = __decorate([
     (0, bullmq_1.Processor)('emailQueue'),
-    __metadata("design:paramtypes", [password_reset_service_1.PasswordResetEmailService])
+    __metadata("design:paramtypes", [employee_invitation_service_1.EmployeeInvitationService])
 ], EmailQueueProcessor);
 //# sourceMappingURL=email-queue.processor.js.map

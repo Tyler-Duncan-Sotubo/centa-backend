@@ -1,11 +1,11 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
-import { PasswordResetEmailService } from './password-reset.service';
+import { EmployeeInvitationService } from './employee-invitation.service';
 
 @Processor('emailQueue')
 export class EmailQueueProcessor extends WorkerHost {
   constructor(
-    private readonly passwordResetEmailService: PasswordResetEmailService,
+    private readonly employeeInvitationService: EmployeeInvitationService,
   ) {
     super();
   }
@@ -14,7 +14,7 @@ export class EmailQueueProcessor extends WorkerHost {
     try {
       switch (job.name) {
         case 'sendPasswordResetEmail':
-          await this.handlePasswordResetEmail(job.data);
+          await this.handleEmployeeInvitationEmail(job.data);
           break;
 
         default:
@@ -26,11 +26,13 @@ export class EmailQueueProcessor extends WorkerHost {
     }
   }
 
-  private async handlePasswordResetEmail(data: any) {
-    const { email, name, resetLink } = data;
-    await this.passwordResetEmailService.sendPasswordResetEmail(
+  private async handleEmployeeInvitationEmail(data: any) {
+    const { email, name, companyName, role, resetLink } = data;
+    await this.employeeInvitationService.sendInvitationEmail(
       email,
       name,
+      companyName,
+      role,
       resetLink,
     );
   }

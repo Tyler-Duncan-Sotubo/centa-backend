@@ -27,7 +27,7 @@ const cache_service_1 = require("../../config/cache/cache.service");
 const config_1 = require("@nestjs/config");
 const https = require('https');
 const jwt = require("jsonwebtoken");
-const password_reset_service_1 = require("../../notification/services/password-reset.service");
+const employee_invitation_service_1 = require("../../notification/services/employee-invitation.service");
 const password_reset_token_schema_1 = require("../../drizzle/schema/password-reset-token.schema");
 const onboarding_service_1 = require("./onboarding.service");
 const payroll_schema_1 = require("../../drizzle/schema/payroll.schema");
@@ -36,13 +36,13 @@ const bullmq_2 = require("bullmq");
 const loans_schema_1 = require("../../drizzle/schema/loans.schema");
 (0, common_1.Injectable)();
 let EmployeeService = class EmployeeService {
-    constructor(db, aws, cache, config, passwordResetEmailService, onboardingService, emailQueue) {
+    constructor(db, aws, cache, config, onboardingService, employeeInvitationService, emailQueue) {
         this.db = db;
         this.aws = aws;
         this.cache = cache;
         this.config = config;
-        this.passwordResetEmailService = passwordResetEmailService;
         this.onboardingService = onboardingService;
+        this.employeeInvitationService = employeeInvitationService;
         this.emailQueue = emailQueue;
     }
     generateToken(payload) {
@@ -178,7 +178,7 @@ let EmployeeService = class EmployeeService {
                 .execute();
             await this.onboardingService.completeTask(company_id, 'addTeamMembers');
             const inviteLink = `${this.config.get('EMPLOYEE_PORTAL_URL')}/auth/reset-password/${token}`;
-            await this.passwordResetEmailService.sendPasswordResetEmail(employee[0].email, employee[0].first_name, inviteLink);
+            await this.employeeInvitationService.sendInvitationEmail(employee[0].email, employee[0].first_name, companyResult[0].name, 'Employee', inviteLink);
             return {
                 first_name: employee[0].first_name,
                 email: employee[0].email,
@@ -188,7 +188,7 @@ let EmployeeService = class EmployeeService {
     async addMultipleEmployees(dtoArray, company_id) {
         return this.db.transaction(async (trx) => {
             const companyExists = await trx
-                .select({ id: company_schema_1.companies.id })
+                .select({ id: company_schema_1.companies.id, name: company_schema_1.companies.name })
                 .from(company_schema_1.companies)
                 .where((0, drizzle_orm_1.eq)(company_schema_1.companies.id, company_id))
                 .execute();
@@ -312,6 +312,8 @@ let EmployeeService = class EmployeeService {
                 this.emailQueue.add('sendPasswordResetEmail', {
                     email: employee.email,
                     name: employee.first_name,
+                    companyName: companyExists[0].name,
+                    role: 'Employee',
                     resetLink: inviteLink,
                 });
             }));
@@ -568,8 +570,8 @@ exports.EmployeeService = EmployeeService = __decorate([
     __metadata("design:paramtypes", [Object, aws_service_1.AwsService,
         cache_service_1.CacheService,
         config_1.ConfigService,
-        password_reset_service_1.PasswordResetEmailService,
         onboarding_service_1.OnboardingService,
+        employee_invitation_service_1.EmployeeInvitationService,
         bullmq_2.Queue])
 ], EmployeeService);
 //# sourceMappingURL=employee.service.js.map

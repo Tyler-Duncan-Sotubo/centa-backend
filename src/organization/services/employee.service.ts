@@ -26,7 +26,7 @@ import { ConfigService } from '@nestjs/config';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const https = require('https');
 import * as jwt from 'jsonwebtoken';
-import { PasswordResetEmailService } from 'src/notification/services/password-reset.service';
+import { EmployeeInvitationService } from 'src/notification/services/employee-invitation.service';
 import { PasswordResetToken } from 'src/drizzle/schema/password-reset-token.schema';
 import { OnboardingService } from './onboarding.service';
 import { payGroups } from 'src/drizzle/schema/payroll.schema';
@@ -41,8 +41,8 @@ export class EmployeeService {
     private readonly aws: AwsService,
     private readonly cache: CacheService,
     private readonly config: ConfigService,
-    private readonly passwordResetEmailService: PasswordResetEmailService,
     private readonly onboardingService: OnboardingService,
+    private readonly employeeInvitationService: EmployeeInvitationService,
     @InjectQueue('emailQueue') private emailQueue: Queue,
   ) {}
 
@@ -220,9 +220,11 @@ export class EmployeeService {
         'EMPLOYEE_PORTAL_URL',
       )}/auth/reset-password/${token}`;
 
-      await this.passwordResetEmailService.sendPasswordResetEmail(
+      await this.employeeInvitationService.sendInvitationEmail(
         employee[0].email,
         employee[0].first_name,
+        companyResult[0].name,
+        'Employee',
         inviteLink,
       );
 
@@ -241,7 +243,7 @@ export class EmployeeService {
     return this.db.transaction(async (trx) => {
       // ✅ Step 1: Fetch Company Once (No Need to Fetch in Loop)
       const companyExists = await trx
-        .select({ id: companies.id })
+        .select({ id: companies.id, name: companies.name })
         .from(companies)
         .where(eq(companies.id, company_id))
         .execute();
@@ -430,6 +432,8 @@ export class EmployeeService {
           this.emailQueue.add('sendPasswordResetEmail', {
             email: employee.email,
             name: employee.first_name,
+            companyName: companyExists[0].name,
+            role: 'Employee',
             resetLink: inviteLink,
           });
         }),

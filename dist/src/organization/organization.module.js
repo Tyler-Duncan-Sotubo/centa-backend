@@ -18,6 +18,7 @@ const cache_service_1 = require("../config/cache/cache.service");
 const aws_service_1 = require("../config/aws/aws.service");
 const services_2 = require("../auth/services");
 const password_reset_service_1 = require("../notification/services/password-reset.service");
+const employee_invitation_service_1 = require("../notification/services/employee-invitation.service");
 const jwt_1 = require("@nestjs/jwt");
 const auth_module_1 = require("../auth/auth.module");
 const onboarding_service_1 = require("./services/onboarding.service");
@@ -49,6 +50,7 @@ exports.OrganizationModule = OrganizationModule = __decorate([
             cache_service_1.CacheService,
             aws_service_1.AwsService,
             services_2.PasswordResetService,
+            employee_invitation_service_1.EmployeeInvitationService,
             password_reset_service_1.PasswordResetEmailService,
             jwt_1.JwtService,
             onboarding_service_1.OnboardingService,
