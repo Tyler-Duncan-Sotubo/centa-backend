@@ -325,6 +325,7 @@ export class PayslipService {
         nhfContribution: payroll.nhf_contribution,
         salaryAdvance: payroll.salary_advance,
         payslip_pdf_url: payslips.pdf_url,
+        paymentStatus: payroll.payment_status,
       })
       .from(payslips)
       .innerJoin(payroll, eq(payslips.payroll_id, payroll.id))

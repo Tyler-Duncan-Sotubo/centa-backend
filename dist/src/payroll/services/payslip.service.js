@@ -228,6 +228,7 @@ let PayslipService = class PayslipService {
             nhfContribution: payroll_schema_1.payroll.nhf_contribution,
             salaryAdvance: payroll_schema_1.payroll.salary_advance,
             payslip_pdf_url: payroll_schema_1.payslips.pdf_url,
+            paymentStatus: payroll_schema_1.payroll.payment_status,
         })
             .from(payroll_schema_1.payslips)
             .innerJoin(payroll_schema_1.payroll, (0, drizzle_orm_1.eq)(payroll_schema_1.payslips.payroll_id, payroll_schema_1.payroll.id))

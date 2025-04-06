@@ -56,6 +56,7 @@ export declare class PayslipService {
         nhfContribution: number | null;
         salaryAdvance: number | null;
         payslip_pdf_url: string | null;
+        paymentStatus: string | null;
     }[]>;
     getEmployeePayslip(payslip_id: string): Promise<{
         id: string;

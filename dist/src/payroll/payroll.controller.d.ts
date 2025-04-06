@@ -33,13 +33,14 @@ export declare class PayrollController extends BaseController {
     updateCustomDeduction(user: User, dto: UpdateCustomDeductionDto, id: string): Promise<any>;
     deleteCustomDeduction(id: string): Promise<any>;
     calculatePayrollForCompany(user: User): Promise<{
-        transport: number;
         id: string;
         company_id: string;
+        custom_deductions: number | null;
+        employee_id: string;
+        payroll_run_id: string;
         basic: number;
         housing: number;
-        payroll_run_id: string;
-        employee_id: string;
+        transport: number;
         gross_salary: number;
         pension_contribution: number;
         employer_pension_contribution: number;
@@ -48,7 +49,6 @@ export declare class PayrollController extends BaseController {
         nhf_enrolled: number | null;
         nhf_contribution: number | null;
         paye_tax: number;
-        custom_deductions: number | null;
         total_deductions: number;
         net_salary: number;
         taxable_income: number;
@@ -122,8 +122,8 @@ export declare class PayrollController extends BaseController {
         id: string;
         company_id: string;
         employee_id: string;
-        payroll_month: string;
         amount: number;
+        payroll_month: string;
         bonus_type: string | null;
         bonus_date: string;
     }[]>;
@@ -161,6 +161,7 @@ export declare class PayrollController extends BaseController {
         nhfContribution: number | null;
         salaryAdvance: number | null;
         payslip_pdf_url: string | null;
+        paymentStatus: string | null;
     }[]>;
     getEmployeePayslips(employeeId: string, user: User): Promise<{
         payslip_id: string;
@@ -174,6 +175,7 @@ export declare class PayrollController extends BaseController {
         nhfContribution: number | null;
         salaryAdvance: number | null;
         payslip_pdf_url: string | null;
+        paymentStatus: string | null;
     }[]>;
     getEmployeePayslip(payslipId: string): Promise<{
         id: string;
@@ -229,12 +231,12 @@ export declare class PayrollController extends BaseController {
     createEmployeeGroup(dto: CreateEmployeeGroupDto, user: User): Promise<{
         id: string;
         name: string;
+        apply_paye: boolean | null;
+        apply_nhf: boolean | null;
+        apply_pension: boolean | null;
         company_id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
-        apply_nhf: boolean | null;
-        apply_paye: boolean | null;
-        apply_pension: boolean | null;
         apply_additional: boolean | null;
         is_demo: boolean | null;
         pay_schedule_id: string;
