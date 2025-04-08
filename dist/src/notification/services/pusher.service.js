@@ -69,7 +69,7 @@ let PusherService = class PusherService {
         return this.db
             .select()
             .from(notifcation_schema_1.notification)
-            .where((0, drizzle_orm_1.eq)(notifcation_schema_1.notification.company_id, company_id))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(notifcation_schema_1.notification.company_id, company_id), (0, drizzle_orm_1.eq)(notifcation_schema_1.notification.read, 'false')))
             .limit(5)
             .orderBy((0, drizzle_orm_1.desc)(notifcation_schema_1.notification.created_at));
     }

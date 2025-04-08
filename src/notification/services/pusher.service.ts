@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from '../../drizzle/drizzle.module';
 import { notification } from 'src/drizzle/schema/notifcation.schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 
 @Injectable()
 export class PusherService {
@@ -74,7 +74,12 @@ export class PusherService {
     return this.db
       .select()
       .from(notification)
-      .where(eq(notification.company_id, company_id))
+      .where(
+        and(
+          eq(notification.company_id, company_id),
+          eq(notification.read, 'false'),
+        ),
+      )
       .limit(5)
       .orderBy(desc(notification.created_at));
   }

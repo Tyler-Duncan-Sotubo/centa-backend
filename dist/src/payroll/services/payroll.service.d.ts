@@ -14,13 +14,14 @@ export declare class PayrollService {
     private formattedDate;
     private calculatePAYE;
     calculatePayroll(employee_id: string, payrollMonth: string, payrollRunId: string, company_id: string): Promise<{
-        transport: number;
         id: string;
         company_id: string;
-        basic: number;
-        housing: number;
+        payroll_month: string;
         payroll_run_id: string;
         employee_id: string;
+        basic: number;
+        housing: number;
+        transport: number;
         gross_salary: number;
         pension_contribution: number;
         employer_pension_contribution: number;
@@ -34,7 +35,6 @@ export declare class PayrollService {
         net_salary: number;
         taxable_income: number;
         payroll_date: string;
-        payroll_month: string;
         payment_status: string | null;
         payment_date: string | null;
         payment_reference: string | null;
@@ -43,13 +43,14 @@ export declare class PayrollService {
         approval_remarks: string | null;
     }[]>;
     calculatePayrollForCompany(company_id: string, payrollMonth: string): Promise<{
-        transport: number;
         id: string;
         company_id: string;
-        basic: number;
-        housing: number;
+        payroll_month: string;
         payroll_run_id: string;
         employee_id: string;
+        basic: number;
+        housing: number;
+        transport: number;
         gross_salary: number;
         pension_contribution: number;
         employer_pension_contribution: number;
@@ -63,7 +64,6 @@ export declare class PayrollService {
         net_salary: number;
         taxable_income: number;
         payroll_date: string;
-        payroll_month: string;
         payment_status: string | null;
         payment_date: string | null;
         payment_reference: string | null;
@@ -143,8 +143,8 @@ export declare class PayrollService {
     createBonus(user_id: string, dto: createBonusDto): Promise<{
         id: string;
         company_id: string;
-        employee_id: string;
         payroll_month: string;
+        employee_id: string;
         amount: number;
         bonus_type: string | null;
         bonus_date: string;
