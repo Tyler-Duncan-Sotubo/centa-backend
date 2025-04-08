@@ -88,8 +88,16 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) response: Response,
   ) {
-    console.log(LoginDto);
     return this.auth.login(dto, response);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('employee-login')
+  async EmployeeLogin(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.auth.employeeLogin(dto, response);
   }
 
   @UseGuards(RefreshJwtGuard)

@@ -47,7 +47,7 @@ export class LoanController extends BaseController {
   }
 
   // Get loans by employee
-  @Get('employee/:employee_id')
+  @Get('/loans/employee/:employee_id')
   @UseGuards(JwtAuthGuard)
   async getLoansByEmployee(@Param('employee_id') employee_id: string) {
     return this.loanService.getAdvancesAndRepaymentsByEmployee(employee_id);

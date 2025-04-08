@@ -58,6 +58,13 @@ export class PayrollController extends BaseController {
   };
 
   // Tax Config
+  @Get('tax-config')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin'])
+  async getTaxConfiguration(@CurrentUser() user: User) {
+    return this.deductionService.getTaxConfiguration(user.company_id);
+  }
+
   @Put('tax-config')
   @UseGuards(JwtAuthGuard)
   @Audit({ action: 'Created Tax Config', entity: 'Remittance' })

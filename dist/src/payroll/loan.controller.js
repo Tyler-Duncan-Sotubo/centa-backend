@@ -82,7 +82,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], LoanController.prototype, "getLoans", null);
 __decorate([
-    (0, common_1.Get)('employee/:employee_id'),
+    (0, common_1.Get)('/loans/employee/:employee_id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     __param(0, (0, common_1.Param)('employee_id')),
     __metadata("design:type", Function),

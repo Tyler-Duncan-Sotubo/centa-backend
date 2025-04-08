@@ -25,6 +25,7 @@ export declare class AuthController {
     }>;
     EditUserRole(dto: InviteUserDto, id: string): Promise<void>;
     Login(dto: LoginDto, response: Response): Promise<void>;
+    EmployeeLogin(dto: LoginDto, response: Response): Promise<void>;
     refreshToken(user: JwtType, response: Response): Promise<{
         accessToken: string;
         refreshToken: string;

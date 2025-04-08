@@ -20,6 +20,11 @@ export declare class PayrollController extends BaseController {
     private readonly payGroup;
     constructor(payrollService: PayrollService, deductionService: DeductionService, payslipService: PayslipService, taxService: TaxService, pdfService: PdfService, payGroup: PayGroupService);
     private formattedDate;
+    getTaxConfiguration(user: User): Promise<{
+        apply_nhf: boolean | null;
+        apply_paye: boolean | null;
+        apply_pension: boolean | null;
+    }>;
     updateTaxConfiguration(user: User, dto: updateTaxConfigurationDto): Promise<any>;
     createCustomDeduction(user: User, dto: CreateCustomDeduction): Promise<any>;
     getCustomDeduction(user: User): Promise<{
@@ -35,8 +40,8 @@ export declare class PayrollController extends BaseController {
     calculatePayrollForCompany(user: User): Promise<{
         id: string;
         company_id: string;
-        employee_id: string;
         custom_deductions: number | null;
+        employee_id: string;
         payroll_run_id: string;
         basic: number;
         housing: number;
@@ -231,12 +236,12 @@ export declare class PayrollController extends BaseController {
     createEmployeeGroup(dto: CreateEmployeeGroupDto, user: User): Promise<{
         id: string;
         name: string;
+        apply_paye: boolean | null;
+        apply_nhf: boolean | null;
+        apply_pension: boolean | null;
         company_id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
-        apply_nhf: boolean | null;
-        apply_paye: boolean | null;
-        apply_pension: boolean | null;
         apply_additional: boolean | null;
         is_demo: boolean | null;
         pay_schedule_id: string;

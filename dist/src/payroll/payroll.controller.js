@@ -47,6 +47,9 @@ let PayrollController = class PayrollController extends base_controller_1.BaseCo
             return formattedDate;
         };
     }
+    async getTaxConfiguration(user) {
+        return this.deductionService.getTaxConfiguration(user.company_id);
+    }
     async updateTaxConfiguration(user, dto) {
         return this.deductionService.updateTaxConfiguration(user.company_id, dto);
     }
@@ -187,6 +190,15 @@ let PayrollController = class PayrollController extends base_controller_1.BaseCo
     }
 };
 exports.PayrollController = PayrollController;
+__decorate([
+    (0, common_1.Get)('tax-config'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], PayrollController.prototype, "getTaxConfiguration", null);
 __decorate([
     (0, common_1.Put)('tax-config'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

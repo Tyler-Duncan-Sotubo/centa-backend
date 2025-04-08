@@ -54,6 +54,21 @@ let DeductionService = class DeductionService {
             .where((0, drizzle_orm_1.eq)(deductions_schema_1.taxConfig.company_id, companyId))
             .execute();
     }
+    async getTaxConfiguration(company_id) {
+        const companyId = await this.getCompany(company_id);
+        const taxConfigData = await this.db
+            .select({
+            apply_nhf: deductions_schema_1.taxConfig.apply_nhf,
+            apply_paye: deductions_schema_1.taxConfig.apply_paye,
+            apply_pension: deductions_schema_1.taxConfig.apply_pension,
+        })
+            .from(deductions_schema_1.taxConfig)
+            .where((0, drizzle_orm_1.eq)(deductions_schema_1.taxConfig.company_id, companyId))
+            .execute();
+        if (!taxConfigData)
+            throw new common_1.BadRequestException('Tax Config not found');
+        return taxConfigData[0];
+    }
     async createCustomDeduction(user_id, dto) {
         const company_id = await this.getCompany(user_id);
         return await this.db

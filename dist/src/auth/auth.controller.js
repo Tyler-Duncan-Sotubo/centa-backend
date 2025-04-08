@@ -45,8 +45,10 @@ let AuthController = class AuthController {
         return this.user.editUserRole(id, dto);
     }
     async Login(dto, response) {
-        console.log(dto_1.LoginDto);
         return this.auth.login(dto, response);
+    }
+    async EmployeeLogin(dto, response) {
+        return this.auth.employeeLogin(dto, response);
     }
     async refreshToken(user, response) {
         return await this.auth.refreshToken(user, response);
@@ -135,6 +137,15 @@ __decorate([
     __metadata("design:paramtypes", [dto_1.LoginDto, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "Login", null);
+__decorate([
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, common_1.Post)('employee-login'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [dto_1.LoginDto, Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "EmployeeLogin", null);
 __decorate([
     (0, common_1.UseGuards)(refresh_guard_1.RefreshJwtGuard),
     (0, common_1.Post)('refresh'),

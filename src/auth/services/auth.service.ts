@@ -16,6 +16,8 @@ import { eq } from 'drizzle-orm';
 import { Response } from 'express';
 import { AuditService } from 'src/audit/audit.service';
 import { JwtType } from '../types/user.type';
+import { employees } from 'src/drizzle/schema/employee.schema';
+import { companies } from 'src/drizzle/schema/company.schema';
 
 @Injectable()
 export class AuthService {
@@ -41,6 +43,14 @@ export class AuthService {
         company_id: users.company_id,
       })
       .execute();
+
+    if (
+      user.role !== 'super_admin' &&
+      user.role !== 'admin' &&
+      user.role !== 'hr_manager'
+    ) {
+      throw new BadRequestException('Invalid credentials');
+    }
 
     // Log the login event
     await this.auditService.logAction('Login', 'Authentication', user.id);
@@ -72,6 +82,75 @@ export class AuthService {
           success: true,
           message: 'Login successful',
           user: updatedUser[0],
+          backendTokens: {
+            accessToken,
+            refreshToken,
+          },
+        });
+      } else {
+        throw new BadRequestException('Invalid credentials');
+      }
+    } catch (error: any) {
+      response.json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
+  async employeeLogin(payload: LoginDto, response: Response) {
+    const user = await this.validateUser(payload.email, payload.password);
+    // Update last login
+    await this.db
+      .update(users)
+      .set({ last_login: new Date() })
+      .where(eq(users.email, payload.email.toLowerCase()))
+      .returning({
+        id: users.id,
+        email: users.email,
+        first_name: users.first_name,
+        last_name: users.last_name,
+        company_id: users.company_id,
+      })
+      .execute();
+
+    if (user.role !== 'employee') {
+      throw new BadRequestException('Invalid credentials');
+    }
+
+    // Log the login event
+    await this.auditService.logAction('Login', 'Authentication', user.id);
+
+    // Generate token
+    const { accessToken, refreshToken } =
+      await this.tokenGeneratorService.generateToken(user);
+
+    const employee = await this.db
+      .select({
+        id: employees.id,
+        first_name: employees.first_name,
+        last_name: employees.last_name,
+        email: users.email,
+        company_id: companies.id,
+        company_name: companies.name,
+        job_title: employees.job_title,
+        annual_gross: employees.annual_gross,
+        group_id: employees.group_id,
+        apply_nhf: employees.apply_nhf,
+        avatar: users.avatar,
+      })
+      .from(employees)
+      .innerJoin(users, eq(users.id, employees.user_id))
+      .innerJoin(companies, eq(companies.id, employees.company_id))
+      .where(eq(employees.user_id, user.id));
+
+    try {
+      if (employee) {
+        // Send the JSON response with a success message
+        response.json({
+          success: true,
+          message: 'Login successful',
+          user: employee[0],
           backendTokens: {
             accessToken,
             refreshToken,

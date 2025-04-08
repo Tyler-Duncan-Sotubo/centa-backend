@@ -12,6 +12,7 @@ export declare class AuthService {
     private db;
     constructor(userService: UserService, tokenGeneratorService: TokenGeneratorService, auditService: AuditService, db: db);
     login(payload: LoginDto, response: Response): Promise<void>;
+    employeeLogin(payload: LoginDto, response: Response): Promise<void>;
     refreshToken(user: JwtType, response: Response): Promise<{
         accessToken: string;
         refreshToken: string;

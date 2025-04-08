@@ -10,6 +10,11 @@ export declare class DeductionService {
     constructor(db: db, cache: CacheService, onboardingService: OnboardingService);
     private getCompany;
     updateTaxConfiguration(company_id: string, dto: updateTaxConfigurationDto): Promise<any>;
+    getTaxConfiguration(company_id: string): Promise<{
+        apply_nhf: boolean | null;
+        apply_paye: boolean | null;
+        apply_pension: boolean | null;
+    }>;
     createCustomDeduction(user_id: string, dto: CreateCustomDeduction): Promise<any>;
     fetchCustomDeduction(user_id: string): Promise<{
         id: string;

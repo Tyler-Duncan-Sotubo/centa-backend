@@ -35,13 +35,12 @@ export class DeductionService {
     });
   };
 
-  // Update Tax Configuration
+  // Tax Configuration
   async updateTaxConfiguration(
     company_id: string,
     dto: updateTaxConfigurationDto,
   ) {
     const companyId = await this.getCompany(company_id);
-
     await this.onboardingService.completeTask(
       companyId,
       'updatePayrollSettings',
@@ -57,6 +56,24 @@ export class DeductionService {
       })
       .where(eq(taxConfig.company_id, companyId))
       .execute();
+  }
+
+  // Fetch Tax Configuration
+  async getTaxConfiguration(company_id: string) {
+    const companyId = await this.getCompany(company_id);
+    const taxConfigData = await this.db
+      .select({
+        apply_nhf: taxConfig.apply_nhf,
+        apply_paye: taxConfig.apply_paye,
+        apply_pension: taxConfig.apply_pension,
+      })
+      .from(taxConfig)
+      .where(eq(taxConfig.company_id, companyId))
+      .execute();
+
+    if (!taxConfigData) throw new BadRequestException('Tax Config not found');
+
+    return taxConfigData[0];
   }
 
   // Create Custom Deduction
