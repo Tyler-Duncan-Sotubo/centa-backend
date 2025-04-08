@@ -54,10 +54,10 @@ export declare class CompanyService {
     addContactToCompany(dto: CreateCompanyContactDto, company_id: string): Promise<{
         id: string;
         name: string;
-        company_id: string;
         email: string;
-        phone: string | null;
         position: string | null;
+        phone: string | null;
+        company_id: string;
     }[]>;
     getContactInCompany(company_id: string): Promise<{
         id: string;
@@ -70,9 +70,9 @@ export declare class CompanyService {
     updateContactInCompany(dto: UpdateCompanyContactDto, company_id: string): Promise<string>;
     createCompanyTaxDetails(user_id: string, dto: CreateCompanyTaxDto): Promise<{
         id: string;
-        company_id: string;
         created_at: Date;
         updated_at: Date | null;
+        company_id: string;
         tin: string;
         vat_number: string | null;
         nhf_code: string | null;
@@ -111,4 +111,15 @@ export declare class CompanyService {
     private generatePaySchedule;
     createPayFrequency(company_id: string, dto: CreatePayFrequencyDto): Promise<QueryResult<import("drizzle-orm").Assume<this["row"], QueryResultRow>>>;
     updatePayFrequency(company_id: string, dto: CreatePayFrequencyDto, payFrequencyId: string): Promise<string>;
+    getDashboardPreview(company_id: string): Promise<{
+        company: {
+            name: string;
+        };
+        nextPayDate: Date | null;
+        employees: {
+            employment_status: string | null;
+            annual_gross: number | null;
+        }[];
+        bonus: number;
+    }>;
 }

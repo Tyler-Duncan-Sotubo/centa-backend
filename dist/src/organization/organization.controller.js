@@ -107,6 +107,9 @@ let OrganizationController = class OrganizationController extends base_controlle
     updateCompanyTaxDetails(dto, user) {
         return this.company.updateCompanyTaxDetails(user.company_id, dto);
     }
+    getDashboardPreview(user) {
+        return this.company.getDashboardPreview(user.company_id);
+    }
     createDepartment(dto, user) {
         return this.department.createDepartment(dto, user.company_id);
     }
@@ -383,6 +386,15 @@ __decorate([
     __metadata("design:paramtypes", [create_company_tax_dto_1.CreateCompanyTaxDto, Object]),
     __metadata("design:returntype", void 0)
 ], OrganizationController.prototype, "updateCompanyTaxDetails", null);
+__decorate([
+    (0, common_1.Get)('dashboard-preview'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], OrganizationController.prototype, "getDashboardPreview", null);
 __decorate([
     (0, common_1.Post)('departments'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

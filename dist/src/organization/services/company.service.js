@@ -22,6 +22,8 @@ const date_fns_1 = require("date-fns");
 const aws_service_1 = require("../../config/aws/aws.service");
 const onboarding_service_1 = require("./onboarding.service");
 const axios_1 = require("axios");
+const employee_schema_1 = require("../../drizzle/schema/employee.schema");
+const payroll_schema_1 = require("../../drizzle/schema/payroll.schema");
 let CompanyService = class CompanyService {
     constructor(db, cache, awsService, onboardingService) {
         this.db = db;
@@ -308,6 +310,46 @@ let CompanyService = class CompanyService {
         catch (error) {
             throw new common_1.BadRequestException(error.message);
         }
+    }
+    async getDashboardPreview(company_id) {
+        const company = await this.db
+            .select({
+            name: company_schema_1.companies.name,
+        })
+            .from(company_schema_1.companies)
+            .where((0, drizzle_orm_1.eq)(company_schema_1.companies.id, company_id));
+        if (company.length === 0) {
+            throw new common_1.NotFoundException('Company not found');
+        }
+        const nextPayDate = await this.getNextPayDate(company_id);
+        const allEmployees = await this.db
+            .select({
+            employment_status: employee_schema_1.employees.employment_status,
+            annual_gross: employee_schema_1.employees.annual_gross,
+        })
+            .from(employee_schema_1.employees)
+            .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.company_id, company_id));
+        if (allEmployees.length === 0) {
+            throw new common_1.NotFoundException('No employees found for this company');
+        }
+        const bonuses = await this.db
+            .select({
+            id: payroll_schema_1.bonus.id,
+            amount: payroll_schema_1.bonus.amount,
+        })
+            .from(payroll_schema_1.bonus)
+            .where((0, drizzle_orm_1.eq)(payroll_schema_1.bonus.company_id, company_id))
+            .execute();
+        if (bonuses.length === 0) {
+            throw new common_1.NotFoundException('No bonuses found for this company');
+        }
+        const totalBonus = bonuses.reduce((acc, bonus) => acc + bonus.amount, 0);
+        return {
+            company: company[0],
+            nextPayDate,
+            employees: allEmployees,
+            bonus: totalBonus,
+        };
     }
 };
 exports.CompanyService = CompanyService;

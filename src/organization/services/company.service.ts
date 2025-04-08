@@ -33,6 +33,8 @@ import { AwsService } from 'src/config/aws/aws.service';
 import { CreateCompanyTaxDto } from '../dto/create-company-tax.dto';
 import { OnboardingService } from './onboarding.service';
 import axios from 'axios';
+import { employees } from 'src/drizzle/schema/employee.schema';
+import { bonus } from 'src/drizzle/schema/payroll.schema';
 
 @Injectable()
 export class CompanyService {
@@ -243,7 +245,6 @@ export class CompanyService {
   }
 
   // Pay Frequency --------------------------------------
-
   async getPayFrequency(company_id: string) {
     const payFrequency = await this.db
       .select()
@@ -461,5 +462,54 @@ export class CompanyService {
     } catch (error) {
       throw new BadRequestException(error.message);
     }
+  }
+
+  async getDashboardPreview(company_id: string) {
+    const company = await this.db
+      .select({
+        name: companies.name,
+      })
+      .from(companies)
+      .where(eq(companies.id, company_id));
+
+    if (company.length === 0) {
+      throw new NotFoundException('Company not found');
+    }
+
+    const nextPayDate = await this.getNextPayDate(company_id);
+
+    const allEmployees = await this.db
+      .select({
+        employment_status: employees.employment_status,
+        annual_gross: employees.annual_gross,
+      })
+      .from(employees)
+      .where(eq(employees.company_id, company_id));
+
+    if (allEmployees.length === 0) {
+      throw new NotFoundException('No employees found for this company');
+    }
+
+    const bonuses = await this.db
+      .select({
+        id: bonus.id,
+        amount: bonus.amount,
+      })
+      .from(bonus)
+      .where(eq(bonus.company_id, company_id))
+      .execute();
+
+    if (bonuses.length === 0) {
+      throw new NotFoundException('No bonuses found for this company');
+    }
+
+    const totalBonus = bonuses.reduce((acc, bonus) => acc + bonus.amount, 0);
+
+    return {
+      company: company[0],
+      nextPayDate,
+      employees: allEmployees,
+      bonus: totalBonus,
+    };
   }
 }

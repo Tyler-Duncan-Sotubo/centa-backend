@@ -192,6 +192,13 @@ export class OrganizationController extends BaseController {
     return this.company.updateCompanyTaxDetails(user.company_id, dto);
   }
 
+  @Get('dashboard-preview')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin'])
+  getDashboardPreview(@CurrentUser() user: User) {
+    return this.company.getDashboardPreview(user.company_id);
+  }
+
   // Department ----------------------------
   @Post('departments')
   @UseGuards(JwtAuthGuard)

@@ -64,10 +64,10 @@ export declare class OrganizationController extends BaseController {
     createCompanyContact(dto: CreateCompanyContactDto, companyId: string): Promise<{
         id: string;
         name: string;
-        company_id: string;
         email: string;
-        phone: string | null;
         position: string | null;
+        phone: string | null;
+        company_id: string;
     }[]>;
     getCompanyContacts(companyId: string): Promise<{
         id: string;
@@ -99,9 +99,9 @@ export declare class OrganizationController extends BaseController {
     updatePayFrequency(payFrequencyId: string, dto: CreatePayFrequencyDto, user: User): Promise<string>;
     createCompanyTaxDetails(dto: CreateCompanyTaxDto, user: User): Promise<{
         id: string;
-        company_id: string;
         created_at: Date;
         updated_at: Date | null;
+        company_id: string;
         tin: string;
         vat_number: string | null;
         nhf_code: string | null;
@@ -118,6 +118,17 @@ export declare class OrganizationController extends BaseController {
         updated_at: Date | null;
     }>;
     updateCompanyTaxDetails(dto: CreateCompanyTaxDto, user: User): Promise<string>;
+    getDashboardPreview(user: User): Promise<{
+        company: {
+            name: string;
+        };
+        nextPayDate: Date | null;
+        employees: {
+            employment_status: string | null;
+            annual_gross: number | null;
+        }[];
+        bonus: number;
+    }>;
     createDepartment(dto: CreateDepartmentDto, user: User): Promise<{
         id: string;
         name: string;
@@ -268,10 +279,10 @@ export declare class OrganizationController extends BaseController {
     updateEmployeeBankDetails(dto: CreateEmployeeBankDetailsDto, employeeId: string): Promise<string>;
     createEmployeeTaxDetails(dto: CreateEmployeeTaxDetailsDto, employeeId: string): Promise<{
         id: string;
-        createdAt: Date | null;
-        employee_id: string;
-        updatedAt: Date | null;
         tin: string;
+        createdAt: Date | null;
+        updatedAt: Date | null;
+        employee_id: string;
         pension_pin: string | null;
         nhf_number: string | null;
         consolidated_relief_allowance: number | null;
