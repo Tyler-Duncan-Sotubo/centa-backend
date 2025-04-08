@@ -11,7 +11,8 @@ const common_1 = require("@nestjs/common");
 const audit_service_1 = require("./audit.service");
 const audit_controller_1 = require("./audit.controller");
 const drizzle_module_1 = require("../drizzle/drizzle.module");
-const jwt_guard_1 = require("../auth/guards/jwt.guard");
+const primary_guard_1 = require("../auth/guards/primary.guard");
+const jwt_1 = require("@nestjs/jwt");
 let AuditModule = class AuditModule {
 };
 exports.AuditModule = AuditModule;
@@ -19,7 +20,7 @@ exports.AuditModule = AuditModule = __decorate([
     (0, common_1.Module)({
         imports: [drizzle_module_1.DrizzleModule],
         controllers: [audit_controller_1.AuditController],
-        providers: [audit_service_1.AuditService, jwt_guard_1.JwtGuard],
+        providers: [audit_service_1.AuditService, primary_guard_1.PrimaryGuard, jwt_1.JwtService],
     })
 ], AuditModule);
 //# sourceMappingURL=audit.module.js.map

@@ -15,6 +15,7 @@ import { DRIZZLE } from '../../drizzle/drizzle.module';
 import { eq } from 'drizzle-orm';
 import { Response } from 'express';
 import { AuditService } from 'src/audit/audit.service';
+import { JwtType } from '../types/user.type';
 
 @Injectable()
 export class AuthService {
@@ -45,7 +46,7 @@ export class AuthService {
     await this.auditService.logAction('Login', 'Authentication', user.id);
 
     // Generate token
-    const { access_token, refresh_token } =
+    const { accessToken, refreshToken } =
       await this.tokenGeneratorService.generateToken(user);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -55,7 +56,7 @@ export class AuthService {
     try {
       if (userWithoutPassword) {
         // Set the refresh token as a cookie (optional)
-        response.cookie('Authentication', refresh_token, {
+        response.cookie('Authentication', accessToken, {
           httpOnly: true,
           secure: true, // Required for HTTPS
           expires: new Date(Date.now() + 6 * 60 * 60 * 1000),
@@ -63,15 +64,18 @@ export class AuthService {
         });
 
         // Set both tokens in the HTTP headers
-        response.setHeader('Authorization', `Bearer ${access_token}`);
-        response.setHeader('X-Refresh-Token', refresh_token);
+        response.setHeader('Authorization', `Bearer ${accessToken}`);
+        response.setHeader('X-Refresh-Token', refreshToken);
 
         // Send the JSON response with a success message
         response.json({
           success: true,
           message: 'Login successful',
           user: updatedUser[0],
-          token: access_token,
+          backendTokens: {
+            accessToken,
+            refreshToken,
+          },
         });
       } else {
         throw new BadRequestException('Invalid credentials');
@@ -82,6 +86,34 @@ export class AuthService {
         message: error.message,
       });
     }
+  }
+
+  async refreshToken(user: JwtType, response: Response) {
+    const payload = {
+      email: user.email,
+      sub: user.sub,
+    };
+
+    // Update last login
+    const EXPIRE_TIME = 1000 * 60 * 60 * 24; // 1 day
+
+    // Get Tokens
+    const { accessToken, refreshToken } =
+      await this.tokenGeneratorService.generateToken(payload);
+
+    // Set the refresh token as a cookie (optional)
+    response.cookie('Authentication', accessToken, {
+      httpOnly: true,
+      secure: true, // Required for HTTPS
+      expires: new Date(Date.now() + 60),
+      sameSite: 'none',
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      expiresIn: new Date().setTime(new Date().getTime() + EXPIRE_TIME),
+    };
   }
 
   private async validateUser(email: string, password: string) {

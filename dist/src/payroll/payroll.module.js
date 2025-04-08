@@ -16,7 +16,6 @@ const payroll_processor_1 = require("./payroll.processor");
 const drizzle_module_1 = require("../drizzle/drizzle.module");
 const payslip_service_1 = require("./services/payslip.service");
 const deduction_service_1 = require("./services/deduction.service");
-const jwt_guard_1 = require("../auth/guards/jwt.guard");
 const cache_module_1 = require("../config/cache/cache.module");
 const cache_service_1 = require("../config/cache/cache.service");
 const aws_service_1 = require("../config/aws/aws.service");
@@ -27,6 +26,8 @@ const pusher_service_1 = require("../notification/services/pusher.service");
 const onboarding_service_1 = require("../organization/services/onboarding.service");
 const pay_group_service_1 = require("./services/pay-group.service");
 const audit_service_1 = require("../audit/audit.service");
+const primary_guard_1 = require("../auth/guards/primary.guard");
+const jwt_1 = require("@nestjs/jwt");
 let PayrollModule = class PayrollModule {
 };
 exports.PayrollModule = PayrollModule;
@@ -45,7 +46,6 @@ exports.PayrollModule = PayrollModule = __decorate([
             payroll_processor_1.PayrollProcessor,
             payslip_service_1.PayslipService,
             deduction_service_1.DeductionService,
-            jwt_guard_1.JwtGuard,
             cache_service_1.CacheService,
             aws_service_1.AwsService,
             tax_service_1.TaxService,
@@ -55,6 +55,8 @@ exports.PayrollModule = PayrollModule = __decorate([
             onboarding_service_1.OnboardingService,
             pay_group_service_1.PayGroupService,
             audit_service_1.AuditService,
+            primary_guard_1.PrimaryGuard,
+            jwt_1.JwtService,
         ],
     })
 ], PayrollModule);

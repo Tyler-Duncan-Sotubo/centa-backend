@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { OrganizationController } from './organization.controller';
 import { CompanyService, EmployeeService, DepartmentService } from './services';
 import { MulterModule } from '@nestjs/platform-express';
-import { JwtGuard } from 'src/auth/guards/jwt.guard';
 import { DrizzleModule } from 'src/drizzle/drizzle.module';
 import { CacheModule } from 'src/config/cache/cache.module';
 import { CacheService } from 'src/config/cache/cache.service';
@@ -16,6 +15,7 @@ import { OnboardingService } from './services/onboarding.service';
 import { EmailQueueProcessor } from 'src/notification/services/email-queue.processor';
 import { BullModule } from '@nestjs/bullmq';
 import { AuditService } from 'src/audit/audit.service';
+import { PrimaryGuard } from 'src/auth/guards/primary.guard';
 
 @Module({
   imports: [
@@ -31,7 +31,7 @@ import { AuditService } from 'src/audit/audit.service';
   ],
   controllers: [OrganizationController],
   providers: [
-    JwtGuard,
+    PrimaryGuard,
     CompanyService,
     EmployeeService,
     DepartmentService,

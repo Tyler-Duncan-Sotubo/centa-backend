@@ -20,7 +20,7 @@ import { AuditInterceptor } from 'src/audit/audit.interceptor';
 import { Audit } from 'src/audit/audit.decorator';
 
 @UseInterceptors(AuditInterceptor)
-@Controller('loans')
+@Controller('')
 export class LoanController extends BaseController {
   constructor(private readonly loanService: LoanService) {
     super();
@@ -39,7 +39,7 @@ export class LoanController extends BaseController {
   }
 
   // Get all loans in the company
-  @Get()
+  @Get('loans')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
   async getLoans(@CurrentUser() user: User) {
@@ -54,14 +54,14 @@ export class LoanController extends BaseController {
   }
 
   // Get loan by ID
-  @Get(':loan_id')
+  @Get('loans/:loan_id')
   @UseGuards(JwtAuthGuard)
   async getLoanById(@Param('loan_id') loan_id: string) {
     return this.loanService.getAdvanceById(loan_id);
   }
 
   // Update loan status (approve/reject)
-  @Patch('update-status/:loan_id')
+  @Patch('/loans/update-status/:loan_id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
   @Audit({ action: 'Updated Loan', entity: 'Loan' })
@@ -106,7 +106,7 @@ export class LoanController extends BaseController {
   }
 
   // Get Loan History
-  @Get('history/all')
+  @Get('loans-history')
   @UseGuards(JwtAuthGuard)
   async getLoanHistoryByCompany(@CurrentUser() user: User) {
     return this.loanService.getAdvancesHistoryByCompany(user.company_id);

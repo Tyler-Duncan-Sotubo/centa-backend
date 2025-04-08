@@ -26,17 +26,17 @@ export class TokenGeneratorService {
     const payload = { sub: user.id, email: user.email };
 
     // Generate Access Token (short expiration)
-    const access_token = this.jwtService.sign(payload, {
+    const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
       expiresIn: `${this.configService.get<number>('JWT_EXPIRATION')}s`, // Access token expires quickly (e.g., 1 hour)
     });
 
     // Generate Refresh Token (longer expiration)
-    const refresh_token = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_SECRET'), // Use a different secret for refresh token
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_REFRESH_SECRET'), // Use a different secret for refresh token
       expiresIn: `${this.configService.get<number>('JWT_REFRESH_EXPIRATION')}s`, // Refresh token expires longer (e.g., 7 days)
     });
 
-    return { access_token, refresh_token };
+    return { accessToken, refreshToken };
   }
 }

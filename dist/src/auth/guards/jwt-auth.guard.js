@@ -13,7 +13,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.JwtAuthGuard = void 0;
 const common_1 = require("@nestjs/common");
 const core_1 = require("@nestjs/core");
-const jwt_guard_1 = require("./jwt.guard");
+const primary_guard_1 = require("./primary.guard");
 const fs = require("fs");
 let JwtAuthGuard = JwtAuthGuard_1 = class JwtAuthGuard {
     constructor(reflector, jwtGuard) {
@@ -68,6 +68,6 @@ exports.JwtAuthGuard = JwtAuthGuard;
 exports.JwtAuthGuard = JwtAuthGuard = JwtAuthGuard_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [core_1.Reflector,
-        jwt_guard_1.JwtGuard])
+        primary_guard_1.PrimaryGuard])
 ], JwtAuthGuard);
 //# sourceMappingURL=jwt-auth.guard.js.map

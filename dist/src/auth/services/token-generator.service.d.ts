@@ -5,7 +5,7 @@ export declare class TokenGeneratorService {
     private readonly jwtService;
     constructor(configService: ConfigService, jwtService: JwtService);
     generateToken(user: any): Promise<{
-        access_token: string;
-        refresh_token: string;
+        accessToken: string;
+        refreshToken: string;
     }>;
 }

@@ -1,11 +1,11 @@
 import { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { JwtGuard } from './jwt.guard';
+import { PrimaryGuard } from './primary.guard';
 export declare class JwtAuthGuard implements CanActivate {
     private readonly reflector;
     private readonly jwtGuard;
     private readonly logger;
-    constructor(reflector: Reflector, jwtGuard: JwtGuard);
+    constructor(reflector: Reflector, jwtGuard: PrimaryGuard);
     canActivate(context: ExecutionContext): Promise<boolean>;
     private handleUnauthorized;
     private logError;

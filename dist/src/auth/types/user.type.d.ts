@@ -5,3 +5,9 @@ export type User = {
     password: string;
     role: 'student' | 'teacher' | 'admin';
 };
+export type JwtType = {
+    sub: string;
+    email: string;
+    iat: number;
+    exp: number;
+};

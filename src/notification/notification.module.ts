@@ -3,9 +3,10 @@ import { NotificationController } from './notifications.controller';
 import { PusherService } from './services/pusher.service';
 import { ChatbotService } from './services/chatbot.service';
 import { DrizzleModule } from 'src/drizzle/drizzle.module';
-import { JwtGuard } from 'src/auth/guards/jwt.guard';
 import { CacheModule } from 'src/config/cache/cache.module';
 import { BullModule } from '@nestjs/bullmq';
+import { PrimaryGuard } from 'src/auth/guards/primary.guard';
+import { JwtService } from '@nestjs/jwt';
 
 @Module({
   imports: [
@@ -16,6 +17,6 @@ import { BullModule } from '@nestjs/bullmq';
     }),
   ],
   controllers: [NotificationController],
-  providers: [PusherService, ChatbotService, JwtGuard],
+  providers: [PusherService, ChatbotService, PrimaryGuard, JwtService],
 })
 export class NotificationModule {}

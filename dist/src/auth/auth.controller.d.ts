@@ -4,6 +4,7 @@ import { Response } from 'express';
 import { User } from 'src/types/user.type';
 import { InviteUserDto } from './dto/invite-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { JwtType } from './types/user.type';
 export declare class AuthController {
     private readonly auth;
     private readonly user;
@@ -24,6 +25,11 @@ export declare class AuthController {
     }>;
     EditUserRole(dto: InviteUserDto, id: string): Promise<void>;
     Login(dto: LoginDto, response: Response): Promise<void>;
+    refreshToken(user: JwtType, response: Response): Promise<{
+        accessToken: string;
+        refreshToken: string;
+        expiresIn: number;
+    }>;
     Logout(response: Response): Promise<void>;
     GetUser(user: User): Promise<User>;
     GetCompanyUsers(user: User): Promise<{

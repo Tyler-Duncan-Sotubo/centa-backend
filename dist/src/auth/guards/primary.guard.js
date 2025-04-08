@@ -12,29 +12,39 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.JwtStrategy = void 0;
+exports.PrimaryGuard = void 0;
 const common_1 = require("@nestjs/common");
+const jwt_1 = require("@nestjs/jwt");
 const config_1 = require("@nestjs/config");
-const passport_1 = require("@nestjs/passport");
-const passport_jwt_1 = require("passport-jwt");
 const drizzle_module_1 = require("../../drizzle/drizzle.module");
 const users_schema_1 = require("../../drizzle/schema/users.schema");
 const drizzle_orm_1 = require("drizzle-orm");
-let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(passport_jwt_1.Strategy, 'jwt') {
-    constructor(config, db) {
-        const secret = config.get('JWT_SECRET');
-        console.log('JWT_SECRET', secret);
-        super({
-            jwtFromRequest: passport_jwt_1.ExtractJwt.fromExtractors([
-                (request) => request?.cookies?.Authentication ||
-                    request?.Authentication ||
-                    request?.headers.Authentication,
-            ]),
-            ignoreExpiration: false,
-            secretOrKey: secret,
-        });
-        this.config = config;
+let PrimaryGuard = class PrimaryGuard {
+    constructor(jwtService, configService, db) {
+        this.jwtService = jwtService;
+        this.configService = configService;
         this.db = db;
+    }
+    async canActivate(context) {
+        const request = context.switchToHttp().getRequest();
+        const token = this.extractTokenFromHeader(request);
+        if (!token)
+            throw new common_1.UnauthorizedException();
+        try {
+            const payload = await this.jwtService.verifyAsync(token, {
+                secret: this.configService.get('JWT_SECRET'),
+            });
+            const user = await this.validate(payload);
+            request['user'] = user;
+        }
+        catch {
+            throw new common_1.UnauthorizedException();
+        }
+        return true;
+    }
+    extractTokenFromHeader(request) {
+        const [type, token] = request.headers.authorization?.split(' ') ?? [];
+        return type === 'Bearer' ? token : undefined;
     }
     async validate(payload) {
         const usersArray = await this.db
@@ -56,10 +66,11 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         return user;
     }
 };
-exports.JwtStrategy = JwtStrategy;
-exports.JwtStrategy = JwtStrategy = __decorate([
+exports.PrimaryGuard = PrimaryGuard;
+exports.PrimaryGuard = PrimaryGuard = __decorate([
     (0, common_1.Injectable)(),
-    __param(1, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [config_1.ConfigService, Object])
-], JwtStrategy);
-//# sourceMappingURL=jwt.strategy.js.map
+    __param(2, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
+    __metadata("design:paramtypes", [jwt_1.JwtService,
+        config_1.ConfigService, Object])
+], PrimaryGuard);
+//# sourceMappingURL=primary.guard.js.map

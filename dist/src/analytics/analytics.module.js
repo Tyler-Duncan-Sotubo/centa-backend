@@ -11,7 +11,8 @@ const common_1 = require("@nestjs/common");
 const analytics_service_1 = require("./analytics.service");
 const analytics_controller_1 = require("./analytics.controller");
 const drizzle_module_1 = require("../drizzle/drizzle.module");
-const jwt_guard_1 = require("../auth/guards/jwt.guard");
+const primary_guard_1 = require("../auth/guards/primary.guard");
+const jwt_1 = require("@nestjs/jwt");
 let AnalyticsModule = class AnalyticsModule {
 };
 exports.AnalyticsModule = AnalyticsModule;
@@ -19,7 +20,7 @@ exports.AnalyticsModule = AnalyticsModule = __decorate([
     (0, common_1.Module)({
         imports: [drizzle_module_1.DrizzleModule],
         controllers: [analytics_controller_1.AnalyticsController],
-        providers: [analytics_service_1.AnalyticsService, jwt_guard_1.JwtGuard],
+        providers: [analytics_service_1.AnalyticsService, primary_guard_1.PrimaryGuard, jwt_1.JwtService],
     })
 ], AnalyticsModule);
 //# sourceMappingURL=analytics.module.js.map

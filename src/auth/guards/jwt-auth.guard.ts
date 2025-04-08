@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { CustomHttpExceptionResponse } from '../../config/interceptor/http-exception-response.interface';
-import { JwtGuard } from './jwt.guard'; // Import JwtGuard
+import { PrimaryGuard } from './primary.guard';
 import { AuthenticatedRequest } from '../types/custom-request.interface'; // Import the custom type
 import * as fs from 'fs';
 
@@ -17,7 +17,7 @@ export class JwtAuthGuard implements CanActivate {
 
   constructor(
     private readonly reflector: Reflector,
-    private readonly jwtGuard: JwtGuard,
+    private readonly jwtGuard: PrimaryGuard,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

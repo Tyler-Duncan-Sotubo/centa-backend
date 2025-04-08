@@ -11,7 +11,6 @@ const common_1 = require("@nestjs/common");
 const organization_controller_1 = require("./organization.controller");
 const services_1 = require("./services");
 const platform_express_1 = require("@nestjs/platform-express");
-const jwt_guard_1 = require("../auth/guards/jwt.guard");
 const drizzle_module_1 = require("../drizzle/drizzle.module");
 const cache_module_1 = require("../config/cache/cache.module");
 const cache_service_1 = require("../config/cache/cache.service");
@@ -25,6 +24,7 @@ const onboarding_service_1 = require("./services/onboarding.service");
 const email_queue_processor_1 = require("../notification/services/email-queue.processor");
 const bullmq_1 = require("@nestjs/bullmq");
 const audit_service_1 = require("../audit/audit.service");
+const primary_guard_1 = require("../auth/guards/primary.guard");
 let OrganizationModule = class OrganizationModule {
 };
 exports.OrganizationModule = OrganizationModule;
@@ -43,7 +43,7 @@ exports.OrganizationModule = OrganizationModule = __decorate([
         ],
         controllers: [organization_controller_1.OrganizationController],
         providers: [
-            jwt_guard_1.JwtGuard,
+            primary_guard_1.PrimaryGuard,
             services_1.CompanyService,
             services_1.EmployeeService,
             services_1.DepartmentService,

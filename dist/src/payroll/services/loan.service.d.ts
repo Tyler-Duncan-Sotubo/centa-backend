@@ -16,14 +16,14 @@ export declare class LoanService {
         id: string;
         name: string;
         company_id: string;
-        employee_id: string;
         createdAt: Date;
+        employee_id: string;
         payment_status: string;
-        status: string;
         amount: number;
         total_paid: number;
         tenureMonths: number;
         preferredMonthlyPayment: number | null;
+        status: string;
     }>;
     getAdvances(company_id: string): Promise<{
         name: string;

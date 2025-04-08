@@ -73,7 +73,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], LoanController.prototype, "requestLoan", null);
 __decorate([
-    (0, common_1.Get)(),
+    (0, common_1.Get)('loans'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
@@ -90,7 +90,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], LoanController.prototype, "getLoansByEmployee", null);
 __decorate([
-    (0, common_1.Get)(':loan_id'),
+    (0, common_1.Get)('loans/:loan_id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     __param(0, (0, common_1.Param)('loan_id')),
     __metadata("design:type", Function),
@@ -98,7 +98,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], LoanController.prototype, "getLoanById", null);
 __decorate([
-    (0, common_1.Patch)('update-status/:loan_id'),
+    (0, common_1.Patch)('/loans/update-status/:loan_id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
     (0, audit_decorator_1.Audit)({ action: 'Updated Loan', entity: 'Loan' }),
@@ -143,7 +143,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], LoanController.prototype, "getRepaymentsByLoan", null);
 __decorate([
-    (0, common_1.Get)('history/all'),
+    (0, common_1.Get)('loans-history'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -159,7 +159,7 @@ __decorate([
 ], LoanController.prototype, "getLoanHistoryByEmployee", null);
 exports.LoanController = LoanController = __decorate([
     (0, common_1.UseInterceptors)(audit_interceptor_1.AuditInterceptor),
-    (0, common_1.Controller)('loans'),
+    (0, common_1.Controller)(''),
     __metadata("design:paramtypes", [loan_service_1.LoanService])
 ], LoanController);
 //# sourceMappingURL=loan.controller.js.map

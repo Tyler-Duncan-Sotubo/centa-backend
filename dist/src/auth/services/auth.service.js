@@ -43,23 +43,26 @@ let AuthService = class AuthService {
         })
             .execute();
         await this.auditService.logAction('Login', 'Authentication', user.id);
-        const { access_token, refresh_token } = await this.tokenGeneratorService.generateToken(user);
+        const { accessToken, refreshToken } = await this.tokenGeneratorService.generateToken(user);
         const { password, last_login, role, created_at, ...userWithoutPassword } = user;
         try {
             if (userWithoutPassword) {
-                response.cookie('Authentication', refresh_token, {
+                response.cookie('Authentication', accessToken, {
                     httpOnly: true,
                     secure: true,
                     expires: new Date(Date.now() + 6 * 60 * 60 * 1000),
                     sameSite: 'none',
                 });
-                response.setHeader('Authorization', `Bearer ${access_token}`);
-                response.setHeader('X-Refresh-Token', refresh_token);
+                response.setHeader('Authorization', `Bearer ${accessToken}`);
+                response.setHeader('X-Refresh-Token', refreshToken);
                 response.json({
                     success: true,
                     message: 'Login successful',
                     user: updatedUser[0],
-                    token: access_token,
+                    backendTokens: {
+                        accessToken,
+                        refreshToken,
+                    },
                 });
             }
             else {
@@ -72,6 +75,25 @@ let AuthService = class AuthService {
                 message: error.message,
             });
         }
+    }
+    async refreshToken(user, response) {
+        const payload = {
+            email: user.email,
+            sub: user.sub,
+        };
+        const EXPIRE_TIME = 1000 * 60 * 60 * 24;
+        const { accessToken, refreshToken } = await this.tokenGeneratorService.generateToken(payload);
+        response.cookie('Authentication', accessToken, {
+            httpOnly: true,
+            secure: true,
+            expires: new Date(Date.now() + 60),
+            sameSite: 'none',
+        });
+        return {
+            accessToken,
+            refreshToken,
+            expiresIn: new Date().setTime(new Date().getTime() + EXPIRE_TIME),
+        };
     }
     async validateUser(email, password) {
         const user = await this.userService.findUserByEmail(email.toLowerCase());

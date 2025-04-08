@@ -7,7 +7,6 @@ import { PayrollProcessor } from './payroll.processor';
 import { DrizzleModule } from 'src/drizzle/drizzle.module';
 import { PayslipService } from './services/payslip.service';
 import { DeductionService } from './services/deduction.service';
-import { JwtGuard } from 'src/auth/guards/jwt.guard';
 import { CacheModule } from 'src/config/cache/cache.module';
 import { CacheService } from 'src/config/cache/cache.service';
 import { AwsService } from 'src/config/aws/aws.service';
@@ -18,6 +17,9 @@ import { PusherService } from 'src/notification/services/pusher.service';
 import { OnboardingService } from 'src/organization/services/onboarding.service';
 import { PayGroupService } from './services/pay-group.service';
 import { AuditService } from 'src/audit/audit.service';
+import { PrimaryGuard } from 'src/auth/guards/primary.guard';
+import { JwtService } from '@nestjs/jwt';
+
 @Module({
   imports: [
     CacheModule,
@@ -32,7 +34,6 @@ import { AuditService } from 'src/audit/audit.service';
     PayrollProcessor,
     PayslipService,
     DeductionService,
-    JwtGuard,
     CacheService,
     AwsService,
     TaxService,
@@ -42,6 +43,8 @@ import { AuditService } from 'src/audit/audit.service';
     OnboardingService,
     PayGroupService,
     AuditService,
+    PrimaryGuard,
+    JwtService,
   ],
 })
 export class PayrollModule {}

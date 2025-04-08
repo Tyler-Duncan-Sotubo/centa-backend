@@ -14,6 +14,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     @Inject(DRIZZLE) private readonly db: db,
   ) {
     const secret = config.get<string>('JWT_SECRET');
+    console.log('JWT_SECRET', secret);
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         (request: any) =>

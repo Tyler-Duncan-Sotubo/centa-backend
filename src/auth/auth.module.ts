@@ -11,7 +11,7 @@ import {
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { DrizzleModule } from '../drizzle/drizzle.module';
-import { JwtGuard } from './guards/jwt.guard';
+import { PrimaryGuard } from './guards/primary.guard';
 import { EmailVerificationService } from 'src/notification/services/email-verification.service';
 import { PasswordResetEmailService } from 'src/notification/services/password-reset.service';
 import { InvitationService } from 'src/notification/services/invitation.service';
@@ -42,7 +42,7 @@ import { AuditService } from 'src/audit/audit.service';
     PasswordResetService,
     EmailVerificationService,
     InvitationService,
-    JwtGuard,
+    PrimaryGuard,
     PasswordResetEmailService,
     ConfigService,
     AwsService,

@@ -2,11 +2,12 @@ import { Module } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { AnalyticsController } from './analytics.controller';
 import { DrizzleModule } from 'src/drizzle/drizzle.module';
-import { JwtGuard } from 'src/auth/guards/jwt.guard';
+import { PrimaryGuard } from 'src/auth/guards/primary.guard';
+import { JwtService } from '@nestjs/jwt';
 
 @Module({
   imports: [DrizzleModule],
   controllers: [AnalyticsController],
-  providers: [AnalyticsService, JwtGuard],
+  providers: [AnalyticsService, PrimaryGuard, JwtService],
 })
 export class AnalyticsModule {}

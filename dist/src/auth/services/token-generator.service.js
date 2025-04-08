@@ -20,15 +20,15 @@ let TokenGeneratorService = class TokenGeneratorService {
     }
     async generateToken(user) {
         const payload = { sub: user.id, email: user.email };
-        const access_token = this.jwtService.sign(payload, {
+        const accessToken = this.jwtService.sign(payload, {
             secret: this.configService.get('JWT_SECRET'),
             expiresIn: `${this.configService.get('JWT_EXPIRATION')}s`,
         });
-        const refresh_token = this.jwtService.sign(payload, {
-            secret: this.configService.get('JWT_SECRET'),
+        const refreshToken = this.jwtService.sign(payload, {
+            secret: this.configService.get('JWT_REFRESH_SECRET'),
             expiresIn: `${this.configService.get('JWT_REFRESH_EXPIRATION')}s`,
         });
-        return { access_token, refresh_token };
+        return { accessToken, refreshToken };
     }
 };
 exports.TokenGeneratorService = TokenGeneratorService;

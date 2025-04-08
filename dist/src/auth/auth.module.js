@@ -14,7 +14,7 @@ const services_1 = require("./services");
 const jwt_1 = require("@nestjs/jwt");
 const jwt_strategy_1 = require("./strategies/jwt.strategy");
 const drizzle_module_1 = require("../drizzle/drizzle.module");
-const jwt_guard_1 = require("./guards/jwt.guard");
+const primary_guard_1 = require("./guards/primary.guard");
 const email_verification_service_1 = require("../notification/services/email-verification.service");
 const password_reset_service_1 = require("../notification/services/password-reset.service");
 const invitation_service_1 = require("../notification/services/invitation.service");
@@ -48,7 +48,7 @@ exports.AuthModule = AuthModule = __decorate([
             services_1.PasswordResetService,
             email_verification_service_1.EmailVerificationService,
             invitation_service_1.InvitationService,
-            jwt_guard_1.JwtGuard,
+            primary_guard_1.PrimaryGuard,
             password_reset_service_1.PasswordResetEmailService,
             config_1.ConfigService,
             aws_service_1.AwsService,

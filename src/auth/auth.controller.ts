@@ -35,6 +35,8 @@ import { InviteUserDto } from './dto/invite-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { AuditInterceptor } from 'src/audit/audit.interceptor';
 import { Audit } from 'src/audit/audit.decorator';
+import { RefreshJwtGuard } from './guards/refresh.guard';
+import { JwtType } from './types/user.type';
 
 @UseInterceptors(AuditInterceptor)
 @Controller('auth')
@@ -86,7 +88,17 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) response: Response,
   ) {
+    console.log(LoginDto);
     return this.auth.login(dto, response);
+  }
+
+  @UseGuards(RefreshJwtGuard)
+  @Post('refresh')
+  async refreshToken(
+    @CurrentUser() user: JwtType,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return await this.auth.refreshToken(user, response);
   }
 
   @HttpCode(HttpStatus.OK)
