@@ -474,11 +474,40 @@ let PayrollService = class PayrollService {
             .execute();
         const payrollSummary = await this.getPayrollSummary(company_id);
         const salaryBreakdown = await this.getSalaryBreakdown(company_id);
+        const customDeduction = await this.db
+            .select({
+            id: deductions_schema_1.customDeductions.id,
+            employee_id: deductions_schema_1.customDeductions.employee_id,
+            amount: deductions_schema_1.customDeductions.amount,
+        })
+            .from(deductions_schema_1.customDeductions)
+            .where((0, drizzle_orm_1.eq)(deductions_schema_1.customDeductions.company_id, company_id))
+            .execute();
+        const bonuses = await this.db
+            .select({
+            employee_id: payroll_schema_1.bonus.employee_id,
+            amount: payroll_schema_1.bonus.amount,
+        })
+            .from(payroll_schema_1.bonus)
+            .where((0, drizzle_orm_1.eq)(payroll_schema_1.bonus.company_id, company_id))
+            .execute();
+        const taxConfigDetails = await this.db
+            .select({
+            apply_pension: deductions_schema_1.taxConfig.apply_pension,
+            apply_nhf: deductions_schema_1.taxConfig.apply_nhf,
+            apply_paye: deductions_schema_1.taxConfig.apply_paye,
+        })
+            .from(deductions_schema_1.taxConfig)
+            .where((0, drizzle_orm_1.eq)(deductions_schema_1.taxConfig.company_id, company_id))
+            .execute();
         return {
             allEmployees,
             groups,
             payrollSummary,
             salaryBreakdown,
+            customDeduction,
+            bonuses,
+            taxConfig: taxConfigDetails[0],
         };
     }
 };

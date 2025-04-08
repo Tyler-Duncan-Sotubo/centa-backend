@@ -14,13 +14,13 @@ export declare class PayrollService {
     private formattedDate;
     private calculatePAYE;
     calculatePayroll(employee_id: string, payrollMonth: string, payrollRunId: string, company_id: string): Promise<{
-        transport: number;
         id: string;
+        payroll_run_id: string;
+        employee_id: string;
         company_id: string;
         basic: number;
         housing: number;
-        payroll_run_id: string;
-        employee_id: string;
+        transport: number;
         gross_salary: number;
         pension_contribution: number;
         employer_pension_contribution: number;
@@ -43,13 +43,13 @@ export declare class PayrollService {
         approval_remarks: string | null;
     }[]>;
     calculatePayrollForCompany(company_id: string, payrollMonth: string): Promise<{
-        transport: number;
         id: string;
+        payroll_run_id: string;
+        employee_id: string;
         company_id: string;
         basic: number;
         housing: number;
-        payroll_run_id: string;
-        employee_id: string;
+        transport: number;
         gross_salary: number;
         pension_contribution: number;
         employer_pension_contribution: number;
@@ -142,8 +142,8 @@ export declare class PayrollService {
     deleteSalaryBreakdown(user_id: string, id: string): Promise<void>;
     createBonus(user_id: string, dto: createBonusDto): Promise<{
         id: string;
-        company_id: string;
         employee_id: string;
+        company_id: string;
         payroll_month: string;
         amount: number;
         bonus_type: string | null;
@@ -202,5 +202,19 @@ export declare class PayrollService {
                 id: string | null;
             }[];
         } | null;
+        customDeduction: {
+            id: string;
+            employee_id: string;
+            amount: number;
+        }[];
+        bonuses: {
+            employee_id: string;
+            amount: number;
+        }[];
+        taxConfig: {
+            apply_pension: boolean | null;
+            apply_nhf: boolean | null;
+            apply_paye: boolean | null;
+        };
     }>;
 }

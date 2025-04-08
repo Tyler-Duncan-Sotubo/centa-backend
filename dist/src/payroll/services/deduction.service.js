@@ -76,7 +76,7 @@ let DeductionService = class DeductionService {
             .values({
             company_id: company_id,
             deduction_name: dto.deduction_name,
-            amount: dto.amount,
+            amount: dto.amount * 100,
             employee_id: dto.employee_id,
         })
             .execute();

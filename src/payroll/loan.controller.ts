@@ -27,7 +27,7 @@ export class LoanController extends BaseController {
   }
 
   // Request a new loan
-  @Post('request/:employee_id')
+  @Post('loans/request/:employee_id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'employee'])
   @Audit({ action: 'Loan Request', entity: 'Loan' })

@@ -62,7 +62,7 @@ let LoanController = class LoanController extends base_controller_1.BaseControll
 };
 exports.LoanController = LoanController;
 __decorate([
-    (0, common_1.Post)('request/:employee_id'),
+    (0, common_1.Post)('loans/request/:employee_id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'employee']),
     (0, audit_decorator_1.Audit)({ action: 'Loan Request', entity: 'Loan' }),

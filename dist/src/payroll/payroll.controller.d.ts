@@ -39,10 +39,9 @@ export declare class PayrollController extends BaseController {
     deleteCustomDeduction(id: string): Promise<any>;
     calculatePayrollForCompany(user: User): Promise<{
         id: string;
-        company_id: string;
-        custom_deductions: number | null;
-        employee_id: string;
         payroll_run_id: string;
+        employee_id: string;
+        company_id: string;
         basic: number;
         housing: number;
         transport: number;
@@ -54,6 +53,7 @@ export declare class PayrollController extends BaseController {
         nhf_enrolled: number | null;
         nhf_contribution: number | null;
         paye_tax: number;
+        custom_deductions: number | null;
         total_deductions: number;
         net_salary: number;
         taxable_income: number;
@@ -125,10 +125,10 @@ export declare class PayrollController extends BaseController {
     }[]>;
     createCompanyBonus(user: User, dto: createBonusDto): Promise<{
         id: string;
-        company_id: string;
         employee_id: string;
-        amount: number;
+        company_id: string;
         payroll_month: string;
+        amount: number;
         bonus_type: string | null;
         bonus_date: string;
     }[]>;
@@ -236,12 +236,12 @@ export declare class PayrollController extends BaseController {
     createEmployeeGroup(dto: CreateEmployeeGroupDto, user: User): Promise<{
         id: string;
         name: string;
-        apply_paye: boolean | null;
-        apply_nhf: boolean | null;
-        apply_pension: boolean | null;
-        company_id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        apply_nhf: boolean | null;
+        company_id: string;
+        apply_paye: boolean | null;
+        apply_pension: boolean | null;
         apply_additional: boolean | null;
         is_demo: boolean | null;
         pay_schedule_id: string;
@@ -326,5 +326,19 @@ export declare class PayrollController extends BaseController {
                 id: string | null;
             }[];
         } | null;
+        customDeduction: {
+            id: string;
+            employee_id: string;
+            amount: number;
+        }[];
+        bonuses: {
+            employee_id: string;
+            amount: number;
+        }[];
+        taxConfig: {
+            apply_pension: boolean | null;
+            apply_nhf: boolean | null;
+            apply_paye: boolean | null;
+        };
     }>;
 }

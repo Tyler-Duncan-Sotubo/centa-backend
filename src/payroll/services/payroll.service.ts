@@ -735,11 +735,43 @@ export class PayrollService {
     const payrollSummary = await this.getPayrollSummary(company_id);
     const salaryBreakdown = await this.getSalaryBreakdown(company_id);
 
+    const customDeduction = await this.db
+      .select({
+        id: customDeductions.id,
+        employee_id: customDeductions.employee_id,
+        amount: customDeductions.amount,
+      })
+      .from(customDeductions)
+      .where(eq(customDeductions.company_id, company_id))
+      .execute();
+
+    const bonuses = await this.db
+      .select({
+        employee_id: bonus.employee_id,
+        amount: bonus.amount,
+      })
+      .from(bonus)
+      .where(eq(bonus.company_id, company_id))
+      .execute();
+
+    const taxConfigDetails = await this.db
+      .select({
+        apply_pension: taxConfig.apply_pension,
+        apply_nhf: taxConfig.apply_nhf,
+        apply_paye: taxConfig.apply_paye,
+      })
+      .from(taxConfig)
+      .where(eq(taxConfig.company_id, company_id))
+      .execute();
+
     return {
       allEmployees,
       groups,
       payrollSummary,
       salaryBreakdown,
+      customDeduction,
+      bonuses,
+      taxConfig: taxConfigDetails[0],
     };
   }
 }
