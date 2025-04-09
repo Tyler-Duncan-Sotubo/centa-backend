@@ -122,12 +122,12 @@ export declare class OrganizationController extends BaseController {
         company: {
             name: string;
         };
-        nextPayDate: Date | null;
+        nextPayDate: string | Date;
         employees: {
             employment_status: string | null;
             annual_gross: number | null;
         }[];
-        bonus: number;
+        bonus: number | never[];
     }>;
     createDepartment(dto: CreateDepartmentDto, user: User): Promise<{
         id: string;

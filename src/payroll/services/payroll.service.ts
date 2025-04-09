@@ -765,13 +765,13 @@ export class PayrollService {
       .execute();
 
     return {
-      allEmployees,
-      groups,
-      payrollSummary,
-      salaryBreakdown,
-      customDeduction,
-      bonuses,
-      taxConfig: taxConfigDetails[0],
+      allEmployees: allEmployees || [],
+      groups: groups || [],
+      payrollSummary: payrollSummary || [],
+      salaryBreakdown: salaryBreakdown || {},
+      customDeduction: customDeduction || [],
+      bonuses: bonuses || [],
+      taxConfig: taxConfigDetails[0] || {},
     };
   }
 }

@@ -501,13 +501,13 @@ let PayrollService = class PayrollService {
             .where((0, drizzle_orm_1.eq)(deductions_schema_1.taxConfig.company_id, company_id))
             .execute();
         return {
-            allEmployees,
-            groups,
-            payrollSummary,
-            salaryBreakdown,
-            customDeduction,
-            bonuses,
-            taxConfig: taxConfigDetails[0],
+            allEmployees: allEmployees || [],
+            groups: groups || [],
+            payrollSummary: payrollSummary || [],
+            salaryBreakdown: salaryBreakdown || {},
+            customDeduction: customDeduction || [],
+            bonuses: bonuses || [],
+            taxConfig: taxConfigDetails[0] || {},
         };
     }
 };

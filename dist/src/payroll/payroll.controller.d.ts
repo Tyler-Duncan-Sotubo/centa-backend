@@ -315,17 +315,7 @@ export declare class PayrollController extends BaseController {
             total_net_salary: number;
             totalPayrollCost: number;
         }[];
-        salaryBreakdown: {
-            id: string;
-            basic: string;
-            housing: string;
-            transport: string;
-            allowances: {
-                type: string | null;
-                percentage: string | null;
-                id: string | null;
-            }[];
-        } | null;
+        salaryBreakdown: {};
         customDeduction: {
             id: string;
             employee_id: string;

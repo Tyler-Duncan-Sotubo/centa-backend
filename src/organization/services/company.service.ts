@@ -216,7 +216,7 @@ export class CompanyService {
       .where(eq(company_tax_details.company_id, company.id))
       .execute();
 
-    return taxDetails[0];
+    return taxDetails[0] || {};
   }
 
   async updateCompanyTaxDetails(user_id: string, dto: CreateCompanyTaxDto) {
@@ -472,10 +472,6 @@ export class CompanyService {
       .from(companies)
       .where(eq(companies.id, company_id));
 
-    if (company.length === 0) {
-      throw new NotFoundException('Company not found');
-    }
-
     const nextPayDate = await this.getNextPayDate(company_id);
 
     const allEmployees = await this.db
@@ -486,10 +482,6 @@ export class CompanyService {
       .from(employees)
       .where(eq(employees.company_id, company_id));
 
-    if (allEmployees.length === 0) {
-      throw new NotFoundException('No employees found for this company');
-    }
-
     const bonuses = await this.db
       .select({
         id: bonus.id,
@@ -499,17 +491,13 @@ export class CompanyService {
       .where(eq(bonus.company_id, company_id))
       .execute();
 
-    if (bonuses.length === 0) {
-      throw new NotFoundException('No bonuses found for this company');
-    }
-
     const totalBonus = bonuses.reduce((acc, bonus) => acc + bonus.amount, 0);
 
     return {
-      company: company[0],
-      nextPayDate,
-      employees: allEmployees,
-      bonus: totalBonus,
+      company: company[0] || {},
+      nextPayDate: nextPayDate || '',
+      employees: allEmployees || [],
+      bonus: totalBonus || [],
     };
   }
 }

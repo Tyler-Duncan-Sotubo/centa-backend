@@ -115,11 +115,11 @@ export declare class CompanyService {
         company: {
             name: string;
         };
-        nextPayDate: Date | null;
+        nextPayDate: string | Date;
         employees: {
             employment_status: string | null;
             annual_gross: number | null;
         }[];
-        bonus: number;
+        bonus: number | never[];
     }>;
 }
