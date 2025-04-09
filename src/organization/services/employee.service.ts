@@ -235,6 +235,13 @@ export class EmployeeService {
     });
   }
 
+  private normalizeName = (name: string) =>
+    name
+      .trim() // remove leading/trailing space
+      .toLowerCase() // lowercase everything
+      .replace(/[^a-z0-9]+/g, '-') // replace non-alphanumeric with dash
+      .replace(/(^-|-$)/g, ''); // remove leading/trailing dash
+
   // Add multiple employees
   async addMultipleEmployees(
     dtoArray: CreateEmployeeDto[],
@@ -255,7 +262,9 @@ export class EmployeeService {
       // ✅ Step 2: Prepare Batch Fetch Queries
       const departmentNames = new Set(
         dtoArray
-          .map((dto) => dto.department_name?.trim().toLowerCase())
+          .map((dto) =>
+            this.normalizeName(dto.department_name?.trim().toLowerCase()),
+          )
           .filter(Boolean),
       );
       const groupNames = new Set(
@@ -314,7 +323,12 @@ export class EmployeeService {
       if (newDepartments.length) {
         const insertedDepartments = await trx
           .insert(departments)
-          .values(newDepartments.map((name) => ({ name, company_id })))
+          .values(
+            newDepartments.map((name) => ({
+              name: this.normalizeName(name),
+              company_id,
+            })),
+          )
           .returning({ id: departments.id, name: departments.name })
           .execute();
         insertedDepartments.forEach((d) =>
@@ -376,7 +390,8 @@ export class EmployeeService {
         .returning({
           id: employees.id,
           email: employees.email,
-          first_name: employees.first_name, // ✅ Add this
+          first_name: employees.first_name,
+          user_id: employees.user_id,
         })
         .execute();
 
@@ -412,9 +427,9 @@ export class EmployeeService {
 
       // ✅ Step 11: Generate Password Reset Tokens
       const tokensToInsert = insertedEmployees.map((employee) => ({
-        user_id: userMap.get(employee.email) || '',
+        user_id: employee.user_id || '',
         token: this.generateToken({ email: employee.email }),
-        expires_at: new Date(Date.now() + 1 * 60 * 60 * 1000),
+        expires_at: new Date(Date.now() + 1 * 60 * 60 * 1000), // 1 hour expiry
         is_used: false,
       }));
 

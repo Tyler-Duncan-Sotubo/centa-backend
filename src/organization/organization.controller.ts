@@ -420,7 +420,6 @@ export class OrganizationController extends BaseController {
 
       // Validate the DTO
       const errors = await validate(dto);
-      console.log('Validation errors:', errors);
       if (errors.length > 0) {
         throw new BadRequestException(
           'Please ensure the CSV file is formatted correctly. All The fields are required.',

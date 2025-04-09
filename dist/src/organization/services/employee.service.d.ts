@@ -22,6 +22,7 @@ export declare class EmployeeService {
         first_name: string;
         email: string;
     }>;
+    private normalizeName;
     addMultipleEmployees(dtoArray: CreateEmployeeDto[], company_id: string): Promise<{
         email: string;
         status: string;
@@ -137,21 +138,21 @@ export declare class EmployeeService {
         message: string;
     }>;
     addEmployeeBankDetails(employee_id: string, dto: CreateEmployeeBankDetailsDto): Promise<{
-        bank_name: string | null;
-        bank_account_number: string | null;
         id: string;
-        employee_id: string;
+        bank_account_number: string | null;
         bank_account_name: string | null;
+        bank_name: string | null;
+        employee_id: string;
     }>;
     updateEmployeeBankDetails(employee_id: string, dto: UpdateEmployeeBankDetailsDto): Promise<string>;
     addEmployeeTaxDetails(employee_id: string, dto: CreateEmployeeTaxDetailsDto): Promise<{
-        tin: string;
-        pension_pin: string | null;
-        nhf_number: string | null;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         employee_id: string;
+        tin: string;
+        pension_pin: string | null;
+        nhf_number: string | null;
         consolidated_relief_allowance: number | null;
         state_of_residence: string | null;
     }>;

@@ -22,9 +22,11 @@ export declare class OrganizationController extends BaseController {
         completedAt: Date | null;
     }[]>;
     createCompany(dto: CreateCompanyDto, user: User): Promise<{
-        email: string | null;
         id: string;
         name: string;
+        email: string | null;
+        created_at: Date;
+        updated_at: Date;
         country: string;
         address: string | null;
         city: string | null;
@@ -36,8 +38,6 @@ export declare class OrganizationController extends BaseController {
         pay_frequency: string;
         pay_schedule: unknown;
         time_zone: string;
-        created_at: Date;
-        updated_at: Date;
     }[]>;
     getCompany(user: User): Promise<{
         id: string;
@@ -62,12 +62,12 @@ export declare class OrganizationController extends BaseController {
         message: string;
     }>;
     createCompanyContact(dto: CreateCompanyContactDto, companyId: string): Promise<{
-        email: string;
-        phone: string | null;
         id: string;
         name: string;
-        position: string | null;
+        phone: string | null;
+        email: string;
         company_id: string;
+        position: string | null;
     }[]>;
     getCompanyContacts(companyId: string): Promise<{
         id: string;
@@ -98,11 +98,11 @@ export declare class OrganizationController extends BaseController {
     createPayFrequency(dto: CreatePayFrequencyDto, user: User): Promise<QueryResult<import("drizzle-orm").Assume<this["row"], QueryResultRow>>>;
     updatePayFrequency(payFrequencyId: string, dto: CreatePayFrequencyDto, user: User): Promise<string>;
     createCompanyTaxDetails(dto: CreateCompanyTaxDto, user: User): Promise<{
-        tin: string;
         id: string;
         created_at: Date;
         updated_at: Date | null;
         company_id: string;
+        tin: string;
         vat_number: string | null;
         nhf_code: string | null;
         pension_code: string | null;
@@ -270,21 +270,21 @@ export declare class OrganizationController extends BaseController {
     private transformRow;
     private validateAndMapToDto;
     createEmployeeBankDetails(dto: CreateEmployeeBankDetailsDto, employeeId: string): Promise<{
-        bank_name: string | null;
-        bank_account_number: string | null;
         id: string;
-        employee_id: string;
+        bank_account_number: string | null;
         bank_account_name: string | null;
+        bank_name: string | null;
+        employee_id: string;
     }>;
     updateEmployeeBankDetails(dto: CreateEmployeeBankDetailsDto, employeeId: string): Promise<string>;
     createEmployeeTaxDetails(dto: CreateEmployeeTaxDetailsDto, employeeId: string): Promise<{
-        tin: string;
-        pension_pin: string | null;
-        nhf_number: string | null;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         employee_id: string;
+        tin: string;
+        pension_pin: string | null;
+        nhf_number: string | null;
         consolidated_relief_allowance: number | null;
         state_of_residence: string | null;
     }>;

@@ -44,6 +44,11 @@ let EmployeeService = class EmployeeService {
         this.onboardingService = onboardingService;
         this.employeeInvitationService = employeeInvitationService;
         this.emailQueue = emailQueue;
+        this.normalizeName = (name) => name
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)/g, '');
     }
     generateToken(payload) {
         const jwtSecret = this.config.get('JWT_SECRET') || 'defaultSecret';
@@ -196,7 +201,7 @@ let EmployeeService = class EmployeeService {
                 throw new common_1.BadRequestException('Company not found');
             }
             const departmentNames = new Set(dtoArray
-                .map((dto) => dto.department_name?.trim().toLowerCase())
+                .map((dto) => this.normalizeName(dto.department_name?.trim().toLowerCase()))
                 .filter(Boolean));
             const groupNames = new Set(dtoArray
                 .map((dto) => dto.group_name?.trim().toLowerCase())
@@ -230,7 +235,10 @@ let EmployeeService = class EmployeeService {
             if (newDepartments.length) {
                 const insertedDepartments = await trx
                     .insert(department_schema_1.departments)
-                    .values(newDepartments.map((name) => ({ name, company_id })))
+                    .values(newDepartments.map((name) => ({
+                    name: this.normalizeName(name),
+                    company_id,
+                })))
                     .returning({ id: department_schema_1.departments.id, name: department_schema_1.departments.name })
                     .execute();
                 insertedDepartments.forEach((d) => departmentMap.set(d.name.toLowerCase(), d.id));
@@ -275,6 +283,7 @@ let EmployeeService = class EmployeeService {
                 id: employee_schema_1.employees.id,
                 email: employee_schema_1.employees.email,
                 first_name: employee_schema_1.employees.first_name,
+                user_id: employee_schema_1.employees.user_id,
             })
                 .execute();
             const employeeMap = new Map(insertedEmployees.map((e) => [e.email, e.id]));
@@ -299,7 +308,7 @@ let EmployeeService = class EmployeeService {
                     .execute(),
             ]);
             const tokensToInsert = insertedEmployees.map((employee) => ({
-                user_id: userMap.get(employee.email) || '',
+                user_id: employee.user_id || '',
                 token: this.generateToken({ email: employee.email }),
                 expires_at: new Date(Date.now() + 1 * 60 * 60 * 1000),
                 is_used: false,
