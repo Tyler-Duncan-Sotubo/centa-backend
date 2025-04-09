@@ -5,6 +5,7 @@ import { Logger } from 'nestjs-pino';
 import { ValidationPipe } from '@nestjs/common';
 import * as bodyParser from 'body-parser';
 import * as compression from 'compression';
+import { TrimPipe } from './config/pipes/trim.pipe';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -37,8 +38,13 @@ async function bootstrap() {
   app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
 
   app.useGlobalPipes(
+    new TrimPipe(),
     new ValidationPipe({
       whitelist: true,
+      transform: true, // auto convert to DTO
+      transformOptions: {
+        enableImplicitConversion: true, // auto type conversion
+      },
     }),
   );
 

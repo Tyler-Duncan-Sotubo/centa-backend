@@ -7,6 +7,7 @@ const nestjs_pino_1 = require("nestjs-pino");
 const common_1 = require("@nestjs/common");
 const bodyParser = require("body-parser");
 const compression = require("compression");
+const trim_pipe_1 = require("./config/pipes/trim.pipe");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     app.setGlobalPrefix('api');
@@ -30,8 +31,12 @@ async function bootstrap() {
     app.useLogger(app.get(nestjs_pino_1.Logger));
     app.use(bodyParser.json({ limit: '100mb' }));
     app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
-    app.useGlobalPipes(new common_1.ValidationPipe({
+    app.useGlobalPipes(new trim_pipe_1.TrimPipe(), new common_1.ValidationPipe({
         whitelist: true,
+        transform: true,
+        transformOptions: {
+            enableImplicitConversion: true,
+        },
     }));
     const logger = app.get(nestjs_pino_1.Logger);
     try {
