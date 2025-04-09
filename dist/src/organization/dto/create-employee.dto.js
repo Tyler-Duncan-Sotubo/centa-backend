@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateEmployeeDto = exports.EmploymentStatus = void 0;
 const class_validator_1 = require("class-validator");
+const class_transformer_1 = require("class-transformer");
 var EmploymentStatus;
 (function (EmploymentStatus) {
     EmploymentStatus["ACTIVE"] = "active";
@@ -40,6 +41,7 @@ __decorate([
     __metadata("design:type", String)
 ], CreateEmployeeDto.prototype, "job_title", void 0);
 __decorate([
+    (0, class_transformer_1.Transform)(({ value }) => value?.trim()),
     (0, class_validator_1.IsEmail)(),
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)

@@ -30,6 +30,7 @@ export declare class CompanyService {
         updated_at: Date;
     }>;
     createCompany(dto: CreateCompanyDto, company_id: string): Promise<{
+        email: string | null;
         id: string;
         name: string;
         country: string;
@@ -39,7 +40,6 @@ export declare class CompanyService {
         industry: string | null;
         registration_number: string | null;
         phone_number: string | null;
-        email: string | null;
         logo_url: string | null;
         pay_frequency: string;
         pay_schedule: unknown;
@@ -52,11 +52,11 @@ export declare class CompanyService {
         message: string;
     }>;
     addContactToCompany(dto: CreateCompanyContactDto, company_id: string): Promise<{
+        email: string;
+        phone: string | null;
         id: string;
         name: string;
-        email: string;
         position: string | null;
-        phone: string | null;
         company_id: string;
     }[]>;
     getContactInCompany(company_id: string): Promise<{
@@ -69,11 +69,11 @@ export declare class CompanyService {
     }[]>;
     updateContactInCompany(dto: UpdateCompanyContactDto, company_id: string): Promise<string>;
     createCompanyTaxDetails(user_id: string, dto: CreateCompanyTaxDto): Promise<{
+        tin: string;
         id: string;
         created_at: Date;
         updated_at: Date | null;
         company_id: string;
-        tin: string;
         vat_number: string | null;
         nhf_code: string | null;
         pension_code: string | null;

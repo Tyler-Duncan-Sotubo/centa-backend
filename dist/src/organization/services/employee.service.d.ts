@@ -137,21 +137,21 @@ export declare class EmployeeService {
         message: string;
     }>;
     addEmployeeBankDetails(employee_id: string, dto: CreateEmployeeBankDetailsDto): Promise<{
+        bank_name: string | null;
+        bank_account_number: string | null;
         id: string;
         employee_id: string;
-        bank_account_number: string | null;
         bank_account_name: string | null;
-        bank_name: string | null;
     }>;
     updateEmployeeBankDetails(employee_id: string, dto: UpdateEmployeeBankDetailsDto): Promise<string>;
     addEmployeeTaxDetails(employee_id: string, dto: CreateEmployeeTaxDetailsDto): Promise<{
+        tin: string;
+        pension_pin: string | null;
+        nhf_number: string | null;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
-        tin: string;
         employee_id: string;
-        pension_pin: string | null;
-        nhf_number: string | null;
         consolidated_relief_allowance: number | null;
         state_of_residence: string | null;
     }>;

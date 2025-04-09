@@ -205,6 +205,7 @@ let OrganizationController = class OrganizationController extends base_controlle
         for (const row of rows) {
             const dto = (0, class_transformer_1.plainToInstance)(dto_1.CreateEmployeeDto, row);
             const errors = await (0, class_validator_1.validate)(dto);
+            console.log('Validation errors:', errors);
             if (errors.length > 0) {
                 throw new common_1.BadRequestException('Please ensure the CSV file is formatted correctly. All The fields are required.');
             }

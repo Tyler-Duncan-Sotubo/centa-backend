@@ -22,6 +22,7 @@ export declare class OrganizationController extends BaseController {
         completedAt: Date | null;
     }[]>;
     createCompany(dto: CreateCompanyDto, user: User): Promise<{
+        email: string | null;
         id: string;
         name: string;
         country: string;
@@ -31,7 +32,6 @@ export declare class OrganizationController extends BaseController {
         industry: string | null;
         registration_number: string | null;
         phone_number: string | null;
-        email: string | null;
         logo_url: string | null;
         pay_frequency: string;
         pay_schedule: unknown;
@@ -62,12 +62,12 @@ export declare class OrganizationController extends BaseController {
         message: string;
     }>;
     createCompanyContact(dto: CreateCompanyContactDto, companyId: string): Promise<{
+        email: string;
+        phone: string | null;
         id: string;
         name: string;
-        company_id: string;
-        email: string;
         position: string | null;
-        phone: string | null;
+        company_id: string;
     }[]>;
     getCompanyContacts(companyId: string): Promise<{
         id: string;
@@ -98,11 +98,11 @@ export declare class OrganizationController extends BaseController {
     createPayFrequency(dto: CreatePayFrequencyDto, user: User): Promise<QueryResult<import("drizzle-orm").Assume<this["row"], QueryResultRow>>>;
     updatePayFrequency(payFrequencyId: string, dto: CreatePayFrequencyDto, user: User): Promise<string>;
     createCompanyTaxDetails(dto: CreateCompanyTaxDto, user: User): Promise<{
+        tin: string;
         id: string;
-        company_id: string;
         created_at: Date;
         updated_at: Date | null;
-        tin: string;
+        company_id: string;
         vat_number: string | null;
         nhf_code: string | null;
         pension_code: string | null;
@@ -270,21 +270,21 @@ export declare class OrganizationController extends BaseController {
     private transformRow;
     private validateAndMapToDto;
     createEmployeeBankDetails(dto: CreateEmployeeBankDetailsDto, employeeId: string): Promise<{
+        bank_name: string | null;
+        bank_account_number: string | null;
         id: string;
         employee_id: string;
-        bank_account_number: string | null;
         bank_account_name: string | null;
-        bank_name: string | null;
     }>;
     updateEmployeeBankDetails(dto: CreateEmployeeBankDetailsDto, employeeId: string): Promise<string>;
     createEmployeeTaxDetails(dto: CreateEmployeeTaxDetailsDto, employeeId: string): Promise<{
+        tin: string;
+        pension_pin: string | null;
+        nhf_number: string | null;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
-        tin: string;
         employee_id: string;
-        pension_pin: string | null;
-        nhf_number: string | null;
         consolidated_relief_allowance: number | null;
         state_of_residence: string | null;
     }>;

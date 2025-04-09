@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsNumber,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export enum EmploymentStatus {
   ACTIVE = 'active',
@@ -31,6 +32,7 @@ export class CreateEmployeeDto {
   @IsNotEmpty()
   job_title: string;
 
+  @Transform(({ value }) => value?.trim())
   @IsEmail()
   @IsNotEmpty()
   email: string;
