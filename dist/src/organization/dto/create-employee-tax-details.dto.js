@@ -21,6 +21,16 @@ __decorate([
 ], CreateEmployeeTaxDetailsDto.prototype, "tin", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateEmployeeTaxDetailsDto.prototype, "pension_pin", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateEmployeeTaxDetailsDto.prototype, "nhf_number", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], CreateEmployeeTaxDetailsDto.prototype, "state_of_residence", void 0);
@@ -29,19 +39,4 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", Number)
 ], CreateEmployeeTaxDetailsDto.prototype, "consolidated_relief_allowance", void 0);
-__decorate([
-    (0, class_validator_1.IsNumber)(),
-    (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", Number)
-], CreateEmployeeTaxDetailsDto.prototype, "other_reliefs", void 0);
-__decorate([
-    (0, class_validator_1.IsBoolean)(),
-    (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", Boolean)
-], CreateEmployeeTaxDetailsDto.prototype, "has_exemptions", void 0);
-__decorate([
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", String)
-], CreateEmployeeTaxDetailsDto.prototype, "additional_details", void 0);
 //# sourceMappingURL=create-employee-tax-details.dto.js.map

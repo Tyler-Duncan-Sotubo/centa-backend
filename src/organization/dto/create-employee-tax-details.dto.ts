@@ -1,15 +1,17 @@
-import {
-  IsString,
-  IsNotEmpty,
-  IsBoolean,
-  IsOptional,
-  IsNumber,
-} from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
 
 export class CreateEmployeeTaxDetailsDto {
   @IsString()
   @IsNotEmpty()
   tin: string;
+
+  @IsString()
+  @IsOptional()
+  pension_pin: string;
+
+  @IsString()
+  @IsOptional()
+  nhf_number: string;
 
   @IsString()
   @IsNotEmpty()
@@ -18,16 +20,4 @@ export class CreateEmployeeTaxDetailsDto {
   @IsNumber()
   @IsOptional()
   consolidated_relief_allowance: number;
-
-  @IsNumber()
-  @IsOptional()
-  other_reliefs: number;
-
-  @IsBoolean()
-  @IsOptional()
-  has_exemptions: boolean;
-
-  @IsString()
-  @IsOptional()
-  additional_details: string;
 }

@@ -147,9 +147,9 @@ export declare class EmployeeService {
     addEmployeeTaxDetails(employee_id: string, dto: CreateEmployeeTaxDetailsDto): Promise<{
         id: string;
         createdAt: Date | null;
-        employee_id: string;
         updatedAt: Date | null;
         tin: string;
+        employee_id: string;
         pension_pin: string | null;
         nhf_number: string | null;
         consolidated_relief_allowance: number | null;
