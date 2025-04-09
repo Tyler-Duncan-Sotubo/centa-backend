@@ -102,11 +102,8 @@ export class AuthController {
 
   @UseGuards(RefreshJwtGuard)
   @Post('refresh')
-  async refreshToken(
-    @CurrentUser() user: JwtType,
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    return await this.auth.refreshToken(user, response);
+  async refreshToken(@CurrentUser() user: JwtType) {
+    return await this.auth.refreshToken(user);
   }
 
   @HttpCode(HttpStatus.OK)

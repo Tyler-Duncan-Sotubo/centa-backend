@@ -54,14 +54,7 @@ let AuthService = class AuthService {
         const { password, last_login, role, created_at, ...userWithoutPassword } = user;
         try {
             if (userWithoutPassword) {
-                response.cookie('Authentication', accessToken, {
-                    httpOnly: true,
-                    secure: true,
-                    expires: new Date(Date.now() + 6 * 60 * 60 * 1000),
-                    sameSite: 'none',
-                });
-                response.setHeader('Authorization', `Bearer ${accessToken}`);
-                response.setHeader('X-Refresh-Token', refreshToken);
+                const EXPIRE_TIME = 1000 * 60 * 60 * 24;
                 response.json({
                     success: true,
                     message: 'Login successful',
@@ -69,6 +62,7 @@ let AuthService = class AuthService {
                     backendTokens: {
                         accessToken,
                         refreshToken,
+                        expiresIn: new Date().setTime(new Date().getTime() + EXPIRE_TIME),
                     },
                 });
             }
@@ -122,6 +116,7 @@ let AuthService = class AuthService {
             .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.user_id, user.id));
         try {
             if (employee) {
+                const EXPIRE_TIME = 1000 * 60 * 60 * 24;
                 response.json({
                     success: true,
                     message: 'Login successful',
@@ -129,6 +124,7 @@ let AuthService = class AuthService {
                     backendTokens: {
                         accessToken,
                         refreshToken,
+                        expiresIn: new Date().setTime(new Date().getTime() + EXPIRE_TIME),
                     },
                 });
             }
@@ -143,19 +139,13 @@ let AuthService = class AuthService {
             });
         }
     }
-    async refreshToken(user, response) {
+    async refreshToken(user) {
         const payload = {
             email: user.email,
             sub: user.sub,
         };
         const EXPIRE_TIME = 1000 * 60 * 60 * 24;
         const { accessToken, refreshToken } = await this.tokenGeneratorService.generateToken(payload);
-        response.cookie('Authentication', accessToken, {
-            httpOnly: true,
-            secure: true,
-            expires: new Date(Date.now() + 60),
-            sameSite: 'none',
-        });
         return {
             accessToken,
             refreshToken,

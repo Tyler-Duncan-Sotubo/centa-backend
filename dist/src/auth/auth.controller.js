@@ -50,8 +50,8 @@ let AuthController = class AuthController {
     async EmployeeLogin(dto, response) {
         return this.auth.employeeLogin(dto, response);
     }
-    async refreshToken(user, response) {
-        return await this.auth.refreshToken(user, response);
+    async refreshToken(user) {
+        return await this.auth.refreshToken(user);
     }
     async Logout(response) {
         return this.auth.logout(response);
@@ -150,9 +150,8 @@ __decorate([
     (0, common_1.UseGuards)(refresh_guard_1.RefreshJwtGuard),
     (0, common_1.Post)('refresh'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
-    __param(1, (0, common_1.Res)({ passthrough: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "refreshToken", null);
 __decorate([

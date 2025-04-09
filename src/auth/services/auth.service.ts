@@ -65,18 +65,7 @@ export class AuthService {
 
     try {
       if (userWithoutPassword) {
-        // Set the refresh token as a cookie (optional)
-        response.cookie('Authentication', accessToken, {
-          httpOnly: true,
-          secure: true, // Required for HTTPS
-          expires: new Date(Date.now() + 6 * 60 * 60 * 1000),
-          sameSite: 'none',
-        });
-
-        // Set both tokens in the HTTP headers
-        response.setHeader('Authorization', `Bearer ${accessToken}`);
-        response.setHeader('X-Refresh-Token', refreshToken);
-
+        const EXPIRE_TIME = 1000 * 60 * 60 * 24; // 1 day
         // Send the JSON response with a success message
         response.json({
           success: true,
@@ -85,6 +74,7 @@ export class AuthService {
           backendTokens: {
             accessToken,
             refreshToken,
+            expiresIn: new Date().setTime(new Date().getTime() + EXPIRE_TIME),
           },
         });
       } else {
@@ -146,6 +136,7 @@ export class AuthService {
 
     try {
       if (employee) {
+        const EXPIRE_TIME = 1000 * 60 * 60 * 24; // 1 day
         // Send the JSON response with a success message
         response.json({
           success: true,
@@ -154,6 +145,7 @@ export class AuthService {
           backendTokens: {
             accessToken,
             refreshToken,
+            expiresIn: new Date().setTime(new Date().getTime() + EXPIRE_TIME),
           },
         });
       } else {
@@ -167,7 +159,7 @@ export class AuthService {
     }
   }
 
-  async refreshToken(user: JwtType, response: Response) {
+  async refreshToken(user: JwtType) {
     const payload = {
       email: user.email,
       sub: user.sub,
@@ -179,14 +171,6 @@ export class AuthService {
     // Get Tokens
     const { accessToken, refreshToken } =
       await this.tokenGeneratorService.generateToken(payload);
-
-    // Set the refresh token as a cookie (optional)
-    response.cookie('Authentication', accessToken, {
-      httpOnly: true,
-      secure: true, // Required for HTTPS
-      expires: new Date(Date.now() + 60),
-      sameSite: 'none',
-    });
 
     return {
       accessToken,

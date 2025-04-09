@@ -13,7 +13,7 @@ export declare class AuthService {
     constructor(userService: UserService, tokenGeneratorService: TokenGeneratorService, auditService: AuditService, db: db);
     login(payload: LoginDto, response: Response): Promise<void>;
     employeeLogin(payload: LoginDto, response: Response): Promise<void>;
-    refreshToken(user: JwtType, response: Response): Promise<{
+    refreshToken(user: JwtType): Promise<{
         accessToken: string;
         refreshToken: string;
         expiresIn: number;
