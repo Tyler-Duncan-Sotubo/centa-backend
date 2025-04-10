@@ -39,7 +39,7 @@ export class PasswordResetService {
     const token = this.jwtService.sign({
       email,
     });
-    const expires_at = new Date(Date.now() + 1 * 60 * 60 * 1000);
+    const expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     const user = await this.db
       .select()

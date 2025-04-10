@@ -323,6 +323,13 @@
       "when": 1743747715992,
       "tag": "0045_loud_daredevil",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1744272670691,
+      "tag": "0046_perfect_shotgun",
+      "breakpoints": true
     }
   ]
 }

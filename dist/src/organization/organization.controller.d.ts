@@ -64,9 +64,9 @@ export declare class OrganizationController extends BaseController {
     createCompanyContact(dto: CreateCompanyContactDto, companyId: string): Promise<{
         id: string;
         name: string;
-        phone: string | null;
         email: string;
         company_id: string;
+        phone: string | null;
         position: string | null;
     }[]>;
     getCompanyContacts(companyId: string): Promise<{
@@ -271,17 +271,17 @@ export declare class OrganizationController extends BaseController {
     private validateAndMapToDto;
     createEmployeeBankDetails(dto: CreateEmployeeBankDetailsDto, employeeId: string): Promise<{
         id: string;
+        employee_id: string;
         bank_account_number: string | null;
         bank_account_name: string | null;
         bank_name: string | null;
-        employee_id: string;
     }>;
     updateEmployeeBankDetails(dto: CreateEmployeeBankDetailsDto, employeeId: string): Promise<string>;
     createEmployeeTaxDetails(dto: CreateEmployeeTaxDetailsDto, employeeId: string): Promise<{
         id: string;
         createdAt: Date | null;
-        updatedAt: Date | null;
         employee_id: string;
+        updatedAt: Date | null;
         tin: string;
         pension_pin: string | null;
         nhf_number: string | null;

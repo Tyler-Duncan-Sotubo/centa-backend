@@ -5,6 +5,6 @@ export const auditLog = pgTable('audit_log', {
   id: uuid('id').defaultRandom().primaryKey(),
   action: text('action').notNull(), // e.g., 'CREATE_USER'
   entity: text('entity').notNull(), // e.g., 'User'
-  userId: uuid('user_id').references(() => users.id),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow(),
 });
