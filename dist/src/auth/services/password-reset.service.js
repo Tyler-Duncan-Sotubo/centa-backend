@@ -41,7 +41,13 @@ let PasswordResetService = class PasswordResetService {
         if (!user || user.length === 0) {
             throw new common_1.BadRequestException('User does not exist.');
         }
-        const inviteLink = `${this.configService.get('CLIENT_URL')}/auth/reset-password/${token}`;
+        let inviteLink = '';
+        if (user[0].role === 'employee') {
+            inviteLink = `${this.configService.get('EMPLOYEE_PORTAL_URL')}/auth/reset-password/${token}`;
+        }
+        else {
+            inviteLink = `${this.configService.get('CLIENT_URL')}/auth/reset-password/${token}`;
+        }
         await this.passwordResetEmailService.sendPasswordResetEmail(email, user[0].first_name || 'User', inviteLink);
         const existingToken = await this.db
             .select()
