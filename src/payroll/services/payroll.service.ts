@@ -307,24 +307,35 @@ export class PayrollService {
     return savedPayroll;
   }
 
-  async calculatePayrollForCompany(company_id: string, payrollMonth: string) {
+  async calculatePayrollForCompany(
+    company_id: string,
+    payrollMonth: string,
+    group_id?: string,
+  ) {
     const companyId = await this.getCompany(company_id);
 
+    // Build the base where clause
+    const conditions = [
+      eq(employees.company_id, companyId),
+      eq(employees.employment_status, 'active'),
+    ];
+
+    // Add group filter only if group_id is provided
+    if (group_id) {
+      conditions.push(eq(employees.group_id, group_id));
+    }
+
     const existingEmployees = await this.db
-      .select({
-        id: employees.id,
-      })
+      .select({ id: employees.id })
       .from(employees)
-      .where(
-        and(
-          eq(employees.company_id, companyId),
-          eq(employees.employment_status, 'active'),
-        ),
-      )
+      .where(and(...conditions))
       .execute();
 
-    if (existingEmployees.length === 0)
-      throw new BadRequestException('No employees found for this company');
+    if (existingEmployees.length === 0) {
+      throw new BadRequestException(
+        `No active employees found for company ${companyId}${group_id ? ` in group ${group_id}` : ''}`,
+      );
+    }
 
     const payrollRunId = uuidv4();
 
@@ -339,7 +350,6 @@ export class PayrollService {
       ),
     );
 
-    // clear cache
     await this.cache.del(`payroll_summary_${companyId}`);
     await this.cache.del(`payroll_status_${companyId}`);
 

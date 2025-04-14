@@ -44,6 +44,9 @@ let PusherService = class PusherService {
             case 'payroll':
                 url = `${baseUrl}/payroll`;
                 break;
+            case 'leave':
+                url = `${baseUrl}/time-attendance/leave/leave-history`;
+                break;
             case 'expense':
                 url = `${baseUrl}/expenses`;
                 break;

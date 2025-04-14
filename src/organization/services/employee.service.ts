@@ -472,16 +472,10 @@ export class EmployeeService {
         first_name: employees.first_name,
         last_name: employees.last_name,
         job_title: employees.job_title,
-        phone: employees.phone,
+        avatar: users.avatar,
         email: employees.email,
-        employment_status: employees.employment_status,
-        start_date: employees.start_date,
-        employee_number: employees.employee_number,
-        department_id: employees.department_id,
         annual_gross: employees.annual_gross,
         group_id: employees.group_id,
-        employee_bank_details: employee_bank_details,
-        employee_tax_details: employee_tax_details,
         companyId: companies.id,
         id: employees.id,
         company_name: companies.name,
@@ -489,6 +483,7 @@ export class EmployeeService {
       })
       .from(employees)
       .innerJoin(companies, eq(companies.id, employees.company_id))
+      .innerJoin(users, eq(users.id, employees.user_id))
       .leftJoin(
         employee_bank_details,
         eq(employee_bank_details.employee_id, user_id),

@@ -214,17 +214,23 @@ let PayrollService = class PayrollService {
         }
         return savedPayroll;
     }
-    async calculatePayrollForCompany(company_id, payrollMonth) {
+    async calculatePayrollForCompany(company_id, payrollMonth, group_id) {
         const companyId = await this.getCompany(company_id);
+        const conditions = [
+            (0, drizzle_orm_1.eq)(employee_schema_1.employees.company_id, companyId),
+            (0, drizzle_orm_1.eq)(employee_schema_1.employees.employment_status, 'active'),
+        ];
+        if (group_id) {
+            conditions.push((0, drizzle_orm_1.eq)(employee_schema_1.employees.group_id, group_id));
+        }
         const existingEmployees = await this.db
-            .select({
-            id: employee_schema_1.employees.id,
-        })
+            .select({ id: employee_schema_1.employees.id })
             .from(employee_schema_1.employees)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(employee_schema_1.employees.company_id, companyId), (0, drizzle_orm_1.eq)(employee_schema_1.employees.employment_status, 'active')))
+            .where((0, drizzle_orm_1.and)(...conditions))
             .execute();
-        if (existingEmployees.length === 0)
-            throw new common_1.BadRequestException('No employees found for this company');
+        if (existingEmployees.length === 0) {
+            throw new common_1.BadRequestException(`No active employees found for company ${companyId}${group_id ? ` in group ${group_id}` : ''}`);
+        }
         const payrollRunId = (0, uuid_1.v4)();
         const payrollResults = await Promise.all(existingEmployees.map((employee) => this.calculatePayroll(employee.id, payrollMonth, payrollRunId, company_id)));
         await this.cache.del(`payroll_summary_${companyId}`);

@@ -240,6 +240,57 @@ export declare const companies: import("drizzle-orm/pg-core").PgTableWithColumns
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        work_start_time: import("drizzle-orm/pg-core").PgColumn<{
+            name: "work_start_time";
+            tableName: "companies";
+            dataType: "string";
+            columnType: "PgTime";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        work_end_time: import("drizzle-orm/pg-core").PgColumn<{
+            name: "work_end_time";
+            tableName: "companies";
+            dataType: "string";
+            columnType: "PgTime";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        country_code: import("drizzle-orm/pg-core").PgColumn<{
+            name: "country_code";
+            tableName: "companies";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         created_at: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
             tableName: "companies";

@@ -190,8 +190,9 @@ let UserService = class UserService {
         return user[0];
     }
     async UpdateUserProfile(user_id, dto) {
+        console.log('Updating user profile:', dto);
         const userAvatar = await this.awsService.uploadImageToS3(dto.email, 'avatar', dto.avatar);
-        await this.db
+        const updatedProfile = await this.db
             .update(users_schema_1.users)
             .set({
             first_name: dto.first_name,
@@ -199,8 +200,16 @@ let UserService = class UserService {
             avatar: userAvatar,
         })
             .where((0, drizzle_orm_1.eq)(users_schema_1.users.id, user_id))
+            .returning({
+            id: users_schema_1.users.id,
+            email: users_schema_1.users.email,
+            role: users_schema_1.users.role,
+            first_name: users_schema_1.users.first_name,
+            last_name: users_schema_1.users.last_name,
+            avatar: users_schema_1.users.avatar,
+        })
             .execute();
-        return { message: 'Profile updated successfully' };
+        return updatedProfile[0];
     }
 };
 exports.UserService = UserService;

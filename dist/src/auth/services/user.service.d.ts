@@ -63,6 +63,11 @@ export declare class UserService {
         avatar: string | null;
     }>;
     UpdateUserProfile(user_id: string, dto: UpdateProfileDto): Promise<{
-        message: string;
+        id: string;
+        email: string;
+        role: "admin" | "hr_manager" | "employee" | "payroll_specialist" | "super_admin";
+        first_name: string | null;
+        last_name: string | null;
+        avatar: string | null;
     }>;
 }

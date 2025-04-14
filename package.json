@@ -36,6 +36,7 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/platform-socket.io": "^10.4.15",
+    "@nestjs/schedule": "^5.0.1",
     "@nestjs/websockets": "^10.4.15",
     "@sendgrid/mail": "^8.1.4",
     "amqp-connection-manager": "^4.1.14",

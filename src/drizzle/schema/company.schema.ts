@@ -6,6 +6,7 @@ import {
   text,
   jsonb,
   date,
+  time,
 } from 'drizzle-orm/pg-core';
 import { employees } from './employee.schema';
 
@@ -27,7 +28,12 @@ export const companies = pgTable(
     logo_url: text('logo_url'), // Store company logo URL for branding
     pay_frequency: text('pay_frequency').notNull().default('monthly'),
     pay_schedule: jsonb('pay_schedule'),
-    time_zone: text('time_zone').notNull().default('UTC'), // Ensure consistency in payroll calculations
+    time_zone: text('time_zone').notNull().default('UTC'),
+
+    // attendance settings
+    work_start_time: time('work_start_time').default('09:00:00'),
+    work_end_time: time('work_end_time').default('17:00:00'),
+    country_code: text('country_code').default('NG'),
 
     created_at: timestamp('created_at').notNull().defaultNow(),
     updated_at: timestamp('updated_at').defaultNow().notNull(), // Track updates

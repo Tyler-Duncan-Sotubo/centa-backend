@@ -10,9 +10,12 @@ import { NotificationModule } from './notification/notification.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { BullModule } from '@nestjs/bullmq';
 import { AuditModule } from './audit/audit.module';
+import { WalletModule } from './wallet/wallet.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     DrizzleModule,
     LoggerModule,
     ConfigModule.forRoot({
@@ -60,6 +63,7 @@ import { AuditModule } from './audit/audit.module';
     NotificationModule,
     AnalyticsModule,
     AuditModule,
+    WalletModule,
   ],
 })
 export class AppModule {}

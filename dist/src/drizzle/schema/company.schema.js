@@ -18,6 +18,9 @@ exports.companies = (0, pg_core_1.pgTable)('companies', {
     pay_frequency: (0, pg_core_1.text)('pay_frequency').notNull().default('monthly'),
     pay_schedule: (0, pg_core_1.jsonb)('pay_schedule'),
     time_zone: (0, pg_core_1.text)('time_zone').notNull().default('UTC'),
+    work_start_time: (0, pg_core_1.time)('work_start_time').default('09:00:00'),
+    work_end_time: (0, pg_core_1.time)('work_end_time').default('17:00:00'),
+    country_code: (0, pg_core_1.text)('country_code').default('NG'),
     created_at: (0, pg_core_1.timestamp)('created_at').notNull().defaultNow(),
     updated_at: (0, pg_core_1.timestamp)('updated_at').defaultNow().notNull(),
 }, (table) => [

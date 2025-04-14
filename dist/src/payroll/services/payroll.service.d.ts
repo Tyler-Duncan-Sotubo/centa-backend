@@ -15,9 +15,10 @@ export declare class PayrollService {
     private calculatePAYE;
     calculatePayroll(employee_id: string, payrollMonth: string, payrollRunId: string, company_id: string): Promise<{
         id: string;
+        company_id: string;
+        payroll_month: string;
         payroll_run_id: string;
         employee_id: string;
-        company_id: string;
         basic: number;
         housing: number;
         transport: number;
@@ -34,7 +35,6 @@ export declare class PayrollService {
         net_salary: number;
         taxable_income: number;
         payroll_date: string;
-        payroll_month: string;
         payment_status: string | null;
         payment_date: string | null;
         payment_reference: string | null;
@@ -42,11 +42,12 @@ export declare class PayrollService {
         approval_date: string | null;
         approval_remarks: string | null;
     }[]>;
-    calculatePayrollForCompany(company_id: string, payrollMonth: string): Promise<{
+    calculatePayrollForCompany(company_id: string, payrollMonth: string, group_id?: string): Promise<{
         id: string;
+        company_id: string;
+        payroll_month: string;
         payroll_run_id: string;
         employee_id: string;
-        company_id: string;
         basic: number;
         housing: number;
         transport: number;
@@ -63,7 +64,6 @@ export declare class PayrollService {
         net_salary: number;
         taxable_income: number;
         payroll_date: string;
-        payroll_month: string;
         payment_status: string | null;
         payment_date: string | null;
         payment_reference: string | null;
@@ -142,9 +142,9 @@ export declare class PayrollService {
     deleteSalaryBreakdown(user_id: string, id: string): Promise<void>;
     createBonus(user_id: string, dto: createBonusDto): Promise<{
         id: string;
-        employee_id: string;
         company_id: string;
         payroll_month: string;
+        employee_id: string;
         amount: number;
         bonus_type: string | null;
         bonus_date: string;

@@ -330,6 +330,27 @@
       "when": 1744272670691,
       "tag": "0046_perfect_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1744494780406,
+      "tag": "0047_keen_venom",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1744498677361,
+      "tag": "0048_naive_gravity",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1744580048323,
+      "tag": "0049_mushy_harpoon",
+      "breakpoints": true
     }
   ]
 }

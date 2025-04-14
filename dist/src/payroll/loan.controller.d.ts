@@ -9,14 +9,14 @@ export declare class LoanController extends BaseController {
         id: string;
         name: string;
         company_id: string;
-        createdAt: Date;
         employee_id: string;
+        createdAt: Date;
+        payment_status: string;
+        status: string;
         amount: number;
         total_paid: number;
         tenureMonths: number;
         preferredMonthlyPayment: number | null;
-        status: string;
-        payment_status: string;
     }>;
     getLoans(user: User): Promise<{
         name: string;

@@ -248,13 +248,15 @@ export class UserService {
 
   // edit user profile
   async UpdateUserProfile(user_id: string, dto: UpdateProfileDto) {
+    console.log('Updating user profile:', dto);
+
     const userAvatar = await this.awsService.uploadImageToS3(
       dto.email,
       'avatar',
       dto.avatar,
     );
 
-    await this.db
+    const updatedProfile = await this.db
       .update(users)
       .set({
         first_name: dto.first_name,
@@ -262,8 +264,16 @@ export class UserService {
         avatar: userAvatar,
       })
       .where(eq(users.id, user_id))
+      .returning({
+        id: users.id,
+        email: users.email,
+        role: users.role,
+        first_name: users.first_name,
+        last_name: users.last_name,
+        avatar: users.avatar,
+      })
       .execute();
 
-    return { message: 'Profile updated successfully' };
+    return updatedProfile[0];
   }
 }

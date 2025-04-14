@@ -19,9 +19,11 @@ import { PayGroupService } from './services/pay-group.service';
 import { AuditService } from 'src/audit/audit.service';
 import { PrimaryGuard } from 'src/auth/guards/primary.guard';
 import { JwtService } from '@nestjs/jwt';
-
+import { ScheduleModule } from '@nestjs/schedule';
+import { PayrollSchedulerService } from './services/payroll-scheduler.service';
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     CacheModule,
     DrizzleModule,
     BullModule.registerQueue({
@@ -45,6 +47,7 @@ import { JwtService } from '@nestjs/jwt';
     AuditService,
     PrimaryGuard,
     JwtService,
+    PayrollSchedulerService,
   ],
 })
 export class PayrollModule {}

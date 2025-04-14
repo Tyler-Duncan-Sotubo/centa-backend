@@ -24,9 +24,6 @@ export declare class OrganizationController extends BaseController {
     createCompany(dto: CreateCompanyDto, user: User): Promise<{
         id: string;
         name: string;
-        email: string | null;
-        created_at: Date;
-        updated_at: Date;
         country: string;
         address: string | null;
         city: string | null;
@@ -34,10 +31,16 @@ export declare class OrganizationController extends BaseController {
         industry: string | null;
         registration_number: string | null;
         phone_number: string | null;
+        email: string | null;
         logo_url: string | null;
         pay_frequency: string;
         pay_schedule: unknown;
         time_zone: string;
+        work_start_time: string | null;
+        work_end_time: string | null;
+        country_code: string | null;
+        created_at: Date;
+        updated_at: Date;
     }[]>;
     getCompany(user: User): Promise<{
         id: string;
@@ -54,6 +57,9 @@ export declare class OrganizationController extends BaseController {
         pay_frequency: string;
         pay_schedule: unknown;
         time_zone: string;
+        work_start_time: string | null;
+        work_end_time: string | null;
+        country_code: string | null;
         created_at: Date;
         updated_at: Date;
     }>;
@@ -64,8 +70,8 @@ export declare class OrganizationController extends BaseController {
     createCompanyContact(dto: CreateCompanyContactDto, companyId: string): Promise<{
         id: string;
         name: string;
-        email: string;
         company_id: string;
+        email: string;
         phone: string | null;
         position: string | null;
     }[]>;
@@ -99,9 +105,9 @@ export declare class OrganizationController extends BaseController {
     updatePayFrequency(payFrequencyId: string, dto: CreatePayFrequencyDto, user: User): Promise<string>;
     createCompanyTaxDetails(dto: CreateCompanyTaxDto, user: User): Promise<{
         id: string;
+        company_id: string;
         created_at: Date;
         updated_at: Date | null;
-        company_id: string;
         tin: string;
         vat_number: string | null;
         nhf_code: string | null;
@@ -186,32 +192,10 @@ export declare class OrganizationController extends BaseController {
         first_name: string;
         last_name: string;
         job_title: string;
-        phone: string | null;
+        avatar: string | null;
         email: string;
-        employment_status: string | null;
-        start_date: string;
-        employee_number: string | null;
-        department_id: string | null;
         annual_gross: number | null;
         group_id: string | null;
-        employee_bank_details: {
-            id: string;
-            bank_account_number: string | null;
-            bank_account_name: string | null;
-            bank_name: string | null;
-            employee_id: string;
-        } | null;
-        employee_tax_details: {
-            id: string;
-            tin: string;
-            pension_pin: string | null;
-            nhf_number: string | null;
-            consolidated_relief_allowance: number | null;
-            state_of_residence: string | null;
-            createdAt: Date | null;
-            updatedAt: Date | null;
-            employee_id: string;
-        } | null;
         companyId: string;
         id: string;
         company_name: string;

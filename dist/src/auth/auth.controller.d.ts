@@ -51,7 +51,12 @@ export declare class AuthController {
         message: string;
     }>;
     UpdateProfile(user: User, dto: UpdateProfileDto): Promise<{
-        message: string;
+        id: string;
+        email: string;
+        role: "admin" | "hr_manager" | "employee" | "payroll_specialist" | "super_admin";
+        first_name: string | null;
+        last_name: string | null;
+        avatar: string | null;
     }>;
     GetUserProfile(user: User): Promise<{
         id: string;

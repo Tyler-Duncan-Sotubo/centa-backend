@@ -19,12 +19,15 @@ const notification_module_1 = require("./notification/notification.module");
 const analytics_module_1 = require("./analytics/analytics.module");
 const bullmq_1 = require("@nestjs/bullmq");
 const audit_module_1 = require("./audit/audit.module");
+const wallet_module_1 = require("./wallet/wallet.module");
+const schedule_1 = require("@nestjs/schedule");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
+            schedule_1.ScheduleModule.forRoot(),
             drizzle_module_1.DrizzleModule,
             logger_1.LoggerModule,
             config_1.ConfigModule.forRoot({
@@ -71,6 +74,7 @@ exports.AppModule = AppModule = __decorate([
             notification_module_1.NotificationModule,
             analytics_module_1.AnalyticsModule,
             audit_module_1.AuditModule,
+            wallet_module_1.WalletModule,
         ],
     })
 ], AppModule);

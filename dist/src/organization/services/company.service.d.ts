@@ -26,11 +26,13 @@ export declare class CompanyService {
         pay_frequency: string;
         pay_schedule: unknown;
         time_zone: string;
+        work_start_time: string | null;
+        work_end_time: string | null;
+        country_code: string | null;
         created_at: Date;
         updated_at: Date;
     }>;
     createCompany(dto: CreateCompanyDto, company_id: string): Promise<{
-        email: string | null;
         id: string;
         name: string;
         country: string;
@@ -40,10 +42,14 @@ export declare class CompanyService {
         industry: string | null;
         registration_number: string | null;
         phone_number: string | null;
+        email: string | null;
         logo_url: string | null;
         pay_frequency: string;
         pay_schedule: unknown;
         time_zone: string;
+        work_start_time: string | null;
+        work_end_time: string | null;
+        country_code: string | null;
         created_at: Date;
         updated_at: Date;
     }[]>;
@@ -52,12 +58,12 @@ export declare class CompanyService {
         message: string;
     }>;
     addContactToCompany(dto: CreateCompanyContactDto, company_id: string): Promise<{
-        email: string;
-        phone: string | null;
         id: string;
         name: string;
-        position: string | null;
         company_id: string;
+        email: string;
+        phone: string | null;
+        position: string | null;
     }[]>;
     getContactInCompany(company_id: string): Promise<{
         id: string;
@@ -69,11 +75,11 @@ export declare class CompanyService {
     }[]>;
     updateContactInCompany(dto: UpdateCompanyContactDto, company_id: string): Promise<string>;
     createCompanyTaxDetails(user_id: string, dto: CreateCompanyTaxDto): Promise<{
-        tin: string;
         id: string;
+        company_id: string;
         created_at: Date;
         updated_at: Date | null;
-        company_id: string;
+        tin: string;
         vat_number: string | null;
         nhf_code: string | null;
         pension_code: string | null;

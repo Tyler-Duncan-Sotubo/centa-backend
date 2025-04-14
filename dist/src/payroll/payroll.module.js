@@ -28,12 +28,15 @@ const pay_group_service_1 = require("./services/pay-group.service");
 const audit_service_1 = require("../audit/audit.service");
 const primary_guard_1 = require("../auth/guards/primary.guard");
 const jwt_1 = require("@nestjs/jwt");
+const schedule_1 = require("@nestjs/schedule");
+const payroll_scheduler_service_1 = require("./services/payroll-scheduler.service");
 let PayrollModule = class PayrollModule {
 };
 exports.PayrollModule = PayrollModule;
 exports.PayrollModule = PayrollModule = __decorate([
     (0, common_1.Module)({
         imports: [
+            schedule_1.ScheduleModule.forRoot(),
             cache_module_1.CacheModule,
             drizzle_module_1.DrizzleModule,
             bullmq_1.BullModule.registerQueue({
@@ -57,6 +60,7 @@ exports.PayrollModule = PayrollModule = __decorate([
             audit_service_1.AuditService,
             primary_guard_1.PrimaryGuard,
             jwt_1.JwtService,
+            payroll_scheduler_service_1.PayrollSchedulerService,
         ],
     })
 ], PayrollModule);

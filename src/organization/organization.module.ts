@@ -16,7 +16,11 @@ import { EmailQueueProcessor } from 'src/notification/services/email-queue.proce
 import { BullModule } from '@nestjs/bullmq';
 import { AuditService } from 'src/audit/audit.service';
 import { PrimaryGuard } from 'src/auth/guards/primary.guard';
-
+import { AttendanceService } from './services/attendance.service';
+import { LeaveAttendanceController } from './leave-attendance.controller';
+import { LeaveService } from './services/leave.service';
+import { AttendanceSchedulerService } from './services/attendance-scheduler.service';
+import { PusherService } from 'src/notification/services/pusher.service';
 @Module({
   imports: [
     AuthModule,
@@ -29,7 +33,7 @@ import { PrimaryGuard } from 'src/auth/guards/primary.guard';
       name: 'emailQueue',
     }),
   ],
-  controllers: [OrganizationController],
+  controllers: [OrganizationController, LeaveAttendanceController],
   providers: [
     PrimaryGuard,
     CompanyService,
@@ -44,6 +48,10 @@ import { PrimaryGuard } from 'src/auth/guards/primary.guard';
     OnboardingService,
     EmailQueueProcessor,
     AuditService,
+    AttendanceService,
+    LeaveService,
+    AttendanceSchedulerService,
+    PusherService,
   ],
 })
 export class OrganizationModule {}

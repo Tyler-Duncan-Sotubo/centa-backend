@@ -25,6 +25,11 @@ const email_queue_processor_1 = require("../notification/services/email-queue.pr
 const bullmq_1 = require("@nestjs/bullmq");
 const audit_service_1 = require("../audit/audit.service");
 const primary_guard_1 = require("../auth/guards/primary.guard");
+const attendance_service_1 = require("./services/attendance.service");
+const leave_attendance_controller_1 = require("./leave-attendance.controller");
+const leave_service_1 = require("./services/leave.service");
+const attendance_scheduler_service_1 = require("./services/attendance-scheduler.service");
+const pusher_service_1 = require("../notification/services/pusher.service");
 let OrganizationModule = class OrganizationModule {
 };
 exports.OrganizationModule = OrganizationModule;
@@ -41,7 +46,7 @@ exports.OrganizationModule = OrganizationModule = __decorate([
                 name: 'emailQueue',
             }),
         ],
-        controllers: [organization_controller_1.OrganizationController],
+        controllers: [organization_controller_1.OrganizationController, leave_attendance_controller_1.LeaveAttendanceController],
         providers: [
             primary_guard_1.PrimaryGuard,
             services_1.CompanyService,
@@ -56,6 +61,10 @@ exports.OrganizationModule = OrganizationModule = __decorate([
             onboarding_service_1.OnboardingService,
             email_queue_processor_1.EmailQueueProcessor,
             audit_service_1.AuditService,
+            attendance_service_1.AttendanceService,
+            leave_service_1.LeaveService,
+            attendance_scheduler_service_1.AttendanceSchedulerService,
+            pusher_service_1.PusherService,
         ],
     })
 ], OrganizationModule);

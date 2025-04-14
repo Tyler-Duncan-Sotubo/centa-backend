@@ -340,16 +340,10 @@ let EmployeeService = class EmployeeService {
             first_name: employee_schema_1.employees.first_name,
             last_name: employee_schema_1.employees.last_name,
             job_title: employee_schema_1.employees.job_title,
-            phone: employee_schema_1.employees.phone,
+            avatar: users_schema_1.users.avatar,
             email: employee_schema_1.employees.email,
-            employment_status: employee_schema_1.employees.employment_status,
-            start_date: employee_schema_1.employees.start_date,
-            employee_number: employee_schema_1.employees.employee_number,
-            department_id: employee_schema_1.employees.department_id,
             annual_gross: employee_schema_1.employees.annual_gross,
             group_id: employee_schema_1.employees.group_id,
-            employee_bank_details: employee_schema_1.employee_bank_details,
-            employee_tax_details: employee_schema_1.employee_tax_details,
             companyId: company_schema_1.companies.id,
             id: employee_schema_1.employees.id,
             company_name: company_schema_1.companies.name,
@@ -357,6 +351,7 @@ let EmployeeService = class EmployeeService {
         })
             .from(employee_schema_1.employees)
             .innerJoin(company_schema_1.companies, (0, drizzle_orm_1.eq)(company_schema_1.companies.id, employee_schema_1.employees.company_id))
+            .innerJoin(users_schema_1.users, (0, drizzle_orm_1.eq)(users_schema_1.users.id, employee_schema_1.employees.user_id))
             .leftJoin(employee_schema_1.employee_bank_details, (0, drizzle_orm_1.eq)(employee_schema_1.employee_bank_details.employee_id, user_id))
             .leftJoin(employee_schema_1.employee_tax_details, (0, drizzle_orm_1.eq)(employee_schema_1.employee_tax_details.employee_id, user_id))
             .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.user_id, user_id))
