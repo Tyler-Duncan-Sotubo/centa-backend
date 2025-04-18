@@ -12,6 +12,7 @@ import { CacheService } from 'src/config/cache/cache.service';
 import { LoanRequestDto, UpdateLoanStatusDto } from '../dto/create-loan.dto';
 import { users } from 'src/drizzle/schema/users.schema';
 import { PusherService } from 'src/notification/services/pusher.service';
+import { PushNotificationService } from 'src/notification/services/push-notification.service';
 
 @Injectable()
 export class LoanService {
@@ -19,6 +20,7 @@ export class LoanService {
     @Inject(DRIZZLE) private db: db,
     private readonly cache: CacheService,
     private readonly pusher: PusherService,
+    private readonly pushNotificationService: PushNotificationService,
   ) {}
 
   // Get Employee
@@ -203,6 +205,14 @@ export class LoanService {
         loan[0].company_id,
         `New loan request updated to ${updated.status}`,
         'loan',
+      );
+
+      // Broadcast notification to the employee
+      await this.pushNotificationService.sendPushNotification(
+        loan[0].employee_id,
+        `Your loan request has been ${updated.status}`,
+        'Loan Update',
+        { loanId: updated.id },
       );
 
       return updated;

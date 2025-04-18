@@ -348,10 +348,15 @@ let EmployeeService = class EmployeeService {
             id: employee_schema_1.employees.id,
             company_name: company_schema_1.companies.name,
             apply_nhf: employee_schema_1.employees.apply_nhf,
+            phone: employee_schema_1.employees.phone,
+            start_date: employee_schema_1.employees.start_date,
+            department_name: department_schema_1.departments.name,
+            employee_number: employee_schema_1.employees.employee_number,
         })
             .from(employee_schema_1.employees)
             .innerJoin(company_schema_1.companies, (0, drizzle_orm_1.eq)(company_schema_1.companies.id, employee_schema_1.employees.company_id))
             .innerJoin(users_schema_1.users, (0, drizzle_orm_1.eq)(users_schema_1.users.id, employee_schema_1.employees.user_id))
+            .leftJoin(department_schema_1.departments, (0, drizzle_orm_1.eq)(department_schema_1.departments.id, employee_schema_1.employees.department_id))
             .leftJoin(employee_schema_1.employee_bank_details, (0, drizzle_orm_1.eq)(employee_schema_1.employee_bank_details.employee_id, user_id))
             .leftJoin(employee_schema_1.employee_tax_details, (0, drizzle_orm_1.eq)(employee_schema_1.employee_tax_details.employee_id, user_id))
             .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.user_id, user_id))

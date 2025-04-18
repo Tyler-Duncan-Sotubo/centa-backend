@@ -21,11 +21,13 @@ const loans_schema_1 = require("../../drizzle/schema/loans.schema");
 const cache_service_1 = require("../../config/cache/cache.service");
 const users_schema_1 = require("../../drizzle/schema/users.schema");
 const pusher_service_1 = require("../../notification/services/pusher.service");
+const push_notification_service_1 = require("../../notification/services/push-notification.service");
 let LoanService = class LoanService {
-    constructor(db, cache, pusher) {
+    constructor(db, cache, pusher, pushNotificationService) {
         this.db = db;
         this.cache = cache;
         this.pusher = pusher;
+        this.pushNotificationService = pushNotificationService;
     }
     async getEmployee(employee_id) {
         const cacheKey = `employee:${employee_id}`;
@@ -147,6 +149,7 @@ let LoanService = class LoanService {
                 created_at: new Date(),
             });
             await this.pusher.createNotification(loan[0].company_id, `New loan request updated to ${updated.status}`, 'loan');
+            await this.pushNotificationService.sendPushNotification(loan[0].employee_id, `Your loan request has been ${updated.status}`, 'Loan Update', { loanId: updated.id });
             return updated;
         });
         return updatedLoan;
@@ -256,6 +259,7 @@ exports.LoanService = LoanService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, cache_service_1.CacheService,
-        pusher_service_1.PusherService])
+        pusher_service_1.PusherService,
+        push_notification_service_1.PushNotificationService])
 ], LoanService);
 //# sourceMappingURL=loan.service.js.map

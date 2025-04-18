@@ -239,6 +239,14 @@ let PayrollService = class PayrollService {
             company_id,
             payrollMonth,
         });
+        for (const employee of existingEmployees) {
+            await this.payrollQueue.add('PendingPayroll', {
+                employee_id: employee.id,
+                message: `${payrollMonth} payroll is ready for you to review.`,
+                title: 'Payroll Notification',
+                dataMessage: { payrollId: 'pending' },
+            });
+        }
         return payrollResults;
     }
     async getPayrollSummary(companyId) {

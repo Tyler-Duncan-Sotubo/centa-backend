@@ -34,7 +34,7 @@ let AttendanceService = class AttendanceService {
             .where((0, drizzle_orm_1.eq)(company_schema_1.companies.id, company_id))
             .execute();
         if (result.length === 0) {
-            throw new common_1.NotFoundException('Company not found');
+            throw new common_1.BadRequestException('Company not found');
         }
         return result[0];
     }
@@ -45,7 +45,7 @@ let AttendanceService = class AttendanceService {
             .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.id, employee_id))
             .execute();
         if (result.length === 0) {
-            throw new common_1.NotFoundException('Employee not found');
+            throw new common_1.BadRequestException('Employee not found');
         }
         return result[0];
     }
@@ -210,7 +210,7 @@ let AttendanceService = class AttendanceService {
                 .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.officeLocations.id, id))
                 .execute();
             if (location.length === 0) {
-                throw new common_1.NotFoundException('Location not found');
+                throw new common_1.BadRequestException('Location not found');
             }
             return location[0];
         }
@@ -258,7 +258,7 @@ let AttendanceService = class AttendanceService {
                 .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.employeeLocations.employee_id, employee_id))
                 .execute();
             if (existingLocation.length > 0) {
-                throw new common_1.NotFoundException('Employee already has a location');
+                throw new common_1.BadRequestException('Employee already has a location');
             }
             await this.db
                 .insert(leave_attendance_schema_1.employeeLocations)
@@ -294,7 +294,7 @@ let AttendanceService = class AttendanceService {
                 .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.company_id, company_id))
                 .execute();
             if (locations.length === 0) {
-                throw new common_1.NotFoundException('No employee locations found for this company');
+                throw new common_1.BadRequestException('No employee locations found for this company');
             }
             return locations;
         }
@@ -311,7 +311,7 @@ let AttendanceService = class AttendanceService {
                 .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.employeeLocations.id, id))
                 .execute();
             if (location.length === 0) {
-                throw new common_1.NotFoundException('Location not found');
+                throw new common_1.BadRequestException('Location not found');
             }
             await this.db
                 .update(leave_attendance_schema_1.employeeLocations)
@@ -338,7 +338,7 @@ let AttendanceService = class AttendanceService {
                 .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.employeeLocations.id, id))
                 .execute();
             if (location.length === 0) {
-                throw new common_1.NotFoundException('Location not found');
+                throw new common_1.BadRequestException('Location not found');
             }
             await this.db
                 .delete(leave_attendance_schema_1.employeeLocations)
@@ -352,6 +352,7 @@ let AttendanceService = class AttendanceService {
         }
     }
     async checkLocation(employee_id, latitude, longitude) {
+        console.log('Location Check:' + latitude, longitude);
         const employee = await this.getEmployeeByUserId(employee_id);
         const employeeLocation = await this.db
             .select()
@@ -365,20 +366,20 @@ let AttendanceService = class AttendanceService {
             .execute();
         if (employeeLocation.length > 0) {
             const isEmployeeInValidLocation = employeeLocation.some((location) => {
-                return (Math.abs(Number(location.latitude) - Number(latitude)) < 0.0001 &&
-                    Math.abs(Number(location.longitude) - Number(longitude)) < 0.0001);
+                return (Math.abs(Number(location.latitude) - Number(latitude)) < 0.005 &&
+                    Math.abs(Number(location.longitude) - Number(longitude)) < 0.005);
             });
             if (!isEmployeeInValidLocation) {
-                throw new common_1.NotFoundException('Employee is not at a valid location');
+                throw new common_1.BadRequestException('Employee is not at a valid location');
             }
         }
         else {
             const isInOfficeLocation = companyLocations.some((location) => {
-                return (Math.abs(Number(location.latitude) - Number(latitude)) < 0.0001 &&
-                    Math.abs(Number(location.longitude) - Number(longitude)) < 0.0001);
+                return (Math.abs(Number(location.latitude) - Number(latitude)) < 0.005 &&
+                    Math.abs(Number(location.longitude) - Number(longitude)) < 0.005);
             });
             if (!isInOfficeLocation) {
-                throw new common_1.NotFoundException('Employee is not at an authorized office location');
+                throw new common_1.BadRequestException('Employee is not at an authorized office location');
             }
         }
     }
@@ -390,7 +391,7 @@ let AttendanceService = class AttendanceService {
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_attendance_schema_1.attendance.employee_id, employee_id), (0, drizzle_orm_1.eq)(leave_attendance_schema_1.attendance.date, currentDate)))
             .execute();
         if (existingAttendance.length > 0) {
-            throw new common_1.NotFoundException('Employee already clocked in');
+            throw new common_1.BadRequestException('Employee already clocked in');
         }
         await this.checkLocation(employee_id, latitude, longitude);
         await this.db
@@ -415,16 +416,16 @@ let AttendanceService = class AttendanceService {
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_attendance_schema_1.attendance.employee_id, employee_id), (0, drizzle_orm_1.eq)(leave_attendance_schema_1.attendance.date, currentDate)))
             .execute();
         if (existingAttendance.length === 0) {
-            throw new common_1.NotFoundException('Employee is not clocked in');
+            throw new common_1.BadRequestException('Employee is not clocked in');
         }
         await this.checkLocation(employee_id, latitude, longitude);
         const checkInTime = existingAttendance[0].check_in_time;
         const alreadyCheckedOutTime = existingAttendance[0].check_out_time;
         if (alreadyCheckedOutTime) {
-            throw new common_1.NotFoundException('Employee already clocked out');
+            throw new common_1.BadRequestException('Employee already clocked out');
         }
         if (!checkInTime) {
-            throw new common_1.NotFoundException('Check-in time is missing for the employee');
+            throw new common_1.BadRequestException('Check-in time is missing for the employee');
         }
         const checkOutTime = new Date();
         const totalHours = (checkOutTime.getTime() - checkInTime.getTime()) / 36e5;
@@ -581,7 +582,7 @@ let AttendanceService = class AttendanceService {
     }
     async getAttendanceSummaryByDate(date, companyId) {
         const targetDate = new Date(date).toISOString().split('T')[0];
-        const workStarts = new Date();
+        const workStarts = new Date(date);
         workStarts.setHours(9, 0, 0, 0);
         function parseDbDate(date) {
             if (!date)
@@ -630,6 +631,102 @@ let AttendanceService = class AttendanceService {
             };
         });
         return { date: targetDate, summaryList };
+    }
+    async getEmployeeAttendanceByDate(employeeId, date) {
+        const targetDate = new Date(date).toISOString().split('T')[0];
+        const workStarts = new Date(date);
+        workStarts.setHours(9, 0, 0, 0);
+        function parseDbDate(date) {
+            if (!date)
+                return null;
+            if (typeof date === 'string') {
+                return new Date(date.replace(' ', 'T'));
+            }
+            return new Date(date);
+        }
+        const employee = await this.getEmployeeByUserId(employeeId);
+        if (!employee) {
+            throw new common_1.BadRequestException('Employee not found');
+        }
+        const record = await this.db
+            .select()
+            .from(leave_attendance_schema_1.attendance)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_attendance_schema_1.attendance.date, targetDate), (0, drizzle_orm_1.eq)(leave_attendance_schema_1.attendance.employee_id, employeeId)))
+            .then((res) => res[0]);
+        const checkIn = record?.check_in_time
+            ? parseDbDate(record.check_in_time)
+            : null;
+        const checkOut = record?.check_out_time
+            ? parseDbDate(record.check_out_time)
+            : null;
+        const isLate = checkIn ? checkIn > workStarts : false;
+        let status = 'absent';
+        if (checkIn && !isLate)
+            status = 'present';
+        if (checkIn && isLate)
+            status = 'late';
+        return {
+            date: targetDate,
+            check_in_time: checkIn ? checkIn.toISOString() : null,
+            check_out_time: checkOut ? checkOut.toISOString() : null,
+            status,
+        };
+    }
+    async getEmployeeAttendanceByMonth(employeeId, month) {
+        const startOfMonth = new Date(`${month}-01`);
+        const endOfMonth = new Date(startOfMonth);
+        endOfMonth.setMonth(endOfMonth.getMonth() + 1);
+        endOfMonth.setDate(0);
+        function parseDbDate(date) {
+            if (!date)
+                return null;
+            if (typeof date === 'string') {
+                return new Date(date.replace(' ', 'T'));
+            }
+            return new Date(date);
+        }
+        const employee = await this.getEmployeeByUserId(employeeId);
+        if (!employee) {
+            throw new common_1.BadRequestException('Employee not found');
+        }
+        const attendanceRecords = await this.db
+            .select()
+            .from(leave_attendance_schema_1.attendance)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_attendance_schema_1.attendance.employee_id, employeeId), (0, drizzle_orm_1.gte)(leave_attendance_schema_1.attendance.date, startOfMonth.toISOString().split('T')[0]), (0, drizzle_orm_1.lte)(leave_attendance_schema_1.attendance.date, endOfMonth.toISOString().split('T')[0])));
+        const today = new Date();
+        const daysInMonth = endOfMonth.getDate();
+        const summaryList = Array.from({ length: daysInMonth }).flatMap((_, i) => {
+            const date = new Date(startOfMonth);
+            date.setDate(i + 1);
+            if (date > today)
+                return [];
+            const formattedDate = date.toISOString().split('T')[0];
+            const workStarts = new Date(date);
+            workStarts.setHours(9, 0, 0, 0);
+            const record = attendanceRecords.find((r) => r.date === formattedDate);
+            const checkIn = record?.check_in_time
+                ? parseDbDate(record.check_in_time)
+                : null;
+            const checkOut = record?.check_out_time
+                ? parseDbDate(record.check_out_time)
+                : null;
+            const isLate = checkIn ? checkIn > workStarts : false;
+            let status = 'absent';
+            if (checkIn) {
+                status = isLate ? 'late' : 'present';
+            }
+            return [
+                {
+                    date: formattedDate,
+                    check_in_time: checkIn ? checkIn.toISOString() : null,
+                    check_out_time: checkOut ? checkOut.toISOString() : null,
+                    status,
+                },
+            ];
+        });
+        return {
+            summaryList,
+        };
     }
 };
 exports.AttendanceService = AttendanceService;

@@ -21,6 +21,7 @@ import { PrimaryGuard } from 'src/auth/guards/primary.guard';
 import { JwtService } from '@nestjs/jwt';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PayrollSchedulerService } from './services/payroll-scheduler.service';
+import { PushNotificationService } from 'src/notification/services/push-notification.service';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -48,6 +49,7 @@ import { PayrollSchedulerService } from './services/payroll-scheduler.service';
     PrimaryGuard,
     JwtService,
     PayrollSchedulerService,
+    PushNotificationService,
   ],
 })
 export class PayrollModule {}

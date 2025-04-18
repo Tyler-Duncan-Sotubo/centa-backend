@@ -25,12 +25,15 @@ const cache_service_1 = require("../../config/cache/cache.service");
 const aws_service_1 = require("../../config/aws/aws.service");
 const company_schema_1 = require("../../drizzle/schema/company.schema");
 const pusher_service_1 = require("../../notification/services/pusher.service");
+const bullmq_1 = require("@nestjs/bullmq");
+const bullmq_2 = require("bullmq");
 let PayslipService = class PayslipService {
-    constructor(db, cache, aws, pusher) {
+    constructor(db, cache, aws, pusher, payrollQueue) {
         this.db = db;
         this.cache = cache;
         this.aws = aws;
         this.pusher = pusher;
+        this.payrollQueue = payrollQueue;
         this.getCompany = async (company_id) => {
             const cacheKey = `company_id_${company_id}`;
             return this.cache.getOrSetCache(cacheKey, async () => {
@@ -108,6 +111,14 @@ let PayslipService = class PayslipService {
         }
         await this.db.insert(payroll_schema_1.payslips).values(newPayslips);
         await this.pusher.createNotification(newPayslips[0].company_id, `New payslips generated for ${payrollMonth}`, 'payroll');
+        for (const employee of newPayslips) {
+            await this.payrollQueue.add('PayslipGenerated', {
+                employee_id: employee.employee_id,
+                message: `Your payslip for ${payrollMonth} is now available.`,
+                title: 'Payslip Ready',
+                dataMessage: { paySlipId: 'ready' },
+            });
+        }
         return { message: `${newPayslips.length} payslips generated successfully` };
     }
     async getCompanyPayslipsById(user_id, payroll_run_id) {
@@ -275,8 +286,10 @@ exports.PayslipService = PayslipService;
 exports.PayslipService = PayslipService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
+    __param(4, (0, bullmq_1.InjectQueue)('payrollQueue')),
     __metadata("design:paramtypes", [Object, cache_service_1.CacheService,
         aws_service_1.AwsService,
-        pusher_service_1.PusherService])
+        pusher_service_1.PusherService,
+        bullmq_2.Queue])
 ], PayslipService);
 //# sourceMappingURL=payslip.service.js.map

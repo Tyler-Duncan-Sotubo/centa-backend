@@ -9,6 +9,11 @@ export declare class LeaveAttendanceController extends BaseController {
     private readonly leaveService;
     constructor(attendanceService: AttendanceService, leaveService: LeaveService);
     getHolidays(): Promise<void>;
+    getUpcomingPublicHolidays(): Promise<{
+        name: string;
+        date: string;
+        type: string | null;
+    }[]>;
     createOfficeLocation(dto: CreateOfficeLocationDto, user: User): Promise<{
         id: string;
     }[]>;
@@ -42,8 +47,14 @@ export declare class LeaveAttendanceController extends BaseController {
     }[]>;
     updateEmployeeLocation(dto: CreateOfficeLocationDto, location_id: string): Promise<string>;
     deleteEmployeeLocation(location_id: string): Promise<string>;
-    clockIn(employee_id: string): Promise<string>;
-    clockOut(employee_id: string): Promise<string>;
+    clockIn(employee_id: string, dto: {
+        latitude: string;
+        longitude: string;
+    }): Promise<string>;
+    clockOut(employee_id: string, dto: {
+        latitude: string;
+        longitude: string;
+    }): Promise<string>;
     getAttendance(user: User): Promise<{
         details: {
             date: string;
@@ -78,6 +89,20 @@ export declare class LeaveAttendanceController extends BaseController {
             employee_id: string;
             name: string;
             department: string;
+            check_in_time: string | null;
+            check_out_time: string | null;
+            status: "absent" | "present" | "late";
+        }[];
+    }>;
+    getEmployeeAttendanceByDate(date: string, employee_id: string): Promise<{
+        date: string;
+        check_in_time: string | null;
+        check_out_time: string | null;
+        status: "absent" | "present" | "late";
+    }>;
+    getEmployeeAttendanceByMonth(date: string, employee_id: string): Promise<{
+        summaryList: {
+            date: string;
             check_in_time: string | null;
             check_out_time: string | null;
             status: "absent" | "present" | "late";

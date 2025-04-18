@@ -2,11 +2,13 @@ import { db } from 'src/drizzle/types/drizzle';
 import { CacheService } from 'src/config/cache/cache.service';
 import { LoanRequestDto, UpdateLoanStatusDto } from '../dto/create-loan.dto';
 import { PusherService } from 'src/notification/services/pusher.service';
+import { PushNotificationService } from 'src/notification/services/push-notification.service';
 export declare class LoanService {
     private db;
     private readonly cache;
     private readonly pusher;
-    constructor(db: db, cache: CacheService, pusher: PusherService);
+    private readonly pushNotificationService;
+    constructor(db: db, cache: CacheService, pusher: PusherService, pushNotificationService: PushNotificationService);
     private getEmployee;
     getUnpaidAdvanceDeductions(employee_id: string): Promise<{
         loanId: string;
@@ -18,12 +20,12 @@ export declare class LoanService {
         company_id: string;
         employee_id: string;
         createdAt: Date;
-        payment_status: string;
-        status: string;
         amount: number;
         total_paid: number;
         tenureMonths: number;
         preferredMonthlyPayment: number | null;
+        status: string;
+        payment_status: string;
     }>;
     getAdvances(company_id: string): Promise<{
         name: string;

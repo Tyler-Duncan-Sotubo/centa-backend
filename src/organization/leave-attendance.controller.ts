@@ -47,6 +47,13 @@ export class LeaveAttendanceController extends BaseController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'employee'])
+  @Get('upcoming-holidays')
+  async getUpcomingPublicHolidays() {
+    return this.attendanceService.getUpcomingPublicHolidays('NG'); //
+  }
+
+  @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin'])
   @Audit({ action: 'Created Office Location', entity: 'Attendance' })
   @Post('office-locations')
@@ -131,16 +138,30 @@ export class LeaveAttendanceController extends BaseController {
   @SetMetadata('roles', ['employee', 'super_admin', 'admin'])
   @Audit({ action: 'Clock In', entity: 'Attendance' })
   @Post('clock-in/:employee_id')
-  async clockIn(@Param('employee_id') employee_id: string) {
-    return this.attendanceService.clockIn(employee_id, '6.436180', '3.535591'); // Example coordinates for London
+  async clockIn(
+    @Param('employee_id') employee_id: string,
+    @Body() dto: { latitude: string; longitude: string },
+  ) {
+    return this.attendanceService.clockIn(
+      employee_id,
+      dto.latitude,
+      dto.longitude,
+    ); // Example coordinates for London
   }
 
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['employee', 'super_admin', 'admin'])
   @Audit({ action: 'Clock Out', entity: 'Attendance' })
   @Post('clock-out/:employee_id')
-  async clockOut(@Param('employee_id') employee_id: string) {
-    return this.attendanceService.clockOut(employee_id, '3.340787', '6.596061'); // Example coordinates for London
+  async clockOut(
+    @Param('employee_id') employee_id: string,
+    @Body() dto: { latitude: string; longitude: string },
+  ) {
+    return this.attendanceService.clockOut(
+      employee_id,
+      dto.latitude,
+      dto.longitude,
+    ); // Example coordinates for London
   }
 
   @UseGuards(JwtAuthGuard)
@@ -159,6 +180,30 @@ export class LeaveAttendanceController extends BaseController {
     return this.attendanceService.getAttendanceSummaryByDate(
       date,
       user.company_id,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('employee-attendance-by-day/:employee_id/:date')
+  async getEmployeeAttendanceByDate(
+    @Param('date') date: string,
+    @Param('employee_id') employee_id: string,
+  ) {
+    return this.attendanceService.getEmployeeAttendanceByDate(
+      employee_id,
+      date,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('employee-attendance-by-month/:employee_id/:date')
+  async getEmployeeAttendanceByMonth(
+    @Param('date') date: string,
+    @Param('employee_id') employee_id: string,
+  ) {
+    return this.attendanceService.getEmployeeAttendanceByMonth(
+      employee_id,
+      date,
     );
   }
 

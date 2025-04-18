@@ -95,4 +95,18 @@ export declare class AttendanceService {
             status: "absent" | "present" | "late";
         }[];
     }>;
+    getEmployeeAttendanceByDate(employeeId: string, date: string): Promise<{
+        date: string;
+        check_in_time: string | null;
+        check_out_time: string | null;
+        status: "absent" | "present" | "late";
+    }>;
+    getEmployeeAttendanceByMonth(employeeId: string, month: string): Promise<{
+        summaryList: {
+            date: string;
+            check_in_time: string | null;
+            check_out_time: string | null;
+            status: "absent" | "present" | "late";
+        }[];
+    }>;
 }

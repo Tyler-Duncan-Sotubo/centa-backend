@@ -14,6 +14,8 @@ import { CacheService } from 'src/config/cache/cache.service';
 import { AwsService } from 'src/config/aws/aws.service';
 import { companies } from 'src/drizzle/schema/company.schema';
 import { PusherService } from 'src/notification/services/pusher.service';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class PayslipService {
@@ -22,6 +24,7 @@ export class PayslipService {
     private cache: CacheService,
     private aws: AwsService,
     private readonly pusher: PusherService,
+    @InjectQueue('payrollQueue') private payrollQueue: Queue,
   ) {}
   // Employee Payslips
   async createPayslip(employee_id: string, payrollMonth: string) {
@@ -154,6 +157,16 @@ export class PayslipService {
       `New payslips generated for ${payrollMonth}`,
       'payroll',
     );
+
+    // Notify employees
+    for (const employee of newPayslips) {
+      await this.payrollQueue.add('PayslipGenerated', {
+        employee_id: employee.employee_id,
+        message: `Your payslip for ${payrollMonth} is now available.`,
+        title: 'Payslip Ready',
+        dataMessage: { paySlipId: 'ready' },
+      });
+    }
 
     return { message: `${newPayslips.length} payslips generated successfully` };
   }

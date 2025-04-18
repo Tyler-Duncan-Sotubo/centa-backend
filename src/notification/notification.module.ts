@@ -7,6 +7,7 @@ import { CacheModule } from 'src/config/cache/cache.module';
 import { BullModule } from '@nestjs/bullmq';
 import { PrimaryGuard } from 'src/auth/guards/primary.guard';
 import { JwtService } from '@nestjs/jwt';
+import { PushNotificationService } from './services/push-notification.service';
 
 @Module({
   imports: [
@@ -17,6 +18,12 @@ import { JwtService } from '@nestjs/jwt';
     }),
   ],
   controllers: [NotificationController],
-  providers: [PusherService, ChatbotService, PrimaryGuard, JwtService],
+  providers: [
+    PusherService,
+    ChatbotService,
+    PrimaryGuard,
+    JwtService,
+    PushNotificationService,
+  ],
 })
 export class NotificationModule {}

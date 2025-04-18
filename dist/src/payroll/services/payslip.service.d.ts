@@ -2,15 +2,16 @@ import { db } from 'src/drizzle/types/drizzle';
 import { CacheService } from 'src/config/cache/cache.service';
 import { AwsService } from 'src/config/aws/aws.service';
 import { PusherService } from 'src/notification/services/pusher.service';
+import { Queue } from 'bullmq';
 export declare class PayslipService {
     private db;
     private cache;
     private aws;
     private readonly pusher;
-    constructor(db: db, cache: CacheService, aws: AwsService, pusher: PusherService);
+    private payrollQueue;
+    constructor(db: db, cache: CacheService, aws: AwsService, pusher: PusherService, payrollQueue: Queue);
     createPayslip(employee_id: string, payrollMonth: string): Promise<{
         id: string;
-        company_id: string;
         issued_at: string | null;
         payroll_month: string;
         slip_status: string | null;
@@ -18,6 +19,7 @@ export declare class PayslipService {
         pdf_url: string | null;
         payroll_id: string;
         employee_id: string;
+        company_id: string;
     }[]>;
     private getCompany;
     generatePayslipsForCompany(company_id: string, payrollMonth: string): Promise<{

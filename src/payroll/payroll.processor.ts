@@ -3,20 +3,19 @@ import { Job } from 'bullmq';
 import { PayslipService } from './services/payslip.service';
 import { TaxService } from './services/tax.service';
 import { PdfService } from './services/pdf.service';
-
+import { PushNotificationService } from 'src/notification/services/push-notification.service';
 @Processor('payrollQueue')
 export class PayrollProcessor extends WorkerHost {
   constructor(
     private readonly payslipService: PayslipService,
     private readonly taxService: TaxService,
     private readonly pdfService: PdfService,
+    private pushNotificationService: PushNotificationService,
   ) {
     super();
   }
 
   async process(job: Job): Promise<void> {
-    console.log(`🔄 Processing job: ${job.name}`);
-
     try {
       switch (job.name) {
         case 'generatePayslips':
@@ -31,11 +30,17 @@ export class PayrollProcessor extends WorkerHost {
           await this.handleGeneratePayslipPdf(job.data);
           break;
 
+        case 'PendingPayroll':
+          await this.handleSendNotification(job.data);
+          break;
+
+        case 'PayslipGenerated':
+          await this.handlePayslipSendNotification(job.data);
+          break;
+
         default:
           console.warn(`⚠️ Unhandled job: ${job.name}`);
       }
-
-      console.log(`✅ Job completed: ${job.name}`);
     } catch (error) {
       console.error(`❌ Error processing job (${job.name}):`, error);
       throw error;
@@ -62,5 +67,25 @@ export class PayrollProcessor extends WorkerHost {
   private async handleGeneratePayslipPdf(data: any) {
     const { payslipId } = data;
     await this.pdfService.generatePayslipPdf(payslipId);
+  }
+
+  private async handleSendNotification(data: any) {
+    const { employee_id, message, title, dataMessage } = data;
+    await this.pushNotificationService.sendPushNotification(
+      employee_id,
+      message,
+      title,
+      dataMessage,
+    );
+  }
+
+  private async handlePayslipSendNotification(data: any) {
+    const { employee_id, message, title, dataMessage } = data;
+    await this.pushNotificationService.sendPushNotification(
+      employee_id,
+      message,
+      title,
+      dataMessage,
+    );
   }
 }

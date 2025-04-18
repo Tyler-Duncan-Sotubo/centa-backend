@@ -40,6 +40,10 @@ export declare class EmployeeService {
         id: string;
         company_name: string;
         apply_nhf: boolean | null;
+        phone: string | null;
+        start_date: string;
+        department_name: string | null;
+        employee_number: string | null;
     }>;
     getEmployees(company_id: string): Promise<{
         id: string;
@@ -117,17 +121,17 @@ export declare class EmployeeService {
     }>;
     addEmployeeBankDetails(employee_id: string, dto: CreateEmployeeBankDetailsDto): Promise<{
         id: string;
-        employee_id: string;
         bank_account_number: string | null;
         bank_account_name: string | null;
         bank_name: string | null;
+        employee_id: string;
     }>;
     updateEmployeeBankDetails(employee_id: string, dto: UpdateEmployeeBankDetailsDto): Promise<string>;
     addEmployeeTaxDetails(employee_id: string, dto: CreateEmployeeTaxDetailsDto): Promise<{
         id: string;
         createdAt: Date | null;
-        employee_id: string;
         updatedAt: Date | null;
+        employee_id: string;
         tin: string;
         pension_pin: string | null;
         nhf_number: string | null;

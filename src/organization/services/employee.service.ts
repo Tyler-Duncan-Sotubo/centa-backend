@@ -480,10 +480,15 @@ export class EmployeeService {
         id: employees.id,
         company_name: companies.name,
         apply_nhf: employees.apply_nhf,
+        phone: employees.phone,
+        start_date: employees.start_date,
+        department_name: departments.name,
+        employee_number: employees.employee_number,
       })
       .from(employees)
       .innerJoin(companies, eq(companies.id, employees.company_id))
       .innerJoin(users, eq(users.id, employees.user_id))
+      .leftJoin(departments, eq(departments.id, employees.department_id))
       .leftJoin(
         employee_bank_details,
         eq(employee_bank_details.employee_id, user_id),

@@ -1,12 +1,7 @@
-import {
-  Injectable,
-  Inject,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, gte, lte } from 'drizzle-orm';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from '../../drizzle/drizzle.module';
 import {
@@ -41,7 +36,7 @@ export class AttendanceService {
       .execute();
 
     if (result.length === 0) {
-      throw new NotFoundException('Company not found');
+      throw new BadRequestException('Company not found');
     }
 
     return result[0]; // Return the first matching user
@@ -54,7 +49,7 @@ export class AttendanceService {
       .where(eq(employees.id, employee_id))
       .execute();
     if (result.length === 0) {
-      throw new NotFoundException('Employee not found');
+      throw new BadRequestException('Employee not found');
     }
     return result[0]; // Return the first matching user
   }
@@ -303,7 +298,7 @@ export class AttendanceService {
         .execute();
 
       if (location.length === 0) {
-        throw new NotFoundException('Location not found');
+        throw new BadRequestException('Location not found');
       }
 
       return location[0];
@@ -366,7 +361,7 @@ export class AttendanceService {
         .execute();
 
       if (existingLocation.length > 0) {
-        throw new NotFoundException('Employee already has a location');
+        throw new BadRequestException('Employee already has a location');
       }
 
       await this.db
@@ -407,7 +402,7 @@ export class AttendanceService {
         .execute();
 
       if (locations.length === 0) {
-        throw new NotFoundException(
+        throw new BadRequestException(
           'No employee locations found for this company',
         );
       }
@@ -430,7 +425,7 @@ export class AttendanceService {
         .execute();
 
       if (location.length === 0) {
-        throw new NotFoundException('Location not found');
+        throw new BadRequestException('Location not found');
       }
 
       await this.db
@@ -462,7 +457,7 @@ export class AttendanceService {
         .execute();
 
       if (location.length === 0) {
-        throw new NotFoundException('Location not found');
+        throw new BadRequestException('Location not found');
       }
 
       await this.db
@@ -487,6 +482,7 @@ export class AttendanceService {
     latitude: string,
     longitude: string,
   ) {
+    console.log('Location Check:' + latitude, longitude);
     // Check if the employee exists
     const employee = await this.getEmployeeByUserId(employee_id);
     // Fetch the employee's location and the company's office location
@@ -506,25 +502,25 @@ export class AttendanceService {
       // Check if the employee's current location matches any of their set locations
       const isEmployeeInValidLocation = employeeLocation.some((location) => {
         return (
-          Math.abs(Number(location.latitude) - Number(latitude)) < 0.0001 && // Allow a small threshold for latitude
-          Math.abs(Number(location.longitude) - Number(longitude)) < 0.0001 // Allow a small threshold for longitude
+          Math.abs(Number(location.latitude) - Number(latitude)) < 0.005 && // Allow a small threshold for latitude
+          Math.abs(Number(location.longitude) - Number(longitude)) < 0.005 // Allow a small threshold for longitude
         );
       });
 
       if (!isEmployeeInValidLocation) {
-        throw new NotFoundException('Employee is not at a valid location');
+        throw new BadRequestException('Employee is not at a valid location');
       }
     } else {
       // If employee doesn't have a set location, check if they're within any of the office locations
       const isInOfficeLocation = companyLocations.some((location) => {
         return (
-          Math.abs(Number(location.latitude) - Number(latitude)) < 0.0001 && // Allow a small threshold for latitude
-          Math.abs(Number(location.longitude) - Number(longitude)) < 0.0001 // Allow a small threshold for longitude
+          Math.abs(Number(location.latitude) - Number(latitude)) < 0.005 && // Allow a small threshold for latitude
+          Math.abs(Number(location.longitude) - Number(longitude)) < 0.005 // Allow a small threshold for longitude
         );
       });
 
       if (!isInOfficeLocation) {
-        throw new NotFoundException(
+        throw new BadRequestException(
           'Employee is not at an authorized office location',
         );
       }
@@ -533,7 +529,6 @@ export class AttendanceService {
 
   async clockIn(employee_id: string, latitude: string, longitude: string) {
     const currentDate = new Date().toISOString().split('T')[0];
-
     // Check if the employee is already clocked in
     const existingAttendance = await this.db
       .select()
@@ -547,7 +542,7 @@ export class AttendanceService {
       .execute();
 
     if (existingAttendance.length > 0) {
-      throw new NotFoundException('Employee already clocked in');
+      throw new BadRequestException('Employee already clocked in');
     }
 
     // Check if the employee is at a valid location
@@ -588,7 +583,7 @@ export class AttendanceService {
       .execute();
 
     if (existingAttendance.length === 0) {
-      throw new NotFoundException('Employee is not clocked in');
+      throw new BadRequestException('Employee is not clocked in');
     }
 
     // Check if the employee is at a valid location
@@ -599,11 +594,13 @@ export class AttendanceService {
     const alreadyCheckedOutTime = existingAttendance[0].check_out_time;
 
     if (alreadyCheckedOutTime) {
-      throw new NotFoundException('Employee already clocked out');
+      throw new BadRequestException('Employee already clocked out');
     }
 
     if (!checkInTime) {
-      throw new NotFoundException('Check-in time is missing for the employee');
+      throw new BadRequestException(
+        'Check-in time is missing for the employee',
+      );
     }
 
     const checkOutTime = new Date();
@@ -808,8 +805,8 @@ export class AttendanceService {
 
   async getAttendanceSummaryByDate(date: string, companyId: string) {
     const targetDate = new Date(date).toISOString().split('T')[0];
-    const workStarts = new Date();
-    workStarts.setHours(9, 0, 0, 0); // 9:00 AM
+    const workStarts = new Date(date); // generate 9AM for this date
+    workStarts.setHours(9, 0, 0, 0);
 
     function parseDbDate(date: string | Date | null): Date | null {
       if (!date) return null;
@@ -864,5 +861,130 @@ export class AttendanceService {
     });
 
     return { date: targetDate, summaryList };
+  }
+
+  async getEmployeeAttendanceByDate(employeeId: string, date: string) {
+    const targetDate = new Date(date).toISOString().split('T')[0];
+    const workStarts = new Date(date); // generate 9AM for this date
+    workStarts.setHours(9, 0, 0, 0);
+
+    function parseDbDate(date: string | Date | null): Date | null {
+      if (!date) return null;
+      if (typeof date === 'string') {
+        return new Date(date.replace(' ', 'T'));
+      }
+      return new Date(date);
+    }
+
+    const employee = await this.getEmployeeByUserId(employeeId);
+
+    if (!employee) {
+      throw new BadRequestException('Employee not found');
+    }
+
+    const record = await this.db
+      .select()
+      .from(attendance)
+      .where(
+        and(
+          eq(attendance.date, targetDate),
+          eq(attendance.employee_id, employeeId),
+        ),
+      )
+      .then((res) => res[0]);
+
+    const checkIn = record?.check_in_time
+      ? parseDbDate(record.check_in_time)
+      : null;
+    const checkOut = record?.check_out_time
+      ? parseDbDate(record.check_out_time)
+      : null;
+    const isLate = checkIn ? checkIn > workStarts : false;
+
+    let status: 'absent' | 'present' | 'late' = 'absent';
+    if (checkIn && !isLate) status = 'present';
+    if (checkIn && isLate) status = 'late';
+
+    return {
+      date: targetDate,
+      check_in_time: checkIn ? checkIn.toISOString() : null,
+      check_out_time: checkOut ? checkOut.toISOString() : null,
+      status,
+    };
+  }
+
+  async getEmployeeAttendanceByMonth(employeeId: string, month: string) {
+    const startOfMonth = new Date(`${month}-01`);
+    const endOfMonth = new Date(startOfMonth);
+    endOfMonth.setMonth(endOfMonth.getMonth() + 1);
+    endOfMonth.setDate(0); // Last day of the month
+
+    function parseDbDate(date: string | Date | null): Date | null {
+      if (!date) return null;
+      if (typeof date === 'string') {
+        return new Date(date.replace(' ', 'T'));
+      }
+      return new Date(date);
+    }
+
+    const employee = await this.getEmployeeByUserId(employeeId);
+
+    if (!employee) {
+      throw new BadRequestException('Employee not found');
+    }
+
+    const attendanceRecords = await this.db
+      .select()
+      .from(attendance)
+      .where(
+        and(
+          eq(attendance.employee_id, employeeId),
+          gte(attendance.date, startOfMonth.toISOString().split('T')[0]),
+          lte(attendance.date, endOfMonth.toISOString().split('T')[0]),
+        ),
+      );
+
+    const today = new Date();
+    const daysInMonth = endOfMonth.getDate();
+    const summaryList = Array.from({ length: daysInMonth }).flatMap((_, i) => {
+      const date = new Date(startOfMonth);
+      date.setDate(i + 1);
+
+      // Don't include dates after today
+      if (date > today) return [];
+
+      const formattedDate = date.toISOString().split('T')[0];
+
+      const workStarts = new Date(date);
+      workStarts.setHours(9, 0, 0, 0);
+
+      const record = attendanceRecords.find((r) => r.date === formattedDate);
+      const checkIn = record?.check_in_time
+        ? parseDbDate(record.check_in_time)
+        : null;
+      const checkOut = record?.check_out_time
+        ? parseDbDate(record.check_out_time)
+        : null;
+
+      const isLate = checkIn ? checkIn > workStarts : false;
+
+      let status: 'absent' | 'present' | 'late' = 'absent';
+      if (checkIn) {
+        status = isLate ? 'late' : 'present';
+      }
+
+      return [
+        {
+          date: formattedDate,
+          check_in_time: checkIn ? checkIn.toISOString() : null,
+          check_out_time: checkOut ? checkOut.toISOString() : null,
+          status,
+        },
+      ];
+    });
+
+    return {
+      summaryList,
+    };
   }
 }

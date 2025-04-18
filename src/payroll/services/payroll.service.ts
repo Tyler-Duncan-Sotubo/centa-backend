@@ -358,6 +358,15 @@ export class PayrollService {
       payrollMonth,
     });
 
+    // Notify employees about their payslips
+    for (const employee of existingEmployees) {
+      await this.payrollQueue.add('PendingPayroll', {
+        employee_id: employee.id,
+        message: `${payrollMonth} payroll is ready for you to review.`,
+        title: 'Payroll Notification',
+        dataMessage: { payrollId: 'pending' },
+      });
+    }
     return payrollResults;
   }
 

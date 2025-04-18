@@ -16,6 +16,7 @@ const cache_module_1 = require("../config/cache/cache.module");
 const bullmq_1 = require("@nestjs/bullmq");
 const primary_guard_1 = require("../auth/guards/primary.guard");
 const jwt_1 = require("@nestjs/jwt");
+const push_notification_service_1 = require("./services/push-notification.service");
 let NotificationModule = class NotificationModule {
 };
 exports.NotificationModule = NotificationModule;
@@ -29,7 +30,13 @@ exports.NotificationModule = NotificationModule = __decorate([
             }),
         ],
         controllers: [notifications_controller_1.NotificationController],
-        providers: [pusher_service_1.PusherService, chatbot_service_1.ChatbotService, primary_guard_1.PrimaryGuard, jwt_1.JwtService],
+        providers: [
+            pusher_service_1.PusherService,
+            chatbot_service_1.ChatbotService,
+            primary_guard_1.PrimaryGuard,
+            jwt_1.JwtService,
+            push_notification_service_1.PushNotificationService,
+        ],
     })
 ], NotificationModule);
 //# sourceMappingURL=notification.module.js.map

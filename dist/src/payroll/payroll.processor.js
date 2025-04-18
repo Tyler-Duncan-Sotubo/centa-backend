@@ -14,15 +14,16 @@ const bullmq_1 = require("@nestjs/bullmq");
 const payslip_service_1 = require("./services/payslip.service");
 const tax_service_1 = require("./services/tax.service");
 const pdf_service_1 = require("./services/pdf.service");
+const push_notification_service_1 = require("../notification/services/push-notification.service");
 let PayrollProcessor = class PayrollProcessor extends bullmq_1.WorkerHost {
-    constructor(payslipService, taxService, pdfService) {
+    constructor(payslipService, taxService, pdfService, pushNotificationService) {
         super();
         this.payslipService = payslipService;
         this.taxService = taxService;
         this.pdfService = pdfService;
+        this.pushNotificationService = pushNotificationService;
     }
     async process(job) {
-        console.log(`🔄 Processing job: ${job.name}`);
         try {
             switch (job.name) {
                 case 'generatePayslips':
@@ -34,10 +35,15 @@ let PayrollProcessor = class PayrollProcessor extends bullmq_1.WorkerHost {
                 case 'generatePayslipPdf':
                     await this.handleGeneratePayslipPdf(job.data);
                     break;
+                case 'PendingPayroll':
+                    await this.handleSendNotification(job.data);
+                    break;
+                case 'PayslipGenerated':
+                    await this.handlePayslipSendNotification(job.data);
+                    break;
                 default:
                     console.warn(`⚠️ Unhandled job: ${job.name}`);
             }
-            console.log(`✅ Job completed: ${job.name}`);
         }
         catch (error) {
             console.error(`❌ Error processing job (${job.name}):`, error);
@@ -56,12 +62,21 @@ let PayrollProcessor = class PayrollProcessor extends bullmq_1.WorkerHost {
         const { payslipId } = data;
         await this.pdfService.generatePayslipPdf(payslipId);
     }
+    async handleSendNotification(data) {
+        const { employee_id, message, title, dataMessage } = data;
+        await this.pushNotificationService.sendPushNotification(employee_id, message, title, dataMessage);
+    }
+    async handlePayslipSendNotification(data) {
+        const { employee_id, message, title, dataMessage } = data;
+        await this.pushNotificationService.sendPushNotification(employee_id, message, title, dataMessage);
+    }
 };
 exports.PayrollProcessor = PayrollProcessor;
 exports.PayrollProcessor = PayrollProcessor = __decorate([
     (0, bullmq_1.Processor)('payrollQueue'),
     __metadata("design:paramtypes", [payslip_service_1.PayslipService,
         tax_service_1.TaxService,
-        pdf_service_1.PdfService])
+        pdf_service_1.PdfService,
+        push_notification_service_1.PushNotificationService])
 ], PayrollProcessor);
 //# sourceMappingURL=payroll.processor.js.map

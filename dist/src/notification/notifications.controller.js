@@ -19,11 +19,13 @@ const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 const current_user_decorator_1 = require("../auth/decorator/current-user.decorator");
 const base_controller_1 = require("../config/base.controller");
 const chatbot_service_1 = require("./services/chatbot.service");
+const push_notification_service_1 = require("./services/push-notification.service");
 let NotificationController = class NotificationController extends base_controller_1.BaseController {
-    constructor(pusher, chatbotService) {
+    constructor(pusher, chatbotService, pushNotificationService) {
         super();
         this.pusher = pusher;
         this.chatbotService = chatbotService;
+        this.pushNotificationService = pushNotificationService;
     }
     async getUserNotifications(user) {
         return this.pusher.getUserNotifications(user.company_id);
@@ -33,6 +35,9 @@ let NotificationController = class NotificationController extends base_controlle
     }
     async askAI(message, chatId) {
         return await this.chatbotService.chatWithAI(message, chatId);
+    }
+    async savePushToken(employee_id, token) {
+        return this.pushNotificationService.saveToken(employee_id, token);
     }
 };
 exports.NotificationController = NotificationController;
@@ -60,9 +65,19 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "askAI", null);
+__decorate([
+    (0, common_1.Post)('push-token/:employee_id'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    __param(0, (0, common_1.Param)('employee_id')),
+    __param(1, (0, common_1.Body)('token')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], NotificationController.prototype, "savePushToken", null);
 exports.NotificationController = NotificationController = __decorate([
     (0, common_1.Controller)(''),
     __metadata("design:paramtypes", [pusher_service_1.PusherService,
-        chatbot_service_1.ChatbotService])
+        chatbot_service_1.ChatbotService,
+        push_notification_service_1.PushNotificationService])
 ], NotificationController);
 //# sourceMappingURL=notifications.controller.js.map

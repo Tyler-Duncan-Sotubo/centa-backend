@@ -30,6 +30,7 @@ const primary_guard_1 = require("../auth/guards/primary.guard");
 const jwt_1 = require("@nestjs/jwt");
 const schedule_1 = require("@nestjs/schedule");
 const payroll_scheduler_service_1 = require("./services/payroll-scheduler.service");
+const push_notification_service_1 = require("../notification/services/push-notification.service");
 let PayrollModule = class PayrollModule {
 };
 exports.PayrollModule = PayrollModule;
@@ -61,6 +62,7 @@ exports.PayrollModule = PayrollModule = __decorate([
             primary_guard_1.PrimaryGuard,
             jwt_1.JwtService,
             payroll_scheduler_service_1.PayrollSchedulerService,
+            push_notification_service_1.PushNotificationService,
         ],
     })
 ], PayrollModule);

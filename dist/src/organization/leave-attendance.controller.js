@@ -32,6 +32,9 @@ let LeaveAttendanceController = class LeaveAttendanceController extends base_con
     async getHolidays() {
         return this.attendanceService.insertHolidaysForCurrentYear('NG');
     }
+    async getUpcomingPublicHolidays() {
+        return this.attendanceService.getUpcomingPublicHolidays('NG');
+    }
     async createOfficeLocation(dto, user) {
         return this.attendanceService.createOfficeLocation(user.company_id, dto);
     }
@@ -59,17 +62,23 @@ let LeaveAttendanceController = class LeaveAttendanceController extends base_con
     async deleteEmployeeLocation(location_id) {
         return this.attendanceService.deleteEmployeeLocation(location_id);
     }
-    async clockIn(employee_id) {
-        return this.attendanceService.clockIn(employee_id, '6.436180', '3.535591');
+    async clockIn(employee_id, dto) {
+        return this.attendanceService.clockIn(employee_id, dto.latitude, dto.longitude);
     }
-    async clockOut(employee_id) {
-        return this.attendanceService.clockOut(employee_id, '3.340787', '6.596061');
+    async clockOut(employee_id, dto) {
+        return this.attendanceService.clockOut(employee_id, dto.latitude, dto.longitude);
     }
     async getAttendance(user) {
         return this.attendanceService.getDailyAttendanceSummary(user.company_id);
     }
     async getAttendanceByDate(date, user) {
         return this.attendanceService.getAttendanceSummaryByDate(date, user.company_id);
+    }
+    async getEmployeeAttendanceByDate(date, employee_id) {
+        return this.attendanceService.getEmployeeAttendanceByDate(employee_id, date);
+    }
+    async getEmployeeAttendanceByMonth(date, employee_id) {
+        return this.attendanceService.getEmployeeAttendanceByMonth(employee_id, date);
     }
     async leaveManagement(countryCode, user) {
         return this.leaveService.leaveManagement(user.company_id, countryCode);
@@ -126,6 +135,14 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], LeaveAttendanceController.prototype, "getHolidays", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'employee']),
+    (0, common_1.Get)('upcoming-holidays'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], LeaveAttendanceController.prototype, "getUpcomingPublicHolidays", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
@@ -222,8 +239,9 @@ __decorate([
     (0, audit_decorator_1.Audit)({ action: 'Clock In', entity: 'Attendance' }),
     (0, common_1.Post)('clock-in/:employee_id'),
     __param(0, (0, common_1.Param)('employee_id')),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], LeaveAttendanceController.prototype, "clockIn", null);
 __decorate([
@@ -232,8 +250,9 @@ __decorate([
     (0, audit_decorator_1.Audit)({ action: 'Clock Out', entity: 'Attendance' }),
     (0, common_1.Post)('clock-out/:employee_id'),
     __param(0, (0, common_1.Param)('employee_id')),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], LeaveAttendanceController.prototype, "clockOut", null);
 __decorate([
@@ -254,6 +273,24 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], LeaveAttendanceController.prototype, "getAttendanceByDate", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Get)('employee-attendance-by-day/:employee_id/:date'),
+    __param(0, (0, common_1.Param)('date')),
+    __param(1, (0, common_1.Param)('employee_id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], LeaveAttendanceController.prototype, "getEmployeeAttendanceByDate", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Get)('employee-attendance-by-month/:employee_id/:date'),
+    __param(0, (0, common_1.Param)('date')),
+    __param(1, (0, common_1.Param)('employee_id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], LeaveAttendanceController.prototype, "getEmployeeAttendanceByMonth", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
