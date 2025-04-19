@@ -217,6 +217,16 @@ export class PayrollController extends BaseController {
     return this.payrollService.deleteBonus(user.company_id, id);
   }
 
+  @Get('employee-bonuses/:employeeId')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'employee'])
+  async getEmployeeBonuses(
+    @CurrentUser() user: User,
+    @Param('employeeId') employeeId: string,
+  ) {
+    return this.payrollService.getEmployeeBonuses(user.company_id, employeeId);
+  }
+
   // Payslips
   @Get('payslips/:id')
   @UseGuards(JwtAuthGuard)

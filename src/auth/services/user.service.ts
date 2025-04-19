@@ -18,6 +18,10 @@ import { taxConfig } from 'src/drizzle/schema/deductions.schema';
 import { OnboardingService } from 'src/organization/services/onboarding.service';
 import { salaryBreakdown } from 'src/drizzle/schema/payroll.schema';
 import { AuditService } from 'src/audit/audit.service';
+import {
+  attendanceRules,
+  workHoursSettings,
+} from 'src/drizzle/schema/leave-attendance.schema';
 
 @Injectable()
 export class UserService {
@@ -84,6 +88,19 @@ export class UserService {
         basic: '50.0',
         housing: '30.0',
         transport: '20.0',
+      });
+
+      // default attendance settings
+      await trx.insert(workHoursSettings).values({
+        company_id: company[0].id,
+        startTime: '09:00',
+        endTime: '17:00',
+        breakMinutes: 60,
+        workDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+      });
+
+      await trx.insert(attendanceRules).values({
+        company_id: company[0].id,
       });
 
       return user; // Return the created user object

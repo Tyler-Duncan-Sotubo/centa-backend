@@ -30,6 +30,7 @@ const leave_attendance_controller_1 = require("./leave-attendance.controller");
 const leave_service_1 = require("./services/leave.service");
 const attendance_scheduler_service_1 = require("./services/attendance-scheduler.service");
 const pusher_service_1 = require("../notification/services/pusher.service");
+const push_notification_service_1 = require("../notification/services/push-notification.service");
 let OrganizationModule = class OrganizationModule {
 };
 exports.OrganizationModule = OrganizationModule;
@@ -65,6 +66,7 @@ exports.OrganizationModule = OrganizationModule = __decorate([
             leave_service_1.LeaveService,
             attendance_scheduler_service_1.AttendanceSchedulerService,
             pusher_service_1.PusherService,
+            push_notification_service_1.PushNotificationService,
         ],
     })
 ], OrganizationModule);

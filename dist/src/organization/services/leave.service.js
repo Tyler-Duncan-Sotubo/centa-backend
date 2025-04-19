@@ -21,11 +21,13 @@ const employee_schema_1 = require("../../drizzle/schema/employee.schema");
 const attendance_service_1 = require("./attendance.service");
 const pusher_service_1 = require("../../notification/services/pusher.service");
 const users_schema_1 = require("../../drizzle/schema/users.schema");
+const push_notification_service_1 = require("../../notification/services/push-notification.service");
 let LeaveService = class LeaveService {
-    constructor(db, attendance, pusher) {
+    constructor(db, attendance, pusher, pushNotification) {
         this.db = db;
         this.attendance = attendance;
         this.pusher = pusher;
+        this.pushNotification = pushNotification;
     }
     async leaveManagement(company_id, countryCode) {
         const leaveSummary = await this.getLeaveSummary(company_id);
@@ -169,8 +171,6 @@ let LeaveService = class LeaveService {
             .from(leave_attendance_schema_1.leave_balance)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_attendance_schema_1.leave_balance.employee_id, employee_id), (0, drizzle_orm_1.eq)(leave_attendance_schema_1.leave_balance.leave_type, leave_type)))
             .execute();
-        console.log('Balance:', balance);
-        console.log('Total Days Off:', total_days_off);
         if (balance) {
             if (balance.remaining_days === null ||
                 balance.remaining_days < total_days_off) {
@@ -375,6 +375,7 @@ let LeaveService = class LeaveService {
                     .execute();
             }
             await this.pusher.createNotification(company_id, `Leave request for ${leave_type} has been approved.`, 'leave');
+            await this.pushNotification.sendPushNotification(employee_id, `Your leave request for ${leave_type} has been approved.`, 'leave', { leaveId: id });
             return 'Leave request approved and leave balance updated successfully';
         }
         catch (error) {
@@ -383,13 +384,17 @@ let LeaveService = class LeaveService {
     }
     async rejectLeaveRequest(id, user_id) {
         try {
-            await this.db
+            const leaveRequest = await this.db
                 .update(leave_attendance_schema_1.leave_requests)
                 .set({
                 leave_status: 'rejected',
                 approved_by: user_id,
             })
                 .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.leave_requests.id, id))
+                .returning({
+                leave_type: leave_attendance_schema_1.leave_requests.leave_type,
+                employee_id: leave_attendance_schema_1.leave_requests.employee_id,
+            })
                 .execute();
             const [user] = await this.db
                 .select({
@@ -402,6 +407,7 @@ let LeaveService = class LeaveService {
                 throw new common_1.NotFoundException('User not found');
             }
             await this.pusher.createNotification(user.company_id ?? '', `Leave request rejected.`, 'leave');
+            await this.pushNotification.sendPushNotification(leaveRequest[0].employee_id, `Your leave request for ${leaveRequest[0].employee_id} has been approved.`, 'leave', { leaveId: id });
             return 'Leave request rejected successfully';
         }
         catch (error) {
@@ -445,6 +451,7 @@ exports.LeaveService = LeaveService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, attendance_service_1.AttendanceService,
-        pusher_service_1.PusherService])
+        pusher_service_1.PusherService,
+        push_notification_service_1.PushNotificationService])
 ], LeaveService);
 //# sourceMappingURL=leave.service.js.map

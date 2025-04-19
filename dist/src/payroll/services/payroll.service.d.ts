@@ -4,13 +4,15 @@ import { createBonusDto } from '../dto';
 import { CacheService } from 'src/config/cache/cache.service';
 import { LoanService } from './loan.service';
 import { TaxService } from './tax.service';
+import { PushNotificationService } from 'src/notification/services/push-notification.service';
 export declare class PayrollService {
     private db;
     private payrollQueue;
     private cache;
     private loanService;
     private taxService;
-    constructor(db: db, payrollQueue: Queue, cache: CacheService, loanService: LoanService, taxService: TaxService);
+    private pushNotificationService;
+    constructor(db: db, payrollQueue: Queue, cache: CacheService, loanService: LoanService, taxService: TaxService, pushNotificationService: PushNotificationService);
     private formattedDate;
     private calculatePAYE;
     calculatePayroll(employee_id: string, payrollMonth: string, payrollRunId: string, company_id: string): Promise<{
@@ -118,6 +120,8 @@ export declare class PayrollService {
     }[]>;
     updatePayrollPaymentStatus(user_id: string, payroll_run_id: string, payment_status: string): Promise<{
         payroll_month: string;
+        salary_advance: number | null;
+        employee_id: string;
     }[]>;
     deletePayroll(company_id: string, payroll_run_id: string): Promise<any>;
     getSalaryBreakdown(user_id: string): Promise<{
@@ -159,6 +163,13 @@ export declare class PayrollService {
         payroll_month: string;
     }[]>;
     deleteBonus(user_id: string, id: string): Promise<any>;
+    getEmployeeBonuses(user_id: string, employee_id: string): Promise<{
+        id: string;
+        employee_id: string;
+        amount: number;
+        bonus_type: string | null;
+        payroll_month: string;
+    }[]>;
     getPayrollPreviewDetails(company_id: string): Promise<{
         allEmployees: {
             id: string;

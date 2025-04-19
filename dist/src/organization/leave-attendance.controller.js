@@ -23,6 +23,7 @@ const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 const current_user_decorator_1 = require("../auth/decorator/current-user.decorator");
 const leave_service_1 = require("./services/leave.service");
 const leave_dto_1 = require("./dto/leave.dto");
+const update_attendance_settings_dto_1 = require("./dto/update-attendance-settings.dto");
 let LeaveAttendanceController = class LeaveAttendanceController extends base_controller_1.BaseController {
     constructor(attendanceService, leaveService) {
         super();
@@ -62,11 +63,20 @@ let LeaveAttendanceController = class LeaveAttendanceController extends base_con
     async deleteEmployeeLocation(location_id) {
         return this.attendanceService.deleteEmployeeLocation(location_id);
     }
-    async clockIn(employee_id, dto) {
-        return this.attendanceService.clockIn(employee_id, dto.latitude, dto.longitude);
+    async getWorkHours(user) {
+        return this.attendanceService.getWorkHoursSettings(user.company_id);
     }
-    async clockOut(employee_id, dto) {
-        return this.attendanceService.clockOut(employee_id, dto.latitude, dto.longitude);
+    async getAttendanceRules(user) {
+        return this.attendanceService.getAttendanceRules(user.company_id);
+    }
+    async updateWorkHours(dto, user) {
+        return this.attendanceService.updateWorkHoursSettings(user.company_id, dto);
+    }
+    async updateAttendanceRules(dto, user) {
+        return this.attendanceService.updateAttendanceRules(user.company_id, dto);
+    }
+    async getMonthlyAttendanceSummary(user, month) {
+        return this.attendanceService.getMonthlyAttendanceSummary(user.company_id, month);
     }
     async getAttendance(user) {
         return this.attendanceService.getDailyAttendanceSummary(user.company_id);
@@ -79,6 +89,12 @@ let LeaveAttendanceController = class LeaveAttendanceController extends base_con
     }
     async getEmployeeAttendanceByMonth(date, employee_id) {
         return this.attendanceService.getEmployeeAttendanceByMonth(employee_id, date);
+    }
+    async clockIn(employee_id, dto) {
+        return this.attendanceService.clockIn(employee_id, dto.latitude, dto.longitude);
+    }
+    async clockOut(employee_id, dto) {
+        return this.attendanceService.clockOut(employee_id, dto.latitude, dto.longitude);
     }
     async leaveManagement(countryCode, user) {
         return this.leaveService.leaveManagement(user.company_id, countryCode);
@@ -235,26 +251,54 @@ __decorate([
 ], LeaveAttendanceController.prototype, "deleteEmployeeLocation", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('roles', ['employee', 'super_admin', 'admin']),
-    (0, audit_decorator_1.Audit)({ action: 'Clock In', entity: 'Attendance' }),
-    (0, common_1.Post)('clock-in/:employee_id'),
-    __param(0, (0, common_1.Param)('employee_id')),
-    __param(1, (0, common_1.Body)()),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, common_1.Get)('work-hours'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
-], LeaveAttendanceController.prototype, "clockIn", null);
+], LeaveAttendanceController.prototype, "getWorkHours", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('roles', ['employee', 'super_admin', 'admin']),
-    (0, audit_decorator_1.Audit)({ action: 'Clock Out', entity: 'Attendance' }),
-    (0, common_1.Post)('clock-out/:employee_id'),
-    __param(0, (0, common_1.Param)('employee_id')),
-    __param(1, (0, common_1.Body)()),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, common_1.Get)('attendance-rules'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
-], LeaveAttendanceController.prototype, "clockOut", null);
+], LeaveAttendanceController.prototype, "getAttendanceRules", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Update Work Hours', entity: 'Attendance' }),
+    (0, common_1.Put)('work-hours'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [update_attendance_settings_dto_1.WorkHoursDTO, Object]),
+    __metadata("design:returntype", Promise)
+], LeaveAttendanceController.prototype, "updateWorkHours", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Update Attendance Rules', entity: 'Attendance' }),
+    (0, common_1.Put)('attendance-rules'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [update_attendance_settings_dto_1.AttendanceRulesDTO, Object]),
+    __metadata("design:returntype", Promise)
+], LeaveAttendanceController.prototype, "updateAttendanceRules", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    (0, common_1.Get)('monthly-attendance-summary/:month'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('month')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], LeaveAttendanceController.prototype, "getMonthlyAttendanceSummary", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
@@ -291,6 +335,28 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
 ], LeaveAttendanceController.prototype, "getEmployeeAttendanceByMonth", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['employee', 'super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Clock In', entity: 'Attendance' }),
+    (0, common_1.Post)('clock-in/:employee_id'),
+    __param(0, (0, common_1.Param)('employee_id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], LeaveAttendanceController.prototype, "clockIn", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['employee', 'super_admin', 'admin']),
+    (0, audit_decorator_1.Audit)({ action: 'Clock Out', entity: 'Attendance' }),
+    (0, common_1.Post)('clock-out/:employee_id'),
+    __param(0, (0, common_1.Param)('employee_id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], LeaveAttendanceController.prototype, "clockOut", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),

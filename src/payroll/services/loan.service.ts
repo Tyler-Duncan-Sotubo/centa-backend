@@ -42,10 +42,7 @@ export class LoanService {
     return await this.db
       .select({
         loanId: salaryAdvance.id,
-        monthlyDeduction: sql<number>`
-        (${salaryAdvance.amount} - ${salaryAdvance.total_paid}) / 
-        GREATEST(${salaryAdvance.tenureMonths} - DATE_PART('month', AGE(NOW(), ${salaryAdvance.createdAt})), 1)
-      `.as('monthlyDeduction'),
+        monthlyDeduction: salaryAdvance.preferredMonthlyPayment,
       })
       .from(salaryAdvance)
       .where(

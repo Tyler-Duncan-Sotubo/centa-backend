@@ -22,6 +22,7 @@ import { employees } from 'src/drizzle/schema/employee.schema';
 import { AttendanceService } from './attendance.service';
 import { PusherService } from 'src/notification/services/pusher.service';
 import { users } from 'src/drizzle/schema/users.schema';
+import { PushNotificationService } from 'src/notification/services/push-notification.service';
 
 @Injectable()
 export class LeaveService {
@@ -29,6 +30,7 @@ export class LeaveService {
     @Inject(DRIZZLE) private db: db,
     private readonly attendance: AttendanceService,
     private readonly pusher: PusherService,
+    private readonly pushNotification: PushNotificationService,
   ) {}
 
   async leaveManagement(company_id: string, countryCode: string) {
@@ -242,9 +244,6 @@ export class LeaveService {
         ),
       )
       .execute();
-
-    console.log('Balance:', balance);
-    console.log('Total Days Off:', total_days_off);
 
     if (balance) {
       if (
@@ -531,6 +530,14 @@ export class LeaveService {
         'leave',
       );
 
+      // Step 6: Notify employee
+      await this.pushNotification.sendPushNotification(
+        employee_id,
+        `Your leave request for ${leave_type} has been approved.`,
+        'leave',
+        { leaveId: id },
+      );
+
       return 'Leave request approved and leave balance updated successfully';
     } catch (error) {
       throw new BadRequestException('Error approving leave request. ' + error);
@@ -539,17 +546,20 @@ export class LeaveService {
 
   async rejectLeaveRequest(id: string, user_id: string) {
     try {
-      await this.db
+      const leaveRequest = await this.db
         .update(leave_requests)
         .set({
           leave_status: 'rejected',
           approved_by: user_id,
         })
         .where(eq(leave_requests.id, id))
+        .returning({
+          leave_type: leave_requests.leave_type,
+          employee_id: leave_requests.employee_id,
+        })
         .execute();
 
       // Fetch the leave request to get employee_id and company_id
-
       const [user] = await this.db
         .select({
           company_id: users.company_id,
@@ -566,6 +576,14 @@ export class LeaveService {
         user.company_id ?? '',
         `Leave request rejected.`,
         'leave',
+      );
+
+      // Step 6: Notify employee
+      await this.pushNotification.sendPushNotification(
+        leaveRequest[0].employee_id,
+        `Your leave request for ${leaveRequest[0].employee_id} has been approved.`,
+        'leave',
+        { leaveId: id },
       );
 
       return 'Leave request rejected successfully';

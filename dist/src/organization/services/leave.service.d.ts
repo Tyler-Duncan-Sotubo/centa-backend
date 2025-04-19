@@ -2,11 +2,13 @@ import { db } from 'src/drizzle/types/drizzle';
 import { CreateLeaveDto, CreateLeaveRequestDto, UpdateLeaveDto, UpdateLeaveRequestDto } from '../dto/leave.dto';
 import { AttendanceService } from './attendance.service';
 import { PusherService } from 'src/notification/services/pusher.service';
+import { PushNotificationService } from 'src/notification/services/push-notification.service';
 export declare class LeaveService {
     private db;
     private readonly attendance;
     private readonly pusher;
-    constructor(db: db, attendance: AttendanceService, pusher: PusherService);
+    private readonly pushNotification;
+    constructor(db: db, attendance: AttendanceService, pusher: PusherService, pushNotification: PushNotificationService);
     leaveManagement(company_id: string, countryCode: string): Promise<{
         leaveSummary: {
             leave_type: string;

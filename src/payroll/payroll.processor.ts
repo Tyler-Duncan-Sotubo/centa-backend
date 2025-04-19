@@ -1,54 +1,86 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
+import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import { Job, Queue } from 'bullmq';
 import { PayslipService } from './services/payslip.service';
 import { TaxService } from './services/tax.service';
 import { PdfService } from './services/pdf.service';
 import { PushNotificationService } from 'src/notification/services/push-notification.service';
+
 @Processor('payrollQueue')
 export class PayrollProcessor extends WorkerHost {
   constructor(
     private readonly payslipService: PayslipService,
     private readonly taxService: TaxService,
     private readonly pdfService: PdfService,
-    private pushNotificationService: PushNotificationService,
+    private readonly pushNotificationService: PushNotificationService,
+    @InjectQueue('payrollQueue') private readonly queue: Queue,
   ) {
     super();
   }
 
   async process(job: Job): Promise<void> {
     try {
+      console.log(`🧾 Processing job: ${job.name}`);
+
       switch (job.name) {
         case 'generatePayslips':
-          await this.handleGeneratePayslips(job.data);
+          await this.retryWithLogging(
+            () => this.handleGeneratePayslips(job.data),
+            job.name,
+          );
           break;
 
         case 'populateTaxDetails':
-          await this.handlePopulateTaxDetails(job.data);
+          await this.retryWithLogging(
+            () => this.handlePopulateTaxDetails(job.data),
+            job.name,
+          );
           break;
 
         case 'generatePayslipPdf':
-          await this.handleGeneratePayslipPdf(job.data);
+          await this.retryWithLogging(
+            () => this.handleGeneratePayslipPdf(job.data),
+            job.name,
+          );
           break;
 
         case 'PendingPayroll':
-          await this.handleSendNotification(job.data);
-          break;
-
-        case 'PayslipGenerated':
-          await this.handlePayslipSendNotification(job.data);
+        case 'PayslipGeneratedNotification': // 👈 Add this
+          await this.retryWithLogging(
+            () => this.sendNotification(job.data),
+            job.name,
+          );
           break;
 
         default:
-          console.warn(`⚠️ Unhandled job: ${job.name}`);
+          console.warn(`⚠️ Unhandled job type: ${job.name}`);
       }
     } catch (error) {
-      console.error(`❌ Error processing job (${job.name}):`, error);
+      console.error(`❌ Final error in job ${job.name}:`, error);
       throw error;
+    }
+  }
+
+  private async retryWithLogging(
+    task: () => Promise<void>,
+    jobName: string,
+    attempts = 3,
+    delay = 1000,
+  ) {
+    for (let i = 1; i <= attempts; i++) {
+      try {
+        await task();
+        return;
+      } catch (err) {
+        console.warn(`⏱️ Attempt ${i} failed for ${jobName}:`, err);
+        if (i < attempts) await new Promise((res) => setTimeout(res, delay));
+        else throw err;
+      }
     }
   }
 
   private async handleGeneratePayslips(data: any) {
     const { company_id, payrollMonth } = data;
+
     await this.payslipService.generatePayslipsForCompany(
       company_id,
       payrollMonth,
@@ -69,17 +101,7 @@ export class PayrollProcessor extends WorkerHost {
     await this.pdfService.generatePayslipPdf(payslipId);
   }
 
-  private async handleSendNotification(data: any) {
-    const { employee_id, message, title, dataMessage } = data;
-    await this.pushNotificationService.sendPushNotification(
-      employee_id,
-      message,
-      title,
-      dataMessage,
-    );
-  }
-
-  private async handlePayslipSendNotification(data: any) {
+  private async sendNotification(data: any) {
     const { employee_id, message, title, dataMessage } = data;
     await this.pushNotificationService.sendPushNotification(
       employee_id,

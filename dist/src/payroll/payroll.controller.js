@@ -92,6 +92,9 @@ let PayrollController = class PayrollController extends base_controller_1.BaseCo
     async deleteCompanyBonuses(user, id) {
         return this.payrollService.deleteBonus(user.company_id, id);
     }
+    async getEmployeeBonuses(user, employeeId) {
+        return this.payrollService.getEmployeeBonuses(user.company_id, employeeId);
+    }
     async getCompanyPayslips(user, id) {
         return this.payslipService.getCompanyPayslipsById(user.company_id, id);
     }
@@ -345,6 +348,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], PayrollController.prototype, "deleteCompanyBonuses", null);
+__decorate([
+    (0, common_1.Get)('employee-bonuses/:employeeId'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'employee']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('employeeId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], PayrollController.prototype, "getEmployeeBonuses", null);
 __decorate([
     (0, common_1.Get)('payslips/:id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

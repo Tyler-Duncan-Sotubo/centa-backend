@@ -63,6 +63,7 @@ export class PdfService {
           logoBuffer = null;
         }
       } catch (error) {
+        console.error('Error fetching logo:', error);
         logoBuffer = null; // Continue without a logo
       }
 

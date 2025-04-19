@@ -21,6 +21,7 @@ import { LeaveAttendanceController } from './leave-attendance.controller';
 import { LeaveService } from './services/leave.service';
 import { AttendanceSchedulerService } from './services/attendance-scheduler.service';
 import { PusherService } from 'src/notification/services/pusher.service';
+import { PushNotificationService } from 'src/notification/services/push-notification.service';
 @Module({
   imports: [
     AuthModule,
@@ -52,6 +53,7 @@ import { PusherService } from 'src/notification/services/pusher.service';
     LeaveService,
     AttendanceSchedulerService,
     PusherService,
+    PushNotificationService,
   ],
 })
 export class OrganizationModule {}

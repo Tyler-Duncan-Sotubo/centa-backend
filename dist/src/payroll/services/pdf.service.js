@@ -63,6 +63,7 @@ let PdfService = class PdfService {
                 }
             }
             catch (error) {
+                console.error('Error fetching logo:', error);
                 logoBuffer = null;
             }
             const leftX = 30;

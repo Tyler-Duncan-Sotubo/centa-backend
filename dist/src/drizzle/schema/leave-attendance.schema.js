@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.daily_attendance_summary = exports.leave_requests = exports.leave_balance = exports.leaves = exports.attendance = exports.holidays = exports.employeeLocations = exports.officeLocations = void 0;
+exports.attendanceRules = exports.workHoursSettings = exports.daily_attendance_summary = exports.leave_requests = exports.leave_balance = exports.leaves = exports.attendance = exports.holidays = exports.employeeLocations = exports.officeLocations = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 const company_schema_1 = require("./company.schema");
 const employee_schema_1 = require("./employee.schema");
@@ -109,5 +109,32 @@ exports.daily_attendance_summary = (0, pg_core_1.pgTable)('daily_attendance_summ
     average_check_in_time_yesterday: (0, pg_core_1.time)('average_check_in_time_yesterday'),
     createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow(),
     updatedAt: (0, pg_core_1.timestamp)('updated_at').defaultNow(),
+});
+exports.workHoursSettings = (0, pg_core_1.pgTable)('work_hours_settings', {
+    id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
+    startTime: (0, pg_core_1.time)('start_time').notNull(),
+    endTime: (0, pg_core_1.time)('end_time').notNull(),
+    breakMinutes: (0, pg_core_1.integer)('break_minutes').default(60),
+    workDays: (0, pg_core_1.text)('work_days')
+        .array()
+        .default(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']),
+    createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow(),
+    company_id: (0, pg_core_1.uuid)('company_id')
+        .notNull()
+        .references(() => company_schema_1.companies.id, { onDelete: 'cascade' }),
+});
+exports.attendanceRules = (0, pg_core_1.pgTable)('attendance_rules', {
+    id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
+    gracePeriodMins: (0, pg_core_1.integer)('grace_period_mins').default(10),
+    penaltyAfterMins: (0, pg_core_1.integer)('penalty_after_mins').default(10),
+    penaltyAmount: (0, pg_core_1.integer)('penalty_amount').default(200),
+    earlyLeaveThresholdMins: (0, pg_core_1.integer)('early_leave_threshold_mins').default(15),
+    absenceThresholdHours: (0, pg_core_1.integer)('absence_threshold_hours').default(4),
+    countWeekends: (0, pg_core_1.boolean)('count_weekends').default(false),
+    createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow(),
+    applyToPayroll: (0, pg_core_1.boolean)('apply_to_payroll').default(true),
+    company_id: (0, pg_core_1.uuid)('company_id')
+        .notNull()
+        .references(() => company_schema_1.companies.id, { onDelete: 'cascade' }),
 });
 //# sourceMappingURL=leave-attendance.schema.js.map

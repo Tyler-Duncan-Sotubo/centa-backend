@@ -12,7 +12,7 @@ export declare class LoanService {
     private getEmployee;
     getUnpaidAdvanceDeductions(employee_id: string): Promise<{
         loanId: string;
-        monthlyDeduction: number;
+        monthlyDeduction: number | null;
     }[]>;
     salaryAdvanceRequest(dto: LoanRequestDto, employee_id: string): Promise<{
         id: string;

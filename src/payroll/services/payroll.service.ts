@@ -25,6 +25,9 @@ import { CacheService } from 'src/config/cache/cache.service';
 import { v4 as uuidv4 } from 'uuid';
 import { LoanService } from './loan.service';
 import { TaxService } from './tax.service';
+import { formatCurrency } from 'src/utils/formatCurrency';
+import { PushNotificationService } from 'src/notification/services/push-notification.service';
+import { salaryAdvance } from 'src/drizzle/schema/loans.schema';
 
 @Injectable()
 export class PayrollService {
@@ -34,6 +37,7 @@ export class PayrollService {
     private cache: CacheService,
     private loanService: LoanService,
     private taxService: TaxService,
+    private pushNotificationService: PushNotificationService,
   ) {}
 
   private formattedDate = () => {
@@ -183,8 +187,6 @@ export class PayrollService {
         allowance_amount: amount,
       };
     });
-
-    // Compute Final Gross Salary
 
     // Check if pension and NHF should be applied
     let applyPension = false;
@@ -503,12 +505,42 @@ export class PayrollService {
       )
       .returning({
         payroll_month: payroll.payroll_month,
+        salary_advance: payroll.salary_advance,
+        employee_id: payroll.employee_id,
       })
       .execute();
 
     // clear cache
     await this.cache.del(`payroll_summary_${user_id}`);
     await this.cache.del(`payroll_status_${user_id}`);
+
+    // remove salary advance
+    for (const entry of result) {
+      if (entry.salary_advance !== null && entry.salary_advance > 0) {
+        const [advance] = await this.db
+          .select()
+          .from(salaryAdvance)
+          .where(eq(salaryAdvance.employee_id, entry.employee_id))
+          .limit(1)
+          .execute();
+
+        const existingPaid = advance?.total_paid ?? 0;
+        const newPaid = entry.salary_advance + existingPaid;
+
+        const updateData: any = { total_paid: newPaid };
+
+        // 👇 If fully paid, mark as paid
+        if (newPaid >= advance.amount) {
+          updateData.status = 'paid';
+          updateData.payment_status = 'closed';
+        }
+
+        await this.db
+          .update(salaryAdvance)
+          .set(updateData)
+          .where(eq(salaryAdvance.employee_id, entry.employee_id));
+      }
+    }
 
     await this.taxService.onPayrollApproval(
       company_id,
@@ -525,6 +557,13 @@ export class PayrollService {
     for (const payslip of getPayslips) {
       await this.payrollQueue.add('generatePayslipPdf', {
         payslipId: payslip.id,
+      });
+
+      await this.payrollQueue.add('PayslipGeneratedNotification', {
+        employee_id: payslip.employee_id,
+        title: 'Payslip Ready',
+        message: `Your payslip for ${result[0].payroll_month} is ready to view.`,
+        dataMessage: { payslipId: payslip.id },
       });
     }
 
@@ -684,6 +723,14 @@ export class PayrollService {
       .returning()
       .execute();
 
+    // Notify employees about their payslips
+    await this.pushNotificationService.sendPushNotification(
+      dto.employee_id,
+      `Congrats you received a ${dto.bonus_type} Bonus of ${formatCurrency(dto.amount * 100)} for ${this.formattedDate()}`,
+      'Bonus Notification',
+      { bonusId: 'completed' },
+    );
+
     return result;
   }
 
@@ -714,6 +761,29 @@ export class PayrollService {
     const result = await this.db
       .delete(bonus)
       .where(and(eq(bonus.company_id, company_id), eq(bonus.id, id)))
+      .execute();
+
+    return result;
+  }
+
+  async getEmployeeBonuses(user_id: string, employee_id: string) {
+    const company_id = await this.getCompany(user_id);
+
+    const result = await this.db
+      .select({
+        id: bonus.id,
+        employee_id: bonus.employee_id,
+        amount: bonus.amount,
+        bonus_type: bonus.bonus_type,
+        payroll_month: bonus.payroll_month,
+      })
+      .from(bonus)
+      .where(
+        and(
+          eq(bonus.company_id, company_id),
+          eq(bonus.employee_id, employee_id),
+        ),
+      )
       .execute();
 
     return result;

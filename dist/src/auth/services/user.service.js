@@ -28,6 +28,7 @@ const deductions_schema_1 = require("../../drizzle/schema/deductions.schema");
 const onboarding_service_1 = require("../../organization/services/onboarding.service");
 const payroll_schema_1 = require("../../drizzle/schema/payroll.schema");
 const audit_service_1 = require("../../audit/audit.service");
+const leave_attendance_schema_1 = require("../../drizzle/schema/leave-attendance.schema");
 let UserService = class UserService {
     constructor(db, verificationService, invitation, jwtService, configService, awsService, onboardingService, auditService) {
         this.db = db;
@@ -79,6 +80,16 @@ let UserService = class UserService {
                 basic: '50.0',
                 housing: '30.0',
                 transport: '20.0',
+            });
+            await trx.insert(leave_attendance_schema_1.workHoursSettings).values({
+                company_id: company[0].id,
+                startTime: '09:00',
+                endTime: '17:00',
+                breakMinutes: 60,
+                workDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+            });
+            await trx.insert(leave_attendance_schema_1.attendanceRules).values({
+                company_id: company[0].id,
             });
             return user;
         });

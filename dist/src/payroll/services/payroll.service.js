@@ -26,13 +26,17 @@ const cache_service_1 = require("../../config/cache/cache.service");
 const uuid_1 = require("uuid");
 const loan_service_1 = require("./loan.service");
 const tax_service_1 = require("./tax.service");
+const formatCurrency_1 = require("../../utils/formatCurrency");
+const push_notification_service_1 = require("../../notification/services/push-notification.service");
+const loans_schema_1 = require("../../drizzle/schema/loans.schema");
 let PayrollService = class PayrollService {
-    constructor(db, payrollQueue, cache, loanService, taxService) {
+    constructor(db, payrollQueue, cache, loanService, taxService, pushNotificationService) {
         this.db = db;
         this.payrollQueue = payrollQueue;
         this.cache = cache;
         this.loanService = loanService;
         this.taxService = taxService;
+        this.pushNotificationService = pushNotificationService;
         this.formattedDate = () => {
             const date = new Date();
             const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -309,10 +313,33 @@ let PayrollService = class PayrollService {
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_schema_1.payroll.company_id, company_id), (0, drizzle_orm_1.eq)(payroll_schema_1.payroll.payroll_run_id, payroll_run_id)))
             .returning({
             payroll_month: payroll_schema_1.payroll.payroll_month,
+            salary_advance: payroll_schema_1.payroll.salary_advance,
+            employee_id: payroll_schema_1.payroll.employee_id,
         })
             .execute();
         await this.cache.del(`payroll_summary_${user_id}`);
         await this.cache.del(`payroll_status_${user_id}`);
+        for (const entry of result) {
+            if (entry.salary_advance !== null && entry.salary_advance > 0) {
+                const [advance] = await this.db
+                    .select()
+                    .from(loans_schema_1.salaryAdvance)
+                    .where((0, drizzle_orm_1.eq)(loans_schema_1.salaryAdvance.employee_id, entry.employee_id))
+                    .limit(1)
+                    .execute();
+                const existingPaid = advance?.total_paid ?? 0;
+                const newPaid = entry.salary_advance + existingPaid;
+                const updateData = { total_paid: newPaid };
+                if (newPaid >= advance.amount) {
+                    updateData.status = 'paid';
+                    updateData.payment_status = 'closed';
+                }
+                await this.db
+                    .update(loans_schema_1.salaryAdvance)
+                    .set(updateData)
+                    .where((0, drizzle_orm_1.eq)(loans_schema_1.salaryAdvance.employee_id, entry.employee_id));
+            }
+        }
         await this.taxService.onPayrollApproval(company_id, result[0].payroll_month, payroll_run_id);
         const getPayslips = await this.db
             .select()
@@ -322,6 +349,12 @@ let PayrollService = class PayrollService {
         for (const payslip of getPayslips) {
             await this.payrollQueue.add('generatePayslipPdf', {
                 payslipId: payslip.id,
+            });
+            await this.payrollQueue.add('PayslipGeneratedNotification', {
+                employee_id: payslip.employee_id,
+                title: 'Payslip Ready',
+                message: `Your payslip for ${result[0].payroll_month} is ready to view.`,
+                dataMessage: { payslipId: payslip.id },
             });
         }
         return result;
@@ -430,6 +463,7 @@ let PayrollService = class PayrollService {
         })
             .returning()
             .execute();
+        await this.pushNotificationService.sendPushNotification(dto.employee_id, `Congrats you received a ${dto.bonus_type} Bonus of ${(0, formatCurrency_1.formatCurrency)(dto.amount * 100)} for ${this.formattedDate()}`, 'Bonus Notification', { bonusId: 'completed' });
         return result;
     }
     async getBonuses(user_id) {
@@ -455,6 +489,21 @@ let PayrollService = class PayrollService {
         const result = await this.db
             .delete(payroll_schema_1.bonus)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_schema_1.bonus.company_id, company_id), (0, drizzle_orm_1.eq)(payroll_schema_1.bonus.id, id)))
+            .execute();
+        return result;
+    }
+    async getEmployeeBonuses(user_id, employee_id) {
+        const company_id = await this.getCompany(user_id);
+        const result = await this.db
+            .select({
+            id: payroll_schema_1.bonus.id,
+            employee_id: payroll_schema_1.bonus.employee_id,
+            amount: payroll_schema_1.bonus.amount,
+            bonus_type: payroll_schema_1.bonus.bonus_type,
+            payroll_month: payroll_schema_1.bonus.payroll_month,
+        })
+            .from(payroll_schema_1.bonus)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_schema_1.bonus.company_id, company_id), (0, drizzle_orm_1.eq)(payroll_schema_1.bonus.employee_id, employee_id)))
             .execute();
         return result;
     }
@@ -533,6 +582,7 @@ exports.PayrollService = PayrollService = __decorate([
     __metadata("design:paramtypes", [Object, bullmq_2.Queue,
         cache_service_1.CacheService,
         loan_service_1.LoanService,
-        tax_service_1.TaxService])
+        tax_service_1.TaxService,
+        push_notification_service_1.PushNotificationService])
 ], PayrollService);
 //# sourceMappingURL=payroll.service.js.map

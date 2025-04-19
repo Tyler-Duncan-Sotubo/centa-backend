@@ -158,15 +158,7 @@ export class PayslipService {
       'payroll',
     );
 
-    // Notify employees
-    for (const employee of newPayslips) {
-      await this.payrollQueue.add('PayslipGenerated', {
-        employee_id: employee.employee_id,
-        message: `Your payslip for ${payrollMonth} is now available.`,
-        title: 'Payslip Ready',
-        dataMessage: { paySlipId: 'ready' },
-      });
-    }
+    // Send notification to employees
 
     return { message: `${newPayslips.length} payslips generated successfully` };
   }

@@ -22,6 +22,7 @@ const leave_attendance_schema_1 = require("../../drizzle/schema/leave-attendance
 const company_schema_1 = require("../../drizzle/schema/company.schema");
 const employee_schema_1 = require("../../drizzle/schema/employee.schema");
 const department_schema_1 = require("../../drizzle/schema/department.schema");
+const date_fns_1 = require("date-fns");
 let AttendanceService = class AttendanceService {
     constructor(configService, db) {
         this.configService = configService;
@@ -164,6 +165,78 @@ let AttendanceService = class AttendanceService {
             date: holiday.date,
             type: holiday.type,
         }));
+    }
+    async getWorkHoursSettings(company_id) {
+        await this.getCompanyByUserId(company_id);
+        try {
+            const settings = await this.db
+                .select()
+                .from(leave_attendance_schema_1.workHoursSettings)
+                .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.workHoursSettings.company_id, company_id))
+                .execute();
+            if (settings.length === 0) {
+                throw new common_1.BadRequestException('Work hours settings not found');
+            }
+            return settings[0];
+        }
+        catch (error) {
+            throw new common_1.BadRequestException('Error fetching work hours settings. Please check your input and try again.' +
+                error);
+        }
+    }
+    async getAttendanceRules(company_id) {
+        await this.getCompanyByUserId(company_id);
+        try {
+            const rules = await this.db
+                .select()
+                .from(leave_attendance_schema_1.attendanceRules)
+                .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.attendanceRules.company_id, company_id))
+                .execute();
+            if (rules.length === 0) {
+                throw new common_1.BadRequestException('Attendance rules not found');
+            }
+            return rules[0];
+        }
+        catch (error) {
+            throw new common_1.BadRequestException('Error fetching attendance rules. Please check your input and try again.' +
+                error);
+        }
+    }
+    async updateWorkHoursSettings(company_id, dto) {
+        await this.getCompanyByUserId(company_id);
+        const { startTime, endTime, breakMinutes, workDays } = dto;
+        try {
+            await this.db
+                .update(leave_attendance_schema_1.workHoursSettings)
+                .set({
+                startTime,
+                endTime,
+                breakMinutes,
+                workDays,
+            })
+                .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.workHoursSettings.company_id, company_id))
+                .execute();
+            return 'Work hours settings updated successfully';
+        }
+        catch (error) {
+            throw new common_1.BadRequestException('Error updating work hours settings. Please check your input and try again.' +
+                error);
+        }
+    }
+    async updateAttendanceRules(company_id, dto) {
+        await this.getCompanyByUserId(company_id);
+        try {
+            await this.db
+                .update(leave_attendance_schema_1.attendanceRules)
+                .set({ ...dto })
+                .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.attendanceRules.company_id, company_id))
+                .execute();
+            return 'Attendance rules updated successfully';
+        }
+        catch (error) {
+            throw new common_1.BadRequestException('Error updating attendance rules. Please check your input and try again.' +
+                error);
+        }
     }
     async createOfficeLocation(company_id, dto) {
         await this.getCompanyByUserId(company_id);
@@ -370,7 +443,7 @@ let AttendanceService = class AttendanceService {
                     Math.abs(Number(location.longitude) - Number(longitude)) < 0.005);
             });
             if (!isEmployeeInValidLocation) {
-                throw new common_1.BadRequestException('Employee is not at a valid location');
+                throw new common_1.BadRequestException('You are not at the set location');
             }
         }
         else {
@@ -379,7 +452,7 @@ let AttendanceService = class AttendanceService {
                     Math.abs(Number(location.longitude) - Number(longitude)) < 0.005);
             });
             if (!isInOfficeLocation) {
-                throw new common_1.BadRequestException('Employee is not at an authorized office location');
+                throw new common_1.BadRequestException('You are not at the office location');
             }
         }
     }
@@ -391,7 +464,7 @@ let AttendanceService = class AttendanceService {
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_attendance_schema_1.attendance.employee_id, employee_id), (0, drizzle_orm_1.eq)(leave_attendance_schema_1.attendance.date, currentDate)))
             .execute();
         if (existingAttendance.length > 0) {
-            throw new common_1.BadRequestException('Employee already clocked in');
+            throw new common_1.BadRequestException('You already clocked in');
         }
         await this.checkLocation(employee_id, latitude, longitude);
         await this.db
@@ -422,7 +495,7 @@ let AttendanceService = class AttendanceService {
         const checkInTime = existingAttendance[0].check_in_time;
         const alreadyCheckedOutTime = existingAttendance[0].check_out_time;
         if (alreadyCheckedOutTime) {
-            throw new common_1.BadRequestException('Employee already clocked out');
+            throw new common_1.BadRequestException('You already clocked out');
         }
         if (!checkInTime) {
             throw new common_1.BadRequestException('Check-in time is missing for the employee');
@@ -582,8 +655,15 @@ let AttendanceService = class AttendanceService {
     }
     async getAttendanceSummaryByDate(date, companyId) {
         const targetDate = new Date(date).toISOString().split('T')[0];
+        const [workHours] = await this.db
+            .select()
+            .from(leave_attendance_schema_1.workHoursSettings)
+            .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.workHoursSettings.company_id, companyId))
+            .execute();
+        const startTime = workHours.startTime;
         const workStarts = new Date(date);
-        workStarts.setHours(9, 0, 0, 0);
+        const [hours, minutes] = startTime.split(':').map(Number);
+        workStarts.setHours(hours, minutes, 0, 0);
         function parseDbDate(date) {
             if (!date)
                 return null;
@@ -634,8 +714,6 @@ let AttendanceService = class AttendanceService {
     }
     async getEmployeeAttendanceByDate(employeeId, date) {
         const targetDate = new Date(date).toISOString().split('T')[0];
-        const workStarts = new Date(date);
-        workStarts.setHours(9, 0, 0, 0);
         function parseDbDate(date) {
             if (!date)
                 return null;
@@ -648,6 +726,15 @@ let AttendanceService = class AttendanceService {
         if (!employee) {
             throw new common_1.BadRequestException('Employee not found');
         }
+        const [workHours] = await this.db
+            .select()
+            .from(leave_attendance_schema_1.workHoursSettings)
+            .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.workHoursSettings.company_id, employee.company_id))
+            .execute();
+        const startTime = workHours.startTime;
+        const workStarts = new Date(date);
+        const [hours, minutes] = startTime.split(':').map(Number);
+        workStarts.setHours(hours, minutes, 0, 0);
         const record = await this.db
             .select()
             .from(leave_attendance_schema_1.attendance)
@@ -695,14 +782,25 @@ let AttendanceService = class AttendanceService {
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_attendance_schema_1.attendance.employee_id, employeeId), (0, drizzle_orm_1.gte)(leave_attendance_schema_1.attendance.date, startOfMonth.toISOString().split('T')[0]), (0, drizzle_orm_1.lte)(leave_attendance_schema_1.attendance.date, endOfMonth.toISOString().split('T')[0])));
         const today = new Date();
         const daysInMonth = endOfMonth.getDate();
-        const summaryList = Array.from({ length: daysInMonth }).flatMap((_, i) => {
+        const summaryList = await Promise.all(Array.from({ length: daysInMonth }).map(async (_, i) => {
             const date = new Date(startOfMonth);
             date.setDate(i + 1);
             if (date > today)
-                return [];
+                return null;
             const formattedDate = date.toISOString().split('T')[0];
+            const [workHours] = await this.db
+                .select()
+                .from(leave_attendance_schema_1.workHoursSettings)
+                .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.workHoursSettings.company_id, employee.company_id))
+                .execute();
+            if (!workHours) {
+                console.error('Work hours not found for company');
+                return null;
+            }
+            const startTime = workHours.startTime;
             const workStarts = new Date(date);
-            workStarts.setHours(9, 0, 0, 0);
+            const [hours, minutes] = startTime.split(':').map(Number);
+            workStarts.setHours(hours, minutes, 0, 0);
             const record = attendanceRecords.find((r) => r.date === formattedDate);
             const checkIn = record?.check_in_time
                 ? parseDbDate(record.check_in_time)
@@ -715,18 +813,133 @@ let AttendanceService = class AttendanceService {
             if (checkIn) {
                 status = isLate ? 'late' : 'present';
             }
-            return [
-                {
-                    date: formattedDate,
-                    check_in_time: checkIn ? checkIn.toISOString() : null,
-                    check_out_time: checkOut ? checkOut.toISOString() : null,
-                    status,
-                },
-            ];
-        });
+            return {
+                date: formattedDate,
+                check_in_time: checkIn ? checkIn.toISOString() : null,
+                check_out_time: checkOut ? checkOut.toISOString() : null,
+                status,
+            };
+        }));
+        const filteredSummaryList = summaryList.filter((item) => item !== null);
         return {
-            summaryList,
+            summaryList: filteredSummaryList,
         };
+    }
+    async getMonthlyAttendanceSummary(companyId, yearMonth) {
+        const [year, month] = yearMonth.split('-').map(Number);
+        const freezeDate = new Date(year, month - 1, 28);
+        const start = (0, date_fns_1.startOfMonth)(freezeDate);
+        const end = freezeDate;
+        const [rules] = await this.db
+            .select()
+            .from(leave_attendance_schema_1.attendanceRules)
+            .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.attendanceRules.company_id, companyId));
+        const [workHours] = await this.db
+            .select()
+            .from(leave_attendance_schema_1.workHoursSettings)
+            .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.workHoursSettings.company_id, companyId));
+        const allHolidays = await this.db
+            .select()
+            .from(leave_attendance_schema_1.holidays)
+            .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.holidays.year, year.toString()));
+        const publicHolidays = allHolidays.filter((h) => h.type === 'Public Holiday');
+        const holidaySet = new Set(publicHolidays.map((h) => h.date));
+        const leaves = await this.db
+            .select()
+            .from(leave_attendance_schema_1.leave_requests)
+            .where((0, drizzle_orm_1.eq)(leave_attendance_schema_1.leave_requests.leave_status, 'approved'));
+        const leaveMap = new Map();
+        for (const leave of leaves) {
+            const days = this.getDatesBetween(leave.start_date, leave.end_date);
+            if (!leaveMap.has(leave.employee_id))
+                leaveMap.set(leave.employee_id, new Set());
+            days.forEach((d) => leaveMap.get(leave.employee_id)?.add(d));
+        }
+        const attendanceRecords = await this.db
+            .select()
+            .from(leave_attendance_schema_1.attendance)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.gte)(leave_attendance_schema_1.attendance.date, (0, date_fns_1.format)(start, 'yyyy-MM-dd')), (0, drizzle_orm_1.lte)(leave_attendance_schema_1.attendance.date, (0, date_fns_1.format)(end, 'yyyy-MM-dd'))));
+        const attendanceMap = new Map();
+        for (const record of attendanceRecords) {
+            if (!attendanceMap.has(record.employee_id))
+                attendanceMap.set(record.employee_id, new Map());
+            attendanceMap.get(record.employee_id).set(record.date, record);
+        }
+        const datesInMonth = (0, date_fns_1.eachDayOfInterval)({ start, end })
+            .filter((d) => workHours.workDays?.includes((0, date_fns_1.format)(d, 'EEE')) ?? false)
+            .map((d) => (0, date_fns_1.format)(d, 'yyyy-MM-dd'));
+        const allEmployees = await this.db
+            .select({
+            id: employee_schema_1.employees.id,
+            first_name: employee_schema_1.employees.first_name,
+            last_name: employee_schema_1.employees.last_name,
+        })
+            .from(employee_schema_1.employees)
+            .where((0, drizzle_orm_1.eq)(employee_schema_1.employees.company_id, companyId));
+        const employeeIds = allEmployees.map((e) => e.id);
+        const results = [];
+        for (const employeeId of employeeIds) {
+            const leaveDays = leaveMap.get(employeeId) ?? new Set();
+            const empAttendance = attendanceMap.get(employeeId) ?? new Map();
+            const summary = {
+                employeeId,
+                firstName: allEmployees.find((e) => e.id === employeeId)?.first_name,
+                lastName: allEmployees.find((e) => e.id === employeeId)?.last_name,
+                present: 0,
+                late: 0,
+                absent: 0,
+                onLeave: 0,
+                holidays: 0,
+                penalties: 0,
+            };
+            for (const date of datesInMonth) {
+                if (holidaySet.has(date)) {
+                    summary.holidays++;
+                    continue;
+                }
+                if (leaveDays.has(date)) {
+                    summary.onLeave++;
+                    continue;
+                }
+                const attendance = empAttendance.get(date);
+                if (!attendance) {
+                    summary.absent++;
+                    continue;
+                }
+                if (attendance.check_in_time) {
+                    const checkIn = new Date(attendance.check_in_time);
+                    const shiftStart = (0, date_fns_1.parseISO)(`${date}T${workHours.startTime}`);
+                    const lateMinutes = (checkIn.getTime() - shiftStart.getTime()) / 60000;
+                    if (lateMinutes <= (rules.gracePeriodMins ?? 0)) {
+                        summary.present++;
+                    }
+                    else if (lateMinutes <=
+                        (rules.penaltyAfterMins ?? 0) + (rules.gracePeriodMins ?? 0)) {
+                        summary.late++;
+                    }
+                    else {
+                        summary.late++;
+                        summary.penalties += rules.penaltyAmount ?? 0;
+                    }
+                }
+                else {
+                    summary.absent++;
+                }
+            }
+            results.push({
+                ...summary,
+                firstName: summary.firstName ?? 'N/A',
+                lastName: summary.lastName ?? 'N/A',
+            });
+        }
+        return results;
+    }
+    getDatesBetween(start, end) {
+        const days = (0, date_fns_1.eachDayOfInterval)({
+            start: new Date(start),
+            end: new Date(end),
+        });
+        return days.map((d) => (0, date_fns_1.format)(d, 'yyyy-MM-dd'));
     }
 };
 exports.AttendanceService = AttendanceService;

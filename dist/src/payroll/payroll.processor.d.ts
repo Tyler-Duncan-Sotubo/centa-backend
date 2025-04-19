@@ -1,5 +1,5 @@
 import { WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import { PayslipService } from './services/payslip.service';
 import { TaxService } from './services/tax.service';
 import { PdfService } from './services/pdf.service';
@@ -8,12 +8,13 @@ export declare class PayrollProcessor extends WorkerHost {
     private readonly payslipService;
     private readonly taxService;
     private readonly pdfService;
-    private pushNotificationService;
-    constructor(payslipService: PayslipService, taxService: TaxService, pdfService: PdfService, pushNotificationService: PushNotificationService);
+    private readonly pushNotificationService;
+    private readonly queue;
+    constructor(payslipService: PayslipService, taxService: TaxService, pdfService: PdfService, pushNotificationService: PushNotificationService, queue: Queue);
     process(job: Job): Promise<void>;
+    private retryWithLogging;
     private handleGeneratePayslips;
     private handlePopulateTaxDetails;
     private handleGeneratePayslipPdf;
-    private handleSendNotification;
-    private handlePayslipSendNotification;
+    private sendNotification;
 }

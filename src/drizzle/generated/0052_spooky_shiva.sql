@@ -1,0 +1,1 @@
+ALTER TABLE "attendance_rules" ADD COLUMN "apply_to_payroll" boolean DEFAULT true;

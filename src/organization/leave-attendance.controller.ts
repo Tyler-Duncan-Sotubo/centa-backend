@@ -28,6 +28,10 @@ import {
   UpdateLeaveDto,
   UpdateLeaveRequestDto,
 } from './dto/leave.dto';
+import {
+  AttendanceRulesDTO,
+  WorkHoursDTO,
+} from './dto/update-attendance-settings.dto';
 
 @UseInterceptors(AuditInterceptor)
 @Controller('')
@@ -133,35 +137,51 @@ export class LeaveAttendanceController extends BaseController {
     return this.attendanceService.deleteEmployeeLocation(location_id);
   }
 
-  // clock in and out logic
+  // Attendance Settings Management
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('roles', ['employee', 'super_admin', 'admin'])
-  @Audit({ action: 'Clock In', entity: 'Attendance' })
-  @Post('clock-in/:employee_id')
-  async clockIn(
-    @Param('employee_id') employee_id: string,
-    @Body() dto: { latitude: string; longitude: string },
-  ) {
-    return this.attendanceService.clockIn(
-      employee_id,
-      dto.latitude,
-      dto.longitude,
-    ); // Example coordinates for London
+  @SetMetadata('roles', ['super_admin', 'admin'])
+  @Get('work-hours')
+  async getWorkHours(@CurrentUser() user: User) {
+    return this.attendanceService.getWorkHoursSettings(user.company_id);
   }
 
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('roles', ['employee', 'super_admin', 'admin'])
-  @Audit({ action: 'Clock Out', entity: 'Attendance' })
-  @Post('clock-out/:employee_id')
-  async clockOut(
-    @Param('employee_id') employee_id: string,
-    @Body() dto: { latitude: string; longitude: string },
+  @SetMetadata('roles', ['super_admin', 'admin'])
+  @Get('attendance-rules')
+  async getAttendanceRules(@CurrentUser() user: User) {
+    return this.attendanceService.getAttendanceRules(user.company_id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Update Work Hours', entity: 'Attendance' })
+  @Put('work-hours')
+  async updateWorkHours(@Body() dto: WorkHoursDTO, @CurrentUser() user: User) {
+    return this.attendanceService.updateWorkHoursSettings(user.company_id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin'])
+  @Audit({ action: 'Update Attendance Rules', entity: 'Attendance' })
+  @Put('attendance-rules')
+  async updateAttendanceRules(
+    @Body() dto: AttendanceRulesDTO,
+    @CurrentUser() user: User,
   ) {
-    return this.attendanceService.clockOut(
-      employee_id,
-      dto.latitude,
-      dto.longitude,
-    ); // Example coordinates for London
+    return this.attendanceService.updateAttendanceRules(user.company_id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin'])
+  @Get('monthly-attendance-summary/:month')
+  async getMonthlyAttendanceSummary(
+    @CurrentUser() user: User,
+    @Param('month') month: string,
+  ) {
+    return this.attendanceService.getMonthlyAttendanceSummary(
+      user.company_id,
+      month,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -205,6 +225,37 @@ export class LeaveAttendanceController extends BaseController {
       employee_id,
       date,
     );
+  }
+
+  // clock in and out logic
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['employee', 'super_admin', 'admin'])
+  @Audit({ action: 'Clock In', entity: 'Attendance' })
+  @Post('clock-in/:employee_id')
+  async clockIn(
+    @Param('employee_id') employee_id: string,
+    @Body() dto: { latitude: string; longitude: string },
+  ) {
+    return this.attendanceService.clockIn(
+      employee_id,
+      dto.latitude,
+      dto.longitude,
+    ); // Example coordinates for London
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['employee', 'super_admin', 'admin'])
+  @Audit({ action: 'Clock Out', entity: 'Attendance' })
+  @Post('clock-out/:employee_id')
+  async clockOut(
+    @Param('employee_id') employee_id: string,
+    @Body() dto: { latitude: string; longitude: string },
+  ) {
+    return this.attendanceService.clockOut(
+      employee_id,
+      dto.latitude,
+      dto.longitude,
+    ); // Example coordinates for London
   }
 
   // Leave Service

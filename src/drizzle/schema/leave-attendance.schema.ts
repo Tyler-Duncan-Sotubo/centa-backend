@@ -1,4 +1,5 @@
 import {
+  boolean,
   decimal,
   integer,
   pgTable,
@@ -131,4 +132,37 @@ export const daily_attendance_summary = pgTable('daily_attendance_summary', {
   average_check_in_time_yesterday: time('average_check_in_time_yesterday'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const workHoursSettings = pgTable('work_hours_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  startTime: time('start_time').notNull(), // e.g., 09:00
+  endTime: time('end_time').notNull(), // e.g., 17:00
+  breakMinutes: integer('break_minutes').default(60), // lunch
+  workDays: text('work_days')
+    .array()
+    .default(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']), // array of working days
+  createdAt: timestamp('created_at').defaultNow(),
+
+  company_id: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
+});
+
+export const attendanceRules = pgTable('attendance_rules', {
+  id: uuid('id').defaultRandom().primaryKey(),
+
+  gracePeriodMins: integer('grace_period_mins').default(10), // tolerated lateness
+  penaltyAfterMins: integer('penalty_after_mins').default(10), // penalize after this
+  penaltyAmount: integer('penalty_amount').default(200), // NGN amount
+  earlyLeaveThresholdMins: integer('early_leave_threshold_mins').default(15),
+  absenceThresholdHours: integer('absence_threshold_hours').default(4), // full-day absence
+  countWeekends: boolean('count_weekends').default(false), // for shift-based roles
+  createdAt: timestamp('created_at').defaultNow(),
+
+  applyToPayroll: boolean('apply_to_payroll').default(true),
+
+  company_id: uuid('company_id')
+    .notNull()
+    .references(() => companies.id, { onDelete: 'cascade' }),
 });

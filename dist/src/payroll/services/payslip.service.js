@@ -111,14 +111,6 @@ let PayslipService = class PayslipService {
         }
         await this.db.insert(payroll_schema_1.payslips).values(newPayslips);
         await this.pusher.createNotification(newPayslips[0].company_id, `New payslips generated for ${payrollMonth}`, 'payroll');
-        for (const employee of newPayslips) {
-            await this.payrollQueue.add('PayslipGenerated', {
-                employee_id: employee.employee_id,
-                message: `Your payslip for ${payrollMonth} is now available.`,
-                title: 'Payslip Ready',
-                dataMessage: { paySlipId: 'ready' },
-            });
-        }
         return { message: `${newPayslips.length} payslips generated successfully` };
     }
     async getCompanyPayslipsById(user_id, payroll_run_id) {

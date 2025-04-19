@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { db } from 'src/drizzle/types/drizzle';
 import { CreateEmployeeLocationDto, CreateOfficeLocationDto, UpdateEmployeeLocationDto, UpdateOfficeLocationDto } from '../dto/locations.dto';
+import { AttendanceRulesDTO, WorkHoursDTO } from '../dto/update-attendance-settings.dto';
 export declare class AttendanceService {
     private configService;
     private db;
@@ -19,6 +20,29 @@ export declare class AttendanceService {
         date: string;
         type: string | null;
     }[]>;
+    getWorkHoursSettings(company_id: string): Promise<{
+        id: string;
+        startTime: string;
+        endTime: string;
+        breakMinutes: number | null;
+        workDays: string[] | null;
+        createdAt: Date | null;
+        company_id: string;
+    }>;
+    getAttendanceRules(company_id: string): Promise<{
+        id: string;
+        gracePeriodMins: number | null;
+        penaltyAfterMins: number | null;
+        penaltyAmount: number | null;
+        earlyLeaveThresholdMins: number | null;
+        absenceThresholdHours: number | null;
+        countWeekends: boolean | null;
+        createdAt: Date | null;
+        applyToPayroll: boolean | null;
+        company_id: string;
+    }>;
+    updateWorkHoursSettings(company_id: string, dto: WorkHoursDTO): Promise<string>;
+    updateAttendanceRules(company_id: string, dto: AttendanceRulesDTO): Promise<string>;
     createOfficeLocation(company_id: string, dto: CreateOfficeLocationDto): Promise<{
         id: string;
     }[]>;
@@ -109,4 +133,16 @@ export declare class AttendanceService {
             status: "absent" | "present" | "late";
         }[];
     }>;
+    getMonthlyAttendanceSummary(companyId: string, yearMonth: string): Promise<{
+        employeeId: string;
+        firstName: string;
+        lastName: string;
+        present: number;
+        late: number;
+        absent: number;
+        onLeave: number;
+        holidays: number;
+        penalties: number;
+    }[]>;
+    private getDatesBetween;
 }

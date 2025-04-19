@@ -112,6 +112,8 @@ export declare class PayrollController extends BaseController {
     }[]>;
     updatePayrollPaymentStatus(user: User, id: string, status: 'paid' | 'pending'): Promise<{
         payroll_month: string;
+        salary_advance: number | null;
+        employee_id: string;
     }[]>;
     deleteCompanyPayrollById(user: User, id: string): Promise<any>;
     getCompanyBonuses(user: User): Promise<{
@@ -133,6 +135,13 @@ export declare class PayrollController extends BaseController {
         bonus_date: string;
     }[]>;
     deleteCompanyBonuses(user: User, id: string): Promise<any>;
+    getEmployeeBonuses(user: User, employeeId: string): Promise<{
+        id: string;
+        employee_id: string;
+        amount: number;
+        bonus_type: string | null;
+        payroll_month: string;
+    }[]>;
     getCompanyPayslips(user: User, id: string): Promise<{
         payslip_id: string;
         payroll_run_id: string;

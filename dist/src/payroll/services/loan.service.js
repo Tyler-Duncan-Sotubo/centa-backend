@@ -44,10 +44,7 @@ let LoanService = class LoanService {
         return await this.db
             .select({
             loanId: loans_schema_1.salaryAdvance.id,
-            monthlyDeduction: (0, drizzle_orm_1.sql) `
-        (${loans_schema_1.salaryAdvance.amount} - ${loans_schema_1.salaryAdvance.total_paid}) / 
-        GREATEST(${loans_schema_1.salaryAdvance.tenureMonths} - DATE_PART('month', AGE(NOW(), ${loans_schema_1.salaryAdvance.createdAt})), 1)
-      `.as('monthlyDeduction'),
+            monthlyDeduction: loans_schema_1.salaryAdvance.preferredMonthlyPayment,
         })
             .from(loans_schema_1.salaryAdvance)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(loans_schema_1.salaryAdvance.employee_id, employee_id), (0, drizzle_orm_1.not)((0, drizzle_orm_1.eq)(loans_schema_1.salaryAdvance.status, 'paid'))))

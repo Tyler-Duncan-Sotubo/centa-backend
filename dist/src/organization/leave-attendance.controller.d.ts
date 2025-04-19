@@ -4,6 +4,7 @@ import { CreateEmployeeLocationDto, CreateOfficeLocationDto } from './dto/locati
 import { User } from 'src/types/user.type';
 import { LeaveService } from './services/leave.service';
 import { CreateLeaveDto, CreateLeaveRequestDto, UpdateLeaveDto, UpdateLeaveRequestDto } from './dto/leave.dto';
+import { AttendanceRulesDTO, WorkHoursDTO } from './dto/update-attendance-settings.dto';
 export declare class LeaveAttendanceController extends BaseController {
     private readonly attendanceService;
     private readonly leaveService;
@@ -47,14 +48,40 @@ export declare class LeaveAttendanceController extends BaseController {
     }[]>;
     updateEmployeeLocation(dto: CreateOfficeLocationDto, location_id: string): Promise<string>;
     deleteEmployeeLocation(location_id: string): Promise<string>;
-    clockIn(employee_id: string, dto: {
-        latitude: string;
-        longitude: string;
-    }): Promise<string>;
-    clockOut(employee_id: string, dto: {
-        latitude: string;
-        longitude: string;
-    }): Promise<string>;
+    getWorkHours(user: User): Promise<{
+        id: string;
+        startTime: string;
+        endTime: string;
+        breakMinutes: number | null;
+        workDays: string[] | null;
+        createdAt: Date | null;
+        company_id: string;
+    }>;
+    getAttendanceRules(user: User): Promise<{
+        id: string;
+        gracePeriodMins: number | null;
+        penaltyAfterMins: number | null;
+        penaltyAmount: number | null;
+        earlyLeaveThresholdMins: number | null;
+        absenceThresholdHours: number | null;
+        countWeekends: boolean | null;
+        createdAt: Date | null;
+        applyToPayroll: boolean | null;
+        company_id: string;
+    }>;
+    updateWorkHours(dto: WorkHoursDTO, user: User): Promise<string>;
+    updateAttendanceRules(dto: AttendanceRulesDTO, user: User): Promise<string>;
+    getMonthlyAttendanceSummary(user: User, month: string): Promise<{
+        employeeId: string;
+        firstName: string;
+        lastName: string;
+        present: number;
+        late: number;
+        absent: number;
+        onLeave: number;
+        holidays: number;
+        penalties: number;
+    }[]>;
     getAttendance(user: User): Promise<{
         details: {
             date: string;
@@ -108,6 +135,14 @@ export declare class LeaveAttendanceController extends BaseController {
             status: "absent" | "present" | "late";
         }[];
     }>;
+    clockIn(employee_id: string, dto: {
+        latitude: string;
+        longitude: string;
+    }): Promise<string>;
+    clockOut(employee_id: string, dto: {
+        latitude: string;
+        longitude: string;
+    }): Promise<string>;
     leaveManagement(countryCode: string, user: User): Promise<{
         leaveSummary: {
             leave_type: string;
