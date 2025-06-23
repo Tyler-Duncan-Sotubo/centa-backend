@@ -1,0 +1,88 @@
+import { PayrollAdjustmentsService } from './payroll-adjustments.service';
+import { CreatePayrollAdjustmentDto } from './dto/create-payroll-adjustment.dto';
+import { UpdatePayrollAdjustmentDto } from './dto/update-payroll-adjustment.dto';
+import { User } from 'src/common/types/user.type';
+export declare class PayrollAdjustmentsController {
+    private readonly payrollAdjustmentsService;
+    constructor(payrollAdjustmentsService: PayrollAdjustmentsService);
+    create(createPayrollAdjustmentDto: CreatePayrollAdjustmentDto, user: User): Promise<{
+        id: string;
+        createdAt: string | null;
+        companyId: string;
+        isDeleted: boolean | null;
+        employeeId: string;
+        type: string;
+        notes: string | null;
+        createdBy: string | null;
+        label: string | null;
+        payrollDate: string;
+        amount: number;
+        taxable: boolean | null;
+        proratable: boolean | null;
+        recurring: boolean | null;
+    }>;
+    findAll(user: User): Promise<{
+        id: string;
+        companyId: string;
+        employeeId: string;
+        payrollDate: string;
+        amount: number;
+        type: string;
+        label: string | null;
+        taxable: boolean | null;
+        proratable: boolean | null;
+        recurring: boolean | null;
+        isDeleted: boolean | null;
+        notes: string | null;
+        createdBy: string | null;
+        createdAt: string | null;
+    }[]>;
+    findOne(id: string, user: User): Promise<{
+        id: string;
+        companyId: string;
+        employeeId: string;
+        payrollDate: string;
+        amount: number;
+        type: string;
+        label: string | null;
+        taxable: boolean | null;
+        proratable: boolean | null;
+        recurring: boolean | null;
+        isDeleted: boolean | null;
+        notes: string | null;
+        createdBy: string | null;
+        createdAt: string | null;
+    }>;
+    update(id: string, updatePayrollAdjustmentDto: UpdatePayrollAdjustmentDto, user: User): Promise<{
+        id: string;
+        companyId: string;
+        employeeId: string;
+        payrollDate: string;
+        amount: number;
+        type: string;
+        label: string | null;
+        taxable: boolean | null;
+        proratable: boolean | null;
+        recurring: boolean | null;
+        isDeleted: boolean | null;
+        notes: string | null;
+        createdBy: string | null;
+        createdAt: string | null;
+    }>;
+    remove(id: string, user: User): Promise<{
+        id: string;
+        companyId: string;
+        employeeId: string;
+        payrollDate: string;
+        amount: number;
+        type: string;
+        label: string | null;
+        taxable: boolean | null;
+        proratable: boolean | null;
+        recurring: boolean | null;
+        isDeleted: boolean | null;
+        notes: string | null;
+        createdBy: string | null;
+        createdAt: string | null;
+    }>;
+}

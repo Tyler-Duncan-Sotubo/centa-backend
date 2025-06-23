@@ -1,0 +1,111 @@
+import { CreateAssetsRequestDto } from './dto/create-assets-request.dto';
+import { UpdateAssetsRequestDto } from './dto/update-assets-request.dto';
+import { User } from 'src/common/types/user.type';
+import { db } from 'src/drizzle/types/drizzle';
+import { AuditService } from 'src/modules/audit/audit.service';
+import { AssetsSettingsService } from '../settings/assets-settings.service';
+import { PusherService } from 'src/modules/notification/services/pusher.service';
+export declare class AssetsRequestService {
+    private readonly db;
+    private readonly auditService;
+    private readonly assetsSettingsService;
+    private readonly pusher;
+    constructor(db: db, auditService: AuditService, assetsSettingsService: AssetsSettingsService, pusher: PusherService);
+    handleAssetApprovalFlow(assetRequestId: string, user: User): Promise<void>;
+    create(dto: CreateAssetsRequestDto, user: User): Promise<{
+        id: string;
+        createdAt: Date | null;
+        updatedAt: Date | null;
+        companyId: string;
+        employeeId: string;
+        status: string | null;
+        notes: string | null;
+        rejectionReason: string | null;
+        purpose: string;
+        requestDate: string;
+        assetType: string;
+        urgency: string;
+    }>;
+    findAll(companyId: string): Promise<({
+        id: string;
+        employeeId: string;
+        assetType: string;
+        purpose: string;
+        urgency: string;
+        status: string | null;
+        requestDate: string;
+        createdAt: Date | null;
+        employeeName: unknown;
+        employeeEmail: any;
+    } | {
+        id: string;
+        employeeId: string;
+        assetType: string;
+        purpose: string;
+        urgency: string;
+        status: string | null;
+        requestDate: string;
+        createdAt: Date | null;
+        employeeName: unknown;
+        employeeEmail: any;
+    })[]>;
+    findOne(id: string): Promise<{
+        id: string;
+        requestDate: string;
+        assetType: string;
+        purpose: string;
+        urgency: string;
+        notes: string | null;
+        status: string | null;
+        createdAt: Date | null;
+        employeeId: string;
+        companyId: string;
+        rejectionReason: string | null;
+        updatedAt: Date | null;
+    }>;
+    findByEmployeeId(employeeId: string): Promise<{
+        id: string;
+        requestDate: string;
+        assetType: string;
+        purpose: string;
+        urgency: string;
+        notes: string | null;
+        status: string | null;
+        createdAt: Date | null;
+        employeeId: string;
+        companyId: string;
+        rejectionReason: string | null;
+        updatedAt: Date | null;
+    }[]>;
+    update(id: string, updateAssetsRequestDto: UpdateAssetsRequestDto, user: User): Promise<{
+        id: string;
+        requestDate: string;
+        assetType: string;
+        purpose: string;
+        urgency: string;
+        notes: string | null;
+        status: string | null;
+        createdAt: Date | null;
+        employeeId: string;
+        companyId: string;
+        rejectionReason: string | null;
+        updatedAt: Date | null;
+    }>;
+    checkApprovalStatus(assetRequestId: string, user?: User): Promise<{
+        requestDate: string;
+        approvalStatus: string | null;
+        steps: {
+            fallbackRoles: any;
+            isUserEligible: any;
+            isFallback: any;
+            id: string;
+            sequence: number;
+            role: string;
+            minApprovals: number;
+            maxApprovals: number;
+            createdAt: Date | null;
+            status: string;
+        }[];
+    }>;
+    handleAssetApprovalAction(assetRequestId: string, user: User, action: 'approved' | 'rejected', remarks?: string): Promise<string>;
+}

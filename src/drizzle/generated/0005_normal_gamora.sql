@@ -1,1 +1,0 @@
-ALTER TABLE "tax_filing_details" ADD COLUMN "taxable_amount" numeric(10, 2) NOT NULL;

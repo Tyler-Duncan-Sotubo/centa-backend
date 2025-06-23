@@ -1,0 +1,240 @@
+import { CreateCompensationDto } from './dto/create-compensation.dto';
+import { UpdateCompensationDto } from './dto/update-compensation.dto';
+import { db } from 'src/drizzle/types/drizzle';
+import { AuditService } from 'src/modules/audit/audit.service';
+export declare class CompensationService {
+    private readonly db;
+    private readonly auditService;
+    protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
+        name: "employee_compensations";
+        schema: undefined;
+        columns: {
+            id: import("drizzle-orm/pg-core").PgColumn<{
+                name: "id";
+                tableName: "employee_compensations";
+                dataType: "string";
+                columnType: "PgUUID";
+                data: string;
+                driverParam: string;
+                notNull: true;
+                hasDefault: true;
+                isPrimaryKey: true;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: undefined;
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {}>;
+            employeeId: import("drizzle-orm/pg-core").PgColumn<{
+                name: "employee_id";
+                tableName: "employee_compensations";
+                dataType: "string";
+                columnType: "PgUUID";
+                data: string;
+                driverParam: string;
+                notNull: true;
+                hasDefault: false;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: undefined;
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {}>;
+            effectiveDate: import("drizzle-orm/pg-core").PgColumn<{
+                name: "effective_date";
+                tableName: "employee_compensations";
+                dataType: "string";
+                columnType: "PgText";
+                data: string;
+                driverParam: string;
+                notNull: true;
+                hasDefault: false;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: [string, ...string[]];
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {}>;
+            grossSalary: import("drizzle-orm/pg-core").PgColumn<{
+                name: "gross_salary";
+                tableName: "employee_compensations";
+                dataType: "number";
+                columnType: "PgBigInt53";
+                data: number;
+                driverParam: string | number;
+                notNull: true;
+                hasDefault: false;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: undefined;
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {}>;
+            currency: import("drizzle-orm/pg-core").PgColumn<{
+                name: "currency";
+                tableName: "employee_compensations";
+                dataType: "string";
+                columnType: "PgVarchar";
+                data: string;
+                driverParam: string;
+                notNull: true;
+                hasDefault: true;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: [string, ...string[]];
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {
+                length: 3;
+            }>;
+            payFrequency: import("drizzle-orm/pg-core").PgColumn<{
+                name: "pay_frequency";
+                tableName: "employee_compensations";
+                dataType: "string";
+                columnType: "PgVarchar";
+                data: string;
+                driverParam: string;
+                notNull: true;
+                hasDefault: true;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: [string, ...string[]];
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {
+                length: 20;
+            }>;
+            applyNHf: import("drizzle-orm/pg-core").PgColumn<{
+                name: "apply_nhf";
+                tableName: "employee_compensations";
+                dataType: "boolean";
+                columnType: "PgBoolean";
+                data: boolean;
+                driverParam: boolean;
+                notNull: true;
+                hasDefault: true;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: undefined;
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {}>;
+            createdAt: import("drizzle-orm/pg-core").PgColumn<{
+                name: "created_at";
+                tableName: "employee_compensations";
+                dataType: "date";
+                columnType: "PgTimestamp";
+                data: Date;
+                driverParam: string;
+                notNull: true;
+                hasDefault: true;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: undefined;
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {}>;
+            updatedAt: import("drizzle-orm/pg-core").PgColumn<{
+                name: "updated_at";
+                tableName: "employee_compensations";
+                dataType: "date";
+                columnType: "PgTimestamp";
+                data: Date;
+                driverParam: string;
+                notNull: true;
+                hasDefault: true;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: undefined;
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {}>;
+        };
+        dialect: "pg";
+    }>;
+    constructor(db: db, auditService: AuditService);
+    upsert(employeeId: string, dto: CreateCompensationDto, userId: string, ip: string): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        currency: string;
+        payFrequency: string;
+        employeeId: string;
+        effectiveDate: string;
+        grossSalary: number;
+        applyNHf: boolean;
+    }>;
+    create(employeeId: string, dto: CreateCompensationDto, userId: string, ip: string, trx?: typeof this.db): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        currency: string;
+        payFrequency: string;
+        employeeId: string;
+        effectiveDate: string;
+        grossSalary: number;
+        applyNHf: boolean;
+    }>;
+    findAll(employeeId: string): Promise<{
+        id: string;
+        employeeId: string;
+        grossSalary: number;
+        payGroupId: any;
+        applyNhf: boolean;
+        startDate: any;
+        endDate: any;
+    } | {
+        id: string;
+        employeeId: string;
+        grossSalary: number;
+        payGroupId: any;
+        applyNhf: boolean;
+        startDate: any;
+        endDate: any;
+    }>;
+    findOne(compensationId: string): Promise<{
+        id: string;
+        employeeId: string;
+        grossSalary: number;
+        payGroupId: any;
+        applyNhf: boolean;
+    } | {
+        id: string;
+        employeeId: string;
+        grossSalary: number;
+        payGroupId: any;
+        applyNhf: boolean;
+    }>;
+    update(compensationId: string, dto: UpdateCompensationDto, userId: string, ip: string): Promise<{
+        id: string;
+        employeeId: string;
+        effectiveDate: string;
+        grossSalary: number;
+        currency: string;
+        payFrequency: string;
+        applyNHf: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+    } | undefined>;
+    remove(compensationId: string): Promise<{
+        deleted: boolean;
+        id: string;
+    }>;
+}

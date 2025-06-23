@@ -1,1 +1,0 @@
-ALTER TABLE "payslips" ADD COLUMN "pdf_url" text DEFAULT '';

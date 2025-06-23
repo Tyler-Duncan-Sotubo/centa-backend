@@ -11,7 +11,7 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const pg_1 = require("pg");
 const node_postgres_1 = require("drizzle-orm/node-postgres");
-const schema = require("./schema/schema");
+const schema = require("./schema");
 exports.DRIZZLE = Symbol('drizzle-connection');
 let DrizzleModule = class DrizzleModule {
 };

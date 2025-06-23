@@ -1,0 +1,1 @@
+{"version":3,"file":"expense.js","sourceRoot":"","sources":["../../../../src/company-settings/settings/expense.ts"],"names":[],"mappings":";;;AAAa,QAAA,QAAQ,GAAG;IACtB;QACE,GAAG,EAAE,8BAA8B;QACnC,KAAK,EAAE,IAAI;KACZ;IACD;QACE,GAAG,EAAE,wBAAwB;QAC7B,KAAK,EAAE,CAAC,SAAS,EAAE,iBAAiB,CAAC;KACtC;IACD;QACE,GAAG,EAAE,2BAA2B;QAChC,KAAK,EAAE,CAAC,aAAa,EAAE,aAAa,CAAC;KACtC;CACF,CAAC"}

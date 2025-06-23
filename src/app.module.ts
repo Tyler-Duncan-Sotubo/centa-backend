@@ -1,20 +1,17 @@
 import { Module } from '@nestjs/common';
-import { LoggerModule } from './config/logger';
+import { LoggerModule } from './common/logger';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DrizzleModule } from './drizzle/drizzle.module';
-import { AuthModule } from './auth/auth.module';
-import { OrganizationModule } from './organization/organization.module';
-import { PayrollModule } from './payroll/payroll.module';
 import * as Joi from 'joi';
-import { NotificationModule } from './notification/notification.module';
-import { AnalyticsModule } from './analytics/analytics.module';
 import { BullModule } from '@nestjs/bullmq';
-import { AuditModule } from './audit/audit.module';
-import { WalletModule } from './wallet/wallet.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ModulesModule } from './modules/modules.module';
+import { CompanySettingsModule } from './company-settings/company-settings.module';
+import { HolidaysModule } from './modules/leave/holidays/holidays.module';
 
 @Module({
   imports: [
+    ModulesModule,
     ScheduleModule.forRoot(),
     DrizzleModule,
     LoggerModule,
@@ -56,14 +53,8 @@ import { ScheduleModule } from '@nestjs/schedule';
         isGlobal: true,
       }),
     }),
-
-    AuthModule,
-    OrganizationModule,
-    PayrollModule,
-    NotificationModule,
-    AnalyticsModule,
-    AuditModule,
-    WalletModule,
+    CompanySettingsModule,
+    HolidaysModule,
   ],
 })
 export class AppModule {}

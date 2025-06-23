@@ -8,25 +8,22 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
-const logger_1 = require("./config/logger");
+const logger_1 = require("./common/logger");
 const config_1 = require("@nestjs/config");
 const drizzle_module_1 = require("./drizzle/drizzle.module");
-const auth_module_1 = require("./auth/auth.module");
-const organization_module_1 = require("./organization/organization.module");
-const payroll_module_1 = require("./payroll/payroll.module");
 const Joi = require("joi");
-const notification_module_1 = require("./notification/notification.module");
-const analytics_module_1 = require("./analytics/analytics.module");
 const bullmq_1 = require("@nestjs/bullmq");
-const audit_module_1 = require("./audit/audit.module");
-const wallet_module_1 = require("./wallet/wallet.module");
 const schedule_1 = require("@nestjs/schedule");
+const modules_module_1 = require("./modules/modules.module");
+const company_settings_module_1 = require("./company-settings/company-settings.module");
+const holidays_module_1 = require("./modules/leave/holidays/holidays.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
+            modules_module_1.ModulesModule,
             schedule_1.ScheduleModule.forRoot(),
             drizzle_module_1.DrizzleModule,
             logger_1.LoggerModule,
@@ -68,13 +65,8 @@ exports.AppModule = AppModule = __decorate([
                     isGlobal: true,
                 }),
             }),
-            auth_module_1.AuthModule,
-            organization_module_1.OrganizationModule,
-            payroll_module_1.PayrollModule,
-            notification_module_1.NotificationModule,
-            analytics_module_1.AnalyticsModule,
-            audit_module_1.AuditModule,
-            wallet_module_1.WalletModule,
+            company_settings_module_1.CompanySettingsModule,
+            holidays_module_1.HolidaysModule,
         ],
     })
 ], AppModule);

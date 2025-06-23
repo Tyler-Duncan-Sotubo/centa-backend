@@ -1,2 +1,0 @@
-ALTER TABLE "tax_filings" ADD COLUMN "payroll_id" uuid NOT NULL;--> statement-breakpoint
-ALTER TABLE "tax_filings" ADD CONSTRAINT "tax_filings_payroll_id_payroll_id_fk" FOREIGN KEY ("payroll_id") REFERENCES "public"."payroll"("id") ON DELETE cascade ON UPDATE no action;

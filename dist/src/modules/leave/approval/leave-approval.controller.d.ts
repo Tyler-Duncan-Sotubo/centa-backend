@@ -1,0 +1,50 @@
+import { LeaveApprovalService } from './leave-approval.service';
+import { User } from 'src/common/types/user.type';
+import { ApproveRejectLeaveDto } from './dto/approve-reject.dto';
+import { BaseController } from 'src/common/interceptor/base.controller';
+export declare class LeaveApprovalController extends BaseController {
+    private readonly leaveApprovalService;
+    constructor(leaveApprovalService: LeaveApprovalService);
+    approveLeaveRequest(leaveRequestId: string, dto: ApproveRejectLeaveDto, user: User, ip: string): Promise<{
+        id: string;
+        companyId: string;
+        employeeId: string;
+        leaveTypeId: string;
+        startDate: string;
+        endDate: string;
+        reason: string | null;
+        status: string;
+        totalDays: string;
+        approverId: string | null;
+        approvedAt: Date | null;
+        requestedAt: Date | null;
+        rejectionReason: string | null;
+        approvalChain: unknown;
+        currentApprovalIndex: number | null;
+        approvalHistory: unknown;
+        partialDay: string | null;
+        createdAt: Date | null;
+        updatedAt: Date | null;
+    }[]>;
+    rejectLeaveRequest(leaveRequestId: string, dto: ApproveRejectLeaveDto, user: User, ip: string): Promise<{
+        id: string;
+        companyId: string;
+        employeeId: string;
+        leaveTypeId: string;
+        startDate: string;
+        endDate: string;
+        reason: string | null;
+        status: string;
+        totalDays: string;
+        approverId: string | null;
+        approvedAt: Date | null;
+        requestedAt: Date | null;
+        rejectionReason: string | null;
+        approvalChain: unknown;
+        currentApprovalIndex: number | null;
+        approvalHistory: unknown;
+        partialDay: string | null;
+        createdAt: Date | null;
+        updatedAt: Date | null;
+    }[]>;
+}

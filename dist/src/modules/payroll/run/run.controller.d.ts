@@ -1,0 +1,104 @@
+import { RunService } from './run.service';
+import { User } from 'src/common/types/user.type';
+import { BaseController } from 'src/common/interceptor/base.controller';
+export declare class RunController extends BaseController {
+    private readonly runService;
+    constructor(runService: RunService);
+    private formattedDate;
+    calculatePayrollForCompany(user: User, date: string): Promise<{
+        name: string;
+        transport: string;
+        id: string;
+        createdAt: Date | null;
+        updatedAt: Date | null;
+        companyId: string;
+        userId: string | null;
+        employeeId: string;
+        workflowId: string;
+        grossSalary: string;
+        payrollRunId: string;
+        basic: string;
+        housing: string;
+        pensionContribution: string;
+        employerPensionContribution: string;
+        bonuses: string | null;
+        reimbursements: unknown;
+        salaryAdvance: string | null;
+        nhfContribution: string | null;
+        payeTax: string;
+        customDeductions: string | null;
+        voluntaryDeductions: unknown;
+        totalDeductions: string;
+        netSalary: string;
+        taxableIncome: string;
+        payrollDate: string;
+        payrollMonth: string;
+        paymentStatus: string | null;
+        paymentDate: string | null;
+        paymentReference: string | null;
+        approvalDate: string | null;
+        approvalRemarks: string | null;
+        isStarter: boolean | null;
+        isLeaver: boolean | null;
+        isOffCycle: boolean | null;
+        requestedBy: string;
+        requestedAt: Date;
+        approvalStatus: string;
+        lastApprovalAt: Date | null;
+        lastApprovedBy: string | null;
+        currentStep: number;
+    }[]>;
+    getOnePayRun(payRunId: string): Promise<{
+        totalCostOfPayroll: any;
+        totalPensionContribution: number;
+        totalPAYE: number;
+        totalNHFContribution: number;
+        payrollRunId: string;
+        employees: {
+            employeeId: string;
+            name: string;
+            grossSalary: number;
+            netSalary: number;
+            approvalStatus: string;
+            paymentStatus: string | null;
+            payeTax: number;
+            pensionContribution: number;
+            nhfContribution: number;
+            employerPensionContribution: number;
+            additionalDeductions: number;
+            taxableIncome: number;
+            salaryAdvance: number;
+            payrollMonth: string;
+            payrollRunId: string;
+            payrollDate: string;
+            bonuses: number;
+            voluntaryDeductions: unknown;
+            payslip_pdf_url: string | null;
+            reimbursements: unknown;
+        }[];
+    }>;
+    sendForApproval(payRunId: string, user: User): Promise<{
+        updatedCount: any;
+    }>;
+    updatePayRun(payRunId: string, user: User, remarks: string): Promise<string>;
+    updatePaymentStatus(payRunId: string, user: User): Promise<void>;
+    getApprovalStatus(payRunId: string): Promise<{
+        payrollDate: string;
+        approvalStatus: string;
+        approvalSteps: {
+            id: string;
+            sequence: number;
+            role: string;
+            minApprovals: number;
+            maxApprovals: number;
+            createdAt: Date | null;
+            status: string;
+        }[];
+    }>;
+    updatePayrollPaymentStatus(user: User, id: string, status: 'paid' | 'pending'): Promise<{
+        payrollMonth: string;
+        salaryAdvance: string | null;
+        employeeId: string;
+        expenses: unknown;
+    }[]>;
+}

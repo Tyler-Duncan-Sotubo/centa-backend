@@ -1,1 +1,0 @@
-ALTER TABLE "payroll" RENAME COLUMN "salary_Advance" TO "salary_advance";

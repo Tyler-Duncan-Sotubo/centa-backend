@@ -1,57 +1,58 @@
+// main.ts
 import { NestFactory } from '@nestjs/core';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import { AppModule } from './app.module';
-import * as cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
 import { ValidationPipe } from '@nestjs/common';
-import * as bodyParser from 'body-parser';
-import * as compression from 'compression';
+import fastifyCompress from '@fastify/compress';
+import fastifyCookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
+import etag from '@fastify/etag';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    new FastifyAdapter({ logger: false, bodyLimit: 10 * 1024 * 1024 }),
+    {
+      bufferLogs: true,
+      bodyParser: false,
+    },
+  );
+
   app.setGlobalPrefix('api');
 
-  // Retrieve CLIENT_URL and ADMIN_URL from environment or config service
-  const clientUrl = process.env.CLIENT_URL;
-  const adminUrl = process.env.CLIENT_DASHBOARD_URL;
-  const employeeUrl = process.env.EMPLOYEE_PORTAL_URL;
+  // register Fastify plugins via import’d variables
+  const fastify = app.getHttpAdapter().getInstance();
+  await app.register(multipart, {
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
+  });
 
-  const allowedOrigins = [clientUrl, adminUrl, employeeUrl].filter(Boolean);
+  await app.register(etag);
 
-  // Enable CORS for specific origins
+  await fastify.register(fastifyCompress as any);
+
+  await fastify.register(fastifyCookie, {
+    secret: process.env.COOKIE_SECRET, // if you need signed cookies
+  });
+
+  // CORS, cookie parser, pipes, etc.
   app.enableCors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true); // Allow the request
-      } else {
-        callback(new Error('Not allowed by CORS')); // Reject the request
-      }
-    },
+    origin: [
+      process.env.CLIENT_URL,
+      process.env.CLIENT_DASHBOARD_URL,
+      process.env.EMPLOYEE_PORTAL_URL,
+    ].filter((url): url is string => typeof url === 'string'),
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
-  app.use(cookieParser());
-  app.useLogger(app.get(Logger));
-
-  app.use(bodyParser.json({ limit: '100mb' }));
-  app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
-
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-    }),
-  );
-
-  const logger = app.get(Logger);
-
-  try {
-    // Use the compression middleware
-    app.use(compression());
-    const port = process.env.PORT || 8000;
-    await app.listen(port);
-    logger.log('API Gateway is running on port 8000');
-  } catch (error) {
-    logger.error(`An error occurred: ${error.message}`);
-  }
+  const port = process.env.PORT! || 8000;
+  await app.listen(port, '0.0.0.0');
+  app.get(Logger).log(`🚀 Listening on port ${port}`);
 }
+
 bootstrap();
