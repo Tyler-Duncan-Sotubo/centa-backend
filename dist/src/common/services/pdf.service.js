@@ -20,7 +20,7 @@ const aws_service_1 = require("../aws/aws.service");
 const drizzle_module_1 = require("../../drizzle/drizzle.module");
 const payslip_schema_1 = require("../../modules/payroll/schema/payslip.schema");
 const drizzle_orm_1 = require("drizzle-orm");
-const puppeteer_1 = require("puppeteer");
+const puppeteer_core_1 = require("puppeteer-core");
 const formatCurrency_1 = require("../../utils/formatCurrency");
 let PdfService = class PdfService {
     constructor(db, payslipService, awsService) {
@@ -236,7 +236,7 @@ let PdfService = class PdfService {
         </body>
       </html>
       `;
-        const browser = await puppeteer_1.default.launch({
+        const browser = await puppeteer_core_1.default.launch({
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH ||
                 '/usr/bin/google-chrome-stable',
             headless: true,
