@@ -247,7 +247,11 @@ export class PdfService {
 
     // Launch Puppeteer and generate PDF
     const browser = await puppeteer.launch({
+      executablePath:
+        process.env.PUPPETEER_EXECUTABLE_PATH ||
+        '/usr/bin/google-chrome-stable',
       headless: true, // or false or 'shell'
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });

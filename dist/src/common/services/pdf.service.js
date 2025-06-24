@@ -237,7 +237,10 @@ let PdfService = class PdfService {
       </html>
       `;
         const browser = await puppeteer_1.default.launch({
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH ||
+                '/usr/bin/google-chrome-stable',
             headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
         });
         const page = await browser.newPage();
         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
