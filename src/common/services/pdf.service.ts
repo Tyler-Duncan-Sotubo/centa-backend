@@ -6,7 +6,7 @@ import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from '../../drizzle/drizzle.module';
 import { paySlips } from 'src/modules/payroll/schema/payslip.schema';
 import { eq } from 'drizzle-orm';
-import puppeteer from 'puppeteer-core';
+import puppeteer from 'puppeteer';
 import { formatCurrency } from 'src/utils/formatCurrency';
 
 @Injectable()
@@ -247,9 +247,6 @@ export class PdfService {
 
     // Launch Puppeteer and generate PDF
     const browser = await puppeteer.launch({
-      executablePath:
-        process.env.PUPPETEER_EXECUTABLE_PATH ||
-        '/usr/bin/google-chrome-stable',
       headless: true, // or false or 'shell'
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
