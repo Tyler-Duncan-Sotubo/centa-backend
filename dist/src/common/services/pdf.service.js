@@ -237,6 +237,7 @@ let PdfService = class PdfService {
       </html>
       `;
         const browser = await puppeteer_1.default.launch({
+            executablePath: '/usr/local/bin/chromium',
             headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox'],
         });
