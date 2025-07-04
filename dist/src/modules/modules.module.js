@@ -23,12 +23,14 @@ const benefits_module_1 = require("./benefits/benefits.module");
 const expenses_module_1 = require("./expenses/expenses.module");
 const assets_module_1 = require("./assets/assets.module");
 const announcement_module_1 = require("./announcement/announcement.module");
+const export_clean_service_1 = require("../common/services/export-clean.service");
 let ModulesModule = class ModulesModule {
 };
 exports.ModulesModule = ModulesModule;
 exports.ModulesModule = ModulesModule = __decorate([
     (0, common_1.Global)(),
     (0, common_1.Module)({
+        providers: [export_clean_service_1.ExportCleanupService],
         imports: [
             core_module_1.CoreModule,
             audit_module_1.AuditModule,

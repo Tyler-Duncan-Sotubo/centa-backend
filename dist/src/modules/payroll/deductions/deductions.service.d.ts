@@ -52,10 +52,10 @@ export declare class DeductionsService {
         startDate: string;
         employeeId: string;
         endDate: string | null;
-        metadata: unknown;
         deductionTypeId: string;
         rateType: "fixed" | "percentage";
         rateValue: string;
+        metadata: unknown;
     }>;
     updateEmployeeDeduction(user: User, id: string, dto: UpdateEmployeeDeductionDto): Promise<{
         id: string;

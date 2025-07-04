@@ -25,6 +25,7 @@ const file_parse_interceptor_1 = require("../../../common/interceptor/file-parse
 const search_employees_dto_1 = require("./dto/search-employees.dto");
 const create_employee_multi_details_dto_1 = require("./dto/create-employee-multi-details.dto");
 const update_employee_details_dto_1 = require("./dto/update-employee-details.dto");
+const inspector_1 = require("inspector");
 let EmployeesController = class EmployeesController extends base_controller_1.BaseController {
     constructor(employeesService) {
         super();
@@ -51,6 +52,7 @@ let EmployeesController = class EmployeesController extends base_controller_1.Ba
         return this.employeesService.createEmployee(createEmployeeDto, user, employeeId);
     }
     findAllEmployees(user) {
+        inspector_1.console.log('Fetching all employees for company:', user.companyId);
         return this.employeesService.findAllEmployees(user.companyId);
     }
     getActiveEmployees(user) {
@@ -152,7 +154,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], EmployeesController.prototype, "createEmployee", null);
 __decorate([
-    (0, common_1.Get)('all'),
+    (0, common_1.Get)(''),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('permission', ['employees.read_all']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
@@ -282,7 +284,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], EmployeesController.prototype, "getFallbackManagers", null);
 __decorate([
-    (0, common_1.Get)(),
+    (0, common_1.Get)('search'),
     (0, common_1.SetMetadata)('permission', ['employees.search']),
     __param(0, (0, common_1.Query)()),
     __metadata("design:type", Function),

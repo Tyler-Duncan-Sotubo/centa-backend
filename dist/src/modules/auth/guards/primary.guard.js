@@ -45,7 +45,11 @@ let PrimaryGuard = class PrimaryGuard {
         return true;
     }
     extractTokenFromHeader(request) {
-        const [type, token] = request.headers.authorization?.split(' ') ?? [];
+        const headers = request.headers || request.raw?.headers || {};
+        const authHeader = headers.authorization || headers.Authorization;
+        if (!authHeader)
+            return undefined;
+        const [type, token] = authHeader.split(' ');
         return type === 'Bearer' ? token : undefined;
     }
     async validate(payload) {

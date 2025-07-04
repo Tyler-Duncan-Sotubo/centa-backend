@@ -210,12 +210,12 @@ export class AuthService {
     };
 
     // Get Tokens
-    const { accessToken, refreshToken } =
+    const { accessToken } =
       await this.tokenGeneratorService.generateToken(payload);
 
     return {
       accessToken,
-      refreshToken,
+      refreshToken: '',
       expiresIn: Date.now() + 1000 * 60 * 10, //
     };
   }

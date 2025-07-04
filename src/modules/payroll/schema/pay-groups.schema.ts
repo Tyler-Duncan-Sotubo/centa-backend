@@ -13,7 +13,7 @@ export const payGroups = pgTable(
   'pay_groups',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    name: text('name').notNull().unique(),
+    name: text('name').notNull(),
 
     // Deductions
     applyPaye: boolean('apply_paye').default(false),

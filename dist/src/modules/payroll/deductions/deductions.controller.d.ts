@@ -30,10 +30,10 @@ export declare class DeductionsController extends BaseController {
         startDate: string;
         employeeId: string;
         endDate: string | null;
-        metadata: unknown;
         deductionTypeId: string;
         rateType: "fixed" | "percentage";
         rateValue: string;
+        metadata: unknown;
     }>;
     getAllEmployeeDeductionsForCompany(user: User): Promise<({
         id: string;

@@ -14,9 +14,11 @@ import { BenefitsModule } from './benefits/benefits.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { AssetsModule } from './assets/assets.module';
 import { AnnouncementModule } from './announcement/announcement.module';
+import { ExportCleanupService } from 'src/common/services/export-clean.service';
 
 @Global()
 @Module({
+  providers: [ExportCleanupService],
   imports: [
     CoreModule,
     AuditModule,

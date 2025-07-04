@@ -20,8 +20,8 @@ export declare class AssetsRequestService {
         employeeId: string;
         status: string | null;
         notes: string | null;
-        rejectionReason: string | null;
         purpose: string;
+        rejectionReason: string | null;
         requestDate: string;
         assetType: string;
         urgency: string;

@@ -58,10 +58,10 @@ export declare class OnboardingSeederService {
     getTemplatesByCompanyWithDetails(companyId: string): Promise<{
         fields: {
             id: string;
+            label: string;
             templateId: string;
             order: number | null;
             fieldKey: string;
-            label: string;
             fieldType: string;
             required: boolean | null;
             tag: string;
@@ -87,10 +87,10 @@ export declare class OnboardingSeederService {
     getTemplateByIdWithDetails(templateId: string): Promise<{
         fields: {
             id: string;
+            label: string;
             templateId: string;
             order: number | null;
             fieldKey: string;
-            label: string;
             fieldType: string;
             required: boolean | null;
             tag: string;

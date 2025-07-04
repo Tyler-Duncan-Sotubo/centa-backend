@@ -168,10 +168,10 @@ let AuthService = class AuthService {
             email: user.email,
             sub: user.sub,
         };
-        const { accessToken, refreshToken } = await this.tokenGeneratorService.generateToken(payload);
+        const { accessToken } = await this.tokenGeneratorService.generateToken(payload);
         return {
             accessToken,
-            refreshToken,
+            refreshToken: '',
             expiresIn: Date.now() + 1000 * 60 * 10,
         };
     }

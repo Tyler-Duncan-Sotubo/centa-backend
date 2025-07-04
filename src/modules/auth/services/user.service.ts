@@ -50,6 +50,11 @@ export class UserService {
       throw new BadRequestException('Company already exists.');
     }
 
+    // 2) Prevent duplicate user
+    if (await this.findUserByEmail(dto.email.toLowerCase())) {
+      throw new BadRequestException('User already exists.');
+    }
+
     // 1b) Create the company tenant
     const [company] = await this.db
       .insert(companies)
@@ -60,11 +65,6 @@ export class UserService {
       })
       .returning({ id: companies.id })
       .execute();
-
-    // 2) Prevent duplicate user
-    if (await this.findUserByEmail(dto.email.toLowerCase())) {
-      throw new BadRequestException('User already exists.');
-    }
 
     // 3) Hash password
     const hashed = await bcrypt.hash(dto.password, 10);
@@ -91,7 +91,7 @@ export class UserService {
         .returning({ id: users.id, email: users.email })
         .execute();
 
-      // 5) Regsiter company Location
+      // 5) Register company Location
       await trx.insert(companyLocations).values({
         name: 'Head Office',
         country: dto.country,
@@ -112,7 +112,86 @@ export class UserService {
     return { user: newUser, company: { id: company.id, domain: dto.domain } };
   }
 
+  // async register(dto: RegisterDto) {
+  //   // 1) Prevent duplicate company
+  //   const existingCompany = await this.db
+  //     .select()
+  //     .from(companies)
+  //     .where(eq(companies.domain, dto.domain.toLowerCase()))
+  //     .execute();
+
+  //   if (existingCompany.length > 0) {
+  //     throw new BadRequestException('Company already exists.');
+  //   }
+
+  //   // 2) Prevent duplicate user
+  //   if (await this.findUserByEmail(dto.email.toLowerCase())) {
+  //     throw new BadRequestException('User already exists.');
+  //   }
+
+  //   const hashed = await bcrypt.hash(dto.password, 10);
+
+  //   const result = await this.db.transaction(async (trx) => {
+  //     // Create company
+  //     const [company] = await trx
+  //       .insert(companies)
+  //       .values({
+  //         name: dto.companyName,
+  //         country: dto.country,
+  //         domain: dto.domain.toLowerCase(),
+  //       })
+  //       .returning({ id: companies.id })
+  //       .execute();
+
+  //     console.log('Company created:', company);
+
+  //     // 3a) Check if the super admin role exists
+  //     const roles = await this.permissionService.createDefaultRoles(company.id);
+  //     const superAdminRole = roles.find((role) => role.name === 'super_admin');
+
+  //     console.log('Roles created:', roles);
+
+  //     if (!superAdminRole) {
+  //       throw new BadRequestException('Super admin role not found.');
+  //     }
+
+  //     // Create user
+  //     const [user] = await trx
+  //       .insert(users)
+  //       .values({
+  //         email: dto.email.toLowerCase(),
+  //         password: hashed,
+  //         companyId: company.id,
+  //         companyRoleId: superAdminRole.id,
+  //       })
+  //       .returning({ id: users.id, email: users.email })
+  //       .execute();
+
+  //     console.log('User created:', user);
+
+  //     // Create company location
+  //     await trx.insert(companyLocations).values({
+  //       name: 'Head Office',
+  //       country: dto.country,
+  //       companyId: company.id,
+  //       isPrimary: true,
+  //     });
+
+  //     return { user, company: { id: company.id, domain: dto.domain } };
+  //   });
+
+  //   await this.companySettingsService.setSettings(result.company.id);
+  //   await this.permissionSeedQueue.add('seed-permissions', {
+  //     companyId: result.company.id,
+  //   });
+
+  //   await this.verificationService.generateVerificationToken(result.user.id);
+
+  //   return result;
+  // }
+
   //Invite User to Company Assign Admin Role
+
   async inviteUser(dto: InviteUserDto, company_id: string) {
     const company = await this.db
       .select({

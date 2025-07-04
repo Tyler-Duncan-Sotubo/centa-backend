@@ -6,7 +6,7 @@ const schema_1 = require("../../../drizzle/schema");
 const pay_schedules_schema_1 = require("./pay-schedules.schema");
 exports.payGroups = (0, pg_core_1.pgTable)('pay_groups', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
-    name: (0, pg_core_1.text)('name').notNull().unique(),
+    name: (0, pg_core_1.text)('name').notNull(),
     applyPaye: (0, pg_core_1.boolean)('apply_paye').default(false),
     applyPension: (0, pg_core_1.boolean)('apply_pension').default(false),
     applyNhf: (0, pg_core_1.boolean)('apply_nhf').default(false),

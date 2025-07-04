@@ -1,0 +1,1 @@
+ALTER TABLE "pay_groups" DROP CONSTRAINT "pay_groups_name_unique";

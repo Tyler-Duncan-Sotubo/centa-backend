@@ -26,6 +26,7 @@ import { FileParseInterceptor } from 'src/common/interceptor/file-parse.intercep
 import { SearchEmployeesDto } from './dto/search-employees.dto';
 import { CreateEmployeeMultiDetailsDto } from './dto/create-employee-multi-details.dto';
 import { EmployeeProfileDto } from './dto/update-employee-details.dto';
+import { console } from 'inspector';
 
 @UseInterceptors(AuditInterceptor)
 @Controller('employees')
@@ -104,10 +105,11 @@ export class EmployeesController extends BaseController {
     );
   }
 
-  @Get('all')
+  @Get('')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permission', ['employees.read_all'])
   findAllEmployees(@CurrentUser() user: User) {
+    console.log('Fetching all employees for company:', user.companyId);
     return this.employeesService.findAllEmployees(user.companyId);
   }
 
@@ -214,7 +216,7 @@ export class EmployeesController extends BaseController {
     return this.employeesService.findFallbackManagers(user.companyId);
   }
 
-  @Get()
+  @Get('search')
   @SetMetadata('permission', ['employees.search'])
   search(@Query() params: SearchEmployeesDto) {
     return this.employeesService.search(params);

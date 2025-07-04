@@ -57,10 +57,26 @@ let PayGroupsService = class PayGroupsService {
         })
             .from(pay_groups_schema_1.payGroups)
             .innerJoin(pay_schedules_schema_1.paySchedules, (0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.payScheduleId, pay_schedules_schema_1.paySchedules.id))
-            .where((0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.companyId, companyId))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.companyId, companyId), (0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.isDeleted, false)))
             .execute();
     }
     async create(user, dto, ip) {
+        const [paySchedule] = await this.db
+            .select({ id: pay_schedules_schema_1.paySchedules.id })
+            .from(pay_schedules_schema_1.paySchedules)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(pay_schedules_schema_1.paySchedules.id, dto.payScheduleId), (0, drizzle_orm_1.eq)(pay_schedules_schema_1.paySchedules.companyId, user.companyId), (0, drizzle_orm_1.eq)(pay_schedules_schema_1.paySchedules.isDeleted, false)))
+            .execute();
+        if (!paySchedule) {
+            throw new common_1.BadRequestException('Pay schedule not found');
+        }
+        const existingGroup = await this.db
+            .select({ id: pay_groups_schema_1.payGroups.id })
+            .from(pay_groups_schema_1.payGroups)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.name, dto.name.toLowerCase()), (0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.companyId, user.companyId), (0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.isDeleted, false)))
+            .execute();
+        if (existingGroup.length) {
+            throw new common_1.BadRequestException('Pay group with this name already exists');
+        }
         const [newGroup] = await this.db
             .insert(pay_groups_schema_1.payGroups)
             .values({
@@ -110,6 +126,7 @@ let PayGroupsService = class PayGroupsService {
         return { message: 'Pay group updated successfully' };
     }
     async remove(groupId, user, ip) {
+        console.log('Removing pay group with ID:', groupId);
         const employeesInGroup = await this.db
             .select({ id: schema_1.employees.id })
             .from(schema_1.employees)
@@ -118,6 +135,12 @@ let PayGroupsService = class PayGroupsService {
         if (employeesInGroup.length) {
             throw new common_1.BadRequestException('Cannot delete pay group with employees assigned to it');
         }
+        await this.db
+            .update(pay_groups_schema_1.payGroups)
+            .set({ isDeleted: true })
+            .where((0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.id, groupId))
+            .returning()
+            .execute();
         await this.auditService.logAction({
             action: 'delete',
             entity: 'pay_group',

@@ -4,7 +4,7 @@ import { UpdatePayGroupDto } from './dto/update-pay-group.dto';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
 import { employees } from 'src/drizzle/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { payGroups } from '../schema/pay-groups.schema';
 import { paySchedules } from '../schema/pay-schedules.schema';
 import { CacheService } from 'src/common/cache/cache.service';
@@ -53,11 +53,47 @@ export class PayGroupsService {
       })
       .from(payGroups)
       .innerJoin(paySchedules, eq(payGroups.payScheduleId, paySchedules.id))
-      .where(eq(payGroups.companyId, companyId))
+      .where(
+        and(eq(payGroups.companyId, companyId), eq(payGroups.isDeleted, false)),
+      )
       .execute();
   }
 
   async create(user: User, dto: CreatePayGroupDto, ip: string) {
+    // Check if pay schedule exists
+    const [paySchedule] = await this.db
+      .select({ id: paySchedules.id })
+      .from(paySchedules)
+      .where(
+        and(
+          eq(paySchedules.id, dto.payScheduleId),
+          eq(paySchedules.companyId, user.companyId),
+          eq(paySchedules.isDeleted, false),
+        ),
+      )
+      .execute();
+
+    if (!paySchedule) {
+      throw new BadRequestException('Pay schedule not found');
+    }
+
+    // Check if pay group with same name already exists
+    const existingGroup = await this.db
+      .select({ id: payGroups.id })
+      .from(payGroups)
+      .where(
+        and(
+          eq(payGroups.name, dto.name.toLowerCase()),
+          eq(payGroups.companyId, user.companyId),
+          eq(payGroups.isDeleted, false),
+        ),
+      )
+      .execute();
+
+    if (existingGroup.length) {
+      throw new BadRequestException('Pay group with this name already exists');
+    }
+
     const [newGroup] = await this.db
       .insert(payGroups)
       .values({
@@ -129,6 +165,7 @@ export class PayGroupsService {
   }
 
   async remove(groupId: string, user: any, ip: string) {
+    console.log('Removing pay group with ID:', groupId);
     const employeesInGroup = await this.db
       .select({ id: employees.id })
       .from(employees)
@@ -140,6 +177,13 @@ export class PayGroupsService {
         'Cannot delete pay group with employees assigned to it',
       );
     }
+
+    await this.db
+      .update(payGroups)
+      .set({ isDeleted: true })
+      .where(eq(payGroups.id, groupId))
+      .returning()
+      .execute();
 
     // Log Audit trail
     await this.auditService.logAction({

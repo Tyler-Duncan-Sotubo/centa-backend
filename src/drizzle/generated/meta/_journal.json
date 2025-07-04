@@ -15,6 +15,13 @@
       "when": 1750585241454,
       "tag": "0001_robust_stephen_strange",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1751664560440,
+      "tag": "0002_huge_squadron_supreme",
+      "breakpoints": true
     }
   ]
 }

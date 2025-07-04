@@ -6,7 +6,6 @@ import {
   Inject,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { db } from 'src/drizzle/types/drizzle';
 import { eq } from 'drizzle-orm';
@@ -42,8 +41,13 @@ export class PrimaryGuard implements CanActivate {
     return true;
   }
 
-  private extractTokenFromHeader(request: Request) {
-    const [type, token] = request.headers.authorization?.split(' ') ?? [];
+  private extractTokenFromHeader(request: any): string | undefined {
+    const headers = request.headers || request.raw?.headers || {};
+    const authHeader = headers.authorization || headers.Authorization;
+
+    if (!authHeader) return undefined;
+
+    const [type, token] = authHeader.split(' ');
     return type === 'Bearer' ? token : undefined;
   }
 

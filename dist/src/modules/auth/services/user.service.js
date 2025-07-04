@@ -48,6 +48,9 @@ let UserService = class UserService {
         if (existingCompany.length > 0) {
             throw new common_1.BadRequestException('Company already exists.');
         }
+        if (await this.findUserByEmail(dto.email.toLowerCase())) {
+            throw new common_1.BadRequestException('User already exists.');
+        }
         const [company] = await this.db
             .insert(schema_1.companies)
             .values({
@@ -57,9 +60,6 @@ let UserService = class UserService {
         })
             .returning({ id: schema_1.companies.id })
             .execute();
-        if (await this.findUserByEmail(dto.email.toLowerCase())) {
-            throw new common_1.BadRequestException('User already exists.');
-        }
         const hashed = await bcrypt.hash(dto.password, 10);
         const roles = await this.permissionService.createDefaultRoles(company.id);
         const superAdminRole = roles.find((role) => role.name === 'super_admin');

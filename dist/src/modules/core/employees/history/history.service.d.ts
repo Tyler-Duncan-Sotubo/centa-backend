@@ -173,8 +173,8 @@ export declare class HistoryService {
         description: string | null;
         title: string;
         employeeId: string;
-        type: "employment" | "education" | "certification" | "promotion" | "transfer" | "termination";
         endDate: string | null;
+        type: "employment" | "education" | "certification" | "promotion" | "transfer" | "termination";
         institution: string | null;
     }>;
     findAll(employeeId: string): Promise<{
