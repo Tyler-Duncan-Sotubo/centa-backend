@@ -228,7 +228,7 @@ let ReportService = class ReportService {
 `.as('totalPayrollCost'),
         })
             .from(payroll_run_schema_1.payroll)
-            .where((0, drizzle_orm_1.eq)(payroll_run_schema_1.payroll.companyId, companyId))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_run_schema_1.payroll.companyId, companyId), (0, drizzle_orm_1.eq)(payroll_run_schema_1.payroll.isOffCycle, false)))
             .orderBy((0, drizzle_orm_1.desc)(payroll_run_schema_1.payroll.payrollDate))
             .groupBy(payroll_run_schema_1.payroll.payrollRunId, payroll_run_schema_1.payroll.payrollDate, payroll_run_schema_1.payroll.payrollMonth, payroll_run_schema_1.payroll.approvalStatus, payroll_run_schema_1.payroll.paymentStatus)
             .execute();

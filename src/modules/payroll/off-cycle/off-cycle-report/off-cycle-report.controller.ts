@@ -102,4 +102,11 @@ export class OffCycleReportController extends BaseController {
       employeeId,
     });
   }
+
+  @Get('off-payroll-summary')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin'])
+  async getOffCyclePayrollSummary(@CurrentUser() user: User) {
+    return this.offCycleReportService.getOffCyclePayrollSummary(user.companyId);
+  }
 }

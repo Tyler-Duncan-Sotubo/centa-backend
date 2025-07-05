@@ -15,19 +15,19 @@ export declare class AnnouncementController extends BaseController {
     constructor(announcementService: AnnouncementService, commentService: CommentService, reactionService: ReactionService, categoryService: CategoryService);
     create(createAnnouncementDto: CreateAnnouncementDto, user: User): Promise<{
         id: string;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-        link: string | null;
-        companyId: string;
-        departmentId: string | null;
         title: string;
-        locationId: string | null;
         body: string;
+        link: string | null;
         image: string | null;
         publishedAt: Date | null;
         expiresAt: Date | null;
         isPublished: boolean | null;
         createdBy: string;
+        createdAt: Date | null;
+        updatedAt: Date | null;
+        companyId: string;
+        departmentId: string | null;
+        locationId: string | null;
         categoryId: string;
     }>;
     findAll(user: User): Promise<{
@@ -110,8 +110,8 @@ export declare class AnnouncementController extends BaseController {
     }>;
     createComment(id: string, createCommentDto: CreateAnnouncementCommentDto, user: User): Promise<{
         id: string;
-        createdAt: Date | null;
         createdBy: string;
+        createdAt: Date | null;
         announcementId: string;
         comment: string;
     }>;
@@ -120,8 +120,8 @@ export declare class AnnouncementController extends BaseController {
     }>;
     likeAnnouncement(id: string, reactionType: string, user: User): Promise<{
         id: string;
-        createdAt: Date | null;
         createdBy: string;
+        createdAt: Date | null;
         announcementId: string;
         reactionType: string;
     } | undefined>;

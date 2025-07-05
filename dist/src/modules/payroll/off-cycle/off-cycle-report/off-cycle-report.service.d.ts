@@ -113,4 +113,16 @@ export declare class OffCycleReportService {
             totalRegularTax: number;
         };
     }>;
+    getOffCyclePayrollSummary(companyId: string): Promise<{
+        totalDeductions: number;
+        payrollRunId: string;
+        payrollDate: string;
+        payrollMonth: string;
+        approvalStatus: string;
+        paymentStatus: string | null;
+        totalGrossSalary: number;
+        employeeCount: number;
+        totalNetSalary: number;
+        totalPayrollCost: number;
+    }[]>;
 }

@@ -47,12 +47,12 @@ export declare class OnboardingController extends BaseController {
         checklist: {
             fields: ({
                 id: string;
+                label: string;
                 templateId: string;
                 order: number | null;
-                label: string;
-                required: boolean | null;
                 fieldKey: string;
                 fieldType: string;
+                required: boolean | null;
                 tag: string;
             } | undefined)[];
             id: string;
@@ -72,12 +72,12 @@ export declare class OnboardingController extends BaseController {
         checklist: {
             fields: ({
                 id: string;
+                label: string;
                 templateId: string;
                 order: number | null;
-                label: string;
-                required: boolean | null;
                 fieldKey: string;
                 fieldType: string;
+                required: boolean | null;
                 tag: string;
             } | undefined)[];
             id: string;

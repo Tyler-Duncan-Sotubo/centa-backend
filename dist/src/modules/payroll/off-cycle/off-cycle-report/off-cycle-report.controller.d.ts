@@ -110,4 +110,16 @@ export declare class OffCycleReportController extends BaseController {
             totalRegularTax: number;
         };
     }>;
+    getOffCyclePayrollSummary(user: User): Promise<{
+        totalDeductions: number;
+        payrollRunId: string;
+        payrollDate: string;
+        payrollMonth: string;
+        approvalStatus: string;
+        paymentStatus: string | null;
+        totalGrossSalary: number;
+        employeeCount: number;
+        totalNetSalary: number;
+        totalPayrollCost: number;
+    }[]>;
 }

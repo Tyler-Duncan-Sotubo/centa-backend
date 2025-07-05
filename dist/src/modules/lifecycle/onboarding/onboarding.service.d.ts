@@ -48,10 +48,10 @@ export declare class OnboardingService {
                 id: string;
                 templateId: string;
                 order: number | null;
-                label: string;
-                required: boolean | null;
                 fieldKey: string;
+                label: string;
                 fieldType: string;
+                required: boolean | null;
                 tag: string;
             } | undefined)[];
             id: string;
@@ -73,10 +73,10 @@ export declare class OnboardingService {
                 id: string;
                 templateId: string;
                 order: number | null;
-                label: string;
-                required: boolean | null;
                 fieldKey: string;
+                label: string;
                 fieldType: string;
+                required: boolean | null;
                 tag: string;
             } | undefined)[];
             id: string;

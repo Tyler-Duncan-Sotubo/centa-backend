@@ -60,10 +60,10 @@ export declare class OnboardingSeederService {
             id: string;
             templateId: string;
             order: number | null;
-            label: string;
-            required: boolean | null;
             fieldKey: string;
+            label: string;
             fieldType: string;
+            required: boolean | null;
             tag: string;
         }[];
         checklist: {
@@ -89,10 +89,10 @@ export declare class OnboardingSeederService {
             id: string;
             templateId: string;
             order: number | null;
-            label: string;
-            required: boolean | null;
             fieldKey: string;
+            label: string;
             fieldType: string;
+            required: boolean | null;
             tag: string;
         }[];
         checklist: {

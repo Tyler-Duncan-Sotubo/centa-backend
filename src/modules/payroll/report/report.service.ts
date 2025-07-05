@@ -293,7 +293,9 @@ export class ReportService {
 `.as('totalPayrollCost'),
       })
       .from(payroll)
-      .where(eq(payroll.companyId, companyId))
+      .where(
+        and(eq(payroll.companyId, companyId), eq(payroll.isOffCycle, false)),
+      )
       .orderBy(desc(payroll.payrollDate))
       .groupBy(
         payroll.payrollRunId,

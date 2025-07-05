@@ -7,18 +7,18 @@ export declare class PayrollAdjustmentsController {
     constructor(payrollAdjustmentsService: PayrollAdjustmentsService);
     create(createPayrollAdjustmentDto: CreatePayrollAdjustmentDto, user: User): Promise<{
         id: string;
+        createdBy: string | null;
         createdAt: string | null;
         companyId: string;
         isDeleted: boolean | null;
-        employeeId: string;
         type: string;
-        payrollDate: string;
+        employeeId: string;
         notes: string | null;
-        createdBy: string | null;
         amount: number;
-        label: string | null;
         taxable: boolean | null;
         proratable: boolean | null;
+        payrollDate: string;
+        label: string | null;
         recurring: boolean | null;
     }>;
     findAll(user: User): Promise<{

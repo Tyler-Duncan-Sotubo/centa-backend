@@ -47,7 +47,6 @@ let PrimaryGuard = class PrimaryGuard {
     extractTokenFromHeader(request) {
         const headers = request.headers || request.raw?.headers || {};
         const authHeader = headers.authorization || headers.Authorization;
-        console.log('Auth Header:', authHeader);
         if (!authHeader)
             return undefined;
         const [type, token] = authHeader.split(' ');

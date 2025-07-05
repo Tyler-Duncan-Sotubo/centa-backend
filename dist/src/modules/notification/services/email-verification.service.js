@@ -46,7 +46,7 @@ let EmailVerificationService = class EmailVerificationService {
     async sendVerifyLogin(email, token) {
         sgMail.setApiKey(this.config.get('SEND_GRID_KEY') || '');
         const msg = {
-            to: 'tylertooxclusive@gmail.com',
+            to: email,
             from: {
                 name: 'Please confirm your account',
                 email: 'noreply@centa.africa',

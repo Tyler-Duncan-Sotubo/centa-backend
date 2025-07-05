@@ -9,12 +9,12 @@ export declare class OnboardingSeederController extends BaseController {
     getGlobalTemplates(templateId: string): Promise<{
         fields: {
             id: string;
+            label: string;
             templateId: string;
             order: number | null;
-            label: string;
-            required: boolean | null;
             fieldKey: string;
             fieldType: string;
+            required: boolean | null;
             tag: string;
         }[];
         checklist: {
@@ -28,8 +28,8 @@ export declare class OnboardingSeederController extends BaseController {
         id: string;
         name: string;
         createdAt: Date;
-        companyId: string | null;
         description: string | null;
+        companyId: string | null;
         status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
@@ -37,8 +37,8 @@ export declare class OnboardingSeederController extends BaseController {
         id: string;
         name: string;
         createdAt: Date;
-        companyId: string | null;
         description: string | null;
+        companyId: string | null;
         status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
@@ -46,8 +46,8 @@ export declare class OnboardingSeederController extends BaseController {
         id: string;
         name: string;
         createdAt: Date;
-        companyId: string | null;
         description: string | null;
+        companyId: string | null;
         status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
@@ -76,12 +76,12 @@ export declare class OnboardingSeederController extends BaseController {
     getTemplatesByCompanyWithDetails(user: User): Promise<{
         fields: {
             id: string;
+            label: string;
             templateId: string;
             order: number | null;
-            label: string;
-            required: boolean | null;
             fieldKey: string;
             fieldType: string;
+            required: boolean | null;
             tag: string;
         }[];
         checklist: {

@@ -46,6 +46,9 @@ let OffCycleReportController = class OffCycleReportController extends base_contr
             employeeId,
         });
     }
+    async getOffCyclePayrollSummary(user) {
+        return this.offCycleReportService.getOffCyclePayrollSummary(user.companyId);
+    }
 };
 exports.OffCycleReportController = OffCycleReportController;
 __decorate([
@@ -112,6 +115,15 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], OffCycleReportController.prototype, "getOffCycleDashboard", null);
+__decorate([
+    (0, common_1.Get)('off-payroll-summary'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], OffCycleReportController.prototype, "getOffCyclePayrollSummary", null);
 exports.OffCycleReportController = OffCycleReportController = __decorate([
     (0, common_1.Controller)('off-cycle-report'),
     __metadata("design:paramtypes", [off_cycle_report_service_1.OffCycleReportService])

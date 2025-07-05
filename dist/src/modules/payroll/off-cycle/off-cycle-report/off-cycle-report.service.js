@@ -158,6 +158,44 @@ let OffCycleReportService = class OffCycleReportService {
             taxImpact,
         };
     }
+    async getOffCyclePayrollSummary(companyId) {
+        const payrollTotal = await this.db
+            .select({
+            payrollRunId: payroll_run_schema_1.payroll.payrollRunId,
+            payrollDate: payroll_run_schema_1.payroll.payrollDate,
+            payrollMonth: payroll_run_schema_1.payroll.payrollMonth,
+            approvalStatus: payroll_run_schema_1.payroll.approvalStatus,
+            paymentStatus: payroll_run_schema_1.payroll.paymentStatus,
+            totalGrossSalary: (0, drizzle_orm_1.sql) `SUM(${payroll_run_schema_1.payroll.grossSalary})`.as('total_gross_salary'),
+            employeeCount: (0, drizzle_orm_1.sql) `COUNT(DISTINCT ${payroll_run_schema_1.payroll.employeeId})`.as('employee_count'),
+            totalDeductions: (0, drizzle_orm_1.sql) `
+            SUM(${payroll_run_schema_1.payroll.payeTax} + ${payroll_run_schema_1.payroll.pensionContribution} + ${payroll_run_schema_1.payroll.nhfContribution} + ${payroll_run_schema_1.payroll.salaryAdvance})
+          `.as('total_deductions'),
+            totalNetSalary: (0, drizzle_orm_1.sql) `SUM(${payroll_run_schema_1.payroll.netSalary})`.as('total_netSalary'),
+            totalPayrollCost: (0, drizzle_orm_1.sql) `
+    SUM(
+      ${payroll_run_schema_1.payroll.grossSalary} + ${payroll_run_schema_1.payroll.employerPensionContribution} +
+      COALESCE(
+        (SELECT SUM( (e->>'amount')::numeric )
+         FROM jsonb_array_elements(${payroll_run_schema_1.payroll.reimbursements}) AS e),
+        0
+      )
+    )
+  `.as('totalPayrollCost'),
+        })
+            .from(payroll_run_schema_1.payroll)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_run_schema_1.payroll.companyId, companyId), (0, drizzle_orm_1.eq)(payroll_run_schema_1.payroll.isOffCycle, true)))
+            .orderBy((0, drizzle_orm_1.desc)(payroll_run_schema_1.payroll.payrollDate))
+            .groupBy(payroll_run_schema_1.payroll.payrollRunId, payroll_run_schema_1.payroll.payrollDate, payroll_run_schema_1.payroll.payrollMonth, payroll_run_schema_1.payroll.approvalStatus, payroll_run_schema_1.payroll.paymentStatus)
+            .execute();
+        const enriched = payrollTotal.map((row) => {
+            return {
+                ...row,
+                totalDeductions: Number(row.totalDeductions),
+            };
+        });
+        return enriched;
+    }
 };
 exports.OffCycleReportService = OffCycleReportService;
 exports.OffCycleReportService = OffCycleReportService = __decorate([

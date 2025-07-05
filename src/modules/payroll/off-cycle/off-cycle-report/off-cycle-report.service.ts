@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
 import { offCyclePayroll } from '../schema/off-cycle.schema';
-import { sql, eq, and, gte, lte } from 'drizzle-orm';
+import { sql, eq, and, gte, lte, desc } from 'drizzle-orm';
 import { employees } from 'src/drizzle/schema';
 import { payroll } from '../../schema/payroll-run.schema';
 
@@ -266,5 +266,61 @@ export class OffCycleReportService {
       typeBreakdown, // Array<{ type, total }>
       taxImpact, // { lines: Array<{ payrollDate, gross, pension, nhf, paye, net, type }>, totalRegularTax }
     };
+  }
+
+  async getOffCyclePayrollSummary(companyId: string) {
+    const payrollTotal = await this.db
+      .select({
+        payrollRunId: payroll.payrollRunId,
+        payrollDate: payroll.payrollDate,
+        payrollMonth: payroll.payrollMonth,
+        approvalStatus: payroll.approvalStatus,
+        paymentStatus: payroll.paymentStatus,
+        totalGrossSalary: sql<number>`SUM(${payroll.grossSalary})`.as(
+          'total_gross_salary',
+        ),
+        employeeCount: sql<number>`COUNT(DISTINCT ${payroll.employeeId})`.as(
+          'employee_count',
+        ),
+        totalDeductions: sql<number>`
+            SUM(${payroll.payeTax} + ${payroll.pensionContribution} + ${payroll.nhfContribution} + ${payroll.salaryAdvance})
+          `.as('total_deductions'),
+        totalNetSalary: sql<number>`SUM(${payroll.netSalary})`.as(
+          'total_netSalary',
+        ),
+        totalPayrollCost: sql<number>`
+    SUM(
+      ${payroll.grossSalary} + ${payroll.employerPensionContribution} +
+      COALESCE(
+        (SELECT SUM( (e->>'amount')::numeric )
+         FROM jsonb_array_elements(${payroll.reimbursements}) AS e),
+        0
+      )
+    )
+  `.as('totalPayrollCost'),
+      })
+      .from(payroll)
+      .where(
+        and(eq(payroll.companyId, companyId), eq(payroll.isOffCycle, true)),
+      )
+      .orderBy(desc(payroll.payrollDate))
+      .groupBy(
+        payroll.payrollRunId,
+        payroll.payrollDate,
+        payroll.payrollMonth,
+        payroll.approvalStatus,
+        payroll.paymentStatus,
+      )
+      .execute();
+
+    // 2. Merge the voluntary deductions into each row
+    const enriched = payrollTotal.map((row) => {
+      return {
+        ...row,
+        totalDeductions: Number(row.totalDeductions),
+      };
+    });
+
+    return enriched;
   }
 }

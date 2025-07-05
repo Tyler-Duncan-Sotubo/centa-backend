@@ -26,19 +26,18 @@ export declare class RunService {
     private round2;
     calculatePayroll(employeeId: string, payrollDate: string, payrollRunId: string, companyId: string, userId: string, workflowId: string): Promise<{
         name: string;
+        transport: string;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
         userId: string | null;
         employeeId: string;
+        workflowId: string;
         grossSalary: string;
-        requestedAt: Date;
-        payrollMonth: string;
         payrollRunId: string;
         basic: string;
         housing: string;
-        transport: string;
         pensionContribution: string;
         employerPensionContribution: string;
         bonuses: string | null;
@@ -52,6 +51,7 @@ export declare class RunService {
         netSalary: string;
         taxableIncome: string;
         payrollDate: string;
+        payrollMonth: string;
         paymentStatus: string | null;
         paymentDate: string | null;
         paymentReference: string | null;
@@ -61,27 +61,26 @@ export declare class RunService {
         isLeaver: boolean | null;
         isOffCycle: boolean | null;
         requestedBy: string;
+        requestedAt: Date;
         approvalStatus: string;
         lastApprovalAt: Date | null;
         lastApprovedBy: string | null;
-        workflowId: string;
         currentStep: number;
     }>;
     calculatePayrollForCompany(user: User, payrollDate: string, groupId?: string): Promise<{
         name: string;
+        transport: string;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
         userId: string | null;
         employeeId: string;
+        workflowId: string;
         grossSalary: string;
-        requestedAt: Date;
-        payrollMonth: string;
         payrollRunId: string;
         basic: string;
         housing: string;
-        transport: string;
         pensionContribution: string;
         employerPensionContribution: string;
         bonuses: string | null;
@@ -95,6 +94,7 @@ export declare class RunService {
         netSalary: string;
         taxableIncome: string;
         payrollDate: string;
+        payrollMonth: string;
         paymentStatus: string | null;
         paymentDate: string | null;
         paymentReference: string | null;
@@ -104,10 +104,10 @@ export declare class RunService {
         isLeaver: boolean | null;
         isOffCycle: boolean | null;
         requestedBy: string;
+        requestedAt: Date;
         approvalStatus: string;
         lastApprovalAt: Date | null;
         lastApprovedBy: string | null;
-        workflowId: string;
         currentStep: number;
     }[]>;
     findOnePayRun(runId: string): Promise<{
