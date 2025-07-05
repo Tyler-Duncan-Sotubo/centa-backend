@@ -19,9 +19,9 @@ export declare class AssetsRequestService {
         companyId: string;
         employeeId: string;
         status: string | null;
+        rejectionReason: string | null;
         notes: string | null;
         purpose: string;
-        rejectionReason: string | null;
         requestDate: string;
         assetType: string;
         urgency: string;

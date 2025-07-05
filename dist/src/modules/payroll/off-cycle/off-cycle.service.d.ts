@@ -16,13 +16,15 @@ export declare class OffCycleService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        payrollRunId: string;
         userId: string | null;
         employeeId: string;
+        grossSalary: string;
+        requestedAt: Date;
+        payrollMonth: string;
+        payrollRunId: string;
         basic: string;
         housing: string;
         transport: string;
-        grossSalary: string;
         pensionContribution: string;
         employerPensionContribution: string;
         bonuses: string | null;
@@ -36,7 +38,6 @@ export declare class OffCycleService {
         netSalary: string;
         taxableIncome: string;
         payrollDate: string;
-        payrollMonth: string;
         paymentStatus: string | null;
         paymentDate: string | null;
         paymentReference: string | null;
@@ -46,7 +47,6 @@ export declare class OffCycleService {
         isLeaver: boolean | null;
         isOffCycle: boolean | null;
         requestedBy: string;
-        requestedAt: Date;
         approvalStatus: string;
         lastApprovalAt: Date | null;
         lastApprovedBy: string | null;

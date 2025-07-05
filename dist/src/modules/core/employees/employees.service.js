@@ -856,6 +856,23 @@ let EmployeesService = class EmployeesService {
                 if (!payGroupId) {
                     throw new common_1.BadRequestException(`Unknown Pay Group “${payGroupName}”`);
                 }
+                const today = new Date();
+                const rawDate = row['Effective Date'];
+                const rawProbationDate = row['Probation End Date'];
+                function excelSerialToDate(serial) {
+                    const excelEpoch = new Date(1899, 11, 30);
+                    const days = parseInt(serial, 10);
+                    if (isNaN(days)) {
+                        const parsed = new Date(serial);
+                        if (isNaN(parsed.getTime())) {
+                            return null;
+                        }
+                        return parsed.toISOString().split('T')[0];
+                    }
+                    const date = new Date(excelEpoch.getTime() + days * 86400000);
+                    console.log(`Converted Excel date ${serial} to JS date ${date.toISOString()}`);
+                    return date.toISOString().split('T')[0];
+                }
                 const empDto = (0, class_transformer_1.plainToInstance)(create_employee_core_dto_1.CreateEmployeeCoreDto, {
                     employeeNumber: row['Employee Number']?.trim(),
                     departmentId,
@@ -864,31 +881,35 @@ let EmployeesService = class EmployeesService {
                     employmentStatus: row['Employment Status']?.trim(),
                     firstName: row['First Name']?.trim(),
                     lastName: row['Last Name']?.trim(),
+                    confirmed: row['Confirmed']?.toLowerCase() === 'yes' ? true : false,
+                    probationEndDate: excelSerialToDate(rawProbationDate) ?? today,
                     email,
                     companyId,
                     locationId,
                     payGroupId,
-                    employmentStartDate: row['Effective Date']?.trim(),
+                    employmentStartDate: excelSerialToDate(rawDate) ?? today,
                 });
                 const finDto = (0, class_transformer_1.plainToInstance)(create_finance_dto_1.CreateFinanceDto, {
                     bankName: row['Bank Name']?.trim(),
                     bankAccountNumber: row['Bank Account Number']?.toString().trim(),
                     bankBranch: row['Bank Branch']?.toString().trim(),
                     bankAccountName: `${row['First Name']?.trim()} ${row['Last Name']?.trim()}`,
-                    currency: row['Currency']?.toString().trim(),
                     tin: row['TIN']?.toString().trim(),
                     pensionPin: row['Pension PIN']?.toString().trim(),
                     nhfNumber: row['NHF Number']?.toString().trim(),
                 });
                 const compDto = (0, class_transformer_1.plainToInstance)(create_compensation_dto_1.CreateCompensationDto, {
-                    effectiveDate: row['Effective Date']?.trim(),
+                    effectiveDate: excelSerialToDate(row['Effective Date']),
                     grossSalary: parseInt(row['Gross Salary']?.toString().trim() ?? '0', 10),
-                    currency: row['Currency']?.trim(),
-                    payFrequency: row['Pay Frequency']?.trim(),
+                    currency: row['Currency'] ? row['Currency'].trim() : 'NGN',
+                    payFrequency: row['Pay Frequency']
+                        ? row['Pay Frequency'].trim()
+                        : 'Monthly',
                 });
                 await (0, class_validator_1.validateOrReject)(empDto);
                 await (0, class_validator_1.validateOrReject)(finDto);
                 await (0, class_validator_1.validateOrReject)(compDto);
+                console.log(empDto, finDto, compDto);
                 imports.push({ empDto, finDto, compDto });
             }
             catch (error) {
@@ -932,7 +953,6 @@ let EmployeesService = class EmployeesService {
                 ...empDto,
                 userId: userIdMap.get(empDto.email.toLowerCase()),
                 companyId,
-                confirmed: true,
                 employmentStatus: empDto.employmentStatus,
             }));
             const createdEmps = await trx

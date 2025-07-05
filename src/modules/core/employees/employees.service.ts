@@ -1119,6 +1119,32 @@ export class EmployeesService {
           throw new BadRequestException(`Unknown Pay Group “${payGroupName}”`);
         }
 
+        const today = new Date();
+
+        const rawDate = row['Effective Date'];
+        const rawProbationDate = row['Probation End Date'];
+
+        function excelSerialToDate(serial: string): string | null {
+          const excelEpoch = new Date(1899, 11, 30);
+          const days = parseInt(serial, 10);
+
+          if (isNaN(days)) {
+            const parsed = new Date(serial); // fallback if it's an actual date string
+
+            if (isNaN(parsed.getTime())) {
+              return null; // invalid date
+            }
+
+            return parsed.toISOString().split('T')[0]; // valid date string
+          }
+
+          const date = new Date(excelEpoch.getTime() + days * 86400000);
+          console.log(
+            `Converted Excel date ${serial} to JS date ${date.toISOString()}`,
+          );
+          return date.toISOString().split('T')[0];
+        }
+
         const empDto = plainToInstance(CreateEmployeeCoreDto, {
           employeeNumber: row['Employee Number']?.trim(),
           departmentId,
@@ -1127,11 +1153,13 @@ export class EmployeesService {
           employmentStatus: row['Employment Status']?.trim(),
           firstName: row['First Name']?.trim(),
           lastName: row['Last Name']?.trim(),
+          confirmed: row['Confirmed']?.toLowerCase() === 'yes' ? true : false,
+          probationEndDate: excelSerialToDate(rawProbationDate) ?? today,
           email,
           companyId,
           locationId,
           payGroupId,
-          employmentStartDate: row['Effective Date']?.trim(),
+          employmentStartDate: excelSerialToDate(rawDate) ?? today,
         });
 
         const finDto = plainToInstance(CreateFinanceDto, {
@@ -1139,25 +1167,28 @@ export class EmployeesService {
           bankAccountNumber: row['Bank Account Number']?.toString().trim(),
           bankBranch: row['Bank Branch']?.toString().trim(),
           bankAccountName: `${row['First Name']?.trim()} ${row['Last Name']?.trim()}`,
-          currency: row['Currency']?.toString().trim(),
           tin: row['TIN']?.toString().trim(),
           pensionPin: row['Pension PIN']?.toString().trim(),
           nhfNumber: row['NHF Number']?.toString().trim(),
         });
 
         const compDto = plainToInstance(CreateCompensationDto, {
-          effectiveDate: row['Effective Date']?.trim(),
+          effectiveDate: excelSerialToDate(row['Effective Date']),
           grossSalary: parseInt(
             row['Gross Salary']?.toString().trim() ?? '0',
             10,
           ),
-          currency: row['Currency']?.trim(),
-          payFrequency: row['Pay Frequency']?.trim(),
+          currency: row['Currency'] ? row['Currency'].trim() : 'NGN',
+          payFrequency: row['Pay Frequency']
+            ? row['Pay Frequency'].trim()
+            : 'Monthly',
         });
 
         await validateOrReject(empDto);
         await validateOrReject(finDto);
         await validateOrReject(compDto);
+
+        console.log(empDto, finDto, compDto);
 
         imports.push({ empDto, finDto, compDto });
       } catch (error) {
@@ -1212,7 +1243,6 @@ export class EmployeesService {
         ...empDto,
         userId: userIdMap.get(empDto.email.toLowerCase())!,
         companyId,
-        confirmed: true, // Automatically confirm new employees
         employmentStatus: empDto.employmentStatus as any,
       }));
 

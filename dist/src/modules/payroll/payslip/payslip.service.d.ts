@@ -14,8 +14,8 @@ export declare class PayslipService {
         id: string;
         companyId: string;
         employeeId: string;
-        payrollMonth: string;
         issuedAt: string | null;
+        payrollMonth: string;
         slipStatus: string | null;
         employerRemarks: string | null;
         pdfUrl: string | null;

@@ -8,13 +8,13 @@ export declare class AssetsReportController extends BaseController {
     create(createAssetsReportDto: CreateAssetsReportDto, user: User): Promise<{
         id: string;
         updatedAt: Date | null;
-        description: string;
         companyId: string;
+        description: string;
         employeeId: string;
+        documentUrl: string | null;
         status: string | null;
         assetId: string;
         reportType: string;
-        documentUrl: string | null;
         reportedAt: Date | null;
         resolvedAt: Date | null;
     }>;

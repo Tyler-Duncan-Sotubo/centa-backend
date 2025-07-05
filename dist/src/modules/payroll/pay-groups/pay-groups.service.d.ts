@@ -12,7 +12,9 @@ export declare class PayGroupsService {
     private readonly companySettings;
     constructor(db: db, cacheService: CacheService, auditService: AuditService, companySettings: CompanySettingsService);
     findOneEmployee(employeeId: string): Promise<{
-        id: string;
+        id: any;
+    } | {
+        id: any;
     }>;
     findAll(companyId: string): Promise<{
         id: string;
@@ -54,11 +56,15 @@ export declare class PayGroupsService {
     remove(groupId: string, user: any, ip: string): Promise<{
         message: string;
     }>;
-    findEmployeesInGroup(groupId: string): Promise<{
-        id: string;
-        first_name: string;
-        last_name: string;
-    }[]>;
+    findEmployeesInGroup(groupId: string): Promise<({
+        id: any;
+        first_name: any;
+        last_name: any;
+    } | {
+        id: any;
+        first_name: any;
+        last_name: any;
+    })[]>;
     addEmployeesToGroup(employeeIds: string[] | string, groupId: string, user: User, ip: string): Promise<{
         message: string;
     }>;

@@ -10,10 +10,10 @@ export declare class BlockedDaysController extends BaseController {
         date: string;
         id: string;
         name: string;
-        createdBy: string;
         createdAt: Date | null;
         companyId: string | null;
         reason: string | null;
+        createdBy: string;
     }[]>;
     findAll(user: User): Promise<{
         id: string;

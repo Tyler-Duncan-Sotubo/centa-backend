@@ -8,14 +8,14 @@ export declare class ReservedDaysController extends BaseController {
     constructor(reservedDaysService: ReservedDaysService);
     create(createReservedDayDto: CreateReservedDayDto, user: User): Promise<{
         id: string;
-        createdBy: string;
         createdAt: Date | null;
         companyId: string | null;
         startDate: string;
         employeeId: string | null;
         endDate: string;
-        reason: string | null;
         leaveTypeId: string;
+        reason: string | null;
+        createdBy: string;
     }>;
     findAll(user: User): Promise<({
         id: string;

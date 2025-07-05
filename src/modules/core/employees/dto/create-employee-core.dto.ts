@@ -4,7 +4,6 @@ import {
   IsOptional,
   IsNotEmpty,
   IsEmail,
-  IsDateString,
   IsNumber,
 } from 'class-validator';
 
@@ -50,7 +49,7 @@ export class CreateEmployeeCoreDto {
   @IsOptional()
   locationId: string;
 
-  @IsDateString()
+  @IsString()
   employmentStartDate: string;
 
   @IsOptional()

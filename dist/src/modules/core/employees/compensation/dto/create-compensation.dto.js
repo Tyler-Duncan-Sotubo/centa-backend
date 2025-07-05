@@ -19,7 +19,7 @@ class CreateCompensationDto {
 }
 exports.CreateCompensationDto = CreateCompensationDto;
 __decorate([
-    (0, class_validator_1.IsDateString)(),
+    (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], CreateCompensationDto.prototype, "effectiveDate", void 0);

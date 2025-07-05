@@ -35,9 +35,8 @@ export const employees = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
 
     // Core identifiers
-    employeeNumber: varchar('employee_number', { length: 50 })
-      .notNull()
-      .unique(),
+    employeeNumber: varchar('employee_number', { length: 50 }).notNull(),
+
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -75,7 +74,7 @@ export const employees = pgTable(
     employmentEndDate: timestamp('employment_end_date'),
 
     confirmed: boolean('confirmed').default(true),
-    probationEndDate: timestamp('probation_end_date').notNull().defaultNow(),
+    probationEndDate: text('probation_end_date'),
 
     // Personal & contact info
     firstName: varchar('first_name', { length: 100 }).notNull(),

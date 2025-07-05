@@ -66,7 +66,7 @@ __decorate([
     __metadata("design:type", String)
 ], CreateEmployeeCoreDto.prototype, "locationId", void 0);
 __decorate([
-    (0, class_validator_1.IsDateString)(),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateEmployeeCoreDto.prototype, "employmentStartDate", void 0);
 __decorate([

@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  IsDateString,
+  IsString,
   IsNotEmpty,
   IsOptional,
   Length,
@@ -9,7 +9,7 @@ import {
 } from 'class-validator';
 
 export class CreateCompensationDto {
-  @IsDateString()
+  @IsString()
   @IsOptional()
   effectiveDate!: string; // ISO 8601 date when this salary takes effect
 

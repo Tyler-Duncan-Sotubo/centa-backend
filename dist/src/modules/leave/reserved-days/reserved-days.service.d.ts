@@ -14,9 +14,9 @@ export declare class ReservedDaysService {
         startDate: string;
         employeeId: string | null;
         endDate: string;
-        createdBy: string;
         leaveTypeId: string;
         reason: string | null;
+        createdBy: string;
     }>;
     getReservedDates(companyId: string, employeeId: string): Promise<string[]>;
     findAll(companyId: string): Promise<({

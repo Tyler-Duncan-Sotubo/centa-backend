@@ -46,12 +46,12 @@ export declare class OnboardingService {
         checklist: {
             fields: ({
                 id: string;
-                label: string;
                 templateId: string;
                 order: number | null;
+                label: string;
+                required: boolean | null;
                 fieldKey: string;
                 fieldType: string;
-                required: boolean | null;
                 tag: string;
             } | undefined)[];
             id: string;
@@ -71,12 +71,12 @@ export declare class OnboardingService {
         checklist: {
             fields: ({
                 id: string;
-                label: string;
                 templateId: string;
                 order: number | null;
+                label: string;
+                required: boolean | null;
                 fieldKey: string;
                 fieldType: string;
-                required: boolean | null;
                 tag: string;
             } | undefined)[];
             id: string;

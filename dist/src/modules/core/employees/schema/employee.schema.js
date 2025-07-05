@@ -15,9 +15,7 @@ exports.employeeStatus = (0, pg_core_1.pgEnum)('employee_status', [
 ]);
 exports.employees = (0, pg_core_1.pgTable)('employees', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
-    employeeNumber: (0, pg_core_1.varchar)('employee_number', { length: 50 })
-        .notNull()
-        .unique(),
+    employeeNumber: (0, pg_core_1.varchar)('employee_number', { length: 50 }).notNull(),
     userId: (0, pg_core_1.uuid)('user_id')
         .notNull()
         .references(() => schema_1.users.id, { onDelete: 'cascade' }),
@@ -45,7 +43,7 @@ exports.employees = (0, pg_core_1.pgTable)('employees', {
     employmentStartDate: (0, pg_core_1.text)('employment_start_date').notNull(),
     employmentEndDate: (0, pg_core_1.timestamp)('employment_end_date'),
     confirmed: (0, pg_core_1.boolean)('confirmed').default(true),
-    probationEndDate: (0, pg_core_1.timestamp)('probation_end_date').notNull().defaultNow(),
+    probationEndDate: (0, pg_core_1.text)('probation_end_date'),
     firstName: (0, pg_core_1.varchar)('first_name', { length: 100 }).notNull(),
     lastName: (0, pg_core_1.varchar)('last_name', { length: 100 }).notNull(),
     email: (0, pg_core_1.varchar)('email', { length: 255 }).notNull().unique(),

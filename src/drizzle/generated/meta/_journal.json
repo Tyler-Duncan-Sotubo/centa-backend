@@ -22,6 +22,27 @@
       "when": 1751664560440,
       "tag": "0002_huge_squadron_supreme",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1751670359136,
+      "tag": "0003_majestic_chameleon",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1751702142414,
+      "tag": "0004_greedy_xavin",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1751702337346,
+      "tag": "0005_groovy_microchip",
+      "breakpoints": true
     }
   ]
 }
