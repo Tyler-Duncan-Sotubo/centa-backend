@@ -842,7 +842,7 @@ let RunService = class RunService {
         for (const payslip of getPayslips) {
             await this.payrollQueue.add('generatePayslipPdf', {
                 payslipId: payslip.id,
-            });
+            }, { delay: 3000 });
         }
         await this.auditService.logAction({
             userId: user.id,

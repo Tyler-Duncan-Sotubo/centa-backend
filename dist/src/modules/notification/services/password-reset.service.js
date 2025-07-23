@@ -22,8 +22,8 @@ let PasswordResetEmailService = class PasswordResetEmailService {
         const msg = {
             to: email,
             from: {
-                name: 'Password Reset',
-                email: 'noreply@centa.africa',
+                name: 'noreply@centahr.com',
+                email: 'noreply@centahr.com',
             },
             templateId: this.config.get('PASSWORD_RESET_TEMPLATE_ID'),
             dynamicTemplateData: {

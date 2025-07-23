@@ -24,7 +24,7 @@ let VerificationService = class VerificationService {
         this.db = db;
         this.emailVerificationService = emailVerificationService;
     }
-    async generateVerificationToken(userId) {
+    async generateVerificationToken(userId, companyName) {
         const token = Math.floor(100000 + Math.random() * 900000).toString();
         const expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
         const user = await this.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.id, userId));
@@ -53,7 +53,7 @@ let VerificationService = class VerificationService {
             })
                 .execute();
         }
-        await this.emailVerificationService.sendVerifyEmail(user[0].email, token);
+        await this.emailVerificationService.sendVerifyEmail(user[0].email, token, companyName);
         return token;
     }
     async verifyToken(dto) {

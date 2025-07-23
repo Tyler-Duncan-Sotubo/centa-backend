@@ -8,13 +8,13 @@ export declare class CompensationController extends BaseController {
     constructor(compensationService: CompensationService);
     create(employeeId: string, dto: CreateCompensationDto, user: User, ip: string): Promise<{
         id: string;
+        currency: string;
         createdAt: Date;
         updatedAt: Date;
-        currency: string;
         payFrequency: string;
         employeeId: string;
-        grossSalary: number;
         effectiveDate: string;
+        grossSalary: number;
         applyNHf: boolean;
     }>;
     findAll(id: string): Promise<{

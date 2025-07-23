@@ -52,7 +52,7 @@ let ShiftsService = class ShiftsService {
             .from(schema_1.companyLocations)
             .where((0, drizzle_orm_1.eq)(schema_1.companyLocations.companyId, companyId))
             .execute();
-        const locationMap = new Map(locationList.map((loc) => [loc.name.toLowerCase(), loc.id]));
+        const locationMap = new Map(locationList.map((loc) => [loc.name.toLowerCase().trim(), loc.id]));
         const dtos = [];
         for (const row of rows) {
             const rawDays = row['Working Days'] ?? row['workingDays'];
@@ -69,7 +69,11 @@ let ShiftsService = class ShiftsService {
                 workingDays = rawDays;
             }
             let locationId;
-            const locationName = row['Location Name'] ?? row['locationName'];
+            const locationNameRaw = row['Location Name'] ??
+                row['locationName'] ??
+                row[' locationName '] ??
+                '';
+            const locationName = typeof locationNameRaw === 'string' ? locationNameRaw.trim() : '';
             if (locationName) {
                 const match = locationMap.get(locationName.toLowerCase());
                 if (!match) {

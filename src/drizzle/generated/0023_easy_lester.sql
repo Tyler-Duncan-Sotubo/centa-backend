@@ -1,0 +1,1 @@
+ALTER TABLE "job_postings" RENAME COLUMN "salary_range" TO "salary_range_from";

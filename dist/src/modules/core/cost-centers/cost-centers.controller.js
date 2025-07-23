@@ -51,7 +51,7 @@ exports.CostCentersController = CostCentersController;
 __decorate([
     (0, common_1.Post)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['cost_center.manage']),
+    (0, common_1.SetMetadata)('permissions', ['company.manage']),
     (0, audit_decorator_1.Audit)({
         action: 'Create',
         entity: 'Cost Center',
@@ -66,7 +66,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)('bulk'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['cost_center.manage']),
+    (0, common_1.SetMetadata)('permissions', ['company.manage']),
     (0, audit_decorator_1.Audit)({ action: 'BulkCreateCostCenters', entity: 'CostCenter' }),
     (0, common_1.UseInterceptors)((0, file_parse_interceptor_1.FileParseInterceptor)({ field: 'file', maxRows: 200 })),
     __param(0, (0, common_1.Body)()),
@@ -78,7 +78,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['cost_center.read']),
+    (0, common_1.SetMetadata)('permissions', ['company.manage']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -87,7 +87,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)(':id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['cost_center.read']),
+    (0, common_1.SetMetadata)('permissions', ['company.manage']),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -97,7 +97,7 @@ __decorate([
 __decorate([
     (0, common_1.Patch)(':id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['cost_center.manage']),
+    (0, common_1.SetMetadata)('permissions', ['company.manage']),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, current_user_decorator_1.CurrentUser)()),
@@ -109,7 +109,7 @@ __decorate([
 __decorate([
     (0, common_1.Delete)(':id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['cost_center.manage']),
+    (0, common_1.SetMetadata)('permissions', ['company.manage']),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),

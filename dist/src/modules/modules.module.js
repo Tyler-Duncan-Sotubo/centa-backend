@@ -24,6 +24,9 @@ const expenses_module_1 = require("./expenses/expenses.module");
 const assets_module_1 = require("./assets/assets.module");
 const announcement_module_1 = require("./announcement/announcement.module");
 const export_clean_service_1 = require("../common/services/export-clean.service");
+const recruitment_module_1 = require("./recruitment/recruitment.module");
+const integrations_module_1 = require("./integrations/integrations.module");
+const seeder_module_1 = require("./seed/seeder.module");
 let ModulesModule = class ModulesModule {
 };
 exports.ModulesModule = ModulesModule;
@@ -47,6 +50,9 @@ exports.ModulesModule = ModulesModule = __decorate([
             expenses_module_1.ExpensesModule,
             assets_module_1.AssetsModule,
             announcement_module_1.AnnouncementModule,
+            recruitment_module_1.RecruitmentModule,
+            integrations_module_1.IntegrationsModule,
+            seeder_module_1.SeederModule,
         ],
         exports: [
             core_module_1.CoreModule,
@@ -60,6 +66,13 @@ exports.ModulesModule = ModulesModule = __decorate([
             cache_module_1.CacheModule,
             time_module_1.TimeModule,
             payroll_module_1.PayrollModule,
+            benefits_module_1.BenefitsModule,
+            expenses_module_1.ExpensesModule,
+            assets_module_1.AssetsModule,
+            announcement_module_1.AnnouncementModule,
+            recruitment_module_1.RecruitmentModule,
+            integrations_module_1.IntegrationsModule,
+            seeder_module_1.SeederModule,
         ],
     })
 ], ModulesModule);

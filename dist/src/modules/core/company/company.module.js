@@ -13,6 +13,7 @@ const company_controller_1 = require("./company.controller");
 const locations_module_1 = require("./locations/locations.module");
 const company_tax_module_1 = require("./company-tax/company-tax.module");
 const seeder_service_1 = require("../../lifecycle/onboarding/seeder.service");
+const documents_module_1 = require("./documents/documents.module");
 let CompanyModule = class CompanyModule {
 };
 exports.CompanyModule = CompanyModule;
@@ -20,7 +21,7 @@ exports.CompanyModule = CompanyModule = __decorate([
     (0, common_1.Module)({
         controllers: [company_controller_1.CompanyController],
         providers: [company_service_1.CompanyService, seeder_service_1.OnboardingSeederService],
-        imports: [locations_module_1.LocationsModule, company_tax_module_1.CompanyTaxModule],
+        imports: [locations_module_1.LocationsModule, company_tax_module_1.CompanyTaxModule, documents_module_1.DocumentsModule],
         exports: [company_service_1.CompanyService, locations_module_1.LocationsModule],
     })
 ], CompanyModule);

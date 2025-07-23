@@ -1307,9 +1307,13 @@ export class RunService {
       .execute();
 
     for (const payslip of getPayslips) {
-      await this.payrollQueue.add('generatePayslipPdf', {
-        payslipId: payslip.id,
-      });
+      await this.payrollQueue.add(
+        'generatePayslipPdf',
+        {
+          payslipId: payslip.id,
+        },
+        { delay: 3000 },
+      );
 
       // await this.payrollQueue.add('PayslipGeneratedNotification', {
       //   employee_id: payslip.employee_id,

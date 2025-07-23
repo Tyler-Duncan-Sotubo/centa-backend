@@ -21,4 +21,5 @@ __exportStar(require("../modules/time/schema/index"), exports);
 __exportStar(require("../company-settings/schema/approval-workflow.schema"), exports);
 __exportStar(require("../modules/announcement/schema/announcements.schema"), exports);
 __exportStar(require("../modules/lifecycle/schema"), exports);
+__exportStar(require("../modules/recruitment/schema/index"), exports);
 //# sourceMappingURL=schema.js.map

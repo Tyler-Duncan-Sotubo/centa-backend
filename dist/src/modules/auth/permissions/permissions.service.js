@@ -20,6 +20,7 @@ const drizzle_orm_1 = require("drizzle-orm");
 const cache_service_1 = require("../../../common/cache/cache.service");
 const permission_keys_1 = require("./permission-keys");
 const audit_service_1 = require("../../audit/audit.service");
+const schema_2 = require("../../../drizzle/schema");
 let PermissionsService = class PermissionsService {
     constructor(db, cache, auditService) {
         this.db = db;
@@ -31,7 +32,7 @@ let PermissionsService = class PermissionsService {
             const existingPermissions = await tx
                 .select()
                 .from(schema_1.permissions)
-                .where((0, drizzle_orm_1.inArray)(schema_1.permissions.key, permission_keys_1.PermissionKeys));
+                .where((0, drizzle_orm_1.inArray)(schema_1.permissions.key, [...permission_keys_1.PermissionKeys]));
             const existingKeys = new Set(existingPermissions.map((p) => p.key));
             const newPermissions = permission_keys_1.PermissionKeys.filter((key) => !existingKeys.has(key)).map((key) => ({ key }));
             if (newPermissions.length > 0) {
@@ -187,7 +188,10 @@ let PermissionsService = class PermissionsService {
                     continue;
                 }
                 const lookup = `${role.id}|${permId}`;
-                if (!alreadySet.has(lookup)) {
+                if (alreadySet.has(lookup)) {
+                    console.warn(`Skipping duplicate: ${lookup}`);
+                }
+                else {
                     toInsert.push({ roleId: role.id, permissionId: permId });
                 }
             }
@@ -204,11 +208,18 @@ let PermissionsService = class PermissionsService {
                 companyRoleId: roleId,
                 permissionId,
             })))
+                .onConflictDoNothing()
                 .execute();
         }
         await this.cache.del(`company_roles:${companyId}`);
         for (const role of roles) {
             await this.cache.del(`role_permissions:${role.id}`);
+        }
+    }
+    async syncAllCompanyPermissions() {
+        const allCompanies = await this.db.select().from(schema_2.companies);
+        for (const company of allCompanies) {
+            await this.seedDefaultPermissionsForCompany(company.id);
         }
     }
     async getPermissionsByRole(companyId, roleId) {

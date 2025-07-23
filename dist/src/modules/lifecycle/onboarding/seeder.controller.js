@@ -24,9 +24,6 @@ let OnboardingSeederController = class OnboardingSeederController extends base_c
         super();
         this.seeder = seeder;
     }
-    seedTemplates() {
-        return this.seeder.seedAllGlobalTemplates();
-    }
     getGlobalTemplates(templateId) {
         return this.seeder.getTemplateByIdWithDetails(templateId);
     }
@@ -47,12 +44,6 @@ let OnboardingSeederController = class OnboardingSeederController extends base_c
     }
 };
 exports.OnboardingSeederController = OnboardingSeederController;
-__decorate([
-    (0, common_1.Post)(''),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], OnboardingSeederController.prototype, "seedTemplates", null);
 __decorate([
     (0, common_1.Get)('single-template/:templateId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

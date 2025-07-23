@@ -1,4 +1,5 @@
-export declare const PermissionKeys: string[];
+export declare const PermissionKeys: readonly string[];
+export declare const DefaultRolePermissions: Record<string, string[]>;
 export declare enum Permission {
     AnnouncementsCategoryRead = "announcements.category.read",
     AnnouncementsComment = "announcements.comment",
@@ -125,4 +126,3 @@ export declare enum Permission {
     TaxManage = "tax.manage",
     TaxRead = "tax.read"
 }
-export declare const DefaultRolePermissions: Record<string, string[]>;

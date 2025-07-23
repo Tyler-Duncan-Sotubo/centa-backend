@@ -57,7 +57,7 @@ export class ShiftsService {
       .execute();
 
     const locationMap = new Map(
-      locationList.map((loc) => [loc.name.toLowerCase(), loc.id]),
+      locationList.map((loc) => [loc.name.toLowerCase().trim(), loc.id]),
     );
 
     // 3) Map & validate each row
@@ -81,7 +81,14 @@ export class ShiftsService {
 
       // Map location name to ID
       let locationId: string | undefined;
-      const locationName = row['Location Name'] ?? row['locationName'];
+      const locationNameRaw =
+        row['Location Name'] ??
+        row['locationName'] ??
+        row[' locationName '] ??
+        '';
+      const locationName =
+        typeof locationNameRaw === 'string' ? locationNameRaw.trim() : '';
+
       if (locationName) {
         const match = locationMap.get(locationName.toLowerCase());
         if (!match) {

@@ -31,7 +31,7 @@ export class CostCentersController extends BaseController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['cost_center.manage'])
+  @SetMetadata('permissions', ['company.manage'])
   @Audit({
     action: 'Create',
     entity: 'Cost Center',
@@ -46,7 +46,7 @@ export class CostCentersController extends BaseController {
 
   @Post('bulk')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['cost_center.manage'])
+  @SetMetadata('permissions', ['company.manage'])
   @Audit({ action: 'BulkCreateCostCenters', entity: 'CostCenter' })
   @UseInterceptors(FileParseInterceptor({ field: 'file', maxRows: 200 }))
   async bulkCreate(@Body() rows: any[], @CurrentUser() user: User) {
@@ -55,21 +55,21 @@ export class CostCentersController extends BaseController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['cost_center.read'])
+  @SetMetadata('permissions', ['company.manage'])
   findAll(@CurrentUser() user: User) {
     return this.costCentersService.findAll(user.companyId);
   }
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['cost_center.read'])
+  @SetMetadata('permissions', ['company.manage'])
   findOne(@Param('id') id: string, @CurrentUser() user: User) {
     return this.costCentersService.findOne(user.companyId, id);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['cost_center.manage'])
+  @SetMetadata('permissions', ['company.manage'])
   update(
     @Param('id') id: string,
     @Body() updateCostCenterDto: UpdateCostCenterDto,
@@ -87,7 +87,7 @@ export class CostCentersController extends BaseController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['cost_center.manage'])
+  @SetMetadata('permissions', ['company.manage'])
   remove(@Param('id') id: string, @CurrentUser() user: User) {
     return this.costCentersService.remove(user, id);
   }

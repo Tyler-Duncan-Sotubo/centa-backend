@@ -51,28 +51,6 @@ export declare class AuthController {
             companyId: string;
             avatar: string | null;
             roleId: string;
-        } | {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
-        } | {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;
@@ -98,28 +76,6 @@ export declare class AuthController {
             companyId: string;
             avatar: string | null;
             roleId: string;
-        } | {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
-        } | {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;
@@ -180,28 +136,6 @@ export declare class AuthController {
             companyId: string;
             avatar: string | null;
             roleId: string;
-        } | {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
-        } | {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;

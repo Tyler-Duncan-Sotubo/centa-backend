@@ -33,8 +33,8 @@ export class DeductionsController extends BaseController {
     @CurrentUser() user: User,
   ) {
     return this.deductionsService.createDeductionType(
-      user,
       createDeductionTypeDto,
+      user,
     );
   }
 

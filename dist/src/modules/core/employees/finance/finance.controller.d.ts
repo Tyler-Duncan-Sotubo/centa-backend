@@ -6,17 +6,17 @@ export declare class FinanceController extends BaseController {
     private readonly financeService;
     constructor(financeService: FinanceService);
     create(employeeId: string, dto: CreateFinanceDto, user: User, ip: string): Promise<{
+        currency: string | null;
         createdAt: Date;
         updatedAt: Date;
-        currency: string | null;
         employeeId: string;
-        tin: string | null;
-        pensionPin: string | null;
-        nhfNumber: string | null;
         bankName: string | null;
         bankAccountNumber: string | null;
         bankAccountName: string | null;
         bankBranch: string | null;
+        tin: string | null;
+        pensionPin: string | null;
+        nhfNumber: string | null;
     }>;
     findOne(id: string): Promise<{}>;
     remove(id: string): Promise<{

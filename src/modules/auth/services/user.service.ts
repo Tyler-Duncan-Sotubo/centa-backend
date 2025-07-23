@@ -12,6 +12,7 @@ import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
 import {
   companies,
+  companyFileFolders,
   companyLocations,
   companyRoles,
   users,
@@ -63,7 +64,7 @@ export class UserService {
         country: dto.country,
         domain: dto.domain.toLowerCase(),
       })
-      .returning({ id: companies.id })
+      .returning({ id: companies.id, name: companies.name })
       .execute();
 
     // 3) Hash password
@@ -72,10 +73,10 @@ export class UserService {
     // 3a) Check if the super admin role exists
     const roles = await this.permissionService.createDefaultRoles(company.id);
 
-    const superAdminRole = roles.find((role) => role.name === 'super_admin');
+    const role = roles.find((role) => role.name === dto.role);
 
-    if (!superAdminRole) {
-      throw new BadRequestException('Super admin role not found.');
+    if (!role) {
+      throw new BadRequestException('role not found.');
     }
 
     // 4) Insert user in same transaction as company?
@@ -84,12 +85,20 @@ export class UserService {
         .insert(users)
         .values({
           email: dto.email.toLowerCase(),
+          firstName: dto.firstName,
+          lastName: dto.lastName,
           password: hashed,
           companyId: company.id,
-          companyRoleId: superAdminRole.id,
+          companyRoleId: role.id,
         })
         .returning({ id: users.id, email: users.email })
         .execute();
+
+      await trx.insert(companyFileFolders).values({
+        companyId: company.id,
+        name: 'Account Documents',
+        isSystem: true,
+      });
 
       // 5) Register company Location
       await trx.insert(companyLocations).values({
@@ -103,11 +112,17 @@ export class UserService {
     });
 
     await this.companySettingsService.setSettings(company.id);
-    await this.permissionSeedQueue.add('seed-permissions', {
-      companyId: company.id,
-    });
 
-    await this.verificationService.generateVerificationToken(newUser.id);
+    await this.permissionSeedQueue.add(
+      'seed-permissions',
+      { companyId: company.id },
+      { delay: 3000 }, // wait 3s before executing
+    );
+
+    await this.verificationService.generateVerificationToken(
+      newUser.id,
+      company.name,
+    );
 
     return { user: newUser, company: { id: company.id, domain: dto.domain } };
   }

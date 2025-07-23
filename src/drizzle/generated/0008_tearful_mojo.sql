@@ -1,0 +1,1 @@
+ALTER TABLE "job_postings" ADD COLUMN "is_archived" boolean DEFAULT false NOT NULL;

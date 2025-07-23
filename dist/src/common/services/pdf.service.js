@@ -20,7 +20,7 @@ const aws_service_1 = require("../aws/aws.service");
 const drizzle_module_1 = require("../../drizzle/drizzle.module");
 const payslip_schema_1 = require("../../modules/payroll/schema/payslip.schema");
 const drizzle_orm_1 = require("drizzle-orm");
-const puppeteer_1 = require("puppeteer");
+const playwright_1 = require("playwright");
 const formatCurrency_1 = require("../../utils/formatCurrency");
 let PdfService = class PdfService {
     constructor(db, payslipService, awsService) {
@@ -236,24 +236,35 @@ let PdfService = class PdfService {
         </body>
       </html>
       `;
-        const browser = await puppeteer_1.default.launch({
-            args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        });
-        const page = await browser.newPage();
-        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-        const pdfUint8Array = await page.pdf({
-            format: 'A4',
-            printBackground: true,
-        });
-        const pdfBuffer = Buffer.from(pdfUint8Array);
-        await browser.close();
-        const pdfUrl = await this.awsService.uploadPdfToS3(payslip.email, `payslip-${payslip.payroll_month}.pdf`, pdfBuffer);
+        const pdfBuffer = await this.htmlToPdf(htmlContent);
+        const pdfUrl = await this.awsService.uploadPdfToS3(payslip.email, `payslip/payslip-${payslip.payroll_month}.pdf`, pdfBuffer);
         await this.db
             .update(payslip_schema_1.paySlips)
             .set({ pdfUrl })
             .where((0, drizzle_orm_1.eq)(payslip_schema_1.paySlips.id, payslip.id))
             .execute();
         return Buffer.from(pdfBuffer);
+    }
+    async htmlToPdf(html) {
+        const browser = await playwright_1.chromium.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        });
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        await page.setContent(html, { waitUntil: 'load' });
+        const pdfBuffer = await page.pdf({
+            format: 'A4',
+            margin: {
+                top: '10mm',
+                bottom: '30mm',
+                left: '15mm',
+                right: '15mm',
+            },
+            printBackground: true,
+        });
+        await browser.close();
+        return pdfBuffer;
     }
 };
 exports.PdfService = PdfService;

@@ -26,7 +26,7 @@ let DeductionsController = class DeductionsController extends base_controller_1.
         this.deductionsService = deductionsService;
     }
     createDeductionType(createDeductionTypeDto, user) {
-        return this.deductionsService.createDeductionType(user, createDeductionTypeDto);
+        return this.deductionsService.createDeductionType(createDeductionTypeDto, user);
     }
     findAllDeductionTypes() {
         return this.deductionsService.getDeductionTypes();

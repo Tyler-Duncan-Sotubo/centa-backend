@@ -29,6 +29,7 @@ async function bootstrap() {
             process.env.CLIENT_URL,
             process.env.CLIENT_DASHBOARD_URL,
             process.env.EMPLOYEE_PORTAL_URL,
+            process.env.CAREER_URL,
         ].filter((url) => typeof url === 'string'),
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
         credentials: true,

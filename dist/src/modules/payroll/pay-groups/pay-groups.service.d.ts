@@ -32,10 +32,10 @@ export declare class PayGroupsService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        isDeleted: boolean | null;
         applyPaye: boolean | null;
         applyPension: boolean | null;
         applyNhf: boolean | null;
+        isDeleted: boolean | null;
         payScheduleId: string;
     }>;
     findOne(groupId: string): Promise<{

@@ -7,7 +7,19 @@ import {
   IsDefined,
   IsIn,
   ValidateIf,
+  IsEnum,
 } from 'class-validator';
+
+export enum Role {
+  SUPER_ADMIN = 'super_admin',
+  HR_MANAGER = 'hr_manager',
+  PAYROLL_SPECIALIST = 'payroll_specialist',
+  FINANCE_OFFICER = 'finance_officer',
+  EMPLOYEE = 'employee',
+  MANAGER = 'manager',
+  ADMIN = 'admin',
+  RECRUITER = 'recruiter',
+}
 
 export class RegisterDto {
   @IsEmail()
@@ -25,6 +37,18 @@ export class RegisterDto {
   @IsString()
   @IsNotEmpty()
   country: string;
+
+  @IsString()
+  @IsNotEmpty()
+  firstName: string;
+
+  @IsString()
+  @IsNotEmpty()
+  lastName: string;
+
+  @IsEnum(Role)
+  @IsNotEmpty()
+  role: Role;
 
   @IsString()
   @MinLength(4)

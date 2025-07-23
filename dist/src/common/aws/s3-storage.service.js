@@ -18,10 +18,12 @@ const client_s3_1 = require("@aws-sdk/client-s3");
 const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const config_1 = require("@nestjs/config");
 const drizzle_module_1 = require("../../drizzle/drizzle.module");
-const company_files_schema_1 = require("../../modules/core/company/schema/company-files.schema");
+const drizzle_orm_1 = require("drizzle-orm");
+const company_files_schema_1 = require("../../modules/core/company/documents/schema/company-files.schema");
 const path = require("path");
 const fs = require("fs");
 const util_1 = require("util");
+const schema_1 = require("../../drizzle/schema");
 let S3StorageService = class S3StorageService {
     constructor(configService, db) {
         this.configService = configService;
@@ -30,7 +32,25 @@ let S3StorageService = class S3StorageService {
             region: this.configService.get('AWS_REGION'),
         });
     }
-    async uploadBuffer(buffer, key, companyId, type, category, mimeType) {
+    async ensureReportsFolder(companyId) {
+        const existing = await this.db
+            .select()
+            .from(schema_1.companyFileFolders)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.companyFileFolders.companyId, companyId), (0, drizzle_orm_1.eq)(schema_1.companyFileFolders.name, 'Reports'), (0, drizzle_orm_1.eq)(schema_1.companyFileFolders.isSystem, true)));
+        if (existing.length > 0) {
+            return existing[0].id;
+        }
+        const [created] = await this.db
+            .insert(schema_1.companyFileFolders)
+            .values({
+            companyId,
+            name: 'Reports',
+            isSystem: true,
+        })
+            .returning({ id: schema_1.companyFileFolders.id });
+        return created.id;
+    }
+    async uploadBuffer(buffer, key, companyId, type, category, mimeType, reportsFolderId) {
         const bucket = this.configService.get('AWS_BUCKET_NAME');
         await this.s3.send(new client_s3_1.PutObjectCommand({
             Bucket: bucket,
@@ -50,6 +70,7 @@ let S3StorageService = class S3StorageService {
                 url: fileUrl,
                 type,
                 category,
+                folderId: reportsFolderId || null,
             })
                 .returning()
                 .execute();
@@ -67,14 +88,30 @@ let S3StorageService = class S3StorageService {
     async uploadFilePath(filePath, companyId, type, category) {
         const fileBuffer = await (0, util_1.promisify)(fs.readFile)(filePath);
         const fileName = path.basename(filePath);
-        const key = `company-uploads/${companyId}/${fileName}`;
+        const reportsFolderId = await this.ensureReportsFolder(companyId);
+        const key = `company-files/${companyId}/${reportsFolderId}/${fileName}`;
         const mimeType = this.getMimeType(fileName);
-        return this.uploadBuffer(fileBuffer, key, companyId, type, category, mimeType);
+        return this.uploadBuffer(fileBuffer, key, companyId, type, category, mimeType, reportsFolderId);
     }
     async getSignedUrl(key, expiresInSeconds = 300) {
         const bucket = this.configService.get('AWS_BUCKET_NAME');
         const command = new client_s3_1.GetObjectCommand({ Bucket: bucket, Key: key });
         return (0, s3_request_presigner_1.getSignedUrl)(this.s3, command, { expiresIn: expiresInSeconds });
+    }
+    async deleteFileFromS3(fileUrl) {
+        const bucket = this.configService.get('AWS_BUCKET_NAME');
+        const key = this.extractKeyFromUrl(fileUrl);
+        await this.s3.send(new client_s3_1.DeleteObjectCommand({
+            Bucket: bucket,
+            Key: key,
+        }));
+    }
+    extractKeyFromUrl(fileUrl) {
+        const urlParts = fileUrl.split('.amazonaws.com/');
+        if (urlParts.length !== 2) {
+            throw new Error('Invalid S3 URL format');
+        }
+        return urlParts[1];
     }
     getMimeType(fileName) {
         const ext = path.extname(fileName).toLowerCase();

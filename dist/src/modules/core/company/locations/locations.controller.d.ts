@@ -9,10 +9,10 @@ export declare class LocationsController extends BaseController {
     create(createLocationDto: CreateLocationDto, user: User, ip: string): Promise<{
         id: string;
         name: string;
-        createdAt: Date;
-        updatedAt: Date;
         isActive: boolean | null;
         country: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         isPrimary: boolean | null;
         street: string | null;

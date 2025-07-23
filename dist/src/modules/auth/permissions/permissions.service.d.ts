@@ -43,6 +43,7 @@ export declare class PermissionsService {
         permissionId: string;
     }>;
     seedDefaultPermissionsForCompany(companyId: string): Promise<void>;
+    syncAllCompanyPermissions(): Promise<void>;
     getPermissionsByRole(companyId: string, roleId: string): Promise<{
         key: string;
     }[]>;

@@ -26,9 +26,6 @@ let HolidaysController = class HolidaysController extends base_controller_1.Base
         super();
         this.holidaysService = holidaysService;
     }
-    async create() {
-        return this.holidaysService.insertHolidaysForCurrentYear('NG');
-    }
     async getCustomHolidays(user) {
         return this.holidaysService.findAll(user.companyId);
     }
@@ -49,12 +46,6 @@ let HolidaysController = class HolidaysController extends base_controller_1.Base
     }
 };
 exports.HolidaysController = HolidaysController;
-__decorate([
-    (0, common_1.Get)('current-year'),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", Promise)
-], HolidaysController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)('custom-holidays'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

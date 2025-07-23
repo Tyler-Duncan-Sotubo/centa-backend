@@ -5,14 +5,13 @@ import { CreateOnboardingTemplateDto } from './dto/create-onboarding-template.dt
 export declare class OnboardingSeederController extends BaseController {
     private readonly seeder;
     constructor(seeder: OnboardingSeederService);
-    seedTemplates(): Promise<void>;
     getGlobalTemplates(templateId: string): Promise<{
         fields: {
             id: string;
-            label: string;
             templateId: string;
             order: number | null;
             fieldKey: string;
+            label: string;
             fieldType: string;
             required: boolean | null;
             tag: string;
@@ -27,8 +26,8 @@ export declare class OnboardingSeederController extends BaseController {
         }[];
         id: string;
         name: string;
-        createdAt: Date;
         description: string | null;
+        createdAt: Date;
         companyId: string | null;
         status: "draft" | "published" | null;
         isGlobal: boolean | null;
@@ -36,8 +35,8 @@ export declare class OnboardingSeederController extends BaseController {
     cloneTemplateForCompany(templateId: string, templateName: string, user: User): Promise<{
         id: string;
         name: string;
-        createdAt: Date;
         description: string | null;
+        createdAt: Date;
         companyId: string | null;
         status: "draft" | "published" | null;
         isGlobal: boolean | null;
@@ -45,8 +44,8 @@ export declare class OnboardingSeederController extends BaseController {
     createCompanyTemplate(dto: CreateOnboardingTemplateDto, user: User): Promise<{
         id: string;
         name: string;
-        createdAt: Date;
         description: string | null;
+        createdAt: Date;
         companyId: string | null;
         status: "draft" | "published" | null;
         isGlobal: boolean | null;
@@ -76,10 +75,10 @@ export declare class OnboardingSeederController extends BaseController {
     getTemplatesByCompanyWithDetails(user: User): Promise<{
         fields: {
             id: string;
-            label: string;
             templateId: string;
             order: number | null;
             fieldKey: string;
+            label: string;
             fieldType: string;
             required: boolean | null;
             tag: string;

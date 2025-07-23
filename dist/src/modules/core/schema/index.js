@@ -16,6 +16,11 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
 Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("../company/schema/company.schema"), exports);
 __exportStar(require("../company/schema/company-location.schema"), exports);
+__exportStar(require("../company/documents/schema/company-file-folders.schema"), exports);
+__exportStar(require("../company/documents/schema/company-files.schema"), exports);
+__exportStar(require("../company/documents/schema/company-file-folder-departments.schema"), exports);
+__exportStar(require("../company/documents/schema/company-file-folder-offices.schema"), exports);
+__exportStar(require("../company/documents/schema/company-file-folder-roles.schema"), exports);
 __exportStar(require("../employees/schema/employee.schema"), exports);
 __exportStar(require("../department/schema/department.schema"), exports);
 __exportStar(require("../job-roles/schema/job-roles.schema"), exports);

@@ -6,7 +6,7 @@ import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from '../../drizzle/drizzle.module';
 import { paySlips } from 'src/modules/payroll/schema/payslip.schema';
 import { eq } from 'drizzle-orm';
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 import { formatCurrency } from 'src/utils/formatCurrency';
 
 @Injectable()
@@ -245,25 +245,12 @@ export class PdfService {
       </html>
       `;
 
-    // Launch Puppeteer and generate PDF
-    const browser = await puppeteer.launch({
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-
-    const pdfUint8Array = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-    });
-    const pdfBuffer = Buffer.from(pdfUint8Array);
-
-    await browser.close();
+    const pdfBuffer = await this.htmlToPdf(htmlContent);
 
     // Upload to S3
     const pdfUrl = await this.awsService.uploadPdfToS3(
       payslip.email,
-      `payslip-${payslip.payroll_month}.pdf`,
+      `payslip/payslip-${payslip.payroll_month}.pdf`,
       pdfBuffer,
     );
 
@@ -275,5 +262,32 @@ export class PdfService {
       .execute();
 
     return Buffer.from(pdfBuffer);
+  }
+
+  /** Internal helper: Convert HTML → PDF using Playwright */
+  private async htmlToPdf(html: string): Promise<Buffer> {
+    const browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    await page.setContent(html, { waitUntil: 'load' });
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      margin: {
+        top: '10mm',
+        bottom: '30mm',
+        left: '15mm',
+        right: '15mm',
+      },
+      printBackground: true,
+    });
+
+    await browser.close();
+    return pdfBuffer;
   }
 }

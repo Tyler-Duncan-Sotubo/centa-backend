@@ -28,13 +28,13 @@ export declare class LeaveRequestService {
         startDate: string;
         employeeId: string;
         endDate: string;
-        status: string;
-        reason: string | null;
-        requestedAt: Date | null;
         leaveTypeId: string;
+        reason: string | null;
+        status: string;
         totalDays: string;
         approverId: string | null;
         approvedAt: Date | null;
+        requestedAt: Date | null;
         rejectionReason: string | null;
         approvalChain: unknown;
         currentApprovalIndex: number | null;

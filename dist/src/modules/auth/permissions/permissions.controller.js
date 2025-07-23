@@ -26,9 +26,6 @@ let PermissionsController = class PermissionsController extends base_controller_
         super();
         this.permissionsService = permissionsService;
     }
-    create() {
-        return this.permissionsService.create();
-    }
     findAllPermissions() {
         return this.permissionsService.findAll();
     }
@@ -40,6 +37,9 @@ let PermissionsController = class PermissionsController extends base_controller_
     }
     findCompanyRoleById(user, roleId, name) {
         return this.permissionsService.updateRole(user.companyId, roleId, name);
+    }
+    async syncCompanyPermissions() {
+        return this.permissionsService.syncAllCompanyPermissions();
     }
     assignPermissionToRole(user, dto) {
         return this.permissionsService.assignPermissionToRole(user.companyId, dto.roleId, dto.permissionId);
@@ -54,12 +54,6 @@ let PermissionsController = class PermissionsController extends base_controller_
     }
 };
 exports.PermissionsController = PermissionsController;
-__decorate([
-    (0, common_1.Post)(),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], PermissionsController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
@@ -98,6 +92,12 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", void 0)
 ], PermissionsController.prototype, "findCompanyRoleById", null);
+__decorate([
+    (0, common_1.Post)('company/sync'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], PermissionsController.prototype, "syncCompanyPermissions", null);
 __decorate([
     (0, common_1.Post)('assign'),
     (0, common_1.SetMetadata)('permissions', [permission_keys_1.Permission.PermissionsManage]),

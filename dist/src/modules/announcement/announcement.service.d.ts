@@ -15,10 +15,11 @@ export declare class AnnouncementService {
     constructor(db: db, auditService: AuditService, commentService: CommentService, reactionService: ReactionService, awsService: AwsService);
     create(dto: CreateAnnouncementDto, user: User): Promise<{
         id: string;
+        link: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-        link: string | null;
         companyId: string;
+        createdBy: string;
         departmentId: string | null;
         title: string;
         locationId: string | null;
@@ -27,7 +28,6 @@ export declare class AnnouncementService {
         publishedAt: Date | null;
         expiresAt: Date | null;
         isPublished: boolean | null;
-        createdBy: string;
         categoryId: string;
     }>;
     findAll(companyId: string): Promise<{

@@ -58,25 +58,32 @@ let UserService = class UserService {
             country: dto.country,
             domain: dto.domain.toLowerCase(),
         })
-            .returning({ id: schema_1.companies.id })
+            .returning({ id: schema_1.companies.id, name: schema_1.companies.name })
             .execute();
         const hashed = await bcrypt.hash(dto.password, 10);
         const roles = await this.permissionService.createDefaultRoles(company.id);
-        const superAdminRole = roles.find((role) => role.name === 'super_admin');
-        if (!superAdminRole) {
-            throw new common_1.BadRequestException('Super admin role not found.');
+        const role = roles.find((role) => role.name === dto.role);
+        if (!role) {
+            throw new common_1.BadRequestException('role not found.');
         }
         const newUser = await this.db.transaction(async (trx) => {
             const [user] = await trx
                 .insert(schema_1.users)
                 .values({
                 email: dto.email.toLowerCase(),
+                firstName: dto.firstName,
+                lastName: dto.lastName,
                 password: hashed,
                 companyId: company.id,
-                companyRoleId: superAdminRole.id,
+                companyRoleId: role.id,
             })
                 .returning({ id: schema_1.users.id, email: schema_1.users.email })
                 .execute();
+            await trx.insert(schema_1.companyFileFolders).values({
+                companyId: company.id,
+                name: 'Account Documents',
+                isSystem: true,
+            });
             await trx.insert(schema_1.companyLocations).values({
                 name: 'Head Office',
                 country: dto.country,
@@ -86,10 +93,8 @@ let UserService = class UserService {
             return user;
         });
         await this.companySettingsService.setSettings(company.id);
-        await this.permissionSeedQueue.add('seed-permissions', {
-            companyId: company.id,
-        });
-        await this.verificationService.generateVerificationToken(newUser.id);
+        await this.permissionSeedQueue.add('seed-permissions', { companyId: company.id }, { delay: 3000 });
+        await this.verificationService.generateVerificationToken(newUser.id, company.name);
         return { user: newUser, company: { id: company.id, domain: dto.domain } };
     }
     async inviteUser(dto, company_id) {

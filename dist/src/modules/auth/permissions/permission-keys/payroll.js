@@ -1,0 +1,36 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.PayrollPermissions = void 0;
+exports.PayrollPermissions = [
+    'payroll.allowances.read',
+    'payroll.allowances.manage',
+    'payroll.bonuses.read',
+    'payroll.bonuses.manage',
+    'payroll.deductions.types.read',
+    'payroll.deductions.types.manage',
+    'payroll.deductions.employee.read',
+    'payroll.deductions.employee.manage',
+    'payroll.off_cycle.read',
+    'payroll.off_cycle.manage',
+    'payroll.pay_groups.read',
+    'payroll.pay_groups.manage',
+    'payroll.pay_schedules.read',
+    'payroll.pay_schedules.manage',
+    'payroll.adjustments.read',
+    'payroll.adjustments.manage',
+    'payroll.overrides.read',
+    'payroll.overrides.manage',
+    'payroll.payslips.read_all',
+    'payroll.payslips.read_self',
+    'payroll.reports.read',
+    'payroll.run.calculate',
+    'payroll.run.read',
+    'payroll.run.send_for_approval',
+    'payroll.run.approve',
+    'payroll.run.mark_in_progress',
+    'payroll.run.approval_status',
+    'payroll.run.update_payment_status',
+    'payroll_settings.read',
+    'payroll_settings.manage',
+];
+//# sourceMappingURL=payroll.js.map

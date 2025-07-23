@@ -21,11 +21,6 @@ export class OnboardingSeederController extends BaseController {
     super();
   }
 
-  @Post('')
-  seedTemplates() {
-    return this.seeder.seedAllGlobalTemplates();
-  }
-
   @Get('single-template/:templateId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['leave.types.manage'])

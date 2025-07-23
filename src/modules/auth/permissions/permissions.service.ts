@@ -17,6 +17,7 @@ import { CacheService } from 'src/common/cache/cache.service';
 import { DefaultRolePermissions, PermissionKeys } from './permission-keys';
 import { User } from 'src/common/types/user.type';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { companies } from 'src/drizzle/schema';
 
 @Injectable()
 export class PermissionsService {
@@ -25,15 +26,15 @@ export class PermissionsService {
     private readonly cache: CacheService,
     private readonly auditService: AuditService,
   ) {}
-  // List of permission keys that are used in the application.
 
+  // List of permission keys that are used in the application.
   create() {
     // Seed the permission keys into the database.
     return this.db.transaction(async (tx) => {
       const existingPermissions = await tx
         .select()
         .from(permissions)
-        .where(inArray(permissions.key, PermissionKeys));
+        .where(inArray(permissions.key, [...PermissionKeys]));
 
       const existingKeys = new Set(existingPermissions.map((p) => p.key));
 
@@ -278,7 +279,9 @@ export class PermissionsService {
         }
         const lookup = `${role.id}|${permId}`;
 
-        if (!alreadySet.has(lookup)) {
+        if (alreadySet.has(lookup)) {
+          console.warn(`Skipping duplicate: ${lookup}`);
+        } else {
           toInsert.push({ roleId: role.id, permissionId: permId });
         }
       }
@@ -301,6 +304,7 @@ export class PermissionsService {
             permissionId,
           })),
         )
+        .onConflictDoNothing()
         .execute();
     }
 
@@ -308,6 +312,14 @@ export class PermissionsService {
     await this.cache.del(`company_roles:${companyId}`);
     for (const role of roles) {
       await this.cache.del(`role_permissions:${role.id}`);
+    }
+  }
+
+  async syncAllCompanyPermissions() {
+    const allCompanies = await this.db.select().from(companies);
+
+    for (const company of allCompanies) {
+      await this.seedDefaultPermissionsForCompany(company.id);
     }
   }
 

@@ -10,10 +10,12 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ConfigService } from '@nestjs/config';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import { companyFiles } from 'src/modules/core/company/schema/company-files.schema';
+import { and, eq } from 'drizzle-orm';
+import { companyFiles } from 'src/modules/core/company/documents/schema/company-files.schema';
 import * as path from 'path';
 import * as fs from 'fs';
 import { promisify } from 'util';
+import { companyFileFolders } from 'src/drizzle/schema';
 
 @Injectable()
 export class S3StorageService {
@@ -28,6 +30,34 @@ export class S3StorageService {
     });
   }
 
+  async ensureReportsFolder(companyId: string): Promise<string> {
+    const existing = await this.db
+      .select()
+      .from(companyFileFolders)
+      .where(
+        and(
+          eq(companyFileFolders.companyId, companyId),
+          eq(companyFileFolders.name, 'Reports'),
+          eq(companyFileFolders.isSystem, true),
+        ),
+      );
+
+    if (existing.length > 0) {
+      return existing[0].id;
+    }
+
+    const [created] = await this.db
+      .insert(companyFileFolders)
+      .values({
+        companyId,
+        name: 'Reports',
+        isSystem: true,
+      })
+      .returning({ id: companyFileFolders.id });
+
+    return created.id;
+  }
+
   async uploadBuffer(
     buffer: Buffer,
     key: string,
@@ -35,6 +65,7 @@ export class S3StorageService {
     type: string,
     category: string,
     mimeType: string,
+    reportsFolderId?: string,
   ): Promise<{ url: string; record: any }> {
     const bucket = this.configService.get('AWS_BUCKET_NAME');
 
@@ -62,6 +93,7 @@ export class S3StorageService {
           url: fileUrl,
           type,
           category,
+          folderId: reportsFolderId || null,
         })
         .returning()
         .execute();
@@ -89,7 +121,10 @@ export class S3StorageService {
   ): Promise<{ url: string; record: any }> {
     const fileBuffer = await promisify(fs.readFile)(filePath);
     const fileName = path.basename(filePath);
-    const key = `company-uploads/${companyId}/${fileName}`;
+
+    const reportsFolderId = await this.ensureReportsFolder(companyId);
+
+    const key = `company-files/${companyId}/${reportsFolderId}/${fileName}`;
     const mimeType = this.getMimeType(fileName);
 
     return this.uploadBuffer(
@@ -99,6 +134,7 @@ export class S3StorageService {
       type,
       category,
       mimeType,
+      reportsFolderId,
     );
   }
 
@@ -107,6 +143,26 @@ export class S3StorageService {
     const command = new GetObjectCommand({ Bucket: bucket, Key: key });
 
     return getSignedUrl(this.s3, command, { expiresIn: expiresInSeconds });
+  }
+
+  async deleteFileFromS3(fileUrl: string): Promise<void> {
+    const bucket = this.configService.get('AWS_BUCKET_NAME');
+    const key = this.extractKeyFromUrl(fileUrl);
+
+    await this.s3.send(
+      new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: key,
+      }),
+    );
+  }
+
+  private extractKeyFromUrl(fileUrl: string): string {
+    const urlParts = fileUrl.split('.amazonaws.com/');
+    if (urlParts.length !== 2) {
+      throw new Error('Invalid S3 URL format');
+    }
+    return urlParts[1]; // everything after ".amazonaws.com/"
   }
 
   private getMimeType(fileName: string): string {

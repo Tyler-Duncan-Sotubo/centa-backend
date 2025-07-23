@@ -1,0 +1,25 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.LeavePermissions = void 0;
+exports.LeavePermissions = [
+    'leave.balance.read',
+    'leave.balance.accrual',
+    'leave.blocked_days.read',
+    'leave.blocked_days.manage',
+    'leave.policy.read',
+    'leave.policy.manage',
+    'leave.reports',
+    'leave_approval.manage',
+    'leave.request.create',
+    'leave.request.read_all',
+    'leave.request.read_employee',
+    'leave.settings',
+    'leave.types.read',
+    'leave.types.manage',
+    'holidays.read',
+    'holidays.manage',
+    'holidays.seed',
+    'reserved_days.read',
+    'reserved_days.manage',
+];
+//# sourceMappingURL=leave.js.map

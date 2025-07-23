@@ -5,7 +5,8 @@ export declare class S3StorageService {
     private readonly db;
     private readonly s3;
     constructor(configService: ConfigService, db: db);
-    uploadBuffer(buffer: Buffer, key: string, companyId: string, type: string, category: string, mimeType: string): Promise<{
+    ensureReportsFolder(companyId: string): Promise<string>;
+    uploadBuffer(buffer: Buffer, key: string, companyId: string, type: string, category: string, mimeType: string, reportsFolderId?: string): Promise<{
         url: string;
         record: any;
     }>;
@@ -14,5 +15,7 @@ export declare class S3StorageService {
         record: any;
     }>;
     getSignedUrl(key: string, expiresInSeconds?: number): Promise<string>;
+    deleteFileFromS3(fileUrl: string): Promise<void>;
+    private extractKeyFromUrl;
     private getMimeType;
 }

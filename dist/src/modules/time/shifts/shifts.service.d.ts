@@ -19,8 +19,8 @@ export declare class ShiftsService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        isDeleted: boolean | null;
         locationId: string | null;
+        isDeleted: boolean | null;
         startTime: string;
         endTime: string;
         workingDays: unknown;

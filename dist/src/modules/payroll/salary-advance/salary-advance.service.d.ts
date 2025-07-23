@@ -24,10 +24,10 @@ export declare class SalaryAdvanceService {
         createdAt: Date;
         companyId: string;
         employeeId: string;
+        amount: string;
         status: string;
         paymentStatus: string;
         loanNumber: string | null;
-        amount: string;
         totalPaid: string;
         tenureMonths: number;
         preferredMonthlyPayment: string | null;

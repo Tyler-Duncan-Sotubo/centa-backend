@@ -5,18 +5,19 @@ import * as sgMail from '@sendgrid/mail';
 @Injectable()
 export class EmailVerificationService {
   constructor(private config: ConfigService) {}
-  async sendVerifyEmail(email: string, token: string) {
+  async sendVerifyEmail(email: string, token: string, companyName?: string) {
     sgMail.setApiKey(this.config.get<string>('SEND_GRID_KEY') || '');
     const msg = {
       to: email,
       from: {
-        name: 'Verify Email',
-        email: 'welcome@centa.africa',
+        name: 'noreply@centahr.com',
+        email: 'noreply@centahr.com',
       },
       templateId: this.config.get('VERIFY_TEMPLATE_ID'),
       dynamicTemplateData: {
-        verifyLink: `${token}`,
+        verificationCode: token,
         email: email,
+        companyName: companyName,
       },
     };
 
@@ -38,12 +39,12 @@ export class EmailVerificationService {
     const msg = {
       to: email,
       from: {
-        name: 'Please confirm your account',
-        email: 'noreply@centa.africa',
+        name: 'noreply@centahr.com',
+        email: 'noreply@centahr.com',
       },
       templateId: this.config.get('VERIFY_LOGIN_TEMPLATE_ID'),
       dynamicTemplateData: {
-        verifyLink: `${token}`,
+        verificationCode: token,
         email: email,
       },
     };

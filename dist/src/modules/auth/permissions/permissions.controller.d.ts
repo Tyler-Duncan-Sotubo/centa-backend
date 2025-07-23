@@ -6,7 +6,6 @@ import { BaseController } from 'src/common/interceptor/base.controller';
 export declare class PermissionsController extends BaseController {
     private readonly permissionsService;
     constructor(permissionsService: PermissionsService);
-    create(): Promise<string>;
     findAllPermissions(): Promise<{
         id: string;
         key: string;
@@ -25,6 +24,7 @@ export declare class PermissionsController extends BaseController {
         companyId: string;
         name: string;
     }>;
+    syncCompanyPermissions(): Promise<void>;
     assignPermissionToRole(user: User, dto: CreatePermissionDto): Promise<{
         id: string;
         companyRoleId: string;

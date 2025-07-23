@@ -24,11 +24,6 @@ export class PermissionsController extends BaseController {
     super();
   }
 
-  @Post()
-  create() {
-    return this.permissionsService.create();
-  }
-
   @Get()
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', [Permission.PermissionsRead])
@@ -63,6 +58,11 @@ export class PermissionsController extends BaseController {
   }
 
   // Company Permissions
+  @Post('company/sync')
+  async syncCompanyPermissions() {
+    return this.permissionsService.syncAllCompanyPermissions();
+  }
+
   @Post('assign')
   @SetMetadata('permissions', [Permission.PermissionsManage])
   @UseGuards(JwtAuthGuard)

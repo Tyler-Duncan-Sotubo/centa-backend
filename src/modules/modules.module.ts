@@ -15,6 +15,9 @@ import { ExpensesModule } from './expenses/expenses.module';
 import { AssetsModule } from './assets/assets.module';
 import { AnnouncementModule } from './announcement/announcement.module';
 import { ExportCleanupService } from 'src/common/services/export-clean.service';
+import { RecruitmentModule } from './recruitment/recruitment.module';
+import { IntegrationsModule } from './integrations/integrations.module';
+import { SeederModule } from './seed/seeder.module';
 
 @Global()
 @Module({
@@ -35,6 +38,9 @@ import { ExportCleanupService } from 'src/common/services/export-clean.service';
     ExpensesModule,
     AssetsModule,
     AnnouncementModule,
+    RecruitmentModule,
+    IntegrationsModule,
+    SeederModule,
   ],
   exports: [
     CoreModule,
@@ -48,6 +54,13 @@ import { ExportCleanupService } from 'src/common/services/export-clean.service';
     CacheModule,
     TimeModule,
     PayrollModule,
+    BenefitsModule,
+    ExpensesModule,
+    AssetsModule,
+    AnnouncementModule,
+    RecruitmentModule,
+    IntegrationsModule,
+    SeederModule,
   ],
 })
 export class ModulesModule {}

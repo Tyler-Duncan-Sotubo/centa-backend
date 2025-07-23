@@ -1,5 +1,4 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { CacheService } from 'src/common/cache/cache.service';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
 import { employees } from 'src/drizzle/schema';
@@ -20,7 +19,6 @@ import Decimal from 'decimal.js';
 export class DeductionsService {
   constructor(
     @Inject(DRIZZLE) private db: db,
-    private cache: CacheService,
     private auditService: AuditService,
   ) {}
 
@@ -47,7 +45,7 @@ export class DeductionsService {
     return deductionType[0];
   }
 
-  async createDeductionType(user: User, dto: CreateDeductionTypeDto) {
+  async createDeductionType(dto: CreateDeductionTypeDto, user?: User) {
     const [created] = await this.db
       .insert(deductionTypes)
       .values({
@@ -63,20 +61,22 @@ export class DeductionsService {
       })
       .execute();
 
-    // log the creation
-    await this.auditService.logAction({
-      action: 'create',
-      entity: 'deduction_type',
-      entityId: created.id,
-      userId: user.id,
-      details: `Deduction type with ID ${created.id} was created.`,
-      changes: {
-        name: dto.name,
-        code: dto.code,
-        systemDefined: dto.systemDefined,
-        requiresMembership: dto.requiresMembership,
-      },
-    });
+    if (user && user.id) {
+      // log the creation
+      await this.auditService.logAction({
+        action: 'create',
+        entity: 'deduction_type',
+        entityId: created.id,
+        userId: user.id,
+        details: `Deduction type with ID ${created.id} was created.`,
+        changes: {
+          name: dto.name,
+          code: dto.code,
+          systemDefined: dto.systemDefined,
+          requiresMembership: dto.requiresMembership,
+        },
+      });
+    }
 
     return created;
   }

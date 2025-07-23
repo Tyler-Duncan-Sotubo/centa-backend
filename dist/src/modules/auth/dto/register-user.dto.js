@@ -9,8 +9,19 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RegisterDto = void 0;
+exports.RegisterDto = exports.Role = void 0;
 const class_validator_1 = require("class-validator");
+var Role;
+(function (Role) {
+    Role["SUPER_ADMIN"] = "super_admin";
+    Role["HR_MANAGER"] = "hr_manager";
+    Role["PAYROLL_SPECIALIST"] = "payroll_specialist";
+    Role["FINANCE_OFFICER"] = "finance_officer";
+    Role["EMPLOYEE"] = "employee";
+    Role["MANAGER"] = "manager";
+    Role["ADMIN"] = "admin";
+    Role["RECRUITER"] = "recruiter";
+})(Role || (exports.Role = Role = {}));
 class RegisterDto {
 }
 exports.RegisterDto = RegisterDto;
@@ -34,6 +45,21 @@ __decorate([
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], RegisterDto.prototype, "country", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], RegisterDto.prototype, "firstName", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], RegisterDto.prototype, "lastName", void 0);
+__decorate([
+    (0, class_validator_1.IsEnum)(Role),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], RegisterDto.prototype, "role", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MinLength)(4),

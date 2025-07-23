@@ -14,7 +14,6 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DeductionsService = void 0;
 const common_1 = require("@nestjs/common");
-const cache_service_1 = require("../../../common/cache/cache.service");
 const drizzle_module_1 = require("../../../drizzle/drizzle.module");
 const schema_1 = require("../../../drizzle/schema");
 const drizzle_orm_1 = require("drizzle-orm");
@@ -22,9 +21,8 @@ const audit_service_1 = require("../../audit/audit.service");
 const deduction_schema_1 = require("../schema/deduction.schema");
 const decimal_js_1 = require("decimal.js");
 let DeductionsService = class DeductionsService {
-    constructor(db, cache, auditService) {
+    constructor(db, auditService) {
         this.db = db;
-        this.cache = cache;
         this.auditService = auditService;
     }
     async getDeductionTypes() {
@@ -44,7 +42,7 @@ let DeductionsService = class DeductionsService {
             throw new common_1.BadRequestException('Deduction type not found');
         return deductionType[0];
     }
-    async createDeductionType(user, dto) {
+    async createDeductionType(dto, user) {
         const [created] = await this.db
             .insert(deduction_schema_1.deductionTypes)
             .values({
@@ -59,19 +57,21 @@ let DeductionsService = class DeductionsService {
             code: deduction_schema_1.deductionTypes.code,
         })
             .execute();
-        await this.auditService.logAction({
-            action: 'create',
-            entity: 'deduction_type',
-            entityId: created.id,
-            userId: user.id,
-            details: `Deduction type with ID ${created.id} was created.`,
-            changes: {
-                name: dto.name,
-                code: dto.code,
-                systemDefined: dto.systemDefined,
-                requiresMembership: dto.requiresMembership,
-            },
-        });
+        if (user && user.id) {
+            await this.auditService.logAction({
+                action: 'create',
+                entity: 'deduction_type',
+                entityId: created.id,
+                userId: user.id,
+                details: `Deduction type with ID ${created.id} was created.`,
+                changes: {
+                    name: dto.name,
+                    code: dto.code,
+                    systemDefined: dto.systemDefined,
+                    requiresMembership: dto.requiresMembership,
+                },
+            });
+        }
         return created;
     }
     async updateDeductionType(user, dto, id) {
@@ -288,7 +288,6 @@ exports.DeductionsService = DeductionsService;
 exports.DeductionsService = DeductionsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, cache_service_1.CacheService,
-        audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
 ], DeductionsService);
 //# sourceMappingURL=deductions.service.js.map

@@ -5,6 +5,6 @@ export declare class VerificationService {
     private db;
     private readonly emailVerificationService;
     constructor(db: db, emailVerificationService: EmailVerificationService);
-    generateVerificationToken(userId: string): Promise<string>;
+    generateVerificationToken(userId: string, companyName?: string): Promise<string>;
     verifyToken(dto: TokenDto): Promise<object>;
 }

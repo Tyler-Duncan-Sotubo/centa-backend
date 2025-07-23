@@ -559,8 +559,11 @@ export class EmployeesService {
           annualGross: employeeCompensations.grossSalary,
           groupId: employees.payGroupId,
           applyNHf: employeeCompensations.applyNHf,
+          role: companyRoles.name,
         })
         .from(employees)
+        .innerJoin(users, eq(employees.userId, users.id))
+        .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
         .leftJoin(
           employeeCompensations,
           eq(employees.id, employeeCompensations.employeeId),
@@ -1187,8 +1190,6 @@ export class EmployeesService {
         await validateOrReject(empDto);
         await validateOrReject(finDto);
         await validateOrReject(compDto);
-
-        console.log(empDto, finDto, compDto);
 
         imports.push({ empDto, finDto, compDto });
       } catch (error) {

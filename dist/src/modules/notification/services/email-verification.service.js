@@ -17,18 +17,19 @@ let EmailVerificationService = class EmailVerificationService {
     constructor(config) {
         this.config = config;
     }
-    async sendVerifyEmail(email, token) {
+    async sendVerifyEmail(email, token, companyName) {
         sgMail.setApiKey(this.config.get('SEND_GRID_KEY') || '');
         const msg = {
             to: email,
             from: {
-                name: 'Verify Email',
-                email: 'welcome@centa.africa',
+                name: 'noreply@centahr.com',
+                email: 'noreply@centahr.com',
             },
             templateId: this.config.get('VERIFY_TEMPLATE_ID'),
             dynamicTemplateData: {
-                verifyLink: `${token}`,
+                verificationCode: token,
                 email: email,
+                companyName: companyName,
             },
         };
         (async () => {
@@ -48,12 +49,12 @@ let EmailVerificationService = class EmailVerificationService {
         const msg = {
             to: email,
             from: {
-                name: 'Please confirm your account',
-                email: 'noreply@centa.africa',
+                name: 'noreply@centahr.com',
+                email: 'noreply@centahr.com',
             },
             templateId: this.config.get('VERIFY_LOGIN_TEMPLATE_ID'),
             dynamicTemplateData: {
-                verifyLink: `${token}`,
+                verificationCode: token,
                 email: email,
             },
         };

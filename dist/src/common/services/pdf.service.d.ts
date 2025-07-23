@@ -9,4 +9,5 @@ export declare class PdfService {
     private bucketName;
     constructor(db: db, payslipService: PayslipService, awsService: AwsService);
     generatePayslipPdf(payslipId: string): Promise<Buffer>;
+    private htmlToPdf;
 }

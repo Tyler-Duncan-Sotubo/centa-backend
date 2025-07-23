@@ -1,4 +1,3 @@
-import { CacheService } from 'src/common/cache/cache.service';
 import { db } from 'src/drizzle/types/drizzle';
 import { User } from 'src/common/types/user.type';
 import { AuditService } from 'src/modules/audit/audit.service';
@@ -7,9 +6,8 @@ import { UpdateEmployeeDeductionDto } from './dto/update-employee-deduction.dto'
 import { CreateEmployeeDeductionDto } from './dto/create-employee-deduction.dto';
 export declare class DeductionsService {
     private db;
-    private cache;
     private auditService;
-    constructor(db: db, cache: CacheService, auditService: AuditService);
+    constructor(db: db, auditService: AuditService);
     getDeductionTypes(): Promise<{
         id: string;
         name: string;
@@ -24,7 +22,7 @@ export declare class DeductionsService {
         systemDefined: boolean;
         requiresMembership: boolean;
     }>;
-    createDeductionType(user: User, dto: CreateDeductionTypeDto): Promise<{
+    createDeductionType(dto: CreateDeductionTypeDto, user?: User): Promise<{
         id: string;
         name: string;
         code: string;

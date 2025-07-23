@@ -428,8 +428,11 @@ let EmployeesService = class EmployeesService {
                 annualGross: compensation_schema_1.employeeCompensations.grossSalary,
                 groupId: schema_1.employees.payGroupId,
                 applyNHf: compensation_schema_1.employeeCompensations.applyNHf,
+                role: schema_2.companyRoles.name,
             })
                 .from(schema_1.employees)
+                .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_2.users.id))
+                .innerJoin(schema_2.companyRoles, (0, drizzle_orm_1.eq)(schema_2.users.companyRoleId, schema_2.companyRoles.id))
                 .leftJoin(compensation_schema_1.employeeCompensations, (0, drizzle_orm_1.eq)(schema_1.employees.id, compensation_schema_1.employeeCompensations.employeeId))
                 .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
                 .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
@@ -909,7 +912,6 @@ let EmployeesService = class EmployeesService {
                 await (0, class_validator_1.validateOrReject)(empDto);
                 await (0, class_validator_1.validateOrReject)(finDto);
                 await (0, class_validator_1.validateOrReject)(compDto);
-                console.log(empDto, finDto, compDto);
                 imports.push({ empDto, finDto, compDto });
             }
             catch (error) {

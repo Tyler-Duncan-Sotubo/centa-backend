@@ -1,0 +1,1 @@
+ALTER TABLE "job_postings" ALTER COLUMN "deadline_date" SET DATA TYPE text;

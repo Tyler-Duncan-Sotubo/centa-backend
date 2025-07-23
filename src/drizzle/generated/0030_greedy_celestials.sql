@@ -1,0 +1,1 @@
+ALTER TABLE "offers" ALTER COLUMN "salary" SET DATA TYPE numeric(15, 2);

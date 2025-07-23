@@ -9,8 +9,8 @@ export declare class BenefitGroupsController extends BaseController {
     create(dto: CreateBenefitGroupDto, user: User): Promise<{
         id: string;
         name: string;
-        createdAt: Date | null;
         description: string | null;
+        createdAt: Date | null;
         companyId: string;
         rules: unknown;
     }>;

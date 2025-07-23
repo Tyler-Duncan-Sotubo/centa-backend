@@ -15,7 +15,10 @@ export class VerificationService {
     private readonly emailVerificationService: EmailVerificationService,
   ) {}
 
-  async generateVerificationToken(userId: string): Promise<string> {
+  async generateVerificationToken(
+    userId: string,
+    companyName?: string,
+  ): Promise<string> {
     const token = Math.floor(100000 + Math.random() * 900000).toString();
     const expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -48,7 +51,11 @@ export class VerificationService {
         .execute();
     }
 
-    await this.emailVerificationService.sendVerifyEmail(user[0].email, token);
+    await this.emailVerificationService.sendVerifyEmail(
+      user[0].email,
+      token,
+      companyName,
+    );
 
     return token;
   }

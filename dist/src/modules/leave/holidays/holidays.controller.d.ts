@@ -6,7 +6,6 @@ import { UpdateHolidayDto } from './dto/update-holiday.dto';
 export declare class HolidaysController extends BaseController {
     private readonly holidaysService;
     constructor(holidaysService: HolidaysService);
-    create(): Promise<string>;
     getCustomHolidays(user: User): Promise<{
         id: string;
         companyId: string | null;
@@ -30,29 +29,29 @@ export declare class HolidaysController extends BaseController {
         date: string;
         id: string;
         name: string;
+        country: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-        country: string | null;
         companyId: string | null;
         type: string;
+        source: string | null;
         year: string;
         countryCode: string | null;
         isWorkingDayOverride: boolean | null;
-        source: string | null;
     }[]>;
     createCustomHolidays(dto: CreateHolidayDto, user: User): Promise<{
         date: string;
         id: string;
         name: string;
+        country: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-        country: string | null;
         companyId: string | null;
         type: string;
+        source: string | null;
         year: string;
         countryCode: string | null;
         isWorkingDayOverride: boolean | null;
-        source: string | null;
     }>;
     updateHoliday(dto: UpdateHolidayDto, user: User, id: string): Promise<{
         id: string;

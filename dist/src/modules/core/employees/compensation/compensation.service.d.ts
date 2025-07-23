@@ -172,24 +172,24 @@ export declare class CompensationService {
     constructor(db: db, auditService: AuditService);
     upsert(employeeId: string, dto: CreateCompensationDto, userId: string, ip: string): Promise<{
         id: string;
+        currency: string;
         createdAt: Date;
         updatedAt: Date;
-        currency: string;
         payFrequency: string;
         employeeId: string;
-        effectiveDate: string;
         grossSalary: number;
+        effectiveDate: string;
         applyNHf: boolean;
     }>;
     create(employeeId: string, dto: CreateCompensationDto, userId: string, ip: string, trx?: typeof this.db): Promise<{
         id: string;
+        currency: string;
         createdAt: Date;
         updatedAt: Date;
-        currency: string;
         payFrequency: string;
         employeeId: string;
-        effectiveDate: string;
         grossSalary: number;
+        effectiveDate: string;
         applyNHf: boolean;
     }>;
     findAll(employeeId: string): Promise<{

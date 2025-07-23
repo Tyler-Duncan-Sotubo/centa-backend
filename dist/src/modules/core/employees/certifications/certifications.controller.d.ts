@@ -11,11 +11,11 @@ export declare class CertificationsController extends BaseController {
         name: string;
         createdAt: Date;
         employeeId: string;
-        documentUrl: string | null;
         authority: string | null;
         licenseNumber: string | null;
         issueDate: string | null;
         expiryDate: string | null;
+        documentUrl: string | null;
     }>;
     findAll(id: string): Promise<{
         id: string;
