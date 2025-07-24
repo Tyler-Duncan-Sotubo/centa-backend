@@ -6,9 +6,8 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "npm run build && npm run install-chromium",
+    "build": "npm run build",
     "start": "npm start",
-    "install-chromium": "PLAYWRIGHT_BROWSERS_PATH=./.cache npx playwright install chromium",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
