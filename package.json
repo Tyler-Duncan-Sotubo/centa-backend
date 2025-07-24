@@ -9,7 +9,7 @@
     "start": "node dist/src/main.js",
     "build": "nest build",
     "heroku-postbuild": "npm run build && npm run heroku-cleanup",
-    "heroku-cleanup": "npx playwright install chromium",
+    "heroku-cleanup": "PLAYWRIGHT_BROWSERS_PATH=./.cache npx playwright install chromium",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
