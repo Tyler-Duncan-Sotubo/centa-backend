@@ -15,17 +15,17 @@ export declare class JobsService {
         pipelineTemplateId?: string;
     }, user: User): Promise<{
         id: string;
-        country: string | null;
-        currency: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        country: string | null;
+        currency: string;
         companyId: string;
-        createdBy: string;
         city: string | null;
         state: string | null;
+        createdBy: string;
         description: string | null;
         title: string;
-        status: "open" | "draft" | "closed" | "archived";
+        status: "draft" | "open" | "closed" | "archived";
         externalJobId: string | null;
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
@@ -47,7 +47,7 @@ export declare class JobsService {
         id: string;
         title: string;
         description: string | null;
-        status: "open" | "draft" | "closed" | "archived";
+        status: "draft" | "open" | "closed" | "archived";
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
         deadlineDate: string | null;
@@ -73,7 +73,7 @@ export declare class JobsService {
         benefits: string[] | null;
         currency: string;
         description: string | null;
-        status: "open" | "draft" | "closed" | "archived";
+        status: "draft" | "open" | "closed" | "archived";
         postedAt: Date | null;
         closedAt: Date | null;
         createdAt: Date | null;
@@ -102,7 +102,7 @@ export declare class JobsService {
         benefits: string[] | null;
         currency: string;
         description: string | null;
-        status: "open" | "draft" | "closed" | "archived";
+        status: "draft" | "open" | "closed" | "archived";
         postedAt: Date | null;
         closedAt: Date | null;
         createdAt: Date | null;
@@ -117,7 +117,7 @@ export declare class JobsService {
         id: string;
         title: string;
         description: string | null;
-        status: "open" | "draft" | "closed" | "archived";
+        status: "draft" | "open" | "closed" | "archived";
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
         deadlineDate: string | null;
@@ -151,7 +151,7 @@ export declare class JobsService {
         benefits: string[] | null;
         currency: string;
         description: string | null;
-        status: "open" | "draft" | "closed" | "archived";
+        status: "draft" | "open" | "closed" | "archived";
         postedAt: Date | null;
         closedAt: Date | null;
         createdAt: Date | null;
@@ -163,7 +163,7 @@ export declare class JobsService {
         id: string;
         title: string;
         description: string | null;
-        status: "open" | "draft" | "closed" | "archived";
+        status: "draft" | "open" | "closed" | "archived";
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
         deadlineDate: string | null;

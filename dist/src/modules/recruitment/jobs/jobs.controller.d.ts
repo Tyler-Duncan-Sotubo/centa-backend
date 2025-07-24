@@ -13,15 +13,15 @@ export declare class JobsController extends BaseController {
     constructor(jobsService: JobsService, applicationFormService: ApplicationFormService);
     create(createJobDto: CreateJobDto, user: User): Promise<{
         id: string;
-        description: string | null;
-        country: string | null;
-        currency: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        country: string | null;
+        currency: string;
         companyId: string;
         city: string | null;
         state: string | null;
         createdBy: string;
+        description: string | null;
         title: string;
         status: "draft" | "open" | "closed" | "archived";
         externalJobId: string | null;

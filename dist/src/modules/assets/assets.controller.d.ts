@@ -17,7 +17,6 @@ export declare class AssetsController extends BaseController {
         isDeleted: boolean | null;
         employeeId: string | null;
         status: string;
-        internalId: string;
         modelName: string | null;
         color: string | null;
         specs: string | null;
@@ -25,10 +24,11 @@ export declare class AssetsController extends BaseController {
         serialNumber: string;
         purchasePrice: string;
         purchaseDate: string;
-        depreciationMethod: string | null;
         warrantyExpiry: string | null;
         lendDate: string | null;
         returnDate: string | null;
+        internalId: string;
+        depreciationMethod: string | null;
         usefulLifeYears: number;
     }>;
     bulkCreate(rows: any[], user: User): Promise<{
@@ -42,7 +42,6 @@ export declare class AssetsController extends BaseController {
         isDeleted: boolean | null;
         employeeId: string | null;
         status: string;
-        internalId: string;
         modelName: string | null;
         color: string | null;
         specs: string | null;
@@ -50,10 +49,11 @@ export declare class AssetsController extends BaseController {
         serialNumber: string;
         purchasePrice: string;
         purchaseDate: string;
-        depreciationMethod: string | null;
         warrantyExpiry: string | null;
         lendDate: string | null;
         returnDate: string | null;
+        internalId: string;
+        depreciationMethod: string | null;
         usefulLifeYears: number;
     }[]>;
     findAll(user: User): Promise<({

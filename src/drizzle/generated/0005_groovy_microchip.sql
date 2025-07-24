@@ -1,1 +1,0 @@
-ALTER TABLE "employees" ALTER COLUMN "probation_end_date" DROP NOT NULL;

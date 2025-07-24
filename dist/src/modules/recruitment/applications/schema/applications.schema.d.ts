@@ -58,7 +58,7 @@ export declare const applications: import("drizzle-orm/pg-core").PgTableWithColu
             tableName: "applications";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "internal" | "referral" | "agency" | "career_page" | "other" | "linkedin" | "indeed";
+            data: "referral" | "agency" | "career_page" | "other" | "linkedin" | "indeed" | "internal";
             driverParam: string;
             notNull: true;
             hasDefault: true;
@@ -75,7 +75,7 @@ export declare const applications: import("drizzle-orm/pg-core").PgTableWithColu
             tableName: "applications";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "rejected" | "applied" | "screening" | "interview" | "offer" | "hired";
+            data: "applied" | "screening" | "interview" | "offer" | "hired" | "rejected";
             driverParam: string;
             notNull: true;
             hasDefault: true;

@@ -14,7 +14,7 @@ export declare class InterviewsService {
         updatedAt: Date | null;
         status: string | null;
         applicationId: string;
-        stage: "onsite" | "phone_screen" | "tech" | "final";
+        stage: "phone_screen" | "tech" | "onsite" | "final";
         scheduledFor: Date;
         durationMins: number;
         meetingLink: string | null;
@@ -24,7 +24,7 @@ export declare class InterviewsService {
     rescheduleInterview(interviewId: string, dto: ScheduleInterviewDto): Promise<{
         id: string;
         applicationId: string;
-        stage: "onsite" | "phone_screen" | "tech" | "final";
+        stage: "phone_screen" | "tech" | "onsite" | "final";
         scheduledFor: Date;
         durationMins: number;
         meetingLink: string | null;
@@ -40,7 +40,7 @@ export declare class InterviewsService {
         applicationId: string;
         scheduledFor: Date;
         durationMins: number;
-        stage: "onsite" | "phone_screen" | "tech" | "final";
+        stage: "phone_screen" | "tech" | "onsite" | "final";
         mode: string | null;
         meetingLink: string | null;
         candidateName: string;
@@ -66,7 +66,7 @@ export declare class InterviewsService {
         scorecardCriteria: Record<string, any[]>;
         id: string;
         applicationId: string;
-        stage: "onsite" | "phone_screen" | "tech" | "final";
+        stage: "phone_screen" | "tech" | "onsite" | "final";
         scheduledFor: Date;
         durationMins: number;
         meetingLink: string | null;
@@ -80,7 +80,7 @@ export declare class InterviewsService {
     listInterviewsForApplication(applicationId: string): Promise<{
         id: string;
         applicationId: string;
-        stage: "onsite" | "phone_screen" | "tech" | "final";
+        stage: "phone_screen" | "tech" | "onsite" | "final";
         scheduledFor: Date;
         durationMins: number;
         meetingLink: string | null;

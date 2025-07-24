@@ -22,7 +22,7 @@ export declare class ApplicationFormService {
         formId: string;
     }>;
     getFormPreview(jobId: string): Promise<{
-        style: "both" | "resume_only" | "form_only";
+        style: "resume_only" | "form_only" | "both";
         includeReferences: boolean | null;
         fields: {
             id: string;

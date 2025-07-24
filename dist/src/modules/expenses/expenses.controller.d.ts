@@ -12,15 +12,15 @@ export declare class ExpensesController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        employeeId: string;
         category: string;
-        purpose: string;
-        amount: string;
+        employeeId: string;
         status: string;
         submittedAt: Date | null;
+        amount: string;
+        rejectionReason: string | null;
+        purpose: string;
         receiptUrl: string | null;
         paymentMethod: string | null;
-        rejectionReason: string | null;
         deletedAt: Date | null;
     }>;
     bulkCreate(rows: any[], user: User): Promise<{
@@ -29,15 +29,15 @@ export declare class ExpensesController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        employeeId: string;
         category: string;
-        purpose: string;
-        amount: string;
+        employeeId: string;
         status: string;
         submittedAt: Date | null;
+        amount: string;
+        rejectionReason: string | null;
+        purpose: string;
         receiptUrl: string | null;
         paymentMethod: string | null;
-        rejectionReason: string | null;
         deletedAt: Date | null;
     }[]>;
     findAll(user: User): Omit<import("drizzle-orm/pg-core").PgSelectBase<"expenses", {

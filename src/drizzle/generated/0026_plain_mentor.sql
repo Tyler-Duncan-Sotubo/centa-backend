@@ -1,1 +1,0 @@
-ALTER TABLE "interview_email_templates" ALTER COLUMN "created_by" DROP NOT NULL;

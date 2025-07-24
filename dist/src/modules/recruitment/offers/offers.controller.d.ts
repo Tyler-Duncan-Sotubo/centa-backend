@@ -12,9 +12,9 @@ export declare class OffersController extends BaseController {
     constructor(offersService: OffersService, sendOffersService: SendOffersService);
     create(createOfferDto: CreateOfferDto, user: User): Promise<{
         id: string;
-        currency: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        currency: string;
         companyId: string;
         createdBy: string | null;
         startDate: string | null;

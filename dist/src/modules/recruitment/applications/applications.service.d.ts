@@ -23,8 +23,8 @@ export declare class ApplicationsService {
             id: string;
             jobId: string;
             candidateId: string;
-            source: "internal" | "referral" | "agency" | "career_page" | "other" | "linkedin" | "indeed";
-            status: "rejected" | "applied" | "screening" | "interview" | "offer" | "hired";
+            source: "referral" | "agency" | "career_page" | "other" | "linkedin" | "indeed" | "internal";
+            status: "applied" | "screening" | "interview" | "offer" | "hired" | "rejected";
             appliedAt: Date | null;
             currentStage: string | null;
             resumeScore: unknown;
@@ -62,7 +62,7 @@ export declare class ApplicationsService {
             }[];
             id: string;
             applicationId: string;
-            stage: "onsite" | "phone_screen" | "tech" | "final";
+            stage: "phone_screen" | "tech" | "onsite" | "final";
             scheduledFor: Date;
             durationMins: number;
             meetingLink: string | null;
@@ -84,8 +84,8 @@ export declare class ApplicationsService {
             fullName: string;
             email: string;
             appliedAt: Date | null;
-            status: "rejected" | "applied" | "screening" | "interview" | "offer" | "hired";
-            appSource: "internal" | "referral" | "agency" | "career_page" | "other" | "linkedin" | "indeed";
+            status: "applied" | "screening" | "interview" | "offer" | "hired" | "rejected";
+            appSource: "referral" | "agency" | "career_page" | "other" | "linkedin" | "indeed" | "internal";
             resumeScore: unknown;
         }[];
     }[]>;

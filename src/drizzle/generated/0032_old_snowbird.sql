@@ -1,1 +1,0 @@
-ALTER TABLE "offers" ADD COLUMN "pdf_data" json NOT NULL;

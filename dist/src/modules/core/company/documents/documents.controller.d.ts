@@ -28,14 +28,14 @@ export declare class DocumentsController extends BaseController {
     }>;
     findAllFolders(user: User): Promise<{
         files: {
+            url: string;
             id: string;
             name: string;
             createdAt: Date | null;
             companyId: string;
-            category: string;
-            type: string;
-            url: string;
             folderId: string | null;
+            type: string;
+            category: string;
             uploadedBy: string | null;
         }[];
         roleIds: string[];

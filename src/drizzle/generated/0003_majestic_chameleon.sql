@@ -1,1 +1,0 @@
-ALTER TABLE "employees" DROP CONSTRAINT "employees_employee_number_unique";

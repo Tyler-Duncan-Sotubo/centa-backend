@@ -13,9 +13,9 @@ export declare class BonusesService {
         companyId: string;
         createdBy: string;
         employeeId: string;
-        amount: string;
         status: string | null;
         effectiveDate: string;
+        amount: string;
         bonusType: string;
     }[]>;
     findAll(companyId: string): Promise<({

@@ -58,12 +58,12 @@ export declare class OnboardingSeederService {
     getTemplatesByCompanyWithDetails(companyId: string): Promise<{
         fields: {
             id: string;
-            label: string;
-            required: boolean | null;
             templateId: string;
             order: number | null;
             fieldKey: string;
+            label: string;
             fieldType: string;
+            required: boolean | null;
             tag: string;
         }[];
         checklist: {
@@ -87,12 +87,12 @@ export declare class OnboardingSeederService {
     getTemplateByIdWithDetails(templateId: string): Promise<{
         fields: {
             id: string;
-            label: string;
-            required: boolean | null;
             templateId: string;
             order: number | null;
             fieldKey: string;
+            label: string;
             fieldType: string;
+            required: boolean | null;
             tag: string;
         }[];
         checklist: {

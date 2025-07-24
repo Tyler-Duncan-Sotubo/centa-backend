@@ -12,13 +12,13 @@ export declare class PayrollAdjustmentsService {
         createdAt: string | null;
         companyId: string;
         createdBy: string | null;
-        isDeleted: boolean | null;
         type: string;
+        isDeleted: boolean | null;
         employeeId: string;
-        amount: number;
-        payrollDate: string;
-        label: string | null;
         notes: string | null;
+        label: string | null;
+        payrollDate: string;
+        amount: number;
         taxable: boolean | null;
         proratable: boolean | null;
         recurring: boolean | null;

@@ -36,29 +36,29 @@ export declare class HolidaysService {
         date: string;
         id: string;
         name: string;
-        country: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
+        country: string | null;
         companyId: string | null;
         type: string;
+        source: string | null;
         year: string;
         countryCode: string | null;
         isWorkingDayOverride: boolean | null;
-        source: string | null;
     }[]>;
     createHoliday(dto: CreateHolidayDto, user: User): Promise<{
         date: string;
         id: string;
         name: string;
-        country: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
+        country: string | null;
         companyId: string | null;
         type: string;
+        source: string | null;
         year: string;
         countryCode: string | null;
         isWorkingDayOverride: boolean | null;
-        source: string | null;
     }>;
     findOne(id: string, user: User): Promise<void>;
     findAll(companyId: string): Promise<{

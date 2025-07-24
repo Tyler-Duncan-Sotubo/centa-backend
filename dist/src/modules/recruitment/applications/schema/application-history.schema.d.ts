@@ -41,7 +41,7 @@ export declare const application_history: import("drizzle-orm/pg-core").PgTableW
             tableName: "application_history";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "rejected" | "applied" | "screening" | "interview" | "offer" | "hired";
+            data: "applied" | "screening" | "interview" | "offer" | "hired" | "rejected";
             driverParam: string;
             notNull: false;
             hasDefault: false;
@@ -58,7 +58,7 @@ export declare const application_history: import("drizzle-orm/pg-core").PgTableW
             tableName: "application_history";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "rejected" | "applied" | "screening" | "interview" | "offer" | "hired";
+            data: "applied" | "screening" | "interview" | "offer" | "hired" | "rejected";
             driverParam: string;
             notNull: false;
             hasDefault: false;

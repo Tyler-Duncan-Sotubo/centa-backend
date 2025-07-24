@@ -11,17 +11,17 @@ export declare class PipelineController extends BaseController {
     cloneTemplateForCompany(templateId: string, templateName: string, user: User): Promise<{
         id: string;
         name: string;
-        description: string | null;
         createdAt: Date | null;
         companyId: string | null;
+        description: string | null;
         isGlobal: boolean | null;
     }>;
     createTemplate(createPipelineDto: CreatePipelineDto, user: User): Promise<{
         id: string;
         name: string;
-        description: string | null;
         createdAt: Date | null;
         companyId: string | null;
+        description: string | null;
         isGlobal: boolean | null;
     }>;
     findAllTemplates(user: User): Promise<{

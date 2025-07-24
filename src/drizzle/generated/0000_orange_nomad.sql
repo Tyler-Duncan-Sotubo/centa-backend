@@ -1,13 +1,99 @@
-CREATE TYPE "public"."currency_enum" AS ENUM('NGN', 'USD', 'EUR', 'GBP');--> statement-breakpoint
-CREATE TYPE "public"."plan_enum" AS ENUM('free', 'pro', 'enterprise');--> statement-breakpoint
-CREATE TYPE "public"."employee_status" AS ENUM('probation', 'active', 'on_leave', 'resigned', 'terminated', 'onboarding');--> statement-breakpoint
-CREATE TYPE "public"."history_type" AS ENUM('employment', 'education', 'certification', 'promotion', 'transfer', 'termination');--> statement-breakpoint
-CREATE TYPE "public"."onboarding_status" AS ENUM('pending', 'in_progress', 'completed');--> statement-breakpoint
-CREATE TYPE "public"."checklist_assignee" AS ENUM('employee', 'hr', 'it', 'finance');--> statement-breakpoint
-CREATE TYPE "public"."checklist_status" AS ENUM('pending', 'in_progress', 'completed', 'overdue', 'skipped', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."onboarding_template_status" AS ENUM('draft', 'published');--> statement-breakpoint
-CREATE TYPE "public"."lifecycle_token_type" AS ENUM('onboarding', 'offboarding');--> statement-breakpoint
-CREATE TYPE "public"."rate_type" AS ENUM('fixed', 'percentage');--> statement-breakpoint
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'history_type') THEN
+    CREATE TYPE "public"."history_type" AS ENUM('employment', 'education', 'certification', 'promotion', 'transfer', 'termination');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'onboarding_status') THEN
+    CREATE TYPE "public"."onboarding_status" AS ENUM('pending', 'in_progress', 'completed');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'checklist_assignee') THEN
+    CREATE TYPE "public"."checklist_assignee" AS ENUM('employee', 'hr', 'it', 'finance');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'checklist_status') THEN
+    CREATE TYPE "public"."checklist_status" AS ENUM('pending', 'in_progress', 'completed', 'overdue', 'skipped', 'cancelled');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'onboarding_template_status') THEN
+    CREATE TYPE "public"."onboarding_template_status" AS ENUM('draft', 'published');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'lifecycle_token_type') THEN
+    CREATE TYPE "public"."lifecycle_token_type" AS ENUM('onboarding', 'offboarding');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'rate_type') THEN
+    CREATE TYPE "public"."rate_type" AS ENUM('fixed', 'percentage');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'application_status') THEN
+    CREATE TYPE "public"."application_status" AS ENUM('applied', 'screening', 'interview', 'offer', 'hired', 'rejected');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'candidate_source') THEN
+    CREATE TYPE "public"."candidate_source" AS ENUM('job_board', 'referral', 'agency', 'career_page', 'headhunter', 'other');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'interview_stage') THEN
+    CREATE TYPE "public"."interview_stage" AS ENUM('phone_screen', 'tech', 'onsite', 'final');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'job_status') THEN
+    CREATE TYPE "public"."job_status" AS ENUM('draft', 'open', 'closed', 'archived');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'offer_status') THEN
+    CREATE TYPE "public"."offer_status" AS ENUM('pending', 'accepted', 'declined', 'expired');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'application_source') THEN
+    CREATE TYPE "public"."application_source" AS ENUM('career_page', 'linkedin', 'indeed', 'referral', 'agency', 'internal', 'other');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'application_style') THEN
+    CREATE TYPE "public"."application_style" AS ENUM('resume_only', 'form_only', 'both');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'employment_type') THEN
+    CREATE TYPE "public"."employment_type" AS ENUM('permanent', 'temporary', 'contract', 'internship', 'freelance', 'part_time', 'full_time');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'job_type') THEN
+    CREATE TYPE "public"."job_type" AS ENUM('onsite', 'remote', 'hybrid');
+  END IF;
+END $$;
+
 CREATE TABLE "announcement_categories" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"company_id" uuid NOT NULL,
@@ -224,13 +310,43 @@ CREATE TABLE "benefit_plans" (
 	"employer_contribution" integer DEFAULT 0
 );
 --> statement-breakpoint
+CREATE TABLE "company_file_folder_departments" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"folder_id" uuid NOT NULL,
+	"department_id" uuid NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "company_file_folder_offices" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"folder_id" uuid NOT NULL,
+	"office_id" uuid NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "company_file_folder_roles" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"folder_id" uuid NOT NULL,
+	"role_id" uuid NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "company_file_folders" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"company_id" uuid NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"permission_controlled" boolean DEFAULT false,
+	"created_by" uuid,
+	"is_system" boolean DEFAULT false NOT NULL,
+	"created_at" timestamp DEFAULT now()
+);
+--> statement-breakpoint
 CREATE TABLE "company_files" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"company_id" uuid NOT NULL,
+	"folder_id" uuid,
 	"name" varchar(255) NOT NULL,
 	"url" text NOT NULL,
 	"type" varchar(100) NOT NULL,
 	"category" varchar(100) NOT NULL,
+	"uploaded_by" uuid,
 	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
@@ -377,14 +493,13 @@ CREATE TABLE "employees" (
 	"employment_start_date" text NOT NULL,
 	"employment_end_date" timestamp,
 	"confirmed" boolean DEFAULT true,
-	"probation_end_date" timestamp DEFAULT now() NOT NULL,
+	"probation_end_date" text,
 	"first_name" varchar(100) NOT NULL,
 	"last_name" varchar(100) NOT NULL,
 	"email" varchar(255) NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	"company_id" uuid NOT NULL,
-	CONSTRAINT "employees_employee_number_unique" UNIQUE("employee_number"),
 	CONSTRAINT "employees_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
@@ -480,6 +595,21 @@ CREATE TABLE "expenses" (
 	"created_at" timestamp with time zone DEFAULT now(),
 	"updated_at" timestamp with time zone DEFAULT now(),
 	"deleted_at" timestamp with time zone
+);
+--> statement-breakpoint
+CREATE TABLE "google_accounts" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" uuid NOT NULL,
+	"google_email" varchar(255) NOT NULL,
+	"access_token" text NOT NULL,
+	"refresh_token" text NOT NULL,
+	"token_type" varchar(32) NOT NULL,
+	"scope" text NOT NULL,
+	"expiry_date" timestamp NOT NULL,
+	"refresh_token_expiry" integer DEFAULT 604800,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "google_accounts_google_email_unique" UNIQUE("google_email")
 );
 --> statement-breakpoint
 CREATE TABLE "blocked_leave_days" (
@@ -763,8 +893,7 @@ CREATE TABLE "pay_groups" (
 	"company_id" uuid NOT NULL,
 	"created_at" timestamp DEFAULT now(),
 	"updated_at" timestamp DEFAULT now(),
-	"is_deleted" boolean DEFAULT false,
-	CONSTRAINT "pay_groups_name_unique" UNIQUE("name")
+	"is_deleted" boolean DEFAULT false
 );
 --> statement-breakpoint
 CREATE TABLE "pay_schedules" (
@@ -903,6 +1032,9 @@ CREATE TABLE "payroll_ytd" (
 	"payroll_date" text NOT NULL,
 	"year" integer NOT NULL,
 	"gross_salary" numeric(15, 2) NOT NULL,
+	"basic_salary" numeric(15, 2) NOT NULL,
+	"housing_allowance" numeric(15, 2) NOT NULL,
+	"transport_allowance" numeric(15, 2) NOT NULL,
 	"total_deductions" numeric(15, 2) NOT NULL,
 	"bonuses" numeric(15, 2) DEFAULT '0.00',
 	"net_salary" numeric(15, 2) NOT NULL,
@@ -955,6 +1087,310 @@ CREATE TABLE "tax_filings" (
 	"approved_at" timestamp,
 	"created_at" timestamp DEFAULT now(),
 	"updated_at" timestamp DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "application_field_responses" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"application_id" uuid NOT NULL,
+	"label" varchar(255) NOT NULL,
+	"value" jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "application_history" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"application_id" uuid NOT NULL,
+	"from_status" "application_status",
+	"to_status" "application_status",
+	"changed_at" timestamp with time zone DEFAULT now(),
+	"changed_by" uuid,
+	"notes" text
+);
+--> statement-breakpoint
+CREATE TABLE "application_question_responses" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"application_id" uuid NOT NULL,
+	"question" text NOT NULL,
+	"answer" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "applications" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"job_id" uuid NOT NULL,
+	"candidate_id" uuid NOT NULL,
+	"source" "application_source" DEFAULT 'career_page' NOT NULL,
+	"status" "application_status" DEFAULT 'applied' NOT NULL,
+	"applied_at" timestamp with time zone DEFAULT now(),
+	"current_stage" uuid,
+	"resume_score" jsonb,
+	"metadata" jsonb
+);
+--> statement-breakpoint
+CREATE TABLE "candidates" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"full_name" varchar(255) NOT NULL,
+	"email" varchar(255) NOT NULL,
+	"phone" varchar(50),
+	"source" "candidate_source" DEFAULT 'career_page' NOT NULL,
+	"resume_url" varchar(500),
+	"profile" jsonb,
+	"created_at" timestamp with time zone DEFAULT now(),
+	"updated_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "candidate_skills" (
+	"candidate_id" uuid NOT NULL,
+	"skill_id" uuid NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "skills" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"name" varchar(100) NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "interview_email_templates" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"name" text NOT NULL,
+	"subject" text NOT NULL,
+	"body" text NOT NULL,
+	"is_global" boolean DEFAULT false,
+	"company_id" uuid,
+	"created_by" uuid,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "interview_scores" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"interview_id" uuid NOT NULL,
+	"criterion_id" uuid NOT NULL,
+	"score" integer NOT NULL,
+	"comment" text,
+	"submitted_by" uuid,
+	"submitted_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "interview_interviewers" (
+	"interview_id" uuid NOT NULL,
+	"interviewer_id" uuid NOT NULL,
+	"scorecard_template_id" uuid
+);
+--> statement-breakpoint
+CREATE TABLE "interviews" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"application_id" uuid NOT NULL,
+	"stage" "interview_stage" NOT NULL,
+	"scheduled_for" timestamp with time zone NOT NULL,
+	"duration_mins" integer NOT NULL,
+	"meeting_link" varchar(512),
+	"event_id" varchar(128),
+	"email_template_id" uuid,
+	"status" varchar(20) DEFAULT 'scheduled',
+	"mode" varchar(20),
+	"created_at" timestamp with time zone DEFAULT now(),
+	"updated_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "scorecard_criteria" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"template_id" uuid NOT NULL,
+	"label" varchar(100) NOT NULL,
+	"description" varchar(255),
+	"max_score" integer DEFAULT 5 NOT NULL,
+	"order" integer NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "scorecard_templates" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"is_system" boolean DEFAULT false,
+	"company_id" uuid,
+	"name" varchar(100) NOT NULL,
+	"description" varchar(255),
+	"is_active" boolean DEFAULT true,
+	"created_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "application_field_definitions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"section" varchar(50) NOT NULL,
+	"label" varchar(255) NOT NULL,
+	"field_type" varchar(50) NOT NULL,
+	"is_global" boolean DEFAULT true
+);
+--> statement-breakpoint
+CREATE TABLE "application_form_configs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"job_id" uuid NOT NULL,
+	"style" "application_style" NOT NULL,
+	"include_references" boolean DEFAULT false,
+	"created_at" timestamp with time zone DEFAULT now(),
+	CONSTRAINT "application_form_configs_job_id_unique" UNIQUE("job_id")
+);
+--> statement-breakpoint
+CREATE TABLE "application_form_fields" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"form_id" uuid NOT NULL,
+	"section" varchar(50) NOT NULL,
+	"is_visible" boolean DEFAULT true,
+	"is_editable" boolean DEFAULT true,
+	"label" varchar(255) NOT NULL,
+	"field_type" varchar(50) NOT NULL,
+	"required" boolean DEFAULT true,
+	"order" integer NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "application_form_questions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"form_id" uuid NOT NULL,
+	"question" text NOT NULL,
+	"type" varchar(50) NOT NULL,
+	"required" boolean DEFAULT true,
+	"order" integer NOT NULL,
+	"company_id" uuid NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "job_postings" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"company_id" uuid NOT NULL,
+	"created_by" uuid NOT NULL,
+	"external_job_id" varchar(100),
+	"title" varchar(255) NOT NULL,
+	"country" varchar(100),
+	"state" varchar(100),
+	"city" varchar(100),
+	"job_type" "job_type" NOT NULL,
+	"employment_type" "employment_type" NOT NULL,
+	"responsibilities" text[],
+	"requirements" text[],
+	"experience_level" varchar(50),
+	"years_of_experience" varchar(50),
+	"education_level" varchar(50),
+	"salary_range_from" integer,
+	"salary_range_to" integer,
+	"benefits" text[],
+	"currency" varchar(10) DEFAULT 'NGN' NOT NULL,
+	"description" text,
+	"status" "job_status" DEFAULT 'draft' NOT NULL,
+	"posted_at" timestamp with time zone,
+	"closed_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now(),
+	"updated_at" timestamp with time zone DEFAULT now(),
+	"deadline_date" text,
+	"is_archived" boolean DEFAULT false NOT NULL,
+	CONSTRAINT "job_postings_external_job_id_unique" UNIQUE("external_job_id")
+);
+--> statement-breakpoint
+CREATE TABLE "generated_offer_letters" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"candidate_id" uuid NOT NULL,
+	"offer_id" uuid,
+	"template_id" uuid NOT NULL,
+	"file_name" varchar(255) NOT NULL,
+	"file_url" text NOT NULL,
+	"status" varchar(20) DEFAULT 'pending',
+	"generated_by" uuid,
+	"generated_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "offer_letter_template_variable_links" (
+	"template_id" uuid NOT NULL,
+	"variable_id" uuid NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "offer_letter_template_variables" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"name" text NOT NULL,
+	"is_system" boolean DEFAULT true,
+	"company_id" uuid,
+	"created_at" timestamp DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "offer_letter_templates" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"company_id" uuid,
+	"name" text NOT NULL,
+	"content" text NOT NULL,
+	"is_default" boolean DEFAULT false,
+	"is_system_template" boolean DEFAULT false,
+	"created_at" timestamp DEFAULT now(),
+	"cloned_from_template_id" uuid
+);
+--> statement-breakpoint
+CREATE TABLE "offers" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"company_id" uuid NOT NULL,
+	"application_id" uuid NOT NULL,
+	"template_id" uuid,
+	"status" "offer_status" DEFAULT 'pending' NOT NULL,
+	"signing_method" varchar(20) DEFAULT 'pdf' NOT NULL,
+	"salary" numeric(15, 2),
+	"currency" varchar(3) DEFAULT 'NGN' NOT NULL,
+	"start_date" date,
+	"expires_at" timestamp with time zone,
+	"letter_url" varchar(500),
+	"signed_letter_url" varchar(500),
+	"signing_envelope_id" varchar(255),
+	"signing_url" varchar(500),
+	"signed_at" timestamp with time zone,
+	"sent_at" timestamp with time zone,
+	"created_by" uuid,
+	"version" integer DEFAULT 1,
+	"pdf_data" json NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now(),
+	"updated_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "pipeline_history" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"application_id" uuid NOT NULL,
+	"stage_id" uuid NOT NULL,
+	"moved_at" timestamp with time zone DEFAULT now(),
+	"moved_by" uuid,
+	"feedback" text
+);
+--> statement-breakpoint
+CREATE TABLE "pipeline_stage_instances" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"application_id" uuid NOT NULL,
+	"stage_id" uuid NOT NULL,
+	"entered_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "pipeline_stages" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"job_id" uuid NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"order" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "pipeline_template_stages" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"template_id" uuid NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"order" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "pipeline_templates" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"is_global" boolean DEFAULT false,
+	"company_id" uuid,
+	"name" varchar(100) NOT NULL,
+	"description" text,
+	"created_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "attachments" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"parent_type" varchar(50) NOT NULL,
+	"parent_id" uuid NOT NULL,
+	"url" varchar(500) NOT NULL,
+	"name" varchar(255),
+	"mime_type" varchar(100),
+	"uploaded_by" uuid,
+	"uploaded_at" timestamp with time zone DEFAULT now()
 );
 --> statement-breakpoint
 CREATE TABLE "attendance_adjustments" (
@@ -1075,7 +1511,17 @@ ALTER TABLE "benefit_enrollments" ADD CONSTRAINT "benefit_enrollments_employee_i
 ALTER TABLE "benefit_groups" ADD CONSTRAINT "benefit_groups_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "benefit_plans" ADD CONSTRAINT "benefit_plans_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "benefit_plans" ADD CONSTRAINT "benefit_plans_benefit_group_id_benefit_groups_id_fk" FOREIGN KEY ("benefit_group_id") REFERENCES "public"."benefit_groups"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "company_file_folder_departments" ADD CONSTRAINT "company_file_folder_departments_folder_id_company_file_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."company_file_folders"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "company_file_folder_departments" ADD CONSTRAINT "company_file_folder_departments_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "company_file_folder_offices" ADD CONSTRAINT "company_file_folder_offices_folder_id_company_file_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."company_file_folders"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "company_file_folder_offices" ADD CONSTRAINT "company_file_folder_offices_office_id_company_locations_id_fk" FOREIGN KEY ("office_id") REFERENCES "public"."company_locations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "company_file_folder_roles" ADD CONSTRAINT "company_file_folder_roles_folder_id_company_file_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."company_file_folders"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "company_file_folder_roles" ADD CONSTRAINT "company_file_folder_roles_role_id_company_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."company_roles"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "company_file_folders" ADD CONSTRAINT "company_file_folders_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "company_file_folders" ADD CONSTRAINT "company_file_folders_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "company_files" ADD CONSTRAINT "company_files_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "company_files" ADD CONSTRAINT "company_files_folder_id_company_file_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."company_file_folders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "company_files" ADD CONSTRAINT "company_files_uploaded_by_users_id_fk" FOREIGN KEY ("uploaded_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "company_locations" ADD CONSTRAINT "company_locations_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "company_tax_details" ADD CONSTRAINT "company_tax_details_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "location_managers" ADD CONSTRAINT "location_managers_location_id_company_locations_id_fk" FOREIGN KEY ("location_id") REFERENCES "public"."company_locations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -1110,6 +1556,7 @@ ALTER TABLE "expense_approvals" ADD CONSTRAINT "expense_approvals_step_id_approv
 ALTER TABLE "expense_approvals" ADD CONSTRAINT "expense_approvals_actor_id_users_id_fk" FOREIGN KEY ("actor_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "expenses" ADD CONSTRAINT "expenses_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "expenses" ADD CONSTRAINT "expenses_employee_id_employees_id_fk" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "google_accounts" ADD CONSTRAINT "google_accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "blocked_leave_days" ADD CONSTRAINT "blocked_leave_days_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "blocked_leave_days" ADD CONSTRAINT "blocked_leave_days_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reserved_leave_days" ADD CONSTRAINT "reserved_leave_days_employee_id_employees_id_fk" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -1180,6 +1627,50 @@ ALTER TABLE "tax_filing_details" ADD CONSTRAINT "tax_filing_details_tax_filing_i
 ALTER TABLE "tax_filing_details" ADD CONSTRAINT "tax_filing_details_employee_id_employees_id_fk" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tax_filings" ADD CONSTRAINT "tax_filings_payroll_id_payroll_id_fk" FOREIGN KEY ("payroll_id") REFERENCES "public"."payroll"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tax_filings" ADD CONSTRAINT "tax_filings_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "application_field_responses" ADD CONSTRAINT "application_field_responses_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "application_history" ADD CONSTRAINT "application_history_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "application_history" ADD CONSTRAINT "application_history_changed_by_users_id_fk" FOREIGN KEY ("changed_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "application_question_responses" ADD CONSTRAINT "application_question_responses_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "applications" ADD CONSTRAINT "applications_job_id_job_postings_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."job_postings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "applications" ADD CONSTRAINT "applications_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "applications" ADD CONSTRAINT "applications_current_stage_pipeline_stages_id_fk" FOREIGN KEY ("current_stage") REFERENCES "public"."pipeline_stages"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "candidate_skills" ADD CONSTRAINT "candidate_skills_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "candidate_skills" ADD CONSTRAINT "candidate_skills_skill_id_skills_id_fk" FOREIGN KEY ("skill_id") REFERENCES "public"."skills"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "interview_email_templates" ADD CONSTRAINT "interview_email_templates_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "interview_scores" ADD CONSTRAINT "interview_scores_interview_id_interviews_id_fk" FOREIGN KEY ("interview_id") REFERENCES "public"."interviews"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "interview_scores" ADD CONSTRAINT "interview_scores_criterion_id_scorecard_criteria_id_fk" FOREIGN KEY ("criterion_id") REFERENCES "public"."scorecard_criteria"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "interview_scores" ADD CONSTRAINT "interview_scores_submitted_by_users_id_fk" FOREIGN KEY ("submitted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "interview_interviewers" ADD CONSTRAINT "interview_interviewers_interview_id_interviews_id_fk" FOREIGN KEY ("interview_id") REFERENCES "public"."interviews"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "interview_interviewers" ADD CONSTRAINT "interview_interviewers_interviewer_id_users_id_fk" FOREIGN KEY ("interviewer_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "interview_interviewers" ADD CONSTRAINT "interview_interviewers_scorecard_template_id_scorecard_templates_id_fk" FOREIGN KEY ("scorecard_template_id") REFERENCES "public"."scorecard_templates"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "interviews" ADD CONSTRAINT "interviews_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "interviews" ADD CONSTRAINT "interviews_email_template_id_interview_email_templates_id_fk" FOREIGN KEY ("email_template_id") REFERENCES "public"."interview_email_templates"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scorecard_criteria" ADD CONSTRAINT "scorecard_criteria_template_id_scorecard_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."scorecard_templates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scorecard_templates" ADD CONSTRAINT "scorecard_templates_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "application_form_configs" ADD CONSTRAINT "application_form_configs_job_id_job_postings_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."job_postings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "application_form_fields" ADD CONSTRAINT "application_form_fields_form_id_application_form_configs_id_fk" FOREIGN KEY ("form_id") REFERENCES "public"."application_form_configs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "application_form_questions" ADD CONSTRAINT "application_form_questions_form_id_application_form_configs_id_fk" FOREIGN KEY ("form_id") REFERENCES "public"."application_form_configs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "application_form_questions" ADD CONSTRAINT "application_form_questions_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "job_postings" ADD CONSTRAINT "job_postings_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "job_postings" ADD CONSTRAINT "job_postings_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "generated_offer_letters" ADD CONSTRAINT "generated_offer_letters_offer_id_offers_id_fk" FOREIGN KEY ("offer_id") REFERENCES "public"."offers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "generated_offer_letters" ADD CONSTRAINT "generated_offer_letters_template_id_offer_letter_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."offer_letter_templates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "offer_letter_template_variable_links" ADD CONSTRAINT "offer_letter_template_variable_links_template_id_offer_letter_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."offer_letter_templates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "offer_letter_template_variable_links" ADD CONSTRAINT "offer_letter_template_variable_links_variable_id_offer_letter_template_variables_id_fk" FOREIGN KEY ("variable_id") REFERENCES "public"."offer_letter_template_variables"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "offer_letter_template_variables" ADD CONSTRAINT "offer_letter_template_variables_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "offer_letter_templates" ADD CONSTRAINT "offer_letter_templates_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "offers" ADD CONSTRAINT "offers_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "offers" ADD CONSTRAINT "offers_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "offers" ADD CONSTRAINT "offers_template_id_offer_letter_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."offer_letter_templates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pipeline_history" ADD CONSTRAINT "pipeline_history_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pipeline_history" ADD CONSTRAINT "pipeline_history_stage_id_pipeline_stages_id_fk" FOREIGN KEY ("stage_id") REFERENCES "public"."pipeline_stages"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pipeline_history" ADD CONSTRAINT "pipeline_history_moved_by_users_id_fk" FOREIGN KEY ("moved_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pipeline_stage_instances" ADD CONSTRAINT "pipeline_stage_instances_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pipeline_stage_instances" ADD CONSTRAINT "pipeline_stage_instances_stage_id_pipeline_stages_id_fk" FOREIGN KEY ("stage_id") REFERENCES "public"."pipeline_stages"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pipeline_stages" ADD CONSTRAINT "pipeline_stages_job_id_job_postings_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."job_postings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pipeline_template_stages" ADD CONSTRAINT "pipeline_template_stages_template_id_pipeline_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."pipeline_templates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pipeline_templates" ADD CONSTRAINT "pipeline_templates_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "attachments" ADD CONSTRAINT "attachments_uploaded_by_employees_id_fk" FOREIGN KEY ("uploaded_by") REFERENCES "public"."employees"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "attendance_adjustments" ADD CONSTRAINT "attendance_adjustments_attendance_record_id_attendance_records_id_fk" FOREIGN KEY ("attendance_record_id") REFERENCES "public"."attendance_records"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "attendance_records" ADD CONSTRAINT "attendance_records_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "attendance_records" ADD CONSTRAINT "attendance_records_employee_id_employees_id_fk" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -1477,6 +1968,40 @@ CREATE INDEX "idx_company_id_tax_filings" ON "tax_filings" USING btree ("company
 CREATE INDEX "idx_tax_type_tax_filings" ON "tax_filings" USING btree ("tax_type");--> statement-breakpoint
 CREATE INDEX "idx_company_tin_tax_filings" ON "tax_filings" USING btree ("company_tin");--> statement-breakpoint
 CREATE INDEX "idx_status_tax_filings" ON "tax_filings" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "idx_apphist_app" ON "application_history" USING btree ("application_id");--> statement-breakpoint
+CREATE INDEX "idx_app_job" ON "applications" USING btree ("job_id");--> statement-breakpoint
+CREATE INDEX "idx_app_cand" ON "applications" USING btree ("candidate_id");--> statement-breakpoint
+CREATE INDEX "idx_app_status" ON "applications" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "idx_cand_email" ON "candidates" USING btree ("email");--> statement-breakpoint
+CREATE INDEX "idx_cand_source" ON "candidates" USING btree ("source");--> statement-breakpoint
+CREATE INDEX "idx_candskill_cand" ON "candidate_skills" USING btree ("candidate_id");--> statement-breakpoint
+CREATE INDEX "idx_ii_interview" ON "interview_interviewers" USING btree ("interview_id");--> statement-breakpoint
+CREATE INDEX "idx_ii_interviewer" ON "interview_interviewers" USING btree ("interviewer_id");--> statement-breakpoint
+CREATE INDEX "idx_int_app" ON "interviews" USING btree ("application_id");--> statement-breakpoint
+CREATE INDEX "idx_scorecard_company" ON "scorecard_templates" USING btree ("company_id");--> statement-breakpoint
+CREATE INDEX "idx_job_company" ON "job_postings" USING btree ("company_id");--> statement-breakpoint
+CREATE INDEX "idx_job_status" ON "job_postings" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "idx_job_posted_at" ON "job_postings" USING btree ("posted_at");--> statement-breakpoint
+CREATE INDEX "idx_offer_letter_offer_id" ON "generated_offer_letters" USING btree ("offer_id");--> statement-breakpoint
+CREATE INDEX "idx_offer_letter_candidate_id" ON "generated_offer_letters" USING btree ("candidate_id");--> statement-breakpoint
+CREATE INDEX "idx_offer_letter_template_id" ON "generated_offer_letters" USING btree ("template_id");--> statement-breakpoint
+CREATE INDEX "idx_offer_letter_status" ON "generated_offer_letters" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "template_variable_link_idx" ON "offer_letter_template_variable_links" USING btree ("template_id","variable_id");--> statement-breakpoint
+CREATE INDEX "template_variable_name_idx" ON "offer_letter_template_variables" USING btree ("name");--> statement-breakpoint
+CREATE INDEX "template_variable_company_idx" ON "offer_letter_template_variables" USING btree ("company_id");--> statement-breakpoint
+CREATE INDEX "idx_off_app" ON "offers" USING btree ("application_id");--> statement-breakpoint
+CREATE INDEX "idx_off_status" ON "offers" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "idx_off_signing_method" ON "offers" USING btree ("signing_method");--> statement-breakpoint
+CREATE INDEX "idx_pipehist_app" ON "pipeline_history" USING btree ("application_id");--> statement-breakpoint
+CREATE INDEX "idx_pipehist_stage" ON "pipeline_history" USING btree ("stage_id");--> statement-breakpoint
+CREATE INDEX "idx_stage_instance_app" ON "pipeline_stage_instances" USING btree ("application_id");--> statement-breakpoint
+CREATE INDEX "idx_stage_instance_stage" ON "pipeline_stage_instances" USING btree ("stage_id");--> statement-breakpoint
+CREATE INDEX "idx_stage_job" ON "pipeline_stages" USING btree ("job_id");--> statement-breakpoint
+CREATE INDEX "idx_stage_job_order" ON "pipeline_stages" USING btree ("job_id","order");--> statement-breakpoint
+CREATE INDEX "idx_tplstg_template" ON "pipeline_template_stages" USING btree ("template_id");--> statement-breakpoint
+CREATE INDEX "idx_tplstg_template_order" ON "pipeline_template_stages" USING btree ("template_id","order");--> statement-breakpoint
+CREATE INDEX "idx_att_parent" ON "attachments" USING btree ("parent_type","parent_id");--> statement-breakpoint
+CREATE INDEX "idx_att_upload" ON "attachments" USING btree ("uploaded_by");--> statement-breakpoint
 CREATE INDEX "attendance_adjustments_record_id_idx" ON "attendance_adjustments" USING btree ("attendance_record_id");--> statement-breakpoint
 CREATE INDEX "attendance_adjustments_approved_by_idx" ON "attendance_adjustments" USING btree ("approved_by");--> statement-breakpoint
 CREATE INDEX "attendance_adjustments_created_at_idx" ON "attendance_adjustments" USING btree ("created_at");--> statement-breakpoint

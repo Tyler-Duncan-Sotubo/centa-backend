@@ -23,8 +23,8 @@ export declare class ReportService {
             averageCheckInTime: Date | null;
         };
         summaryList: {
-            employeeId: string;
-            employeeNumber: string;
+            employeeId: any;
+            employeeNumber: any;
             name: string;
             department: any;
             checkInTime: string | null;
@@ -53,8 +53,8 @@ export declare class ReportService {
         };
     }>;
     getDailySummaryList(companyId: string, date: string): Promise<{
-        employeeId: string;
-        employeeNumber: string;
+        employeeId: any;
+        employeeNumber: any;
         name: string;
         department: any;
         checkInTime: string | null;
@@ -116,8 +116,8 @@ export declare class ReportService {
                 averageCheckInTime: Date | null;
             };
             summaryList: {
-                employeeId: string;
-                employeeNumber: string;
+                employeeId: any;
+                employeeNumber: any;
                 name: string;
                 department: any;
                 checkInTime: string | null;
