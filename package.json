@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node dist/src/main.js",
     "build": "nest build",
-    "heroku-postbuild": "npm run build && npx playwright install",
+    "heroku-postbuild": "npm run build && npx playwright install --with-deps",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
