@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node dist/src/main.js",
     "build": "nest build",
+    "postinstall": "npx playwright install --with-deps chromium",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
