@@ -7,7 +7,7 @@ import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { AwsService } from 'src/common/aws/aws.service';
 import { offerLetterTemplates } from './schema/offer-letter-templates.schema';
 import { generatedOfferLetters } from './schema/generated-offer-letters.schema';
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-chromium';
 import { offers } from '../schema/offers.schema';
 
 @Injectable()

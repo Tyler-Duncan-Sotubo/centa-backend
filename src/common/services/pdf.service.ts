@@ -6,7 +6,7 @@ import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from '../../drizzle/drizzle.module';
 import { paySlips } from 'src/modules/payroll/schema/payslip.schema';
 import { eq } from 'drizzle-orm';
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-chromium';
 import { formatCurrency } from 'src/utils/formatCurrency';
 
 @Injectable()
