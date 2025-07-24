@@ -6,10 +6,9 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "start": "node dist/src/main.js",
-    "build": "nest build",
-    "heroku-postbuild": "npm run build && npm run heroku-cleanup",
-    "heroku-cleanup": "PLAYWRIGHT_BROWSERS_PATH=./.cache npx playwright install chromium",
+    "build": "npm run build && npm run install-chromium",
+    "start": "npm start",
+    "install-chromium": "PLAYWRIGHT_BROWSERS_PATH=./.cache npx playwright install chromium",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
