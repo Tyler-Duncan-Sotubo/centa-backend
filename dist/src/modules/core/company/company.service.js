@@ -36,8 +36,9 @@ const permissions_service_1 = require("../../auth/permissions/permissions.servic
 const seeder_service_1 = require("../../lifecycle/onboarding/seeder.service");
 const leave_balance_service_1 = require("../../leave/balance/leave-balance.service");
 const schema_3 = require("../../../drizzle/schema");
+const company_settings_service_1 = require("../../../company-settings/company-settings.service");
 let CompanyService = class CompanyService {
-    constructor(db, cache, audit, departmentService, payGroupService, locationService, jobRoleService, costCenterService, payrollReport, attendanceReport, awsService, permissionsService, onboardingSeederService, leaveBalanceService) {
+    constructor(db, cache, audit, departmentService, payGroupService, locationService, jobRoleService, costCenterService, payrollReport, attendanceReport, awsService, permissionsService, onboardingSeederService, leaveBalanceService, companySettingsService) {
         this.db = db;
         this.cache = cache;
         this.audit = audit;
@@ -52,6 +53,7 @@ let CompanyService = class CompanyService {
         this.permissionsService = permissionsService;
         this.onboardingSeederService = onboardingSeederService;
         this.leaveBalanceService = leaveBalanceService;
+        this.companySettingsService = companySettingsService;
         this.table = schema_1.companies;
     }
     async update(companyId, dto, userId, ip) {
@@ -244,6 +246,11 @@ let CompanyService = class CompanyService {
             return end >= prevStartDate && end <= prevEndDate;
         });
         const prevTotalEmployees = allEmployees.filter((emp) => !emp.employmentEndDate || new Date(emp.employmentEndDate) > prevEndDate).length;
+        const onboardingSettings = await this.companySettingsService.getOnboardingSettings(companyId);
+        const tasksArray = Object.entries(onboardingSettings);
+        const completed = tasksArray.filter(([_, completed]) => completed).length;
+        const total = tasksArray.length;
+        const allTasksCompleted = completed === total;
         return {
             companyName: company[0].companyName,
             allHolidays,
@@ -261,6 +268,7 @@ let CompanyService = class CompanyService {
             recentLeaves,
             attendanceSummary,
             announcements: allAnnouncements,
+            onboardingTaskCompleted: allTasksCompleted,
         };
     }
     async getEmployeeSummary(employeeId) {
@@ -377,6 +385,7 @@ exports.CompanyService = CompanyService = __decorate([
         aws_service_1.AwsService,
         permissions_service_1.PermissionsService,
         seeder_service_1.OnboardingSeederService,
-        leave_balance_service_1.LeaveBalanceService])
+        leave_balance_service_1.LeaveBalanceService,
+        company_settings_service_1.CompanySettingsService])
 ], CompanyService);
 //# sourceMappingURL=company.service.js.map

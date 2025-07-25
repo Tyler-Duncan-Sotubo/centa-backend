@@ -13,6 +13,7 @@ import { AwsService } from 'src/common/aws/aws.service';
 import { PermissionsService } from 'src/modules/auth/permissions/permissions.service';
 import { OnboardingSeederService } from 'src/modules/lifecycle/onboarding/seeder.service';
 import { LeaveBalanceService } from 'src/modules/leave/balance/leave-balance.service';
+import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 export declare class CompanyService {
     private readonly db;
     private readonly cache;
@@ -28,6 +29,7 @@ export declare class CompanyService {
     private readonly permissionsService;
     private readonly onboardingSeederService;
     private readonly leaveBalanceService;
+    private readonly companySettingsService;
     protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "companies";
         schema: undefined;
@@ -306,7 +308,7 @@ export declare class CompanyService {
         };
         dialect: "pg";
     }>;
-    constructor(db: db, cache: CacheService, audit: AuditService, departmentService: DepartmentService, payGroupService: PayGroupsService, locationService: LocationsService, jobRoleService: JobRolesService, costCenterService: CostCentersService, payrollReport: ReportService, attendanceReport: AttendanceReportService, awsService: AwsService, permissionsService: PermissionsService, onboardingSeederService: OnboardingSeederService, leaveBalanceService: LeaveBalanceService);
+    constructor(db: db, cache: CacheService, audit: AuditService, departmentService: DepartmentService, payGroupService: PayGroupsService, locationService: LocationsService, jobRoleService: JobRolesService, costCenterService: CostCentersService, payrollReport: ReportService, attendanceReport: AttendanceReportService, awsService: AwsService, permissionsService: PermissionsService, onboardingSeederService: OnboardingSeederService, leaveBalanceService: LeaveBalanceService, companySettingsService: CompanySettingsService);
     update(companyId: string, dto: UpdateCompanyDto, userId: string, ip: string): Promise<string>;
     findOne(id: string): Promise<{
         id: string;
@@ -325,15 +327,11 @@ export declare class CompanyService {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    findAllEmployeesInCompany(companyId: string): Promise<({
-        id: any;
-        confirmed: any;
+    findAllEmployeesInCompany(companyId: string): Promise<{
+        id: string;
+        confirmed: boolean | null;
         gender: string | null;
-    } | {
-        id: any;
-        confirmed: any;
-        gender: string | null;
-    })[]>;
+    }[]>;
     softDelete(id: string): Promise<{
         id: string;
         name: string;
@@ -359,57 +357,29 @@ export declare class CompanyService {
         }[];
         totalEmployees: number;
         allEmployees: ({
-            id: any;
-            employmentStartDate: any;
-            employmentEndDate: any;
-            employeeNumber: any;
-            email: any;
-            firstName: any;
-            lastName: any;
+            id: string;
+            employmentStartDate: string;
+            employmentEndDate: Date | null;
+            employeeNumber: string;
+            email: string;
+            firstName: string;
+            lastName: string;
             departments: any;
             jobRole: string | null;
             annualGross: number | null;
         } | {
-            id: any;
-            employmentStartDate: any;
-            employmentEndDate: any;
-            employeeNumber: any;
-            email: any;
-            firstName: any;
-            lastName: any;
-            departments: any;
-            jobRole: string | null;
-            annualGross: number | null;
-        } | {
-            id: any;
-            employmentStartDate: any;
-            employmentEndDate: any;
-            employeeNumber: any;
-            email: any;
-            firstName: any;
-            lastName: any;
-            departments: any;
-            jobRole: string | null;
-            annualGross: number | null;
-        } | {
-            id: any;
-            employmentStartDate: any;
-            employmentEndDate: any;
-            employeeNumber: any;
-            email: any;
-            firstName: any;
-            lastName: any;
+            id: string;
+            employmentStartDate: string;
+            employmentEndDate: Date | null;
+            employeeNumber: string;
+            email: string;
+            firstName: string;
+            lastName: string;
             departments: any;
             jobRole: string | null;
             annualGross: number | null;
         })[];
         allDepartments: ({
-            department: any;
-            employees: number;
-        } | {
-            department: any;
-            employees: number;
-        } | {
             department: any;
             employees: number;
         } | {
@@ -436,17 +406,12 @@ export declare class CompanyService {
             totalNetSalary: number;
             totalPayrollCost: number;
         }[];
-        recentLeaves: ({
+        recentLeaves: {
             name: string;
             leaveType: string;
             startDate: string;
             endDate: string;
-        } | {
-            name: string;
-            leaveType: string;
-            startDate: string;
-            endDate: string;
-        })[];
+        }[];
         attendanceSummary: {
             month: string;
             present: number;
@@ -457,6 +422,7 @@ export declare class CompanyService {
             id: string;
             title: string;
         }[];
+        onboardingTaskCompleted: boolean;
     }>;
     getEmployeeSummary(employeeId: string): Promise<{
         allHolidays: {
@@ -486,7 +452,7 @@ export declare class CompanyService {
         };
         pendingChecklists: {
             statusId: string;
-            checkListStatus: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
+            checkListStatus: "pending" | "completed" | "in_progress" | "overdue" | "skipped" | "cancelled" | null;
             checklistId: string;
             title: string;
             dueDaysAfterStart: number | null;

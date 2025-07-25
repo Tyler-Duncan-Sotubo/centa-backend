@@ -12,11 +12,11 @@ export declare class LeaveRequestController extends BaseController {
         companyId: string;
         startDate: string;
         employeeId: string;
-        endDate: string;
-        status: string;
-        reason: string | null;
         requestedAt: Date | null;
         leaveTypeId: string;
+        endDate: string;
+        reason: string | null;
+        status: string;
         totalDays: string;
         approverId: string | null;
         approvedAt: Date | null;

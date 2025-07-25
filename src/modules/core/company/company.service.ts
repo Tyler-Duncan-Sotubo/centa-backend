@@ -32,6 +32,7 @@ import {
   onboardingTemplateChecklists,
   employeeChecklistStatus,
 } from 'src/drizzle/schema';
+import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 
 @Injectable()
 export class CompanyService {
@@ -51,6 +52,7 @@ export class CompanyService {
     private readonly permissionsService: PermissionsService,
     private readonly onboardingSeederService: OnboardingSeederService,
     private readonly leaveBalanceService: LeaveBalanceService,
+    private readonly companySettingsService: CompanySettingsService,
   ) {}
 
   async update(
@@ -339,6 +341,16 @@ export class CompanyService {
         !emp.employmentEndDate || new Date(emp.employmentEndDate) > prevEndDate,
     ).length;
 
+    // onboarding
+    const onboardingSettings =
+      await this.companySettingsService.getOnboardingSettings(companyId);
+
+    const tasksArray = Object.entries(onboardingSettings); // convert to array of [key, value]
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const completed = tasksArray.filter(([_, completed]) => completed).length;
+    const total = tasksArray.length;
+    const allTasksCompleted = completed === total;
+
     return {
       companyName: company[0].companyName,
       allHolidays,
@@ -356,6 +368,7 @@ export class CompanyService {
       recentLeaves,
       attendanceSummary,
       announcements: allAnnouncements, // Add the announcements to the result
+      onboardingTaskCompleted: allTasksCompleted,
     };
   }
 
