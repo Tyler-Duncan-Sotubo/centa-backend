@@ -6,6 +6,7 @@ import { InvitationService } from './services/invitation.service';
 import { EmailVerificationService } from './services/email-verification.service';
 import { EmployeeInvitationService } from './services/employee-invitation.service';
 import { PusherService } from './services/pusher.service';
+import { PayrollApprovalEmailService } from './services/payroll-approval.service';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { PusherService } from './services/pusher.service';
     EmailVerificationService,
     EmployeeInvitationService,
     PusherService,
+    PayrollApprovalEmailService,
   ],
   exports: [
     PasswordResetEmailService,
@@ -27,6 +29,7 @@ import { PusherService } from './services/pusher.service';
     EmailVerificationService,
     EmployeeInvitationService,
     PusherService,
+    PayrollApprovalEmailService,
   ],
 })
 export class NotificationModule {}

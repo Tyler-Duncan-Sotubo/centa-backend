@@ -72,7 +72,7 @@ export class PdfService {
               --font-body: Arial, sans-serif;
             }
             body {
-              font-family: var(--font-body);
+              font-family: 'Arial', 'Segoe UI', 'Helvetica Neue', sans-serif;
               padding: 32px;
               color: #000;
               font-size: 12px;

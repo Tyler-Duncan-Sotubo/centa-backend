@@ -38,13 +38,14 @@ const workingDays_utils_1 = require("../../../utils/workingDays.utils");
 const payroll_adjustments_schema_1 = require("../schema/payroll-adjustments.schema");
 const salary_advance_service_1 = require("../salary-advance/salary-advance.service");
 const pusher_service_1 = require("../../notification/services/pusher.service");
-const email_verification_service_1 = require("../../notification/services/email-verification.service");
 const decimal_js_1 = require("decimal.js");
 const deduction_schema_1 = require("../schema/deduction.schema");
 const salary_advance_schema_1 = require("../salary-advance/schema/salary-advance.schema");
 const expense_schema_1 = require("../../expenses/schema/expense.schema");
+const payroll_approval_service_1 = require("../../notification/services/payroll-approval.service");
+const config_1 = require("@nestjs/config");
 let RunService = class RunService {
-    constructor(payrollQueue, db, auditService, payrollSettingsService, compensationService, taxService, payslipService, salaryAdvanceService, pusher, emailVerificationService) {
+    constructor(payrollQueue, db, auditService, payrollSettingsService, compensationService, taxService, payslipService, salaryAdvanceService, pusher, payrollApprovalEmailService, configService) {
         this.payrollQueue = payrollQueue;
         this.db = db;
         this.auditService = auditService;
@@ -54,7 +55,8 @@ let RunService = class RunService {
         this.payslipService = payslipService;
         this.salaryAdvanceService = salaryAdvanceService;
         this.pusher = pusher;
-        this.emailVerificationService = emailVerificationService;
+        this.payrollApprovalEmailService = payrollApprovalEmailService;
+        this.configService = configService;
     }
     calculatePAYE(annualSalary, pensionDeduction, nhfDeduction, taxRelief) {
         const annual = new decimal_js_1.default(annualSalary);
@@ -651,11 +653,15 @@ let RunService = class RunService {
             id: schema_1.users.id,
             role: schema_1.companyRoles.name,
             email: schema_1.users.email,
+            name: (0, drizzle_orm_1.sql) `CONCAT(${schema_1.users.firstName}, ' ', ${schema_1.users.lastName})`,
+            companyName: schema_1.companies.name,
         })
             .from(schema_1.users)
             .innerJoin(schema_1.companyRoles, (0, drizzle_orm_1.eq)(schema_1.users.companyRoleId, schema_1.companyRoles.id))
+            .innerJoin(schema_1.companies, (0, drizzle_orm_1.eq)(schema_1.users.companyId, schema_1.companies.id))
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.users.companyId, existing[0].companyId), (0, drizzle_orm_1.eq)(schema_1.companyRoles.name, approverRole)));
-        await this.emailVerificationService.sendVerifyEmail(currentUserForApproval.email, 'Payroll Run Approval');
+        const url = `${this.configService.get('CLIENT_DASHBOARD_URL')}/payroll/payroll-approval/${runId}`;
+        await this.payrollApprovalEmailService.sendApprovalEmail(currentUserForApproval.email, currentUserForApproval.name, url, existing[0].payrollDate, currentUserForApproval.companyName);
         return { updatedCount: numUpdatedRows };
     }
     async approvePayrollRun(runId, user, remarks) {
@@ -871,6 +877,7 @@ exports.RunService = RunService = __decorate([
         payslip_service_1.PayslipService,
         salary_advance_service_1.SalaryAdvanceService,
         pusher_service_1.PusherService,
-        email_verification_service_1.EmailVerificationService])
+        payroll_approval_service_1.PayrollApprovalEmailService,
+        config_1.ConfigService])
 ], RunService);
 //# sourceMappingURL=run.service.js.map

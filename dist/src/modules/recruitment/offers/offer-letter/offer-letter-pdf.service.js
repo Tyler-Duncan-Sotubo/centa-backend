@@ -21,7 +21,7 @@ const drizzle_module_1 = require("../../../../drizzle/drizzle.module");
 const aws_service_1 = require("../../../../common/aws/aws.service");
 const offer_letter_templates_schema_1 = require("./schema/offer-letter-templates.schema");
 const generated_offer_letters_schema_1 = require("./schema/generated-offer-letters.schema");
-const playwright_1 = require("playwright");
+const playwright_chromium_1 = require("playwright-chromium");
 const offers_schema_1 = require("../schema/offers.schema");
 let OfferLetterPdfService = class OfferLetterPdfService {
     constructor(db, awsService) {
@@ -89,7 +89,7 @@ let OfferLetterPdfService = class OfferLetterPdfService {
         return signedUrl;
     }
     async htmlToPdf(html) {
-        const browser = await playwright_1.chromium.launch({
+        const browser = await playwright_chromium_1.chromium.launch({
             headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox'],
         });

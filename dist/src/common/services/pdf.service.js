@@ -20,7 +20,7 @@ const aws_service_1 = require("../aws/aws.service");
 const drizzle_module_1 = require("../../drizzle/drizzle.module");
 const payslip_schema_1 = require("../../modules/payroll/schema/payslip.schema");
 const drizzle_orm_1 = require("drizzle-orm");
-const playwright_1 = require("playwright");
+const playwright_chromium_1 = require("playwright-chromium");
 const formatCurrency_1 = require("../../utils/formatCurrency");
 let PdfService = class PdfService {
     constructor(db, payslipService, awsService) {
@@ -70,7 +70,7 @@ let PdfService = class PdfService {
               --font-body: Arial, sans-serif;
             }
             body {
-              font-family: var(--font-body);
+              font-family: 'Arial', 'Segoe UI', 'Helvetica Neue', sans-serif;
               padding: 32px;
               color: #000;
               font-size: 12px;
@@ -246,7 +246,7 @@ let PdfService = class PdfService {
         return Buffer.from(pdfBuffer);
     }
     async htmlToPdf(html) {
-        const browser = await playwright_1.chromium.launch({
+        const browser = await playwright_chromium_1.chromium.launch({
             headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox'],
         });

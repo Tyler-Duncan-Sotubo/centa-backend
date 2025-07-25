@@ -15,6 +15,7 @@ const invitation_service_1 = require("./services/invitation.service");
 const email_verification_service_1 = require("./services/email-verification.service");
 const employee_invitation_service_1 = require("./services/employee-invitation.service");
 const pusher_service_1 = require("./services/pusher.service");
+const payroll_approval_service_1 = require("./services/payroll-approval.service");
 let NotificationModule = class NotificationModule {
 };
 exports.NotificationModule = NotificationModule;
@@ -32,6 +33,7 @@ exports.NotificationModule = NotificationModule = __decorate([
             email_verification_service_1.EmailVerificationService,
             employee_invitation_service_1.EmployeeInvitationService,
             pusher_service_1.PusherService,
+            payroll_approval_service_1.PayrollApprovalEmailService,
         ],
         exports: [
             password_reset_service_1.PasswordResetEmailService,
@@ -39,6 +41,7 @@ exports.NotificationModule = NotificationModule = __decorate([
             email_verification_service_1.EmailVerificationService,
             employee_invitation_service_1.EmployeeInvitationService,
             pusher_service_1.PusherService,
+            payroll_approval_service_1.PayrollApprovalEmailService,
         ],
     })
 ], NotificationModule);

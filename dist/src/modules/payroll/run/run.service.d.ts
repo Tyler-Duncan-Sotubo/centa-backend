@@ -8,7 +8,8 @@ import { Queue } from 'bullmq';
 import { PayslipService } from '../payslip/payslip.service';
 import { SalaryAdvanceService } from '../salary-advance/salary-advance.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
-import { EmailVerificationService } from 'src/modules/notification/services/email-verification.service';
+import { PayrollApprovalEmailService } from 'src/modules/notification/services/payroll-approval.service';
+import { ConfigService } from '@nestjs/config';
 export declare class RunService {
     private payrollQueue;
     private readonly db;
@@ -19,8 +20,9 @@ export declare class RunService {
     private readonly payslipService;
     private readonly salaryAdvanceService;
     private readonly pusher;
-    private readonly emailVerificationService;
-    constructor(payrollQueue: Queue, db: db, auditService: AuditService, payrollSettingsService: PayrollSettingsService, compensationService: CompensationService, taxService: TaxService, payslipService: PayslipService, salaryAdvanceService: SalaryAdvanceService, pusher: PusherService, emailVerificationService: EmailVerificationService);
+    private readonly payrollApprovalEmailService;
+    private readonly configService;
+    constructor(payrollQueue: Queue, db: db, auditService: AuditService, payrollSettingsService: PayrollSettingsService, compensationService: CompensationService, taxService: TaxService, payslipService: PayslipService, salaryAdvanceService: SalaryAdvanceService, pusher: PusherService, payrollApprovalEmailService: PayrollApprovalEmailService, configService: ConfigService);
     private calculatePAYE;
     private percentOf;
     private round2;

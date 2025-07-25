@@ -8,11 +8,12 @@ import pMap from 'p-map';
 import {
   approvalSteps,
   approvalWorkflows,
+  companies,
   companyRoles,
   employees,
   users,
 } from 'src/drizzle/schema';
-import { and, eq, gte, inArray, isNull, lt, lte, or } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
@@ -36,11 +37,12 @@ import { countWorkingDays } from 'src/utils/workingDays.utils';
 import { payrollAdjustments } from '../schema/payroll-adjustments.schema';
 import { SalaryAdvanceService } from '../salary-advance/salary-advance.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
-import { EmailVerificationService } from 'src/modules/notification/services/email-verification.service';
 import Decimal from 'decimal.js';
 import { employeeDeductions } from '../schema/deduction.schema';
 import { salaryAdvance } from '../salary-advance/schema/salary-advance.schema';
 import { expenses } from 'src/modules/expenses/schema/expense.schema';
+import { PayrollApprovalEmailService } from 'src/modules/notification/services/payroll-approval.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class RunService {
@@ -54,7 +56,8 @@ export class RunService {
     private readonly payslipService: PayslipService,
     private readonly salaryAdvanceService: SalaryAdvanceService,
     private readonly pusher: PusherService,
-    private readonly emailVerificationService: EmailVerificationService, // TODO: remove this
+    private readonly payrollApprovalEmailService: PayrollApprovalEmailService,
+    private readonly configService: ConfigService,
   ) {}
 
   private calculatePAYE(
@@ -1025,9 +1028,12 @@ export class RunService {
         id: users.id,
         role: companyRoles.name,
         email: users.email,
+        name: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
+        companyName: companies.name,
       })
       .from(users)
       .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
+      .innerJoin(companies, eq(users.companyId, companies.id))
       .where(
         and(
           eq(users.companyId, existing[0].companyId),
@@ -1044,10 +1050,15 @@ export class RunService {
         ),
       );
 
+    const url = `${this.configService.get('CLIENT_DASHBOARD_URL')}/payroll/payroll-approval/${runId}`;
+
     // 6) Send notifications to approvers
-    await this.emailVerificationService.sendVerifyEmail(
+    await this.payrollApprovalEmailService.sendApprovalEmail(
       currentUserForApproval.email,
-      'Payroll Run Approval',
+      currentUserForApproval.name,
+      url,
+      existing[0].payrollDate,
+      currentUserForApproval.companyName,
     );
 
     return { updatedCount: numUpdatedRows };
