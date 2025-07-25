@@ -86,6 +86,13 @@ export class OffersService {
     const salaryRaw = pdfData.baseSalary;
     const salary = salaryRaw ? salaryRaw.toString().replace(/,/g, '') : null;
 
+    if (
+      salary !== null &&
+      (isNaN(Number(salary)) || !isFinite(Number(salary)))
+    ) {
+      throw new BadRequestException(`Invalid salary value: "${salaryRaw}"`);
+    }
+
     // 4. Create the offer
     const [offer] = await this.db
       .insert(offers)

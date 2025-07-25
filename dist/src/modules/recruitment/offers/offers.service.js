@@ -69,6 +69,10 @@ let OffersService = class OffersService {
         const startDate = pdfData.startDate;
         const salaryRaw = pdfData.baseSalary;
         const salary = salaryRaw ? salaryRaw.toString().replace(/,/g, '') : null;
+        if (salary !== null &&
+            (isNaN(Number(salary)) || !isFinite(Number(salary)))) {
+            throw new common_1.BadRequestException(`Invalid salary value: "${salaryRaw}"`);
+        }
         const [offer] = await this.db
             .insert(offers_schema_1.offers)
             .values({
