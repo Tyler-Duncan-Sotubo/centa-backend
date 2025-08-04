@@ -20,8 +20,10 @@ const applicationForm_service_1 = require("../recruitment/jobs/applicationForm.s
 const seeder_service_1 = require("../lifecycle/onboarding/seeder.service");
 const deductions_service_1 = require("../payroll/deductions/deductions.service");
 const holidays_service_1 = require("../leave/holidays/holidays.service");
+const competency_service_1 = require("../performance/templates/seed/competency.service");
+const questions_service_1 = require("../performance/templates/seed/questions.service");
 let SeedService = class SeedService {
-    constructor(permissions, onboarding, pipeline, offerLetter, scoreCard, emailTemplate, applicationForm, deductionType, holidays) {
+    constructor(permissions, onboarding, pipeline, offerLetter, scoreCard, emailTemplate, applicationForm, deductionType, holidays, performanceCompetencyService, performanceReviewQuestionService) {
         this.permissions = permissions;
         this.onboarding = onboarding;
         this.pipeline = pipeline;
@@ -31,6 +33,8 @@ let SeedService = class SeedService {
         this.applicationForm = applicationForm;
         this.deductionType = deductionType;
         this.holidays = holidays;
+        this.performanceCompetencyService = performanceCompetencyService;
+        this.performanceReviewQuestionService = performanceReviewQuestionService;
     }
     async seedDatabase() {
         await Promise.all([
@@ -44,6 +48,9 @@ let SeedService = class SeedService {
             this.holidays.insertHolidaysForCurrentYear('NG'),
         ]);
         await this.seedDeductionTypes();
+        await this.performanceCompetencyService.seedGlobalCompetencies();
+        await this.performanceCompetencyService.seedSystemLevels();
+        await this.performanceReviewQuestionService.seedGlobalReviewQuestions();
         return { message: 'Database seeding completed successfully.' };
     }
     async seedDeductionTypes() {
@@ -89,6 +96,8 @@ exports.SeedService = SeedService = __decorate([
         email_templates_service_1.InterviewEmailTemplateService,
         applicationForm_service_1.ApplicationFormService,
         deductions_service_1.DeductionsService,
-        holidays_service_1.HolidaysService])
+        holidays_service_1.HolidaysService,
+        competency_service_1.PerformanceCompetencyService,
+        questions_service_1.PerformanceReviewQuestionService])
 ], SeedService);
 //# sourceMappingURL=seeder.service.js.map

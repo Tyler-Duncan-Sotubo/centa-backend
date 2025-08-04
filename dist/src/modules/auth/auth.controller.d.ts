@@ -16,10 +16,7 @@ export declare class AuthController {
     private readonly loginVerification;
     constructor(auth: AuthService, user: UserService, token: TokenGeneratorService, verification: VerificationService, password: PasswordResetService, loginVerification: LoginVerificationService);
     Register(dto: RegisterDto): Promise<{
-        user: {
-            id: string;
-            email: string;
-        };
+        user: any;
         company: {
             id: string;
             domain: string;
@@ -51,6 +48,28 @@ export declare class AuthController {
             companyId: string;
             avatar: string | null;
             roleId: string;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;
@@ -76,6 +95,28 @@ export declare class AuthController {
             companyId: string;
             avatar: string | null;
             roleId: string;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;
@@ -136,6 +177,28 @@ export declare class AuthController {
             companyId: string;
             avatar: string | null;
             roleId: string;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;

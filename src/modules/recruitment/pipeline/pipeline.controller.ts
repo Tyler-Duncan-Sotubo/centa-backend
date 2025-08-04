@@ -56,7 +56,6 @@ export class PipelineController extends BaseController {
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['jobs.manage'])
   async findAllTemplates(@CurrentUser() user: User) {
-    console.log('Fetching all pipeline templates for company:', user.companyId);
     return this.pipelineService.findAllTemplates(user.companyId);
   }
 

@@ -443,6 +443,26 @@ let EmployeesService = class EmployeesService {
             return allEmployees;
         });
     }
+    async findAllCompanyEmployeesSummary(companyId, search) {
+        const cacheKey = `employees:${companyId}:summary`;
+        const allEmployees = await this.cacheService.getOrSetCache(cacheKey, async () => {
+            return this.db
+                .select({
+                id: schema_1.employees.id,
+                firstName: schema_1.employees.firstName,
+                lastName: schema_1.employees.lastName,
+                employeeNumber: schema_1.employees.employeeNumber,
+            })
+                .from(schema_1.employees)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(schema_1.employees.employmentStatus, 'active')))
+                .execute();
+        });
+        if (!search) {
+            return allEmployees;
+        }
+        const q = search.toLowerCase();
+        return allEmployees.filter((e) => [e.firstName, e.lastName, e.employeeNumber].some((field) => field.toLowerCase().includes(q)));
+    }
     async findOneByUserId(userId) {
         const cacheKey = `employee:${userId}`;
         return this.cacheService.getOrSetCache(cacheKey, async () => {
@@ -1027,8 +1047,8 @@ let EmployeesService = class EmployeesService {
             created: result,
         };
     }
-    async getManager(companyId) {
-        const manager = await this.db
+    async getManagers(companyId) {
+        const managers = await this.db
             .select({
             id: schema_1.employees.id,
             name: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
@@ -1038,7 +1058,7 @@ let EmployeesService = class EmployeesService {
             .innerJoin(schema_2.companyRoles, (0, drizzle_orm_1.eq)(schema_2.users.companyRoleId, schema_2.companyRoles.id))
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(schema_2.companyRoles.name, 'manager')))
             .execute();
-        return manager;
+        return managers;
     }
     async assignManager(employeeId, managerId) {
         const [employee] = await this.db

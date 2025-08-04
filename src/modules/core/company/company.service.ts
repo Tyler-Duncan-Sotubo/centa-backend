@@ -530,4 +530,8 @@ export class CompanyService {
       templates,
     };
   }
+
+  async getAllCompanies() {
+    return this.db.select().from(companies).execute();
+  }
 }

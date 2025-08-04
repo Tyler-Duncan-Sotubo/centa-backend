@@ -140,4 +140,20 @@ export const HrManagerPermissions = [
 
   // Payroll Settings
   'payroll_settings.read',
+
+  // Performance (view team performance dashboard, manage team goals)
+  'performance.read',
+  'performance.settings.read',
+  'performance.settings.manage',
+  'performance.goals.read',
+  'performance.goals.approve',
+  'performance.goals.manage_all',
+  'performance.cycles.read',
+  'performance.cycles.manage',
+  'performance.reviews.read',
+  'performance.reviews.read_team',
+  'performance.reviews.manage_all',
+  'performance.calibration.view',
+  'performance.calibration.export',
+  'performance.reminders.configure',
 ];

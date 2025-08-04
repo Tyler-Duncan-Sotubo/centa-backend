@@ -18,6 +18,7 @@ import { ExportCleanupService } from 'src/common/services/export-clean.service';
 import { RecruitmentModule } from './recruitment/recruitment.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { SeederModule } from './seed/seeder.module';
+import { PerformanceModule } from './performance/performance.module';
 
 @Global()
 @Module({
@@ -41,6 +42,7 @@ import { SeederModule } from './seed/seeder.module';
     RecruitmentModule,
     IntegrationsModule,
     SeederModule,
+    PerformanceModule,
   ],
   exports: [
     CoreModule,

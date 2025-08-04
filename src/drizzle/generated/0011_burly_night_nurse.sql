@@ -1,0 +1,1 @@
+ALTER TABLE "performance_goal_owners" ADD COLUMN "is_archived" boolean DEFAULT false;

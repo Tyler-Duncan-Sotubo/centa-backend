@@ -1,0 +1,3 @@
+ALTER TABLE "performance_role_competency_expectations" DROP CONSTRAINT "performance_role_competency_expectations_role_id_company_roles_id_fk";
+--> statement-breakpoint
+ALTER TABLE "performance_role_competency_expectations" ADD CONSTRAINT "performance_role_competency_expectations_role_id_job_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."job_roles"("id") ON DELETE no action ON UPDATE no action;

@@ -20,8 +20,10 @@ const recruit_1 = require("../permission-keys/recruit");
 const salary_advance_1 = require("../permission-keys/salary_advance");
 const shifts_1 = require("../permission-keys/shifts");
 const tax_1 = require("../permission-keys/tax");
+const performance_1 = require("../permission-keys/performance");
 exports.SuperAdminPermissions = [
     ...recruit_1.RecruitPermissions,
+    ...performance_1.PerformancePermissions,
     ...announcements_1.AnnouncementPermissions,
     ...assets_1.AssetPermissions,
     ...audit_1.AuditPermissions,

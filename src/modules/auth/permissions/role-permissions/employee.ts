@@ -65,4 +65,13 @@ export const EmployeeRolePermissions = [
 
   // Payroll Settings (view-only)
   'payroll_settings.read',
+
+  // Performance (view own performance dashboard)
+  'performance.read',
+  'performance.goals.create',
+  'performance.goals.edit',
+  'performance.goals.read',
+  'performance.reviews.submit_self',
+  'performance.reviews.submit_peer',
+  'performance.reviews.read',
 ];

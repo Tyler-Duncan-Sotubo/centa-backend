@@ -6,6 +6,8 @@ import { OfferLetterService } from '../recruitment/offers/offer-letter/offer-let
 import { ScorecardTemplateService } from '../recruitment/interviews/scorecard.service';
 import { InterviewEmailTemplateService } from '../recruitment/interviews/email-templates.service';
 import { ApplicationFormService } from '../recruitment/jobs/applicationForm.service';
+import { PerformanceCompetencyService } from '../performance/templates/seed/competency.service';
+import { PerformanceReviewQuestionService } from '../performance/templates/seed/questions.service';
 
 @Module({
   controllers: [SeedController],
@@ -16,6 +18,8 @@ import { ApplicationFormService } from '../recruitment/jobs/applicationForm.serv
     ScorecardTemplateService,
     InterviewEmailTemplateService,
     ApplicationFormService,
+    PerformanceCompetencyService,
+    PerformanceReviewQuestionService,
   ],
 })
 export class SeederModule {}

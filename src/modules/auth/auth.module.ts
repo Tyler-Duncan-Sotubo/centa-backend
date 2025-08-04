@@ -17,6 +17,9 @@ import { LoginVerificationService } from './services/login-verification.service'
 import { PermissionsModule } from './permissions/permissions.module';
 import { PermissionsService } from './permissions/permissions.service';
 import { BullModule } from '@nestjs/bullmq';
+import { PerformanceTemplatesService } from '../performance/templates/templates.service';
+import { FeedbackSettingsService } from '../performance/feedback/feedback-settings/feedback-settings.service';
+import { FeedbackQuestionService } from '../performance/feedback/feedback-questions/feedback-question.service';
 
 @Module({
   imports: [
@@ -48,6 +51,9 @@ import { BullModule } from '@nestjs/bullmq';
     AuditService,
     LoginVerificationService,
     PermissionsService,
+    PerformanceTemplatesService,
+    FeedbackSettingsService,
+    FeedbackQuestionService,
   ],
   exports: [
     UserService,

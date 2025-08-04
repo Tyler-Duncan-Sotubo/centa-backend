@@ -34,10 +34,10 @@ export declare class HolidaysController extends BaseController {
         country: string | null;
         companyId: string | null;
         type: string;
+        source: string | null;
         year: string;
         countryCode: string | null;
         isWorkingDayOverride: boolean | null;
-        source: string | null;
     }[]>;
     createCustomHolidays(dto: CreateHolidayDto, user: User): Promise<{
         date: string;
@@ -48,10 +48,10 @@ export declare class HolidaysController extends BaseController {
         country: string | null;
         companyId: string | null;
         type: string;
+        source: string | null;
         year: string;
         countryCode: string | null;
         isWorkingDayOverride: boolean | null;
-        source: string | null;
     }>;
     updateHoliday(dto: UpdateHolidayDto, user: User, id: string): Promise<{
         id: string;

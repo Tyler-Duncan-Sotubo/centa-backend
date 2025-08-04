@@ -19,6 +19,7 @@ export declare class AnnouncementController extends BaseController {
         updatedAt: Date | null;
         link: string | null;
         companyId: string;
+        createdBy: string;
         departmentId: string | null;
         title: string;
         locationId: string | null;
@@ -27,7 +28,6 @@ export declare class AnnouncementController extends BaseController {
         publishedAt: Date | null;
         expiresAt: Date | null;
         isPublished: boolean | null;
-        createdBy: string;
         categoryId: string;
     }>;
     findAll(user: User): Promise<{

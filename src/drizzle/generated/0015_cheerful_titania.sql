@@ -1,0 +1,1 @@
+ALTER TABLE "performance_feedback" ADD COLUMN "is_archived" boolean DEFAULT false;

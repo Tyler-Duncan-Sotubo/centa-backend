@@ -34,7 +34,6 @@ let PipelineController = class PipelineController extends base_controller_1.Base
         return this.pipelineService.createTemplate(user, createPipelineDto);
     }
     async findAllTemplates(user) {
-        console.log('Fetching all pipeline templates for company:', user.companyId);
         return this.pipelineService.findAllTemplates(user.companyId);
     }
     findOne(id) {

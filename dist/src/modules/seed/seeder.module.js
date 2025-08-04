@@ -15,6 +15,8 @@ const offer_letter_service_1 = require("../recruitment/offers/offer-letter/offer
 const scorecard_service_1 = require("../recruitment/interviews/scorecard.service");
 const email_templates_service_1 = require("../recruitment/interviews/email-templates.service");
 const applicationForm_service_1 = require("../recruitment/jobs/applicationForm.service");
+const competency_service_1 = require("../performance/templates/seed/competency.service");
+const questions_service_1 = require("../performance/templates/seed/questions.service");
 let SeederModule = class SeederModule {
 };
 exports.SeederModule = SeederModule;
@@ -28,6 +30,8 @@ exports.SeederModule = SeederModule = __decorate([
             scorecard_service_1.ScorecardTemplateService,
             email_templates_service_1.InterviewEmailTemplateService,
             applicationForm_service_1.ApplicationFormService,
+            competency_service_1.PerformanceCompetencyService,
+            questions_service_1.PerformanceReviewQuestionService,
         ],
     })
 ], SeederModule);

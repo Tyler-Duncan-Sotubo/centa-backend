@@ -56,6 +56,9 @@ let EmployeesController = class EmployeesController extends base_controller_1.Ba
     findAllCompanyEmployees(user) {
         return this.employeesService.findAllEmployees(user.companyId);
     }
+    findAllCompanyEmployeesSummary(user, search) {
+        return this.employeesService.findAllCompanyEmployeesSummary(user.companyId, search);
+    }
     getActiveEmployees(user) {
         return this.employeesService.getEmployeeByUserId(user.id);
     }
@@ -78,7 +81,7 @@ let EmployeesController = class EmployeesController extends base_controller_1.Ba
         return this.employeesService.remove(id);
     }
     findAllManagers(user) {
-        return this.employeesService.getManager(user.companyId);
+        return this.employeesService.getManagers(user.companyId);
     }
     updateManagerId(id, managerId) {
         return this.employeesService.assignManager(id, managerId);
@@ -172,6 +175,16 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], EmployeesController.prototype, "findAllCompanyEmployees", null);
+__decorate([
+    (0, common_1.Get)('all/summary'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('permission', ['employees.read_all']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)('search')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], EmployeesController.prototype, "findAllCompanyEmployeesSummary", null);
 __decorate([
     (0, common_1.Get)('employee-active'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

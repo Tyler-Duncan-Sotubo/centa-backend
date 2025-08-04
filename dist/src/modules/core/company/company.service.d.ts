@@ -327,11 +327,15 @@ export declare class CompanyService {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    findAllEmployeesInCompany(companyId: string): Promise<{
-        id: string;
-        confirmed: boolean | null;
+    findAllEmployeesInCompany(companyId: string): Promise<({
+        id: any;
+        confirmed: any;
         gender: string | null;
-    }[]>;
+    } | {
+        id: any;
+        confirmed: any;
+        gender: string | null;
+    })[]>;
     softDelete(id: string): Promise<{
         id: string;
         name: string;
@@ -357,29 +361,57 @@ export declare class CompanyService {
         }[];
         totalEmployees: number;
         allEmployees: ({
-            id: string;
-            employmentStartDate: string;
-            employmentEndDate: Date | null;
-            employeeNumber: string;
-            email: string;
-            firstName: string;
-            lastName: string;
+            id: any;
+            employmentStartDate: any;
+            employmentEndDate: any;
+            employeeNumber: any;
+            email: any;
+            firstName: any;
+            lastName: any;
             departments: any;
             jobRole: string | null;
             annualGross: number | null;
         } | {
-            id: string;
-            employmentStartDate: string;
-            employmentEndDate: Date | null;
-            employeeNumber: string;
-            email: string;
-            firstName: string;
-            lastName: string;
+            id: any;
+            employmentStartDate: any;
+            employmentEndDate: any;
+            employeeNumber: any;
+            email: any;
+            firstName: any;
+            lastName: any;
+            departments: any;
+            jobRole: string | null;
+            annualGross: number | null;
+        } | {
+            id: any;
+            employmentStartDate: any;
+            employmentEndDate: any;
+            employeeNumber: any;
+            email: any;
+            firstName: any;
+            lastName: any;
+            departments: any;
+            jobRole: string | null;
+            annualGross: number | null;
+        } | {
+            id: any;
+            employmentStartDate: any;
+            employmentEndDate: any;
+            employeeNumber: any;
+            email: any;
+            firstName: any;
+            lastName: any;
             departments: any;
             jobRole: string | null;
             annualGross: number | null;
         })[];
         allDepartments: ({
+            department: any;
+            employees: number;
+        } | {
+            department: any;
+            employees: number;
+        } | {
             department: any;
             employees: number;
         } | {
@@ -406,12 +438,17 @@ export declare class CompanyService {
             totalNetSalary: number;
             totalPayrollCost: number;
         }[];
-        recentLeaves: {
+        recentLeaves: ({
             name: string;
             leaveType: string;
             startDate: string;
             endDate: string;
-        }[];
+        } | {
+            name: string;
+            leaveType: string;
+            startDate: string;
+            endDate: string;
+        })[];
         attendanceSummary: {
             month: string;
             present: number;
@@ -452,7 +489,7 @@ export declare class CompanyService {
         };
         pendingChecklists: {
             statusId: string;
-            checkListStatus: "pending" | "completed" | "in_progress" | "overdue" | "skipped" | "cancelled" | null;
+            checkListStatus: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
             checklistId: string;
             title: string;
             dueDaysAfterStart: number | null;
@@ -541,4 +578,21 @@ export declare class CompanyService {
             name: string;
         }[];
     }>;
+    getAllCompanies(): Promise<{
+        id: string;
+        name: string;
+        domain: string;
+        isActive: boolean;
+        country: string;
+        currency: "NGN" | "USD" | "EUR" | "GBP";
+        regNo: string;
+        logo_url: string;
+        primaryContactName: string | null;
+        primaryContactEmail: string | null;
+        primaryContactPhone: string | null;
+        subscriptionPlan: "free" | "pro" | "enterprise";
+        trialEndsAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+    }[]>;
 }

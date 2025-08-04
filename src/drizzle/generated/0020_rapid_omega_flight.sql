@@ -1,0 +1,2 @@
+ALTER TABLE "performance_appraisal_cycles" ALTER COLUMN "start_date" SET DATA TYPE varchar;--> statement-breakpoint
+ALTER TABLE "performance_appraisal_cycles" ALTER COLUMN "end_date" SET DATA TYPE varchar;

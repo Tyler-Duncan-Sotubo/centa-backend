@@ -66,4 +66,16 @@ export const ManagerPermissions = [
 
   // Payroll Settings (read-only)
   'payroll_settings.read',
+
+  // Performance (view own performance dashboard, manage team goals)
+  'performance.read',
+  'performance.goals.create',
+  'performance.goals.edit',
+  'performance.goals.read',
+  'performance.goals.approve',
+  'performance.reviews.submit_self',
+  'performance.reviews.submit_peer',
+  'performance.reviews.submit_manager',
+  'performance.reviews.read',
+  'performance.reviews.read_team',
 ];

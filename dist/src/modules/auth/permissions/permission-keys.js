@@ -28,6 +28,7 @@ const manager_1 = require("./role-permissions/manager");
 const payroll_specialist_1 = require("./role-permissions/payroll-specialist");
 const recruiter_1 = require("./role-permissions/recruiter");
 const super_admin_1 = require("./role-permissions/super-admin");
+const performance_1 = require("./permission-keys/performance");
 exports.PermissionKeys = [
     ...announcements_1.AnnouncementPermissions,
     ...assets_1.AssetPermissions,
@@ -48,6 +49,7 @@ exports.PermissionKeys = [
     ...shifts_1.ShiftPermissions,
     ...tax_1.TaxPermissions,
     ...recruit_1.RecruitPermissions,
+    ...performance_1.PerformancePermissions,
 ];
 exports.DefaultRolePermissions = {
     super_admin: super_admin_1.SuperAdminPermissions,

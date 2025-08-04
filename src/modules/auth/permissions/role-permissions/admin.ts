@@ -17,8 +17,10 @@ import { RecruitPermissions } from '../permission-keys/recruit';
 import { SalaryAdvancePermissions } from '../permission-keys/salary_advance';
 import { ShiftPermissions } from '../permission-keys/shifts';
 import { TaxPermissions } from '../permission-keys/tax';
+import { PerformancePermissions } from '../permission-keys/performance';
 
 export const AdminPermissions = [
+  ...PerformancePermissions,
   ...RecruitPermissions,
   ...AnnouncementPermissions,
   ...AssetPermissions,

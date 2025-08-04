@@ -21,6 +21,8 @@ const attendance_1 = require("./settings/attendance");
 const leave_1 = require("./settings/leave");
 const payroll_1 = require("./settings/payroll");
 const expense_1 = require("./settings/expense");
+const performance_1 = require("./settings/performance");
+const onboarding_1 = require("./settings/onboarding");
 let CompanySettingsService = class CompanySettingsService {
     constructor(db) {
         this.db = db;
@@ -29,6 +31,20 @@ let CompanySettingsService = class CompanySettingsService {
             ...leave_1.leave,
             ...payroll_1.payroll,
             ...expense_1.expenses,
+            ...performance_1.performance,
+            ...onboarding_1.onboarding,
+            {
+                key: 'default_currency',
+                value: 'USD',
+            },
+            {
+                key: 'default_timezone',
+                value: 'UTC',
+            },
+            {
+                key: 'default_language',
+                value: 'en',
+            },
             {
                 key: 'default_manager_id',
                 value: 'UUID-of-super-admin-or-lead',
@@ -37,14 +53,6 @@ let CompanySettingsService = class CompanySettingsService {
                 key: 'two_factor_auth',
                 value: true,
             },
-            { key: 'onboarding_pay_frequency', value: false },
-            { key: 'onboarding_pay_group', value: false },
-            { key: 'onboarding_tax_details', value: false },
-            { key: 'onboarding_company_locations', value: false },
-            { key: 'onboarding_departments', value: false },
-            { key: 'onboarding_job_roles', value: false },
-            { key: 'onboarding_cost_center', value: false },
-            { key: 'onboarding_upload_employees', value: false },
         ];
     }
     async getSetting(companyId, key) {

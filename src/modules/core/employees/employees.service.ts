@@ -582,6 +582,41 @@ export class EmployeesService {
     });
   }
 
+  async findAllCompanyEmployeesSummary(companyId: string, search?: string) {
+    const cacheKey = `employees:${companyId}:summary`;
+    const allEmployees = await this.cacheService.getOrSetCache(
+      cacheKey,
+      async () => {
+        return this.db
+          .select({
+            id: employees.id,
+            firstName: employees.firstName,
+            lastName: employees.lastName,
+            employeeNumber: employees.employeeNumber,
+          })
+          .from(employees)
+          .where(
+            and(
+              eq(employees.companyId, companyId),
+              eq(employees.employmentStatus, 'active'),
+            ),
+          )
+          .execute();
+      },
+    );
+
+    if (!search) {
+      return allEmployees;
+    }
+
+    const q = search.toLowerCase();
+    return allEmployees.filter((e) =>
+      [e.firstName, e.lastName, e.employeeNumber].some((field) =>
+        field.toLowerCase().includes(q),
+      ),
+    );
+  }
+
   async findOneByUserId(userId: string) {
     const cacheKey = `employee:${userId}`;
     return this.cacheService.getOrSetCache(cacheKey, async () => {
@@ -1343,8 +1378,8 @@ export class EmployeesService {
     };
   }
 
-  async getManager(companyId: string) {
-    const manager = await this.db
+  async getManagers(companyId: string) {
+    const managers = await this.db
       .select({
         id: employees.id,
         name: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
@@ -1360,7 +1395,7 @@ export class EmployeesService {
       )
       .execute();
 
-    return manager;
+    return managers;
   }
 
   // assign Manager to Employee

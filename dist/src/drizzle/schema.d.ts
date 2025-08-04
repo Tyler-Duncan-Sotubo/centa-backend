@@ -6,3 +6,4 @@ export * from '../company-settings/schema/approval-workflow.schema';
 export * from '../modules/announcement/schema/announcements.schema';
 export * from '../modules/lifecycle/schema';
 export * from '../modules/recruitment/schema/index';
+export * from '../modules/performance/schema/index';

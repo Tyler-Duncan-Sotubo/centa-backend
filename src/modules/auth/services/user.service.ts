@@ -23,6 +23,9 @@ import { CompanySettingsService } from 'src/company-settings/company-settings.se
 import { PermissionsService } from '../permissions/permissions.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { PerformanceTemplatesService } from 'src/modules/performance/templates/templates.service';
+import { FeedbackQuestionService } from 'src/modules/performance/feedback/feedback-questions/feedback-question.service';
+import { FeedbackSettingsService } from 'src/modules/performance/feedback/feedback-settings/feedback-settings.service';
 
 @Injectable()
 export class UserService {
@@ -36,27 +39,33 @@ export class UserService {
     private readonly companySettingsService: CompanySettingsService,
     private readonly permissionService: PermissionsService,
     @InjectQueue('permission-seed-queue') private permissionSeedQueue: Queue,
+    private readonly performance: PerformanceTemplatesService,
+    private readonly feedbackQuestionService: FeedbackQuestionService,
+    private readonly feedbackSettingService: FeedbackSettingsService,
   ) {}
 
-  async register(dto: RegisterDto) {
-    // 1a) Check if the company already exists
+  private async checkCompanyExists(domain: string): Promise<void> {
     const existingCompany = await this.db
       .select()
       .from(companies)
-      .where(eq(companies.domain, dto.domain.toLowerCase()))
+      .where(eq(companies.domain, domain.toLowerCase()))
       .execute();
 
-    // Check if the company already exists
     if (existingCompany.length > 0) {
       throw new BadRequestException('Company already exists.');
     }
+  }
 
-    // 2) Prevent duplicate user
-    if (await this.findUserByEmail(dto.email.toLowerCase())) {
+  private async checkUserExists(email: string): Promise<void> {
+    const existingUser = await this.findUserByEmail(email.toLowerCase());
+    if (existingUser) {
       throw new BadRequestException('User already exists.');
     }
+  }
 
-    // 1b) Create the company tenant
+  private async createCompany(
+    dto: RegisterDto,
+  ): Promise<{ id: string; name: string }> {
     const [company] = await this.db
       .insert(companies)
       .values({
@@ -67,64 +76,96 @@ export class UserService {
       .returning({ id: companies.id, name: companies.name })
       .execute();
 
-    // 3) Hash password
-    const hashed = await bcrypt.hash(dto.password, 10);
+    return company;
+  }
 
-    // 3a) Check if the super admin role exists
+  private async createUserAndSetup(
+    trx: any,
+    company: { id: string; name: string },
+    dto: RegisterDto,
+  ) {
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
     const roles = await this.permissionService.createDefaultRoles(company.id);
-
     const role = roles.find((role) => role.name === dto.role);
 
     if (!role) {
-      throw new BadRequestException('role not found.');
+      throw new BadRequestException('Role not found.');
     }
 
-    // 4) Insert user in same transaction as company?
-    const newUser = await this.db.transaction(async (trx) => {
-      const [user] = await trx
-        .insert(users)
-        .values({
-          email: dto.email.toLowerCase(),
-          firstName: dto.firstName,
-          lastName: dto.lastName,
-          password: hashed,
-          companyId: company.id,
-          companyRoleId: role.id,
-        })
-        .returning({ id: users.id, email: users.email })
-        .execute();
+    const [user] = await trx
+      .insert(users)
+      .values({
+        email: dto.email.toLowerCase(),
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        password: hashedPassword,
+        companyId: company.id,
+        companyRoleId: role.id,
+      })
+      .returning({ id: users.id, email: users.email })
+      .execute();
 
-      await trx.insert(companyFileFolders).values({
+    if (!user) {
+      throw new BadRequestException('User creation failed.');
+    }
+
+    await Promise.all([
+      trx.insert(companyFileFolders).values({
         companyId: company.id,
         name: 'Account Documents',
         isSystem: true,
-      });
+      }),
 
-      // 5) Register company Location
-      await trx.insert(companyLocations).values({
+      trx.insert(companyLocations).values({
         name: 'Head Office',
         country: dto.country,
         companyId: company.id,
         isPrimary: true,
-      });
+      }),
+      this.companySettingsService.setSettings(company.id),
+      this.performance.seedDefaultTemplate(company.id),
+      this.feedbackQuestionService.seedFeedbackQuestions(company.id),
+      this.feedbackSettingService.create(company.id),
+    ]);
 
-      return user;
-    });
+    return user;
+  }
 
-    await this.companySettingsService.setSettings(company.id);
+  private async postRegistration(
+    company: { id: string; name: string },
+    user: { id: string },
+  ): Promise<void> {
+    await this.permissionSeedQueue.add(
+      'seed-permissions',
+      { companyId: company.id },
+      { delay: 3000 },
+    );
 
     await this.permissionSeedQueue.add(
       'seed-permissions',
       { companyId: company.id },
-      { delay: 3000 }, // wait 3s before executing
+      { delay: 3000 },
     );
 
     await this.verificationService.generateVerificationToken(
-      newUser.id,
+      user.id,
       company.name,
     );
+  }
 
-    return { user: newUser, company: { id: company.id, domain: dto.domain } };
+  async register(dto: RegisterDto) {
+    await this.checkCompanyExists(dto.domain);
+    await this.checkUserExists(dto.email);
+
+    const company = await this.createCompany(dto);
+
+    const user = await this.db.transaction(async (trx) => {
+      return await this.createUserAndSetup(trx, company, dto);
+    });
+
+    await this.postRegistration(company, user);
+
+    return { user, company: { id: company.id, domain: dto.domain } };
   }
 
   async inviteUser(dto: InviteUserDto, company_id: string) {

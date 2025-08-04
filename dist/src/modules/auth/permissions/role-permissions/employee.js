@@ -41,5 +41,12 @@ exports.EmployeeRolePermissions = [
     'salary_advance.history_employee',
     'tax.read',
     'payroll_settings.read',
+    'performance.read',
+    'performance.goals.create',
+    'performance.goals.edit',
+    'performance.goals.read',
+    'performance.reviews.submit_self',
+    'performance.reviews.submit_peer',
+    'performance.reviews.read',
 ];
 //# sourceMappingURL=employee.js.map

@@ -10,6 +10,9 @@ import { InvitationService } from 'src/modules/notification/services/invitation.
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 import { PermissionsService } from '../permissions/permissions.service';
 import { Queue } from 'bullmq';
+import { PerformanceTemplatesService } from 'src/modules/performance/templates/templates.service';
+import { FeedbackQuestionService } from 'src/modules/performance/feedback/feedback-questions/feedback-question.service';
+import { FeedbackSettingsService } from 'src/modules/performance/feedback/feedback-settings/feedback-settings.service';
 export declare class UserService {
     private db;
     private readonly verificationService;
@@ -20,12 +23,17 @@ export declare class UserService {
     private readonly companySettingsService;
     private readonly permissionService;
     private permissionSeedQueue;
-    constructor(db: db, verificationService: VerificationService, jwtService: JwtService, configService: ConfigService, awsService: AwsService, invitation: InvitationService, companySettingsService: CompanySettingsService, permissionService: PermissionsService, permissionSeedQueue: Queue);
+    private readonly performance;
+    private readonly feedbackQuestionService;
+    private readonly feedbackSettingService;
+    constructor(db: db, verificationService: VerificationService, jwtService: JwtService, configService: ConfigService, awsService: AwsService, invitation: InvitationService, companySettingsService: CompanySettingsService, permissionService: PermissionsService, permissionSeedQueue: Queue, performance: PerformanceTemplatesService, feedbackQuestionService: FeedbackQuestionService, feedbackSettingService: FeedbackSettingsService);
+    private checkCompanyExists;
+    private checkUserExists;
+    private createCompany;
+    private createUserAndSetup;
+    private postRegistration;
     register(dto: RegisterDto): Promise<{
-        user: {
-            id: string;
-            email: string;
-        };
+        user: any;
         company: {
             id: string;
             domain: string;

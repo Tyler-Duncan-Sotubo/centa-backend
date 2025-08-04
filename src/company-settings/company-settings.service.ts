@@ -7,6 +7,8 @@ import { attendance } from './settings/attendance';
 import { leave } from './settings/leave';
 import { payroll } from './settings/payroll';
 import { expenses } from './settings/expense';
+import { performance } from './settings/performance';
+import { onboarding } from './settings/onboarding';
 
 @Injectable()
 export class CompanySettingsService {
@@ -17,6 +19,20 @@ export class CompanySettingsService {
     ...leave,
     ...payroll,
     ...expenses,
+    ...performance,
+    ...onboarding,
+    {
+      key: 'default_currency',
+      value: 'USD', // Default currency
+    },
+    {
+      key: 'default_timezone',
+      value: 'UTC', // Default timezone
+    },
+    {
+      key: 'default_language',
+      value: 'en', // Default language
+    },
     {
       key: 'default_manager_id',
       value: 'UUID-of-super-admin-or-lead',
@@ -25,14 +41,6 @@ export class CompanySettingsService {
       key: 'two_factor_auth',
       value: true,
     },
-    { key: 'onboarding_pay_frequency', value: false },
-    { key: 'onboarding_pay_group', value: false },
-    { key: 'onboarding_tax_details', value: false },
-    { key: 'onboarding_company_locations', value: false },
-    { key: 'onboarding_departments', value: false },
-    { key: 'onboarding_job_roles', value: false },
-    { key: 'onboarding_cost_center', value: false },
-    { key: 'onboarding_upload_employees', value: false },
   ];
 
   async getSetting(companyId: string, key: string): Promise<any | null> {

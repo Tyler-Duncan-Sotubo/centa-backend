@@ -1,0 +1,183 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  SetMetadata,
+  Query,
+} from '@nestjs/common';
+import { GoalsService } from './goals.service';
+import { GoalActivityService } from './goal-activity.service';
+import { CreateGoalDto } from './dto/create-goal.dto';
+import { UpdateGoalDto } from './dto/update-goal.dto';
+import { AddGoalProgressDto } from './dto/add-goal-progress.dto';
+import { AddGoalCommentDto } from './dto/add-goal-comment.dto';
+import { UploadGoalAttachmentDto } from './dto/upload-goal-attachment.dto';
+import { UpdateGoalAttachmentDto } from './dto/update-goal-attachment.dto';
+import { CurrentUser } from 'src/modules/auth/decorator/current-user.decorator';
+import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
+import { User } from 'src/common/types/user.type';
+import { BaseController } from 'src/common/interceptor/base.controller';
+
+@Controller('performance-goals')
+@UseGuards(JwtAuthGuard)
+export class GoalsController extends BaseController {
+  constructor(
+    private readonly goalsService: GoalsService,
+    private readonly activityService: GoalActivityService,
+  ) {
+    super();
+  }
+
+  @Post()
+  @SetMetadata('permissions', [
+    'performance.goals.manage_all',
+    'performance.goals.create',
+  ])
+  create(@Body() dto: CreateGoalDto, @CurrentUser() user: User) {
+    return this.goalsService.create(dto, user);
+  }
+
+  @Get()
+  @SetMetadata('permissions', ['performance.goals.read'])
+  findAll(@CurrentUser() user: User, @Query('status') status: string) {
+    return this.goalsService.findAll(user.companyId, status);
+  }
+
+  @Get(':id')
+  @SetMetadata('permissions', ['performance.goals.read'])
+  findOne(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.goalsService.findOne(id, user.companyId);
+  }
+
+  @Patch(':id')
+  @SetMetadata('permissions', [
+    'performance.goals.manage_all',
+    'performance.goals.edit',
+  ])
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateGoalDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.goalsService.update(id, dto, user);
+  }
+
+  @Delete(':id')
+  @SetMetadata('permissions', [
+    'performance.goals.manage_all',
+    'performance.goals.edit',
+  ])
+  remove(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.goalsService.remove(id, user);
+  }
+
+  @Delete(':id/:employeeId/archive')
+  @SetMetadata('permissions', [
+    'performance.goals.manage_all',
+    'performance.goals.edit',
+  ])
+  archiveForEmployee(
+    @Param('id') id: string,
+    @Param('employeeId') employeeId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.goalsService.archiveForEmployee(id, employeeId, user);
+  }
+
+  // ------- Progress Updates -------
+  @Post(':id/progress')
+  @SetMetadata('permissions', [
+    'performance.goals.edit',
+    'performance.goals.manage_all',
+  ])
+  addProgress(
+    @Param('id') goalId: string,
+    @Body() dto: AddGoalProgressDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.activityService.addProgressUpdate(goalId, dto, user);
+  }
+
+  // ------- Comments -------
+  @Post(':id/comments')
+  @SetMetadata('permissions', [
+    'performance.goals.edit',
+    'performance.goals.manage_all',
+  ])
+  addComment(
+    @Param('id') goalId: string,
+    @Body() dto: AddGoalCommentDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.activityService.addComment(goalId, user, dto);
+  }
+
+  @Patch('comments/:commentId')
+  @SetMetadata('permissions', [
+    'performance.goals.edit',
+    'performance.goals.manage_all',
+  ])
+  updateComment(
+    @Param('commentId') commentId: string,
+    @Body('comment') comment: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.activityService.updateComment(commentId, user, comment);
+  }
+
+  @Delete('comments/:commentId')
+  @SetMetadata('permissions', [
+    'performance.goals.edit',
+    'performance.goals.manage_all',
+  ])
+  deleteComment(
+    @Param('commentId') commentId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.activityService.deleteComment(commentId, user);
+  }
+
+  // ------- Attachments -------
+  @Post(':id/attachments')
+  @SetMetadata('permissions', [
+    'performance.goals.edit',
+    'performance.goals.manage_all',
+  ])
+  uploadAttachment(
+    @Param('id') goalId: string,
+    @Body() dto: UploadGoalAttachmentDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.activityService.uploadGoalAttachment(goalId, dto, user);
+  }
+
+  @Patch('attachments/:attachmentId')
+  @SetMetadata('permissions', [
+    'performance.goals.edit',
+    'performance.goals.manage_all',
+  ])
+  updateAttachment(
+    @Param('attachmentId') attachmentId: string,
+    @Body() dto: UpdateGoalAttachmentDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.activityService.updateAttachment(attachmentId, user, dto);
+  }
+
+  @Delete('attachments/:attachmentId')
+  @SetMetadata('permissions', [
+    'performance.goals.edit',
+    'performance.goals.manage_all',
+  ])
+  deleteAttachment(
+    @Param('attachmentId') attachmentId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.activityService.deleteAttachment(attachmentId, user);
+  }
+}

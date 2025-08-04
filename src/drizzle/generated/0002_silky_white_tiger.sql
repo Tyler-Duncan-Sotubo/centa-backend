@@ -1,0 +1,1 @@
+ALTER TABLE "performance_cycles" ADD COLUMN "is_auto_generated" boolean DEFAULT false;

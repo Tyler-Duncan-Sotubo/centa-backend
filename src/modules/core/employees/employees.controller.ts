@@ -118,6 +118,19 @@ export class EmployeesController extends BaseController {
     return this.employeesService.findAllEmployees(user.companyId);
   }
 
+  @Get('all/summary')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('permission', ['employees.read_all'])
+  findAllCompanyEmployeesSummary(
+    @CurrentUser() user: User,
+    @Query('search') search?: string,
+  ) {
+    return this.employeesService.findAllCompanyEmployeesSummary(
+      user.companyId,
+      search,
+    );
+  }
+
   @Get('employee-active')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permission', ['employees.read_self'])
@@ -184,7 +197,7 @@ export class EmployeesController extends BaseController {
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permission', ['employees.read_all'])
   findAllManagers(@CurrentUser() user: User) {
-    return this.employeesService.getManager(user.companyId);
+    return this.employeesService.getManagers(user.companyId);
   }
 
   @Patch('assign-manager/:id')

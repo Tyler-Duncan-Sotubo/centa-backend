@@ -18,6 +18,8 @@ const client_s3_1 = require("@aws-sdk/client-s3");
 const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const config_1 = require("@nestjs/config");
 const drizzle_module_1 = require("../../drizzle/drizzle.module");
+const schema_1 = require("../../drizzle/schema");
+const drizzle_orm_1 = require("drizzle-orm");
 let AwsService = class AwsService {
     constructor(configService, db) {
         this.configService = configService;
@@ -25,6 +27,24 @@ let AwsService = class AwsService {
         this.s3Client = new client_s3_1.S3Client({
             region: this.configService.get('AWS_REGION'),
         });
+    }
+    async ensureReportsFolder(companyId) {
+        const existing = await this.db
+            .select()
+            .from(schema_1.companyFileFolders)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.companyFileFolders.companyId, companyId), (0, drizzle_orm_1.eq)(schema_1.companyFileFolders.name, 'Reports'), (0, drizzle_orm_1.eq)(schema_1.companyFileFolders.isSystem, true)));
+        if (existing.length > 0) {
+            return existing[0].id;
+        }
+        const [created] = await this.db
+            .insert(schema_1.companyFileFolders)
+            .values({
+            companyId,
+            name: 'Reports',
+            isSystem: true,
+        })
+            .returning({ id: schema_1.companyFileFolders.id });
+        return created.id;
     }
     async uploadImageToS3(email, fileName, image) {
         const base64Data = Buffer.from(image.replace(/^data:image\/\w+;base64,/, ''), 'base64');

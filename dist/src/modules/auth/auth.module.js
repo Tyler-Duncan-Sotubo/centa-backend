@@ -20,6 +20,9 @@ const login_verification_service_1 = require("./services/login-verification.serv
 const permissions_module_1 = require("./permissions/permissions.module");
 const permissions_service_1 = require("./permissions/permissions.service");
 const bullmq_1 = require("@nestjs/bullmq");
+const templates_service_1 = require("../performance/templates/templates.service");
+const feedback_settings_service_1 = require("../performance/feedback/feedback-settings/feedback-settings.service");
+const feedback_question_service_1 = require("../performance/feedback/feedback-questions/feedback-question.service");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
@@ -54,6 +57,9 @@ exports.AuthModule = AuthModule = __decorate([
             audit_service_1.AuditService,
             login_verification_service_1.LoginVerificationService,
             permissions_service_1.PermissionsService,
+            templates_service_1.PerformanceTemplatesService,
+            feedback_settings_service_1.FeedbackSettingsService,
+            feedback_question_service_1.FeedbackQuestionService,
         ],
         exports: [
             services_1.UserService,

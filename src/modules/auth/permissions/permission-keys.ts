@@ -25,6 +25,7 @@ import { ManagerPermissions } from './role-permissions/manager';
 import { PayrollSpecialistPermissions } from './role-permissions/payroll-specialist';
 import { RecruiterPermissions } from './role-permissions/recruiter';
 import { SuperAdminPermissions } from './role-permissions/super-admin';
+import { PerformancePermissions } from './permission-keys/performance';
 
 export const PermissionKeys = [
   ...AnnouncementPermissions,
@@ -46,6 +47,7 @@ export const PermissionKeys = [
   ...ShiftPermissions,
   ...TaxPermissions,
   ...RecruitPermissions,
+  ...PerformancePermissions,
 ] as const;
 
 export const DefaultRolePermissions: Record<string, string[]> = {

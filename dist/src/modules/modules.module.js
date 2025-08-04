@@ -27,6 +27,7 @@ const export_clean_service_1 = require("../common/services/export-clean.service"
 const recruitment_module_1 = require("./recruitment/recruitment.module");
 const integrations_module_1 = require("./integrations/integrations.module");
 const seeder_module_1 = require("./seed/seeder.module");
+const performance_module_1 = require("./performance/performance.module");
 let ModulesModule = class ModulesModule {
 };
 exports.ModulesModule = ModulesModule;
@@ -53,6 +54,7 @@ exports.ModulesModule = ModulesModule = __decorate([
             recruitment_module_1.RecruitmentModule,
             integrations_module_1.IntegrationsModule,
             seeder_module_1.SeederModule,
+            performance_module_1.PerformanceModule,
         ],
         exports: [
             core_module_1.CoreModule,

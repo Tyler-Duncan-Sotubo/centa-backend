@@ -368,6 +368,9 @@ let CompanyService = class CompanyService {
             templates,
         };
     }
+    async getAllCompanies() {
+        return this.db.select().from(schema_1.companies).execute();
+    }
 };
 exports.CompanyService = CompanyService;
 exports.CompanyService = CompanyService = __decorate([
