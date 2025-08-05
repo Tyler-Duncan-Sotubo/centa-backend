@@ -285,6 +285,7 @@ let EmployeesService = class EmployeesService {
     async findAll(employeeId, companyId, month) {
         const currentMonth = (0, date_fns_1.format)(new Date(), 'yyyy-MM');
         const targetMonth = month || currentMonth;
+        const employee = await this.findOne(employeeId, companyId);
         const safe = (promise) => promise.catch((err) => {
             console.error('Error in findAll:', err);
             return null;
@@ -314,6 +315,7 @@ let EmployeesService = class EmployeesService {
             leaveRequests,
             attendance,
             payslipSummary,
+            avatarUrl: employee.avatarUrl ? employee.avatarUrl : '',
         };
     }
     async getEmployeeByUserId(user_id) {

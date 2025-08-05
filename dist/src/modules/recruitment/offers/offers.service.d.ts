@@ -14,14 +14,14 @@ export declare class OffersService {
     constructor(db: db, queue: Queue, auditService: AuditService, offerLetterPdfService: OfferLetterPdfService);
     create(dto: CreateOfferDto, user: User): Promise<{
         id: string;
-        currency: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        currency: string;
         companyId: string;
         createdBy: string | null;
-        status: "pending" | "accepted" | "sent" | "declined" | "expired";
         startDate: string | null;
         templateId: string | null;
+        status: "pending" | "accepted" | "sent" | "declined" | "expired";
         expiresAt: Date | null;
         applicationId: string;
         signingMethod: string;

@@ -24,8 +24,8 @@ export declare class InterviewEmailTemplateService {
         updatedAt: Date | null;
         companyId: string | null;
         createdBy: string | null;
-        isGlobal: boolean | null;
         body: string;
+        isGlobal: boolean | null;
         subject: string;
     }>;
     cloneTemplate(templateId: string, user: User): Promise<{
@@ -35,8 +35,8 @@ export declare class InterviewEmailTemplateService {
         updatedAt: Date | null;
         companyId: string | null;
         createdBy: string | null;
-        isGlobal: boolean | null;
         body: string;
+        isGlobal: boolean | null;
         subject: string;
     }>;
     deleteTemplate(templateId: string, user: User): Promise<{

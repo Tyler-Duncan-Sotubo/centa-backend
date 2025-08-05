@@ -20,33 +20,53 @@ export declare class DepartmentController extends BaseController {
         description: any;
     }[]>;
     findAll(user: User): Promise<({
+        head: {
+            id: any;
+            name: unknown;
+            email: any;
+            avatarUrl: string | null;
+        } | null;
+        employees: any;
         id: any;
         name: any;
         description: any;
         createdAt: any;
-        head: any;
-        heads_email: any;
     } | {
+        head: {
+            id: any;
+            name: unknown;
+            email: any;
+            avatarUrl: string | null;
+        } | null;
+        employees: any;
         id: any;
         name: any;
         description: any;
         createdAt: any;
-        head: any;
-        heads_email: any;
     } | {
+        head: {
+            id: any;
+            name: unknown;
+            email: any;
+            avatarUrl: string | null;
+        } | null;
+        employees: any;
         id: any;
         name: any;
         description: any;
         createdAt: any;
-        head: any;
-        heads_email: any;
     } | {
+        head: {
+            id: any;
+            name: unknown;
+            email: any;
+            avatarUrl: string | null;
+        } | null;
+        employees: any;
         id: any;
         name: any;
         description: any;
         createdAt: any;
-        head: any;
-        heads_email: any;
     })[]>;
     findOne(id: string, user: User): Promise<{
         id: any;

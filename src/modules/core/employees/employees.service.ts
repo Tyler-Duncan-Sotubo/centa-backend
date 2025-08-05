@@ -382,6 +382,8 @@ export class EmployeesService {
     const currentMonth = format(new Date(), 'yyyy-MM'); // e.g. '2025-06'
     const targetMonth = month || currentMonth;
 
+    const employee = await this.findOne(employeeId, companyId);
+
     const safe = <T>(promise: Promise<T>): Promise<T | null> =>
       promise.catch((err) => {
         console.error('Error in findAll:', err);
@@ -428,6 +430,7 @@ export class EmployeesService {
       leaveRequests,
       attendance,
       payslipSummary,
+      avatarUrl: employee.avatarUrl ? employee.avatarUrl : '',
     };
   }
 

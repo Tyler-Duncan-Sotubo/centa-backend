@@ -218,9 +218,9 @@ export declare class FinanceService {
     }>;
     constructor(db: db, auditService: AuditService, config: ConfigService);
     upsert(employeeId: string, dto: CreateFinanceDto, userId: string, ip: string): Promise<{
-        currency: string | null;
         createdAt: Date;
         updatedAt: Date;
+        currency: string | null;
         employeeId: string;
         bankName: string | null;
         bankAccountNumber: string | null;

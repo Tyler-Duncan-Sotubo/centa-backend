@@ -15,16 +15,18 @@ export declare class JobsService {
         pipelineTemplateId?: string;
     }, user: User): Promise<{
         id: string;
-        country: string | null;
-        currency: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        country: string | null;
+        currency: string;
         companyId: string;
-        createdBy: string;
-        externalJobId: string | null;
-        title: string;
-        state: string | null;
         city: string | null;
+        state: string | null;
+        createdBy: string;
+        description: string | null;
+        title: string;
+        status: "draft" | "open" | "closed" | "archived";
+        externalJobId: string | null;
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
         responsibilities: string[] | null;
@@ -35,8 +37,6 @@ export declare class JobsService {
         salaryRangeFrom: number | null;
         salaryRangeTo: number | null;
         benefits: string[] | null;
-        description: string | null;
-        status: "draft" | "open" | "closed" | "archived";
         postedAt: Date | null;
         closedAt: Date | null;
         deadlineDate: string | null;

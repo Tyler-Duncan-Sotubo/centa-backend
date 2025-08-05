@@ -54,8 +54,8 @@ export declare class PipelineService {
         id: string;
         name: string;
         createdAt: Date | null;
-        jobId: string;
         order: number;
+        jobId: string;
     }>;
     reorderJobPipeline(jobId: string, stageIds: string[]): Promise<{
         message: string;

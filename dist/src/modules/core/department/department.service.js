@@ -112,19 +112,47 @@ let DepartmentService = class DepartmentService extends base_crud_service_1.Base
     async findAll(companyId) {
         const cacheKey = `departments:${companyId}`;
         return this.cache.getOrSetCache(cacheKey, async () => {
-            return this.db
+            const allDepartments = await this.db
                 .select({
                 id: schema_1.departments.id,
                 name: schema_1.departments.name,
                 description: schema_1.departments.description,
                 createdAt: schema_1.departments.createdAt,
-                head: schema_1.employees.firstName,
-                heads_email: schema_1.employees.email,
+                head: {
+                    id: schema_1.employees.id,
+                    name: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
+                    email: schema_1.employees.email,
+                    avatarUrl: schema_1.users.avatar,
+                },
             })
                 .from(schema_1.departments)
                 .leftJoin(schema_1.employees, (0, drizzle_orm_1.eq)(schema_1.employees.id, schema_1.departments.headId))
+                .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.users.id, schema_1.employees.userId))
                 .where((0, drizzle_orm_1.eq)(schema_1.departments.companyId, companyId))
                 .execute();
+            const allEmployees = await this.db
+                .select({
+                id: schema_1.employees.id,
+                name: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
+                email: schema_1.employees.email,
+                departmentId: schema_1.employees.departmentId,
+                avatarUrl: schema_1.users.avatar,
+            })
+                .from(schema_1.employees)
+                .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.users.id, schema_1.employees.userId))
+                .where((0, drizzle_orm_1.inArray)(schema_1.employees.departmentId, allDepartments.map((d) => d.id)))
+                .execute();
+            const deptIdToEmployees = allEmployees.reduce((acc, emp) => {
+                if (emp.departmentId !== null && emp.departmentId !== undefined) {
+                    (acc[emp.departmentId] = acc[emp.departmentId] || []).push(emp);
+                }
+                return acc;
+            }, {});
+            return allDepartments.map((dept) => ({
+                ...dept,
+                head: dept.head && dept.head.id ? dept.head : null,
+                employees: deptIdToEmployees[dept.id] || [],
+            }));
         });
     }
     async findOne(companyId, id) {

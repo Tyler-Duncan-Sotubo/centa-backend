@@ -96,7 +96,7 @@ export declare const performanceAppraisalCycles: import("drizzle-orm/pg-core").P
             tableName: "performance_appraisal_cycles";
             dataType: "string";
             columnType: "PgText";
-            data: "closed" | "active" | "upcoming";
+            data: "active" | "closed" | "upcoming";
             driverParam: string;
             notNull: true;
             hasDefault: false;

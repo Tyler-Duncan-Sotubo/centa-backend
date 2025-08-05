@@ -9,7 +9,7 @@ import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
-import { eq, and, aliasedTable, inArray } from 'drizzle-orm';
+import { eq, and, aliasedTable, inArray, sql } from 'drizzle-orm';
 import { AssignCostCenterDto } from './dto/assign-cost-center.dto';
 import { AssignParentDto } from './dto/assign-parent.dto';
 import { BaseCrudService } from 'src/common/services/base-crud.service';
@@ -18,7 +18,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { CacheService } from 'src/common/cache/cache.service';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
-import { costCenters, departments, employees } from 'src/drizzle/schema';
+import { costCenters, departments, employees, users } from 'src/drizzle/schema';
 
 type DeptWithRelations = {
   id: string;
@@ -177,19 +177,59 @@ export class DepartmentService extends BaseCrudService<
     const cacheKey = `departments:${companyId}`;
 
     return this.cache.getOrSetCache(cacheKey, async () => {
-      return this.db
+      // 1. Get all departments with head info
+      const allDepartments = await this.db
         .select({
           id: departments.id,
           name: departments.name,
           description: departments.description,
           createdAt: departments.createdAt,
-          head: employees.firstName,
-          heads_email: employees.email,
+          head: {
+            id: employees.id,
+            name: sql`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+            email: employees.email,
+            avatarUrl: users.avatar,
+          },
         })
         .from(departments)
         .leftJoin(employees, eq(employees.id, departments.headId))
+        .leftJoin(users, eq(users.id, employees.userId))
         .where(eq(departments.companyId, companyId))
         .execute();
+
+      // 2. Get all employees in these departments
+      const allEmployees = await this.db
+        .select({
+          id: employees.id,
+          name: sql`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+          email: employees.email,
+          departmentId: employees.departmentId,
+          avatarUrl: users.avatar,
+        })
+        .from(employees)
+        .leftJoin(users, eq(users.id, employees.userId))
+        .where(
+          inArray(
+            employees.departmentId,
+            allDepartments.map((d) => d.id),
+          ),
+        )
+        .execute();
+
+      // 3. Group employees by department
+      const deptIdToEmployees = allEmployees.reduce((acc, emp) => {
+        if (emp.departmentId !== null && emp.departmentId !== undefined) {
+          (acc[emp.departmentId] = acc[emp.departmentId] || []).push(emp);
+        }
+        return acc;
+      }, {});
+
+      // 4. Combine data, fixing head if missing
+      return allDepartments.map((dept) => ({
+        ...dept,
+        head: dept.head && dept.head.id ? dept.head : null, // set to null if no head
+        employees: deptIdToEmployees[dept.id] || [],
+      }));
     });
   }
 

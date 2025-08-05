@@ -23,7 +23,7 @@ let EmployeeInvitationService = class EmployeeInvitationService {
             to: email,
             from: {
                 name: 'Employee Invitation',
-                email: 'noreply@centa.africa',
+                email: 'noreply@centahr.com',
             },
             templateId: this.config.get('EMPLOYEE_INVITE_TEMPLATE_ID'),
             dynamicTemplateData: {

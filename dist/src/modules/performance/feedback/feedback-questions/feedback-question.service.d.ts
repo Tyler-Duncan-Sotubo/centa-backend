@@ -7,8 +7,8 @@ export declare class FeedbackQuestionService {
     constructor(db: db);
     create(dto: CreateFeedbackQuestionDto, user: User): Promise<{
         id: string;
-        isActive: boolean | null;
         createdAt: Date | null;
+        isActive: boolean | null;
         companyId: string;
         type: string;
         order: number | null;

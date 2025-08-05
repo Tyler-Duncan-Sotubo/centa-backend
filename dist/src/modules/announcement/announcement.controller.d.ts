@@ -15,13 +15,13 @@ export declare class AnnouncementController extends BaseController {
     constructor(announcementService: AnnouncementService, commentService: CommentService, reactionService: ReactionService, categoryService: CategoryService);
     create(createAnnouncementDto: CreateAnnouncementDto, user: User): Promise<{
         id: string;
-        link: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
+        link: string | null;
         companyId: string;
         createdBy: string;
-        title: string;
         departmentId: string | null;
+        title: string;
         locationId: string | null;
         body: string;
         image: string | null;

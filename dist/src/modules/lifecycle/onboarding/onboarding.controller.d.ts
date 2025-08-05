@@ -47,19 +47,19 @@ export declare class OnboardingController extends BaseController {
         checklist: {
             fields: ({
                 id: string;
+                templateId: string;
+                order: number | null;
+                fieldKey: string;
                 label: string;
                 fieldType: string;
                 required: boolean | null;
-                order: number | null;
-                templateId: string;
-                fieldKey: string;
                 tag: string;
             } | undefined)[];
             id: string;
             title: string;
-            order: number | null;
             templateId: string;
             assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         employeeId: any;
@@ -72,19 +72,19 @@ export declare class OnboardingController extends BaseController {
         checklist: {
             fields: ({
                 id: string;
+                templateId: string;
+                order: number | null;
+                fieldKey: string;
                 label: string;
                 fieldType: string;
                 required: boolean | null;
-                order: number | null;
-                templateId: string;
-                fieldKey: string;
                 tag: string;
             } | undefined)[];
             id: string;
             title: string;
-            order: number | null;
             templateId: string;
             assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         employeeId: any;

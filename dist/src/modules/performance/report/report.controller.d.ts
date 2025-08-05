@@ -19,7 +19,7 @@ export declare class ReportController extends BaseController {
             name: string;
             startDate: string;
             endDate: string;
-            status: "closed" | "active" | "upcoming";
+            status: "active" | "closed" | "upcoming";
         };
         cycleHealth: {
             totalAppraisals: number;

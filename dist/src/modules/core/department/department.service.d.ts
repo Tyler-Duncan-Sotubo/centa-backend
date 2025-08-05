@@ -48,33 +48,53 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
         description: any;
     }[]>;
     findAll(companyId: string): Promise<({
+        head: {
+            id: any;
+            name: unknown;
+            email: any;
+            avatarUrl: string | null;
+        } | null;
+        employees: any;
         id: any;
         name: any;
         description: any;
         createdAt: any;
-        head: any;
-        heads_email: any;
     } | {
+        head: {
+            id: any;
+            name: unknown;
+            email: any;
+            avatarUrl: string | null;
+        } | null;
+        employees: any;
         id: any;
         name: any;
         description: any;
         createdAt: any;
-        head: any;
-        heads_email: any;
     } | {
+        head: {
+            id: any;
+            name: unknown;
+            email: any;
+            avatarUrl: string | null;
+        } | null;
+        employees: any;
         id: any;
         name: any;
         description: any;
         createdAt: any;
-        head: any;
-        heads_email: any;
     } | {
+        head: {
+            id: any;
+            name: unknown;
+            email: any;
+            avatarUrl: string | null;
+        } | null;
+        employees: any;
         id: any;
         name: any;
         description: any;
         createdAt: any;
-        head: any;
-        heads_email: any;
     })[]>;
     findOne(companyId: string, id: string): Promise<{
         id: any;

@@ -10,8 +10,8 @@ export declare class FeedbackController extends BaseController {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        isArchived: boolean | null;
         type: string;
+        isArchived: boolean | null;
         submittedAt: Date | null;
         senderId: string;
         recipientId: string;

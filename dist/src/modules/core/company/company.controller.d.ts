@@ -176,7 +176,7 @@ export declare class CompanyController extends BaseController {
         };
         pendingChecklists: {
             statusId: string;
-            checkListStatus: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
+            checkListStatus: "pending" | "completed" | "in_progress" | "overdue" | "skipped" | "cancelled" | null;
             checklistId: string;
             title: string;
             dueDaysAfterStart: number | null;
@@ -185,33 +185,53 @@ export declare class CompanyController extends BaseController {
     }>;
     getCompanyElements(user: User): Promise<{
         departments: ({
+            head: {
+                id: any;
+                name: unknown;
+                email: any;
+                avatarUrl: string | null;
+            } | null;
+            employees: any;
             id: any;
             name: any;
             description: any;
             createdAt: any;
-            head: any;
-            heads_email: any;
         } | {
+            head: {
+                id: any;
+                name: unknown;
+                email: any;
+                avatarUrl: string | null;
+            } | null;
+            employees: any;
             id: any;
             name: any;
             description: any;
             createdAt: any;
-            head: any;
-            heads_email: any;
         } | {
+            head: {
+                id: any;
+                name: unknown;
+                email: any;
+                avatarUrl: string | null;
+            } | null;
+            employees: any;
             id: any;
             name: any;
             description: any;
             createdAt: any;
-            head: any;
-            heads_email: any;
         } | {
+            head: {
+                id: any;
+                name: unknown;
+                email: any;
+                avatarUrl: string | null;
+            } | null;
+            employees: any;
             id: any;
             name: any;
             description: any;
             createdAt: any;
-            head: any;
-            heads_email: any;
         })[];
         payGroups: {
             id: string;
