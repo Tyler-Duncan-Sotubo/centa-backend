@@ -22,19 +22,19 @@ export declare class DocumentsController extends BaseController {
         name: string;
         createdAt: Date | null;
         companyId: string;
-        permissionControlled: boolean | null;
         createdBy: string | null;
+        permissionControlled: boolean | null;
         isSystem: boolean;
     }>;
     findAllFolders(user: User): Promise<{
         files: {
-            url: string;
             id: string;
             name: string;
             createdAt: Date | null;
             companyId: string;
-            folderId: string | null;
             type: string;
+            folderId: string | null;
+            url: string;
             category: string;
             uploadedBy: string | null;
         }[];

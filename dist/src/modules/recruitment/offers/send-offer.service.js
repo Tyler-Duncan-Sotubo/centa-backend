@@ -106,7 +106,7 @@ let SendOffersService = class SendOffersService {
         await this.offerEmailService.sendOfferEmail(email, offer.candidateName, offer.jobTitle, offer.companyName, offerUrl, offer.companyLogo || 'https://centahr.com/logo.png');
         await this.db
             .update(offers_schema_1.offers)
-            .set({ sentAt: new Date(), updatedAt: new Date() })
+            .set({ sentAt: new Date(), updatedAt: new Date(), status: 'sent' })
             .where((0, drizzle_orm_1.eq)(offers_schema_1.offers.id, offerId));
         await this.auditService.logAction({
             action: 'send',

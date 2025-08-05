@@ -75,14 +75,14 @@ export declare const offers: import("drizzle-orm/pg-core").PgTableWithColumns<{
             tableName: "offers";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "pending" | "accepted" | "declined" | "expired";
+            data: "pending" | "accepted" | "sent" | "declined" | "expired";
             driverParam: string;
             notNull: true;
             hasDefault: true;
             isPrimaryKey: false;
             isAutoincrement: false;
             hasRuntimeDefault: false;
-            enumValues: ["pending", "accepted", "declined", "expired"];
+            enumValues: ["pending", "accepted", "sent", "declined", "expired"];
             baseColumn: never;
             identity: undefined;
             generated: undefined;

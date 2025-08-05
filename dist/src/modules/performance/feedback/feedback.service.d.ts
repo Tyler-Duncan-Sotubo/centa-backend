@@ -11,8 +11,8 @@ export declare class FeedbackService {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        type: string;
         isArchived: boolean | null;
+        type: string;
         submittedAt: Date | null;
         senderId: string;
         recipientId: string;

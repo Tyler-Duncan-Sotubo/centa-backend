@@ -366,7 +366,6 @@ export declare class OffCycleController extends BaseController {
     }>, "where">;
     runOffCycle(dto: PayrollRunDto, user: User, runId: string): Promise<{
         name: string;
-        transport: string;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
@@ -378,6 +377,7 @@ export declare class OffCycleController extends BaseController {
         payrollRunId: string;
         basic: string;
         housing: string;
+        transport: string;
         pensionContribution: string;
         employerPensionContribution: string;
         bonuses: string | null;

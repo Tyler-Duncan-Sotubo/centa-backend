@@ -12,8 +12,8 @@ export declare class BonusesService {
         createdAt: Date | null;
         companyId: string;
         createdBy: string;
-        employeeId: string;
         status: string | null;
+        employeeId: string;
         effectiveDate: string;
         amount: string;
         bonusType: string;

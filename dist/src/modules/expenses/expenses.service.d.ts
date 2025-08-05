@@ -24,9 +24,9 @@ export declare class ExpensesService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
+        status: string;
         category: string;
         employeeId: string;
-        status: string;
         submittedAt: Date | null;
         amount: string;
         rejectionReason: string | null;
@@ -41,9 +41,9 @@ export declare class ExpensesService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
+        status: string;
         category: string;
         employeeId: string;
-        status: string;
         submittedAt: Date | null;
         amount: string;
         rejectionReason: string | null;

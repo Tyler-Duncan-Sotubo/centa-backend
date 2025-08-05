@@ -16,11 +16,12 @@ export declare class AssetsService {
         createdAt: string | null;
         updatedAt: string | null;
         companyId: string;
+        status: string;
         category: string;
         locationId: string;
         isDeleted: boolean | null;
         employeeId: string | null;
-        status: string;
+        internalId: string;
         modelName: string | null;
         color: string | null;
         specs: string | null;
@@ -28,11 +29,10 @@ export declare class AssetsService {
         serialNumber: string;
         purchasePrice: string;
         purchaseDate: string;
+        depreciationMethod: string | null;
         warrantyExpiry: string | null;
         lendDate: string | null;
         returnDate: string | null;
-        internalId: string;
-        depreciationMethod: string | null;
         usefulLifeYears: number;
     }>;
     bulkCreateAssets(companyId: string, rows: any[]): Promise<{
@@ -41,11 +41,12 @@ export declare class AssetsService {
         createdAt: string | null;
         updatedAt: string | null;
         companyId: string;
+        status: string;
         category: string;
         locationId: string;
         isDeleted: boolean | null;
         employeeId: string | null;
-        status: string;
+        internalId: string;
         modelName: string | null;
         color: string | null;
         specs: string | null;
@@ -53,11 +54,10 @@ export declare class AssetsService {
         serialNumber: string;
         purchasePrice: string;
         purchaseDate: string;
+        depreciationMethod: string | null;
         warrantyExpiry: string | null;
         lendDate: string | null;
         returnDate: string | null;
-        internalId: string;
-        depreciationMethod: string | null;
         usefulLifeYears: number;
     }[]>;
     findAll(companyId: string): Promise<({

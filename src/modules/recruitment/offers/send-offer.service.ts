@@ -126,7 +126,7 @@ export class SendOffersService {
     // 2. Update the offer status to 'sent'
     await this.db
       .update(offers)
-      .set({ sentAt: new Date(), updatedAt: new Date() })
+      .set({ sentAt: new Date(), updatedAt: new Date(), status: 'sent' })
       .where(eq(offers.id, offerId));
 
     // Audit log

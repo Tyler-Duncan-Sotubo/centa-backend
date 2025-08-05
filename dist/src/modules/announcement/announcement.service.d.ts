@@ -15,13 +15,13 @@ export declare class AnnouncementService {
     constructor(db: db, auditService: AuditService, commentService: CommentService, reactionService: ReactionService, awsService: AwsService);
     create(dto: CreateAnnouncementDto, user: User): Promise<{
         id: string;
+        link: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-        link: string | null;
         companyId: string;
         createdBy: string;
-        departmentId: string | null;
         title: string;
+        departmentId: string | null;
         locationId: string | null;
         body: string;
         image: string | null;

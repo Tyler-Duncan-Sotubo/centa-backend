@@ -12,18 +12,18 @@ export declare class OffersController extends BaseController {
     constructor(offersService: OffersService, sendOffersService: SendOffersService);
     create(createOfferDto: CreateOfferDto, user: User): Promise<{
         id: string;
+        currency: string;
         createdAt: Date | null;
         updatedAt: Date | null;
-        currency: string;
         companyId: string;
         createdBy: string | null;
-        startDate: string | null;
-        templateId: string | null;
-        status: "pending" | "accepted" | "declined" | "expired";
-        expiresAt: Date | null;
+        status: "pending" | "accepted" | "sent" | "declined" | "expired";
         applicationId: string;
+        templateId: string | null;
         signingMethod: string;
         salary: string | null;
+        startDate: string | null;
+        expiresAt: Date | null;
         letterUrl: string | null;
         signedLetterUrl: string | null;
         signingProviderEnvelopeId: string | null;
@@ -100,14 +100,14 @@ export declare class OffersController extends BaseController {
             tableName: "offers";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "pending" | "accepted" | "declined" | "expired";
+            data: "pending" | "accepted" | "sent" | "declined" | "expired";
             driverParam: string;
             notNull: true;
             hasDefault: true;
             isPrimaryKey: false;
             isAutoincrement: false;
             hasRuntimeDefault: false;
-            enumValues: ["pending", "accepted", "declined", "expired"];
+            enumValues: ["pending", "accepted", "sent", "declined", "expired"];
             baseColumn: never;
             identity: undefined;
             generated: undefined;
@@ -268,7 +268,7 @@ export declare class OffersController extends BaseController {
         id: string;
         applicationId: string;
         templateId: string | null;
-        status: "pending" | "accepted" | "declined" | "expired";
+        status: "pending" | "accepted" | "sent" | "declined" | "expired";
         salary: string | null;
         sentAt: Date | null;
         startDate: string | null;
@@ -334,14 +334,14 @@ export declare class OffersController extends BaseController {
             tableName: "offers";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "pending" | "accepted" | "declined" | "expired";
+            data: "pending" | "accepted" | "sent" | "declined" | "expired";
             driverParam: string;
             notNull: true;
             hasDefault: true;
             isPrimaryKey: false;
             isAutoincrement: false;
             hasRuntimeDefault: false;
-            enumValues: ["pending", "accepted", "declined", "expired"];
+            enumValues: ["pending", "accepted", "sent", "declined", "expired"];
             baseColumn: never;
             identity: undefined;
             generated: undefined;
@@ -517,6 +517,6 @@ export declare class OffersController extends BaseController {
         candidateId: string;
         companyLogo: string;
         letterUrl: string | null;
-        status: "pending" | "accepted" | "declined" | "expired";
+        status: "pending" | "accepted" | "sent" | "declined" | "expired";
     }>;
 }

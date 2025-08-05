@@ -31,6 +31,7 @@ export const CandidateSource = pgEnum('candidate_source', [
 export const OfferStatus = pgEnum('offer_status', [
   'pending',
   'accepted',
+  'sent',
   'declined',
   'expired',
 ]);

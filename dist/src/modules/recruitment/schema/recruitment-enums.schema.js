@@ -33,6 +33,7 @@ exports.CandidateSource = (0, pg_core_1.pgEnum)('candidate_source', [
 exports.OfferStatus = (0, pg_core_1.pgEnum)('offer_status', [
     'pending',
     'accepted',
+    'sent',
     'declined',
     'expired',
 ]);

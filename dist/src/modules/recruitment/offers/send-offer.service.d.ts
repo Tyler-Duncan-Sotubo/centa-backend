@@ -31,7 +31,7 @@ export declare class SendOffersService {
         candidateId: string;
         companyLogo: string;
         letterUrl: string | null;
-        status: "pending" | "accepted" | "declined" | "expired";
+        status: "pending" | "accepted" | "sent" | "declined" | "expired";
     }>;
     sendOffer(offerId: string, email: string, user: User): Promise<{
         status: string;
