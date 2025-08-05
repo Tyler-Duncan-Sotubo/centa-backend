@@ -25,20 +25,20 @@ export class GoogleController extends BaseController {
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['jobs.manage'])
   create(@Body() createGoogleDto: CreateGoogleDto, @CurrentUser() user: User) {
-    return this.googleService.create(createGoogleDto, user.id);
+    return this.googleService.create(createGoogleDto, user);
   }
 
   @Get()
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['jobs.manage'])
   findOne(@CurrentUser() user: User) {
-    return this.googleService.findOne(user.id);
+    return this.googleService.findOne(user.companyId);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['jobs.manage'])
   update(@Body() updateGoogleDto: UpdateGoogleDto, @CurrentUser() user: User) {
-    return this.googleService.update(user.id, updateGoogleDto);
+    return this.googleService.update(user.companyId, updateGoogleDto);
   }
 }

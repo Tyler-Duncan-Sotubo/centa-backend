@@ -6,14 +6,14 @@ import {
   integer,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { users } from 'src/drizzle/schema';
+import { companies } from 'src/drizzle/schema';
 
 export const googleAccounts = pgTable('google_accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
 
-  userId: uuid('user_id')
+  companyId: uuid('company_id')
     .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
+    .references(() => companies.id, { onDelete: 'cascade' }),
 
   googleEmail: varchar('google_email', { length: 255 }).notNull().unique(),
 

@@ -10,18 +10,18 @@ export declare class GoogleController extends BaseController {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        userId: string;
-        expiryDate: Date;
-        scope: string;
+        companyId: string;
+        googleEmail: string;
         accessToken: string;
         refreshToken: string;
-        googleEmail: string;
         tokenType: string;
+        scope: string;
+        expiryDate: Date;
         refreshTokenExpiry: number | null;
     }>;
     findOne(user: User): Promise<{
         id: string;
-        userId: string;
+        companyId: string;
         googleEmail: string;
         accessToken: string;
         refreshToken: string;
@@ -34,7 +34,7 @@ export declare class GoogleController extends BaseController {
     }>;
     update(updateGoogleDto: UpdateGoogleDto, user: User): Promise<{
         id: string;
-        userId: string;
+        companyId: string;
         googleEmail: string;
         accessToken: string;
         refreshToken: string;

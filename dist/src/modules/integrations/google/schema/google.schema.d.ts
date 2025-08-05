@@ -19,8 +19,8 @@ export declare const googleAccounts: import("drizzle-orm/pg-core").PgTableWithCo
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
-        userId: import("drizzle-orm/pg-core").PgColumn<{
-            name: "user_id";
+        companyId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "company_id";
             tableName: "google_accounts";
             dataType: "string";
             columnType: "PgUUID";

@@ -5,9 +5,9 @@ const pg_core_1 = require("drizzle-orm/pg-core");
 const schema_1 = require("../../../../drizzle/schema");
 exports.googleAccounts = (0, pg_core_1.pgTable)('google_accounts', {
     id: (0, pg_core_1.uuid)('id').primaryKey().defaultRandom(),
-    userId: (0, pg_core_1.uuid)('user_id')
+    companyId: (0, pg_core_1.uuid)('company_id')
         .notNull()
-        .references(() => schema_1.users.id, { onDelete: 'cascade' }),
+        .references(() => schema_1.companies.id, { onDelete: 'cascade' }),
     googleEmail: (0, pg_core_1.varchar)('google_email', { length: 255 }).notNull().unique(),
     accessToken: (0, pg_core_1.text)('access_token').notNull(),
     refreshToken: (0, pg_core_1.text)('refresh_token').notNull(),

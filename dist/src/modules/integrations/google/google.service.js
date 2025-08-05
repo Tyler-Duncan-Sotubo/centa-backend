@@ -17,15 +17,18 @@ const common_1 = require("@nestjs/common");
 const drizzle_module_1 = require("../../../drizzle/drizzle.module");
 const drizzle_orm_1 = require("drizzle-orm");
 const google_schema_1 = require("./schema/google.schema");
+const audit_service_1 = require("../../audit/audit.service");
 let GoogleService = class GoogleService {
-    constructor(db) {
+    constructor(db, auditService) {
         this.db = db;
+        this.auditService = auditService;
     }
-    async create(createGoogleDto, userId) {
+    async create(createGoogleDto, user) {
+        const { id: userId, companyId } = user;
         const existing = await this.db
             .select()
             .from(google_schema_1.googleAccounts)
-            .where((0, drizzle_orm_1.eq)(google_schema_1.googleAccounts.userId, userId));
+            .where((0, drizzle_orm_1.eq)(google_schema_1.googleAccounts.companyId, companyId));
         if (existing.length > 0) {
             const updated = await this.db
                 .update(google_schema_1.googleAccounts)
@@ -39,8 +42,19 @@ let GoogleService = class GoogleService {
                 googleEmail: createGoogleDto.googleEmail,
                 updatedAt: new Date(),
             })
-                .where((0, drizzle_orm_1.eq)(google_schema_1.googleAccounts.userId, userId))
+                .where((0, drizzle_orm_1.eq)(google_schema_1.googleAccounts.companyId, companyId))
                 .returning();
+            await this.auditService.logAction({
+                action: 'update',
+                entity: 'google_integration',
+                entityId: existing[0].id,
+                details: `Updated Google integration for company #${companyId}`,
+                userId,
+                changes: {
+                    ...createGoogleDto,
+                    updatedAt: new Date(),
+                },
+            });
             return updated[0];
         }
         else {
@@ -48,33 +62,45 @@ let GoogleService = class GoogleService {
                 .insert(google_schema_1.googleAccounts)
                 .values({
                 ...createGoogleDto,
-                userId,
+                companyId,
             })
                 .returning();
+            await this.auditService.logAction({
+                action: 'create',
+                entity: 'google_integration',
+                entityId: inserted[0].id,
+                details: `Created Google integration for company #${companyId}`,
+                userId,
+                changes: {
+                    ...createGoogleDto,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                },
+            });
             return inserted[0];
         }
     }
-    async findOne(userId) {
+    async findOne(companyId) {
         const result = await this.db
             .select()
             .from(google_schema_1.googleAccounts)
-            .where((0, drizzle_orm_1.eq)(google_schema_1.googleAccounts.userId, userId));
+            .where((0, drizzle_orm_1.eq)(google_schema_1.googleAccounts.companyId, companyId));
         if (!result.length) {
-            throw new common_1.NotFoundException(`Google integration #${userId} not found`);
+            throw new common_1.NotFoundException(`Google integration for company #${companyId} not found`);
         }
         return result[0];
     }
-    async update(userId, updateGoogleDto) {
+    async update(companyId, updateGoogleDto) {
         const result = await this.db
             .update(google_schema_1.googleAccounts)
             .set({
             ...updateGoogleDto,
             updatedAt: new Date(),
         })
-            .where((0, drizzle_orm_1.eq)(google_schema_1.googleAccounts.userId, userId))
+            .where((0, drizzle_orm_1.eq)(google_schema_1.googleAccounts.companyId, companyId))
             .returning();
         if (!result.length) {
-            throw new common_1.NotFoundException(`Google integration #${userId} not found`);
+            throw new common_1.NotFoundException(`Google integration for company #${companyId} not found`);
         }
         return result[0];
     }
@@ -83,6 +109,6 @@ exports.GoogleService = GoogleService;
 exports.GoogleService = GoogleService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
 ], GoogleService);
 //# sourceMappingURL=google.service.js.map

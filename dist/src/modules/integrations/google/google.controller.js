@@ -26,13 +26,13 @@ let GoogleController = class GoogleController extends base_controller_1.BaseCont
         this.googleService = googleService;
     }
     create(createGoogleDto, user) {
-        return this.googleService.create(createGoogleDto, user.id);
+        return this.googleService.create(createGoogleDto, user);
     }
     findOne(user) {
-        return this.googleService.findOne(user.id);
+        return this.googleService.findOne(user.companyId);
     }
     update(updateGoogleDto, user) {
-        return this.googleService.update(user.id, updateGoogleDto);
+        return this.googleService.update(user.companyId, updateGoogleDto);
     }
 };
 exports.GoogleController = GoogleController;
