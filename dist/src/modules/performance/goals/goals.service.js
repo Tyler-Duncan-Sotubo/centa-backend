@@ -43,7 +43,7 @@ let GoalsService = class GoalsService {
             assignedAt: new Date(),
             assignedBy: user.id,
             weight: weight ?? 0,
-            status: 'published',
+            status: 'draft',
         })
             .returning();
         const goalInstances = ownerIds.map((ownerId) => ({
@@ -58,7 +58,7 @@ let GoalsService = class GoalsService {
             assignedAt: new Date(),
             assignedBy: user.id,
             weight: weight ?? 0,
-            status: 'published',
+            status: 'draft',
         }));
         await this.db.insert(performance_goals_schema_1.performanceGoals).values(goalInstances);
         await this.auditService.logAction({
@@ -88,8 +88,81 @@ let GoalsService = class GoalsService {
         else {
             conditions.push((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.isArchived, false));
             switch (status) {
-                case 'published':
-                    conditions.push((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.status, 'published'));
+                case 'draft':
+                    conditions.push((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.status, 'draft'));
+                    break;
+                case 'incomplete':
+                    conditions.push((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.status, 'incomplete'));
+                    break;
+                case 'completed':
+                    conditions.push((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.status, 'completed'));
+                    break;
+                case 'overdue':
+                    conditions.push((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.status, 'incomplete'), (0, drizzle_orm_1.lt)(performance_goals_schema_1.performanceGoals.dueDate, today));
+                    break;
+            }
+        }
+        const goals = await this.db
+            .select({
+            id: performance_goals_schema_1.performanceGoals.id,
+            title: performance_goals_schema_1.performanceGoals.title,
+            description: performance_goals_schema_1.performanceGoals.description,
+            parentGoalId: performance_goals_schema_1.performanceGoals.parentGoalId,
+            dueDate: performance_goals_schema_1.performanceGoals.dueDate,
+            startDate: performance_goals_schema_1.performanceGoals.startDate,
+            cycleId: performance_goals_schema_1.performanceGoals.cycleId,
+            weight: performance_goals_schema_1.performanceGoals.weight,
+            status: performance_goals_schema_1.performanceGoals.status,
+            isArchived: performance_goals_schema_1.performanceGoals.isArchived,
+            employee: (0, drizzle_orm_1.sql) `CONCAT(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
+            employeeId: schema_1.employees.id,
+            departmentName: schema_1.departments.name,
+            departmentId: schema_1.departments.id,
+            jobRoleName: schema_1.jobRoles.title,
+        })
+            .from(performance_goals_schema_1.performanceGoals)
+            .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(schema_1.employees.id, performance_goals_schema_1.performanceGoals.employeeId))
+            .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.jobRoles.id, schema_1.employees.jobRoleId))
+            .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.departments.id, schema_1.employees.departmentId))
+            .where((0, drizzle_orm_1.and)(...conditions))
+            .orderBy((0, drizzle_orm_1.desc)(performance_goals_schema_1.performanceGoals.assignedAt))
+            .execute();
+        const latestProgress = await this.db
+            .select({
+            goalId: performance_goal_updates_schema_1.performanceGoalUpdates.goalId,
+            progress: performance_goal_updates_schema_1.performanceGoalUpdates.progress,
+        })
+            .from(performance_goal_updates_schema_1.performanceGoalUpdates)
+            .where((0, drizzle_orm_1.inArray)(performance_goal_updates_schema_1.performanceGoalUpdates.goalId, goals.map((g) => g.id)))
+            .orderBy((0, drizzle_orm_1.desc)(performance_goal_updates_schema_1.performanceGoalUpdates.createdAt))
+            .execute();
+        const progressMap = new Map();
+        for (const update of latestProgress) {
+            if (!progressMap.has(update.goalId)) {
+                progressMap.set(update.goalId, update.progress);
+            }
+        }
+        const enrichedGoals = goals.map((goal) => ({
+            ...goal,
+            progress: progressMap.get(goal.id) ?? 0,
+        }));
+        return enrichedGoals;
+    }
+    async findAllByEmployeeId(companyId, employeeId, status) {
+        const today = new Date().toISOString().slice(0, 10);
+        const conditions = [
+            (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.companyId, companyId),
+            (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.employeeId, employeeId),
+            (0, drizzle_orm_1.isNotNull)(performance_goals_schema_1.performanceGoals.parentGoalId),
+        ];
+        if (status === 'archived') {
+            conditions.push((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.isArchived, true));
+        }
+        else {
+            conditions.push((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.isArchived, false));
+            switch (status) {
+                case 'draft':
+                    conditions.push((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.status, 'draft'));
                     break;
                 case 'incomplete':
                     conditions.push((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.status, 'incomplete'));
@@ -295,6 +368,25 @@ let GoalsService = class GoalsService {
         });
         return { message: 'Goal archived successfully' };
     }
+    async publishGoalAndSubGoals(goalId) {
+        const goal = await this.db
+            .select({
+            id: performance_goals_schema_1.performanceGoals.id,
+            parentGoalId: performance_goals_schema_1.performanceGoals.parentGoalId,
+        })
+            .from(performance_goals_schema_1.performanceGoals)
+            .where((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.id, goalId))
+            .limit(1)
+            .then((res) => res[0]);
+        if (!goal) {
+            throw new Error('Goal not found');
+        }
+        const groupId = goal.parentGoalId || goal.id;
+        await this.db
+            .update(performance_goals_schema_1.performanceGoals)
+            .set({ status: 'active', updatedAt: new Date() })
+            .where((0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.id, groupId), (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.parentGoalId, groupId)));
+    }
     async archiveForEmployee(goalId, employeeId, user) {
         const [employee] = await this.db
             .select()
@@ -309,6 +401,9 @@ let GoalsService = class GoalsService {
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.id, goalId), (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.employeeId, employeeId), (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.companyId, user.companyId)));
         if (!existingGoal) {
             throw new common_1.NotFoundException('Goal not found or not assigned to this employee');
+        }
+        if (existingGoal.status !== 'draft') {
+            throw new common_1.BadRequestException('Only draft goals can be archived');
         }
         await this.db
             .update(performance_goals_schema_1.performanceGoals)

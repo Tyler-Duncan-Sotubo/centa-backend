@@ -97,7 +97,7 @@ __decorate([
 ], SeedController.prototype, "createCompetency", null);
 __decorate([
     (0, common_1.Get)('competencies'),
-    (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
+    (0, common_1.SetMetadata)('permissions', ['performance.cycles.read']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -105,7 +105,7 @@ __decorate([
 ], SeedController.prototype, "getCompetencies", null);
 __decorate([
     (0, common_1.Get)('only-competencies'),
-    (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
+    (0, common_1.SetMetadata)('permissions', ['performance.cycles.read']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -138,7 +138,7 @@ __decorate([
 ], SeedController.prototype, "seedLevels", null);
 __decorate([
     (0, common_1.Get)('competency-levels'),
-    (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
+    (0, common_1.SetMetadata)('permissions', ['performance.cycles.read']),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
@@ -154,7 +154,7 @@ __decorate([
 ], SeedController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)('role-expectations'),
-    (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
+    (0, common_1.SetMetadata)('permissions', ['performance.cycles.read']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -162,7 +162,7 @@ __decorate([
 ], SeedController.prototype, "list", null);
 __decorate([
     (0, common_1.Get)('framework'),
-    (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
+    (0, common_1.SetMetadata)('permissions', ['performance.cycles.read']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -170,7 +170,7 @@ __decorate([
 ], SeedController.prototype, "getFramework", null);
 __decorate([
     (0, common_1.Get)('framework-fields'),
-    (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
+    (0, common_1.SetMetadata)('permissions', ['performance.cycles.read']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -206,7 +206,7 @@ __decorate([
 ], SeedController.prototype, "createQuestion", null);
 __decorate([
     (0, common_1.Get)('questions'),
-    (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
+    (0, common_1.SetMetadata)('permissions', ['performance.cycles.read']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),

@@ -50,7 +50,7 @@ export class SeedController extends BaseController {
 
   // Get Competencies
   @Get('competencies')
-  @SetMetadata('permissions', ['performance.cycles.manage'])
+  @SetMetadata('permissions', ['performance.cycles.read'])
   async getCompetencies(@CurrentUser() user: User) {
     return this.performanceCompetencyService.getCompetenciesWithQuestions(
       user.companyId,
@@ -58,7 +58,7 @@ export class SeedController extends BaseController {
   }
 
   @Get('only-competencies')
-  @SetMetadata('permissions', ['performance.cycles.manage'])
+  @SetMetadata('permissions', ['performance.cycles.read'])
   async getOnlyCompetencies(@CurrentUser() user: User) {
     return this.performanceCompetencyService.getOnlyCompetencies(
       user.companyId,
@@ -88,7 +88,7 @@ export class SeedController extends BaseController {
   }
 
   @Get('competency-levels')
-  @SetMetadata('permissions', ['performance.cycles.manage'])
+  @SetMetadata('permissions', ['performance.cycles.read'])
   async getLevels() {
     return this.performanceCompetencyService.getAllCompetencyLevels();
   }
@@ -108,13 +108,13 @@ export class SeedController extends BaseController {
   }
 
   @Get('role-expectations')
-  @SetMetadata('permissions', ['performance.cycles.manage'])
+  @SetMetadata('permissions', ['performance.cycles.read'])
   async list(@CurrentUser() user: User) {
     return this.roleCompetencyExpectationService.list(user.companyId);
   }
 
   @Get('framework')
-  @SetMetadata('permissions', ['performance.cycles.manage'])
+  @SetMetadata('permissions', ['performance.cycles.read'])
   async getFramework(@CurrentUser() user: User) {
     return this.roleCompetencyExpectationService.getFrameworkSettings(
       user.companyId,
@@ -122,7 +122,7 @@ export class SeedController extends BaseController {
   }
 
   @Get('framework-fields')
-  @SetMetadata('permissions', ['performance.cycles.manage'])
+  @SetMetadata('permissions', ['performance.cycles.read'])
   async getFrameworkFields(@CurrentUser() user: User) {
     return this.roleCompetencyExpectationService.getFrameworkFields(
       user.companyId,
@@ -157,7 +157,7 @@ export class SeedController extends BaseController {
 
   // Get Questions
   @Get('questions')
-  @SetMetadata('permissions', ['performance.cycles.manage'])
+  @SetMetadata('permissions', ['performance.cycles.read'])
   async getQuestions(@CurrentUser() user: User) {
     return this.performanceReviewQuestionService.getAll(user.companyId);
   }

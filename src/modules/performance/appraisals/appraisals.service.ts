@@ -17,6 +17,7 @@ import { CompanySettingsService } from 'src/company-settings/company-settings.se
 import { validate as isUuid } from 'uuid';
 import { alias } from 'drizzle-orm/pg-core';
 import { appraisalEntries } from './schema/performance-appraisals-entries.schema';
+import { performanceAppraisalCycles } from './schema/performance-appraisal-cycle.schema';
 
 @Injectable()
 export class AppraisalsService {
@@ -141,6 +142,119 @@ export class AppraisalsService {
       )
       .orderBy(desc(appraisals.createdAt))
       .execute();
+  }
+
+  async findDashboardForEmployee(companyId: string, employeeId: string) {
+    // 1) Active cycle for this company
+    const [activeCycle] = await this.db
+      .select({
+        id: performanceAppraisalCycles.id,
+        name: performanceAppraisalCycles.name,
+        startDate: performanceAppraisalCycles.startDate,
+        endDate: performanceAppraisalCycles.endDate,
+        status: performanceAppraisalCycles.status,
+      })
+      .from(performanceAppraisalCycles)
+      .where(
+        and(
+          eq(performanceAppraisalCycles.companyId, companyId),
+          eq(performanceAppraisalCycles.status, 'active'),
+        ),
+      )
+      .limit(1);
+
+    // 2) All appraisals for this employee (history) with light cycle join
+    const emp = alias(employees, 'emp') as unknown as typeof employees;
+    const mgr = alias(employees, 'mgr') as unknown as typeof employees;
+
+    const rows = await this.db
+      .select({
+        id: appraisals.id,
+        cycleId: appraisals.cycleId,
+        cycleName: performanceAppraisalCycles.name,
+        createdAt: appraisals.createdAt,
+        submittedByEmployee: appraisals.submittedByEmployee,
+        submittedByManager: appraisals.submittedByManager,
+        finalized: appraisals.finalized,
+        finalScore: appraisals.finalScore,
+        employeeName: sql<string>`concat(${emp.firstName}, ' ', ${emp.lastName})`,
+        managerName: sql<string>`concat(${mgr.firstName}, ' ', ${mgr.lastName})`,
+        departmentName: departments.name,
+        jobRoleName: jobRoles.title,
+      })
+      .from(appraisals)
+      .leftJoin(
+        performanceAppraisalCycles,
+        eq(performanceAppraisalCycles.id, appraisals.cycleId),
+      )
+      .leftJoin(emp, eq(emp.id, appraisals.employeeId))
+      .leftJoin(mgr, eq(mgr.id, appraisals.managerId))
+      .leftJoin(departments, eq(departments.id, emp.departmentId))
+      .leftJoin(jobRoles, eq(jobRoles.id, emp.jobRoleId))
+      .where(
+        and(
+          eq(appraisals.companyId, companyId),
+          eq(appraisals.employeeId, employeeId),
+        ),
+      )
+      .orderBy(desc(appraisals.createdAt));
+
+    // 3) Current cycle appraisal for this employee (if an active cycle exists)
+    let currentCycleAppraisal: {
+      id: string;
+      submittedByEmployee: boolean | null;
+      submittedByManager: boolean | null;
+      finalized: boolean | null;
+      finalScore: number | null;
+    } | null = null;
+
+    if (activeCycle) {
+      const [curr] = await this.db
+        .select({
+          id: appraisals.id,
+          submittedByEmployee: appraisals.submittedByEmployee,
+          submittedByManager: appraisals.submittedByManager,
+          finalized: appraisals.finalized,
+          finalScore: appraisals.finalScore,
+        })
+        .from(appraisals)
+        .where(
+          and(
+            eq(appraisals.companyId, companyId),
+            eq(appraisals.employeeId, employeeId),
+            eq(appraisals.cycleId, activeCycle.id),
+          ),
+        )
+        .limit(1);
+      currentCycleAppraisal = curr ?? null;
+    }
+
+    return {
+      currentCycle: activeCycle
+        ? {
+            id: activeCycle.id,
+            name: activeCycle.name,
+            startDate: activeCycle.startDate,
+            endDate: activeCycle.endDate,
+            status: activeCycle.status,
+          }
+        : null,
+      currentCycleAppraisal,
+      history: rows.map((r) => ({
+        id: r.id,
+        cycleId: r.cycleId,
+        cycleName: r.cycleName ?? null,
+        createdAt: r.createdAt,
+        submittedByEmployee: r.submittedByEmployee,
+        submittedByManager: r.submittedByManager,
+        finalized: r.finalized,
+        finalScore: r.finalScore,
+        employeeName: r.employeeName,
+        managerName: r.managerName ?? null,
+        departmentName: r.departmentName ?? null,
+        jobRoleName: r.jobRoleName ?? null,
+      })),
+    };
   }
 
   async findOne(id: string, companyId: string) {

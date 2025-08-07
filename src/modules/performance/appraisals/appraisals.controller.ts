@@ -103,6 +103,11 @@ export class AppraisalsController extends BaseController {
     return this.appraisalsService.findOne(id, user.companyId);
   }
 
+  @Get(':id/participants')
+  findParticipants(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.appraisalsService.findDashboardForEmployee(user.companyId, id);
+  }
+
   @Patch(':id')
   updateAppraisal(
     @Param('id') id: string,

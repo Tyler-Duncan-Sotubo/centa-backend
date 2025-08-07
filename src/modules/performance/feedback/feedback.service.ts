@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Inject } from '@nestjs/common';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import { eq, and, sql, inArray } from 'drizzle-orm';
+import { eq, and, sql, inArray, or } from 'drizzle-orm';
 import { User } from 'src/common/types/user.type';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { UpdateFeedbackDto } from './dto/update-feedback.dto';
@@ -271,6 +271,93 @@ export class FeedbackService {
       departmentName: f.departmentName,
       jobRoleName: f.jobRoleName,
       departmentId: f.departmentId,
+    }));
+  }
+
+  /**
+   * Find all performance feedback for a given employee in a company.
+   * Optionally filter by type (including archived/all).
+   */
+  async findAllByEmployeeId(
+    companyId: string,
+    employeeId: string,
+    filters?: { type?: string },
+  ) {
+    if (!employeeId) return []; // Early exit for invalid employee
+    // Ensure employee exists in the company
+    const [employee] = await this.db
+      .select()
+      .from(employees)
+      .where(
+        and(eq(employees.id, employeeId), eq(employees.companyId, companyId)),
+      );
+
+    console.log('Employee:', employee);
+
+    // Base conditions: company and employee recipient
+    const baseCondition = and(
+      eq(performanceFeedback.companyId, companyId),
+      or(
+        eq(performanceFeedback.senderId, employee.userId),
+        eq(performanceFeedback.recipientId, employeeId),
+      ),
+      filters?.type === 'archived'
+        ? eq(performanceFeedback.isArchived, true)
+        : eq(performanceFeedback.isArchived, false),
+    );
+
+    // If you want additional type filtering
+    const conditions = [baseCondition];
+
+    // Further filter by feedback type if specified and not 'all' or 'archived'
+    if (
+      filters?.type &&
+      filters.type !== 'all' &&
+      filters.type !== 'archived'
+    ) {
+      conditions.push(eq(performanceFeedback.type, filters.type));
+    }
+
+    // Query feedbacks with joins to employee, department, jobRole, and sender
+    const feedbacks = await this.db
+      .select({
+        id: performanceFeedback.id,
+        type: performanceFeedback.type,
+        createdAt: performanceFeedback.createdAt,
+        isAnonymous: performanceFeedback.isAnonymous,
+        isArchived: performanceFeedback.isArchived,
+        employeeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+        senderFirstName: users.firstName,
+        senderLastName: users.lastName,
+        departmentName: departments.name,
+        departmentId: departments.id,
+        jobRoleName: jobRoles.title,
+      })
+      .from(performanceFeedback)
+      .where(and(...conditions))
+      .leftJoin(employees, eq(employees.id, performanceFeedback.recipientId))
+      .leftJoin(departments, eq(departments.id, employees.departmentId))
+      .leftJoin(jobRoles, eq(jobRoles.id, employees.jobRoleId))
+      .leftJoin(users, eq(users.id, performanceFeedback.senderId));
+
+    // Fetch response counts for each feedback
+    const feedbackIds = feedbacks.map((f) => f.id);
+    const responses = await this.getResponsesForFeedback(feedbackIds);
+
+    // Format results for ESS
+    return feedbacks.map((f) => ({
+      id: f.id,
+      type: f.type,
+      createdAt: f.createdAt,
+      employeeName: f.employeeName,
+      senderName: f.isAnonymous
+        ? 'Anonymous'
+        : `${f.senderFirstName ?? ''} ${f.senderLastName ?? ''}`.trim(),
+      questionsCount: responses.filter((r) => r.feedbackId === f.id).length,
+      departmentName: f.departmentName,
+      jobRoleName: f.jobRoleName,
+      departmentId: f.departmentId,
+      isArchived: f.isArchived,
     }));
   }
 

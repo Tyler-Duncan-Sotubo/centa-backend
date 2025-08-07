@@ -34,10 +34,7 @@ export class GoalsController extends BaseController {
   }
 
   @Post()
-  @SetMetadata('permissions', [
-    'performance.goals.manage_all',
-    'performance.goals.create',
-  ])
+  @SetMetadata('permissions', ['performance.goals.create'])
   create(@Body() dto: CreateGoalDto, @CurrentUser() user: User) {
     return this.goalsService.create(dto, user);
   }
@@ -48,6 +45,20 @@ export class GoalsController extends BaseController {
     return this.goalsService.findAll(user.companyId, status);
   }
 
+  @Get('employee/:employeeId')
+  @SetMetadata('permissions', ['performance.goals.read'])
+  findAllByEmployeeId(
+    @Param('employeeId') employeeId: string,
+    @CurrentUser() user: User,
+    @Query('status') status?: string,
+  ) {
+    return this.goalsService.findAllByEmployeeId(
+      user.companyId,
+      employeeId,
+      status,
+    );
+  }
+
   @Get(':id')
   @SetMetadata('permissions', ['performance.goals.read'])
   findOne(@Param('id') id: string, @CurrentUser() user: User) {
@@ -55,10 +66,7 @@ export class GoalsController extends BaseController {
   }
 
   @Patch(':id')
-  @SetMetadata('permissions', [
-    'performance.goals.manage_all',
-    'performance.goals.edit',
-  ])
+  @SetMetadata('permissions', ['performance.goals.edit'])
   update(
     @Param('id') id: string,
     @Body() dto: UpdateGoalDto,
@@ -67,20 +75,20 @@ export class GoalsController extends BaseController {
     return this.goalsService.update(id, dto, user);
   }
 
+  @Patch(':id/publish')
+  @SetMetadata('permissions', ['performance.goals.edit'])
+  publish(@Param('id') id: string) {
+    return this.goalsService.publishGoalAndSubGoals(id);
+  }
+
   @Delete(':id')
-  @SetMetadata('permissions', [
-    'performance.goals.manage_all',
-    'performance.goals.edit',
-  ])
+  @SetMetadata('permissions', ['performance.goals.edit'])
   remove(@Param('id') id: string, @CurrentUser() user: User) {
     return this.goalsService.remove(id, user);
   }
 
   @Delete(':id/:employeeId/archive')
-  @SetMetadata('permissions', [
-    'performance.goals.manage_all',
-    'performance.goals.edit',
-  ])
+  @SetMetadata('permissions', ['performance.goals.edit'])
   archiveForEmployee(
     @Param('id') id: string,
     @Param('employeeId') employeeId: string,
@@ -91,10 +99,7 @@ export class GoalsController extends BaseController {
 
   // ------- Progress Updates -------
   @Post(':id/progress')
-  @SetMetadata('permissions', [
-    'performance.goals.edit',
-    'performance.goals.manage_all',
-  ])
+  @SetMetadata('permissions', ['performance.goals.edit'])
   addProgress(
     @Param('id') goalId: string,
     @Body() dto: AddGoalProgressDto,
@@ -105,10 +110,7 @@ export class GoalsController extends BaseController {
 
   // ------- Comments -------
   @Post(':id/comments')
-  @SetMetadata('permissions', [
-    'performance.goals.edit',
-    'performance.goals.manage_all',
-  ])
+  @SetMetadata('permissions', ['performance.goals.edit'])
   addComment(
     @Param('id') goalId: string,
     @Body() dto: AddGoalCommentDto,
@@ -118,10 +120,7 @@ export class GoalsController extends BaseController {
   }
 
   @Patch('comments/:commentId')
-  @SetMetadata('permissions', [
-    'performance.goals.edit',
-    'performance.goals.manage_all',
-  ])
+  @SetMetadata('permissions', ['performance.goals.edit'])
   updateComment(
     @Param('commentId') commentId: string,
     @Body('comment') comment: string,
@@ -131,10 +130,7 @@ export class GoalsController extends BaseController {
   }
 
   @Delete('comments/:commentId')
-  @SetMetadata('permissions', [
-    'performance.goals.edit',
-    'performance.goals.manage_all',
-  ])
+  @SetMetadata('permissions', ['performance.goals.edit'])
   deleteComment(
     @Param('commentId') commentId: string,
     @CurrentUser() user: User,
@@ -144,10 +140,7 @@ export class GoalsController extends BaseController {
 
   // ------- Attachments -------
   @Post(':id/attachments')
-  @SetMetadata('permissions', [
-    'performance.goals.edit',
-    'performance.goals.manage_all',
-  ])
+  @SetMetadata('permissions', ['performance.goals.edit'])
   uploadAttachment(
     @Param('id') goalId: string,
     @Body() dto: UploadGoalAttachmentDto,
@@ -157,10 +150,7 @@ export class GoalsController extends BaseController {
   }
 
   @Patch('attachments/:attachmentId')
-  @SetMetadata('permissions', [
-    'performance.goals.edit',
-    'performance.goals.manage_all',
-  ])
+  @SetMetadata('permissions', ['performance.goals.edit'])
   updateAttachment(
     @Param('attachmentId') attachmentId: string,
     @Body() dto: UpdateGoalAttachmentDto,
@@ -170,10 +160,7 @@ export class GoalsController extends BaseController {
   }
 
   @Delete('attachments/:attachmentId')
-  @SetMetadata('permissions', [
-    'performance.goals.edit',
-    'performance.goals.manage_all',
-  ])
+  @SetMetadata('permissions', ['performance.goals.edit'])
   deleteAttachment(
     @Param('attachmentId') attachmentId: string,
     @CurrentUser() user: User,

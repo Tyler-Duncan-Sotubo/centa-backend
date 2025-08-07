@@ -40,7 +40,7 @@ let FeedbackSettingsController = class FeedbackSettingsController extends base_c
 exports.FeedbackSettingsController = FeedbackSettingsController;
 __decorate([
     (0, common_1.Get)(),
-    (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
+    (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),

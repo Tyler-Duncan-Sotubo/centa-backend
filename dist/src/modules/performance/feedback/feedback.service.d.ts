@@ -11,11 +11,11 @@ export declare class FeedbackService {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        type: string;
-        submittedAt: Date | null;
         senderId: string;
         recipientId: string;
+        type: string;
         isAnonymous: boolean | null;
+        submittedAt: Date | null;
         isArchived: boolean | null;
     }>;
     private resolveViewerIds;
@@ -48,6 +48,20 @@ export declare class FeedbackService {
         departmentName: any;
         jobRoleName: string | null;
         departmentId: any;
+    }[]>;
+    findAllByEmployeeId(companyId: string, employeeId: string, filters?: {
+        type?: string;
+    }): Promise<{
+        id: string;
+        type: string;
+        createdAt: Date | null;
+        employeeName: string;
+        senderName: string;
+        questionsCount: number;
+        departmentName: any;
+        jobRoleName: string | null;
+        departmentId: any;
+        isArchived: boolean | null;
     }[]>;
     findOne(id: string, user: User): Promise<"You do not have permission to view this feedback" | {
         responses: {

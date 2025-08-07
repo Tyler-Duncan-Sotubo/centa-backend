@@ -37,11 +37,17 @@ let GoalsController = class GoalsController extends base_controller_1.BaseContro
     findAll(user, status) {
         return this.goalsService.findAll(user.companyId, status);
     }
+    findAllByEmployeeId(employeeId, user, status) {
+        return this.goalsService.findAllByEmployeeId(user.companyId, employeeId, status);
+    }
     findOne(id, user) {
         return this.goalsService.findOne(id, user.companyId);
     }
     update(id, dto, user) {
         return this.goalsService.update(id, dto, user);
+    }
+    publish(id) {
+        return this.goalsService.publishGoalAndSubGoals(id);
     }
     remove(id, user) {
         return this.goalsService.remove(id, user);
@@ -74,10 +80,7 @@ let GoalsController = class GoalsController extends base_controller_1.BaseContro
 exports.GoalsController = GoalsController;
 __decorate([
     (0, common_1.Post)(),
-    (0, common_1.SetMetadata)('permissions', [
-        'performance.goals.manage_all',
-        'performance.goals.create',
-    ]),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.create']),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -94,6 +97,16 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], GoalsController.prototype, "findAll", null);
 __decorate([
+    (0, common_1.Get)('employee/:employeeId'),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.read']),
+    __param(0, (0, common_1.Param)('employeeId')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __param(2, (0, common_1.Query)('status')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, String]),
+    __metadata("design:returntype", void 0)
+], GoalsController.prototype, "findAllByEmployeeId", null);
+__decorate([
     (0, common_1.Get)(':id'),
     (0, common_1.SetMetadata)('permissions', ['performance.goals.read']),
     __param(0, (0, common_1.Param)('id')),
@@ -104,10 +117,7 @@ __decorate([
 ], GoalsController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Patch)(':id'),
-    (0, common_1.SetMetadata)('permissions', [
-        'performance.goals.manage_all',
-        'performance.goals.edit',
-    ]),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.edit']),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, current_user_decorator_1.CurrentUser)()),
@@ -116,11 +126,16 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], GoalsController.prototype, "update", null);
 __decorate([
+    (0, common_1.Patch)(':id/publish'),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.edit']),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], GoalsController.prototype, "publish", null);
+__decorate([
     (0, common_1.Delete)(':id'),
-    (0, common_1.SetMetadata)('permissions', [
-        'performance.goals.manage_all',
-        'performance.goals.edit',
-    ]),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.edit']),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -129,10 +144,7 @@ __decorate([
 ], GoalsController.prototype, "remove", null);
 __decorate([
     (0, common_1.Delete)(':id/:employeeId/archive'),
-    (0, common_1.SetMetadata)('permissions', [
-        'performance.goals.manage_all',
-        'performance.goals.edit',
-    ]),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.edit']),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('employeeId')),
     __param(2, (0, current_user_decorator_1.CurrentUser)()),
@@ -142,10 +154,7 @@ __decorate([
 ], GoalsController.prototype, "archiveForEmployee", null);
 __decorate([
     (0, common_1.Post)(':id/progress'),
-    (0, common_1.SetMetadata)('permissions', [
-        'performance.goals.edit',
-        'performance.goals.manage_all',
-    ]),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.edit']),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, current_user_decorator_1.CurrentUser)()),
@@ -155,10 +164,7 @@ __decorate([
 ], GoalsController.prototype, "addProgress", null);
 __decorate([
     (0, common_1.Post)(':id/comments'),
-    (0, common_1.SetMetadata)('permissions', [
-        'performance.goals.edit',
-        'performance.goals.manage_all',
-    ]),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.edit']),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, current_user_decorator_1.CurrentUser)()),
@@ -168,10 +174,7 @@ __decorate([
 ], GoalsController.prototype, "addComment", null);
 __decorate([
     (0, common_1.Patch)('comments/:commentId'),
-    (0, common_1.SetMetadata)('permissions', [
-        'performance.goals.edit',
-        'performance.goals.manage_all',
-    ]),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.edit']),
     __param(0, (0, common_1.Param)('commentId')),
     __param(1, (0, common_1.Body)('comment')),
     __param(2, (0, current_user_decorator_1.CurrentUser)()),
@@ -181,10 +184,7 @@ __decorate([
 ], GoalsController.prototype, "updateComment", null);
 __decorate([
     (0, common_1.Delete)('comments/:commentId'),
-    (0, common_1.SetMetadata)('permissions', [
-        'performance.goals.edit',
-        'performance.goals.manage_all',
-    ]),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.edit']),
     __param(0, (0, common_1.Param)('commentId')),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -193,10 +193,7 @@ __decorate([
 ], GoalsController.prototype, "deleteComment", null);
 __decorate([
     (0, common_1.Post)(':id/attachments'),
-    (0, common_1.SetMetadata)('permissions', [
-        'performance.goals.edit',
-        'performance.goals.manage_all',
-    ]),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.edit']),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, current_user_decorator_1.CurrentUser)()),
@@ -206,10 +203,7 @@ __decorate([
 ], GoalsController.prototype, "uploadAttachment", null);
 __decorate([
     (0, common_1.Patch)('attachments/:attachmentId'),
-    (0, common_1.SetMetadata)('permissions', [
-        'performance.goals.edit',
-        'performance.goals.manage_all',
-    ]),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.edit']),
     __param(0, (0, common_1.Param)('attachmentId')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, current_user_decorator_1.CurrentUser)()),
@@ -219,10 +213,7 @@ __decorate([
 ], GoalsController.prototype, "updateAttachment", null);
 __decorate([
     (0, common_1.Delete)('attachments/:attachmentId'),
-    (0, common_1.SetMetadata)('permissions', [
-        'performance.goals.edit',
-        'performance.goals.manage_all',
-    ]),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.edit']),
     __param(0, (0, common_1.Param)('attachmentId')),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),

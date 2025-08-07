@@ -31,19 +31,19 @@ export class FeedbackQuestionsController extends BaseController {
   }
 
   @Get()
-  @SetMetadata('permissions', ['performance.cycles.manage'])
+  @SetMetadata('permissions', ['performance.reviews.read'])
   findAll() {
     return this.questionService.findAll();
   }
 
   @Get('type/:type')
-  @SetMetadata('permissions', ['performance.cycles.manage'])
+  @SetMetadata('permissions', ['performance.reviews.read'])
   findByType(@Param('type') type: string) {
     return this.questionService.findByType(type);
   }
 
   @Get(':id')
-  @SetMetadata('permissions', ['performance.cycles.manage'])
+  @SetMetadata('permissions', ['performance.reviews.read'])
   findOne(@Param('id') id: string) {
     return this.questionService.findOne(id);
   }

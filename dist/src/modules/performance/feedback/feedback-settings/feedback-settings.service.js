@@ -64,9 +64,10 @@ let FeedbackSettingsService = class FeedbackSettingsService {
             },
             {
                 group: 'employee',
-                type: 'manager_to_employee',
+                type: 'employee_to_manager',
                 enabled: true,
                 scope: {
+                    officeOnly: false,
                     departmentOnly: true,
                     offices: [],
                     departments: [],

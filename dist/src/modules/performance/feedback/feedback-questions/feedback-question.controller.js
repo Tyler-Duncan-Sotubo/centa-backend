@@ -59,14 +59,14 @@ __decorate([
 ], FeedbackQuestionsController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
-    (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
+    (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], FeedbackQuestionsController.prototype, "findAll", null);
 __decorate([
     (0, common_1.Get)('type/:type'),
-    (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
+    (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),
     __param(0, (0, common_1.Param)('type')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -74,7 +74,7 @@ __decorate([
 ], FeedbackQuestionsController.prototype, "findByType", null);
 __decorate([
     (0, common_1.Get)(':id'),
-    (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
+    (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),

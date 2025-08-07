@@ -213,6 +213,60 @@ let FeedbackService = class FeedbackService {
             departmentId: f.departmentId,
         }));
     }
+    async findAllByEmployeeId(companyId, employeeId, filters) {
+        if (!employeeId)
+            return [];
+        const [employee] = await this.db
+            .select()
+            .from(schema_1.employees)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId), (0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId)));
+        console.log('Employee:', employee);
+        const baseCondition = (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_feedback_schema_1.performanceFeedback.companyId, companyId), (0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(performance_feedback_schema_1.performanceFeedback.senderId, employee.userId), (0, drizzle_orm_1.eq)(performance_feedback_schema_1.performanceFeedback.recipientId, employeeId)), filters?.type === 'archived'
+            ? (0, drizzle_orm_1.eq)(performance_feedback_schema_1.performanceFeedback.isArchived, true)
+            : (0, drizzle_orm_1.eq)(performance_feedback_schema_1.performanceFeedback.isArchived, false));
+        const conditions = [baseCondition];
+        if (filters?.type &&
+            filters.type !== 'all' &&
+            filters.type !== 'archived') {
+            conditions.push((0, drizzle_orm_1.eq)(performance_feedback_schema_1.performanceFeedback.type, filters.type));
+        }
+        const feedbacks = await this.db
+            .select({
+            id: performance_feedback_schema_1.performanceFeedback.id,
+            type: performance_feedback_schema_1.performanceFeedback.type,
+            createdAt: performance_feedback_schema_1.performanceFeedback.createdAt,
+            isAnonymous: performance_feedback_schema_1.performanceFeedback.isAnonymous,
+            isArchived: performance_feedback_schema_1.performanceFeedback.isArchived,
+            employeeName: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
+            senderFirstName: schema_1.users.firstName,
+            senderLastName: schema_1.users.lastName,
+            departmentName: schema_1.departments.name,
+            departmentId: schema_1.departments.id,
+            jobRoleName: schema_1.jobRoles.title,
+        })
+            .from(performance_feedback_schema_1.performanceFeedback)
+            .where((0, drizzle_orm_1.and)(...conditions))
+            .leftJoin(schema_1.employees, (0, drizzle_orm_1.eq)(schema_1.employees.id, performance_feedback_schema_1.performanceFeedback.recipientId))
+            .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.departments.id, schema_1.employees.departmentId))
+            .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.jobRoles.id, schema_1.employees.jobRoleId))
+            .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.users.id, performance_feedback_schema_1.performanceFeedback.senderId));
+        const feedbackIds = feedbacks.map((f) => f.id);
+        const responses = await this.getResponsesForFeedback(feedbackIds);
+        return feedbacks.map((f) => ({
+            id: f.id,
+            type: f.type,
+            createdAt: f.createdAt,
+            employeeName: f.employeeName,
+            senderName: f.isAnonymous
+                ? 'Anonymous'
+                : `${f.senderFirstName ?? ''} ${f.senderLastName ?? ''}`.trim(),
+            questionsCount: responses.filter((r) => r.feedbackId === f.id).length,
+            departmentName: f.departmentName,
+            jobRoleName: f.jobRoleName,
+            departmentId: f.departmentId,
+            isArchived: f.isArchived,
+        }));
+    }
     async findOne(id, user) {
         const [item] = await this.db
             .select({

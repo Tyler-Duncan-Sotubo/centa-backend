@@ -53,6 +53,23 @@ export class FeedbackController extends BaseController {
     });
   }
 
+  // Get feedbacks for a specific employee (if user is admin or manager)
+  @Get('employee/:employeeId')
+  @SetMetadata('permissions', ['performance.reviews.read'])
+  getForEmployee(
+    @Param('employeeId') employeeId: string,
+    @CurrentUser() user: User,
+    @Query('type') type?: string,
+  ) {
+    return this.feedbackService.findAllByEmployeeId(
+      user.companyId,
+      employeeId,
+      {
+        type,
+      },
+    );
+  }
+
   // Get feedback visible to the current viewer for a given recipient
   @Get('recipient/:recipientId')
   @SetMetadata('permissions', [

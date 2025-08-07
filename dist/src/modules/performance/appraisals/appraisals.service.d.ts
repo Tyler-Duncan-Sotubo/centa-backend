@@ -13,14 +13,14 @@ export declare class AppraisalsService {
         id: string;
         createdAt: Date | null;
         companyId: string | null;
-        managerId: string;
-        employeeId: string;
         cycleId: string;
-        finalScore: number | null;
-        promotionRecommendation: "promote" | "hold" | "exit" | null;
+        employeeId: string;
+        managerId: string;
         submittedByEmployee: boolean | null;
         submittedByManager: boolean | null;
         finalized: boolean | null;
+        finalScore: number | null;
+        promotionRecommendation: "promote" | "hold" | "exit" | null;
         finalNote: string | null;
     }>;
     findAll(companyId: string, cycleId: string): Promise<({
@@ -44,6 +44,36 @@ export declare class AppraisalsService {
         departmentName: any;
         jobRoleName: string | null;
     })[]>;
+    findDashboardForEmployee(companyId: string, employeeId: string): Promise<{
+        currentCycle: {
+            id: string;
+            name: string;
+            startDate: string;
+            endDate: string;
+            status: "upcoming" | "active" | "closed";
+        } | null;
+        currentCycleAppraisal: {
+            id: string;
+            submittedByEmployee: boolean | null;
+            submittedByManager: boolean | null;
+            finalized: boolean | null;
+            finalScore: number | null;
+        } | null;
+        history: {
+            id: string;
+            cycleId: string;
+            cycleName: string | null;
+            createdAt: Date | null;
+            submittedByEmployee: boolean | null;
+            submittedByManager: boolean | null;
+            finalized: boolean | null;
+            finalScore: number | null;
+            employeeName: string;
+            managerName: string;
+            departmentName: any;
+            jobRoleName: string | null;
+        }[];
+    }>;
     findOne(id: string, companyId: string): Promise<{
         id: string;
         cycleId: string;

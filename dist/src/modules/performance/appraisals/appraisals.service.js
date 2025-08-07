@@ -23,6 +23,7 @@ const company_settings_service_1 = require("../../../company-settings/company-se
 const uuid_1 = require("uuid");
 const pg_core_1 = require("drizzle-orm/pg-core");
 const performance_appraisals_entries_schema_1 = require("./schema/performance-appraisals-entries.schema");
+const performance_appraisal_cycle_schema_1 = require("./schema/performance-appraisal-cycle.schema");
 let AppraisalsService = class AppraisalsService {
     constructor(db, auditService, companySettingsService) {
         this.db = db;
@@ -103,6 +104,85 @@ let AppraisalsService = class AppraisalsService {
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.cycleId, cycleId)))
             .orderBy((0, drizzle_orm_1.desc)(performance_appraisals_schema_1.appraisals.createdAt))
             .execute();
+    }
+    async findDashboardForEmployee(companyId, employeeId) {
+        const [activeCycle] = await this.db
+            .select({
+            id: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.id,
+            name: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.name,
+            startDate: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate,
+            endDate: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.endDate,
+            status: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.status,
+        })
+            .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.status, 'active')))
+            .limit(1);
+        const emp = (0, pg_core_1.alias)(schema_1.employees, 'emp');
+        const mgr = (0, pg_core_1.alias)(schema_1.employees, 'mgr');
+        const rows = await this.db
+            .select({
+            id: performance_appraisals_schema_1.appraisals.id,
+            cycleId: performance_appraisals_schema_1.appraisals.cycleId,
+            cycleName: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.name,
+            createdAt: performance_appraisals_schema_1.appraisals.createdAt,
+            submittedByEmployee: performance_appraisals_schema_1.appraisals.submittedByEmployee,
+            submittedByManager: performance_appraisals_schema_1.appraisals.submittedByManager,
+            finalized: performance_appraisals_schema_1.appraisals.finalized,
+            finalScore: performance_appraisals_schema_1.appraisals.finalScore,
+            employeeName: (0, drizzle_orm_1.sql) `concat(${emp.firstName}, ' ', ${emp.lastName})`,
+            managerName: (0, drizzle_orm_1.sql) `concat(${mgr.firstName}, ' ', ${mgr.lastName})`,
+            departmentName: schema_1.departments.name,
+            jobRoleName: schema_1.jobRoles.title,
+        })
+            .from(performance_appraisals_schema_1.appraisals)
+            .leftJoin(performance_appraisal_cycle_schema_1.performanceAppraisalCycles, (0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.id, performance_appraisals_schema_1.appraisals.cycleId))
+            .leftJoin(emp, (0, drizzle_orm_1.eq)(emp.id, performance_appraisals_schema_1.appraisals.employeeId))
+            .leftJoin(mgr, (0, drizzle_orm_1.eq)(mgr.id, performance_appraisals_schema_1.appraisals.managerId))
+            .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.departments.id, emp.departmentId))
+            .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.jobRoles.id, emp.jobRoleId))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, employeeId)))
+            .orderBy((0, drizzle_orm_1.desc)(performance_appraisals_schema_1.appraisals.createdAt));
+        let currentCycleAppraisal = null;
+        if (activeCycle) {
+            const [curr] = await this.db
+                .select({
+                id: performance_appraisals_schema_1.appraisals.id,
+                submittedByEmployee: performance_appraisals_schema_1.appraisals.submittedByEmployee,
+                submittedByManager: performance_appraisals_schema_1.appraisals.submittedByManager,
+                finalized: performance_appraisals_schema_1.appraisals.finalized,
+                finalScore: performance_appraisals_schema_1.appraisals.finalScore,
+            })
+                .from(performance_appraisals_schema_1.appraisals)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, employeeId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.cycleId, activeCycle.id)))
+                .limit(1);
+            currentCycleAppraisal = curr ?? null;
+        }
+        return {
+            currentCycle: activeCycle
+                ? {
+                    id: activeCycle.id,
+                    name: activeCycle.name,
+                    startDate: activeCycle.startDate,
+                    endDate: activeCycle.endDate,
+                    status: activeCycle.status,
+                }
+                : null,
+            currentCycleAppraisal,
+            history: rows.map((r) => ({
+                id: r.id,
+                cycleId: r.cycleId,
+                cycleName: r.cycleName ?? null,
+                createdAt: r.createdAt,
+                submittedByEmployee: r.submittedByEmployee,
+                submittedByManager: r.submittedByManager,
+                finalized: r.finalized,
+                finalScore: r.finalScore,
+                employeeName: r.employeeName,
+                managerName: r.managerName ?? null,
+                departmentName: r.departmentName ?? null,
+                jobRoleName: r.jobRoleName ?? null,
+            })),
+        };
     }
     async findOne(id, companyId) {
         const emp = (0, pg_core_1.alias)(schema_1.employees, 'emp');

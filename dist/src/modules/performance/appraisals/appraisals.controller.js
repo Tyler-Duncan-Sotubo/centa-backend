@@ -61,6 +61,9 @@ let AppraisalsController = class AppraisalsController extends base_controller_1.
     findOneAppraisal(id, user) {
         return this.appraisalsService.findOne(id, user.companyId);
     }
+    findParticipants(id, user) {
+        return this.appraisalsService.findDashboardForEmployee(user.companyId, id);
+    }
     updateAppraisal(id, updateDto, user) {
         return this.appraisalsService.update(id, updateDto, user);
     }
@@ -158,6 +161,14 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], AppraisalsController.prototype, "findOneAppraisal", null);
+__decorate([
+    (0, common_1.Get)(':id/participants'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], AppraisalsController.prototype, "findParticipants", null);
 __decorate([
     (0, common_1.Patch)(':id'),
     __param(0, (0, common_1.Param)('id')),

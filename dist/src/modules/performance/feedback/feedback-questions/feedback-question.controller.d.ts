@@ -8,8 +8,8 @@ export declare class FeedbackQuestionsController extends BaseController {
     constructor(questionService: FeedbackQuestionService);
     create(dto: CreateFeedbackQuestionDto, user: User): Promise<{
         id: string;
-        createdAt: Date | null;
         isActive: boolean | null;
+        createdAt: Date | null;
         companyId: string;
         type: string;
         question: string;

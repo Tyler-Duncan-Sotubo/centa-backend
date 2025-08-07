@@ -24,7 +24,7 @@ export class FeedbackSettingsController extends BaseController {
   }
 
   @Get()
-  @SetMetadata('permissions', ['performance.cycles.manage'])
+  @SetMetadata('permissions', ['performance.reviews.read'])
   findOne(@CurrentUser() user: User) {
     return this.feedbackSettingsService.findOne(user.companyId);
   }
