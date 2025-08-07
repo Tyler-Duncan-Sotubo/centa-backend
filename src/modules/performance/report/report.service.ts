@@ -642,7 +642,6 @@ export class ReportService {
       selfFeedback,
       participationRecords,
       heatmap,
-      topEmployees,
     ] = await Promise.all([
       this.getAppraisalReport(user),
       this.getGoalReport(user, {}),
@@ -653,8 +652,29 @@ export class ReportService {
       this.getCompetencyHeatmap(user, {
         cycleId: '',
       }),
-      this.getTopEmployees(user, { cycleType: 'appraisal' }),
     ]);
+
+    const [topAppraisal] = await this.getTopEmployees(user, {
+      cycleType: 'appraisal',
+    });
+    const [topReview] = await this.getTopEmployees(user, {
+      cycleType: 'performance',
+    });
+
+    let topEmployee: any = null;
+
+    if (topAppraisal && topReview) {
+      topEmployee =
+        (topAppraisal.finalScore ?? 0) >= (topReview.finalScore ?? 0)
+          ? { ...topAppraisal, source: 'appraisal' }
+          : { ...topReview, source: 'review' };
+    } else {
+      topEmployee = topAppraisal
+        ? { ...topAppraisal, source: 'appraisal' }
+        : topReview
+          ? { ...topReview, source: 'review' }
+          : null;
+    }
 
     // 3. Compute Cycle Health
     const totalAppraisals = appraisals.length;
@@ -783,7 +803,7 @@ export class ReportService {
         completed: completedParticipants,
         completionRate: participationRate,
       },
-      topEmployees: topEmployees,
+      topEmployees: [topEmployee],
     };
   }
 }

@@ -11,9 +11,9 @@ export declare class FeedbackQuestionService {
         isActive: boolean | null;
         companyId: string;
         type: string;
-        order: number | null;
         question: string;
         inputType: string | null;
+        order: number | null;
     }>;
     findAll(): Promise<{
         id: string;

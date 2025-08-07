@@ -440,7 +440,7 @@ let EmployeesService = class EmployeesService {
                 .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
                 .leftJoin(schema_1.costCenters, (0, drizzle_orm_1.eq)(schema_1.employees.costCenterId, schema_1.costCenters.id))
                 .leftJoin(schema_1.companyLocations, (0, drizzle_orm_1.eq)(schema_1.employees.locationId, schema_1.companyLocations.id))
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId)))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(schema_1.employees.employmentStatus, 'active')))
                 .execute();
             return allEmployees;
         });

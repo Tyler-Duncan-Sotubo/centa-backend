@@ -27,6 +27,7 @@ export const employeeStatus = pgEnum('employee_status', [
   'resigned',
   'terminated',
   'onboarding',
+  'inactive',
 ]);
 
 export const employees = pgTable(

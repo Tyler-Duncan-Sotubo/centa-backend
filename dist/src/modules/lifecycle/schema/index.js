@@ -19,4 +19,8 @@ __exportStar(require("../onboarding/schema/onboarding-template-checklists.schema
 __exportStar(require("../onboarding/schema/onboarding-template-fields.schema"), exports);
 __exportStar(require("../onboarding/schema/onboarding-templates.schema"), exports);
 __exportStar(require("./employee-lifecycle-tokens.schema"), exports);
+__exportStar(require("../offboarding/schema/termination-checklist-items.schema"), exports);
+__exportStar(require("../offboarding/schema/termination-reasons.schema"), exports);
+__exportStar(require("../offboarding/schema/termination-sessions.schema"), exports);
+__exportStar(require("../offboarding/schema/termination-types.schema"), exports);
 //# sourceMappingURL=index.js.map

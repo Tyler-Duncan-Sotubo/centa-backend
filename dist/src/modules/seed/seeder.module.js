@@ -17,6 +17,7 @@ const email_templates_service_1 = require("../recruitment/interviews/email-templ
 const applicationForm_service_1 = require("../recruitment/jobs/applicationForm.service");
 const competency_service_1 = require("../performance/templates/seed/competency.service");
 const questions_service_1 = require("../performance/templates/seed/questions.service");
+const offboarding_seeder_service_1 = require("../lifecycle/offboarding/offboarding-seeder.service");
 let SeederModule = class SeederModule {
 };
 exports.SeederModule = SeederModule;
@@ -32,6 +33,7 @@ exports.SeederModule = SeederModule = __decorate([
             applicationForm_service_1.ApplicationFormService,
             competency_service_1.PerformanceCompetencyService,
             questions_service_1.PerformanceReviewQuestionService,
+            offboarding_seeder_service_1.OffboardingSeederService,
         ],
     })
 ], SeederModule);

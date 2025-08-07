@@ -27,7 +27,7 @@ let CategoryService = class CategoryService {
         const [existing] = await this.db
             .select()
             .from(announcements_schema_1.announcementCategories)
-            .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.name, name))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.name, name), (0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.companyId, user.companyId)))
             .execute();
         if (existing) {
             throw new common_1.BadRequestException('Category code already exists');

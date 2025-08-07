@@ -25,14 +25,14 @@ export declare class ExpensesService {
         updatedAt: Date | null;
         companyId: string;
         employeeId: string;
-        category: string;
-        purpose: string;
-        amount: string;
         status: string;
+        rejectionReason: string | null;
         submittedAt: Date | null;
+        category: string;
+        amount: string;
+        purpose: string;
         receiptUrl: string | null;
         paymentMethod: string | null;
-        rejectionReason: string | null;
         deletedAt: Date | null;
     }>;
     bulkCreateExpenses(companyId: string, rows: any[], user: User): Promise<{
@@ -42,14 +42,14 @@ export declare class ExpensesService {
         updatedAt: Date | null;
         companyId: string;
         employeeId: string;
-        category: string;
-        purpose: string;
-        amount: string;
         status: string;
+        rejectionReason: string | null;
         submittedAt: Date | null;
+        category: string;
+        amount: string;
+        purpose: string;
         receiptUrl: string | null;
         paymentMethod: string | null;
-        rejectionReason: string | null;
         deletedAt: Date | null;
     }[]>;
     findAll(companyId: string): Omit<import("drizzle-orm/pg-core").PgSelectBase<"expenses", {

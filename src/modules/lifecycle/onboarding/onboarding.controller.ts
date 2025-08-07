@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  SetMetadata,
   UseGuards,
 } from '@nestjs/common';
 import { OnboardingService } from './onboarding.service';
@@ -16,6 +17,8 @@ import { BaseController } from 'src/common/interceptor/base.controller';
 import { EmployeeOnboardingInputDto } from './dto/employee-onboarding-input.dto';
 
 @Controller('onboarding')
+@UseGuards(JwtAuthGuard)
+@SetMetadata('permission', ['employees.manage'])
 export class OnboardingController extends BaseController {
   constructor(
     private readonly onboardingService: OnboardingService,
@@ -25,13 +28,11 @@ export class OnboardingController extends BaseController {
   }
 
   @Get('employees')
-  @UseGuards(JwtAuthGuard)
   getEmployeesInOnboarding(@CurrentUser() user: User) {
     return this.onboardingService.getEmployeesInOnboarding(user.companyId);
   }
 
   @Post('employee')
-  @UseGuards(JwtAuthGuard)
   createEmployeeOnboarding(
     @CurrentUser() user: User,
     @Body() dto: EmployeeOnboardingInputDto,
@@ -43,7 +44,6 @@ export class OnboardingController extends BaseController {
   }
 
   @Get('employees-onboarding/:employeeId')
-  @UseGuards(JwtAuthGuard)
   getEmployeeOnboardingDetail(
     @CurrentUser() user: User,
     @Param('employeeId') employeeId: string,
@@ -55,7 +55,6 @@ export class OnboardingController extends BaseController {
   }
 
   @Patch('employee-checklist/:employeeId')
-  @UseGuards(JwtAuthGuard)
   updateEmployeeChecklist(
     @Param('employeeId') employeeId: string,
     @Body('checklistId') checklistId: string,

@@ -20,8 +20,8 @@ export declare class ScorecardTemplateService {
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string | null;
-        isSystem: boolean | null;
         description: string | null;
+        isSystem: boolean | null;
     }>;
     cloneTemplate(templateId: string, user: User): Promise<{
         id: string;
@@ -29,8 +29,8 @@ export declare class ScorecardTemplateService {
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string | null;
-        isSystem: boolean | null;
         description: string | null;
+        isSystem: boolean | null;
     }>;
     seedSystemTemplates(): Promise<{
         success: boolean;

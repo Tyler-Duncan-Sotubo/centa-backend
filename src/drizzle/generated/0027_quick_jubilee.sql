@@ -1,0 +1,2 @@
+ALTER TABLE "employee_termination_checklist" ADD COLUMN "asset_id" uuid;--> statement-breakpoint
+ALTER TABLE "employee_termination_checklist" ADD CONSTRAINT "employee_termination_checklist_asset_id_assets_id_fk" FOREIGN KEY ("asset_id") REFERENCES "public"."assets"("id") ON DELETE set null ON UPDATE no action;

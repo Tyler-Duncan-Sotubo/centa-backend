@@ -58,7 +58,7 @@ export declare const applications: import("drizzle-orm/pg-core").PgTableWithColu
             tableName: "applications";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "referral" | "agency" | "career_page" | "other" | "linkedin" | "indeed" | "internal";
+            data: "internal" | "referral" | "agency" | "career_page" | "other" | "linkedin" | "indeed";
             driverParam: string;
             notNull: true;
             hasDefault: true;

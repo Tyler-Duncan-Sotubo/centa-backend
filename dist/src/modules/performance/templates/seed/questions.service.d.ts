@@ -13,8 +13,8 @@ export declare class PerformanceReviewQuestionService {
         isActive: boolean | null;
         companyId: string | null;
         type: string;
-        isGlobal: boolean | null;
         question: string;
+        isGlobal: boolean | null;
         competencyId: string | null;
         isMandatory: boolean | null;
         allowNotes: boolean | null;

@@ -213,14 +213,14 @@ export declare class EmployeesService {
                 tableName: "employees";
                 dataType: "string";
                 columnType: "PgEnumColumn";
-                data: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+                data: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
                 driverParam: string;
                 notNull: true;
                 hasDefault: true;
                 isPrimaryKey: false;
                 isAutoincrement: false;
                 hasRuntimeDefault: false;
-                enumValues: ["probation", "active", "on_leave", "resigned", "terminated", "onboarding"];
+                enumValues: ["probation", "active", "on_leave", "resigned", "terminated", "onboarding", "inactive"];
                 baseColumn: never;
                 identity: undefined;
                 generated: undefined;
@@ -428,7 +428,7 @@ export declare class EmployeesService {
             lastName: string;
             employeeNumber: string;
             email: string;
-            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
             probationEndDate: string | null;
             departmentId: string | null;
             department: any;
@@ -459,7 +459,7 @@ export declare class EmployeesService {
             lastName: string;
             employeeNumber: string;
             email: string;
-            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
             probationEndDate: string | null;
             departmentId: string | null;
             department: any;
@@ -654,7 +654,7 @@ export declare class EmployeesService {
         email: string;
         departmentId: string | null;
         department: any;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         jobRole: string | null;
         costCenter: string | null;
         location: string | null;
@@ -670,7 +670,7 @@ export declare class EmployeesService {
         email: string;
         departmentId: string | null;
         department: any;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         jobRole: string | null;
         costCenter: string | null;
         location: string | null;
@@ -695,7 +695,7 @@ export declare class EmployeesService {
         costCenterId: string | null;
         locationId: string | null;
         payGroupId: string | null;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         employmentStartDate: string;
         employmentEndDate: Date | null;
         confirmed: boolean | null;
@@ -720,7 +720,7 @@ export declare class EmployeesService {
         lastName: string;
         employeeNumber: string;
         email: string;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         probationEndDate: string | null;
         departmentId: string | null;
         department: any;
@@ -751,7 +751,7 @@ export declare class EmployeesService {
         lastName: string;
         employeeNumber: string;
         email: string;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         probationEndDate: string | null;
         departmentId: string | null;
         department: any;
@@ -800,7 +800,7 @@ export declare class EmployeesService {
         costCenterId: string | null;
         locationId: string | null;
         payGroupId: string | null;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         employmentStartDate: string;
         employmentEndDate: Date | null;
         confirmed: boolean | null;
@@ -841,7 +841,7 @@ export declare class EmployeesService {
         costCenterId: string | null;
         locationId: string | null;
         payGroupId: string | null;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         employmentStartDate: string;
         employmentEndDate: Date | null;
         confirmed: boolean | null;
@@ -863,7 +863,7 @@ export declare class EmployeesService {
         costCenterId: string | null;
         locationId: string | null;
         payGroupId: string | null;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         employmentStartDate: string;
         employmentEndDate: Date | null;
         confirmed: boolean | null;
@@ -888,7 +888,7 @@ export declare class EmployeesService {
         firstName: string;
         lastName: string;
         email: string;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         departmentName: any;
         jobRoleTitle: string | null;
         costCenterName: string | null;
@@ -899,7 +899,7 @@ export declare class EmployeesService {
         firstName: string;
         lastName: string;
         email: string;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         departmentName: any;
         jobRoleTitle: string | null;
         costCenterName: string | null;

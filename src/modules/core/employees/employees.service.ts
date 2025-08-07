@@ -578,7 +578,12 @@ export class EmployeesService {
           companyLocations,
           eq(employees.locationId, companyLocations.id),
         )
-        .where(and(eq(employees.companyId, companyId)))
+        .where(
+          and(
+            eq(employees.companyId, companyId),
+            eq(employees.employmentStatus, 'active'),
+          ),
+        )
         .execute();
 
       return allEmployees;

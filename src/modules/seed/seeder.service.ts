@@ -10,6 +10,7 @@ import { DeductionsService } from '../payroll/deductions/deductions.service';
 import { HolidaysService } from '../leave/holidays/holidays.service';
 import { PerformanceCompetencyService } from '../performance/templates/seed/competency.service';
 import { PerformanceReviewQuestionService } from '../performance/templates/seed/questions.service';
+import { OffboardingSeederService } from '../lifecycle/offboarding/offboarding-seeder.service';
 
 @Injectable()
 export class SeedService {
@@ -25,6 +26,7 @@ export class SeedService {
     private readonly holidays: HolidaysService,
     private readonly performanceCompetencyService: PerformanceCompetencyService,
     private readonly performanceReviewQuestionService: PerformanceReviewQuestionService,
+    private readonly offboarding: OffboardingSeederService,
   ) {}
 
   async seedDatabase() {
@@ -37,6 +39,7 @@ export class SeedService {
       this.emailTemplate.seedSystemEmailTemplates(),
       this.applicationForm.seedDefaultFields(),
       this.holidays.insertHolidaysForCurrentYear('NG'),
+      this.offboarding.seedGlobalOffboardingData(),
     ]);
 
     await this.seedDeductionTypes();

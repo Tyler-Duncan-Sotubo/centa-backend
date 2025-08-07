@@ -23,7 +23,7 @@ export declare class ApplicationsService {
             id: string;
             jobId: string;
             candidateId: string;
-            source: "referral" | "agency" | "career_page" | "other" | "linkedin" | "indeed" | "internal";
+            source: "internal" | "referral" | "agency" | "career_page" | "other" | "linkedin" | "indeed";
             status: "applied" | "screening" | "interview" | "offer" | "hired" | "rejected";
             appliedAt: Date | null;
             currentStage: string | null;
@@ -85,7 +85,7 @@ export declare class ApplicationsService {
             email: string;
             appliedAt: Date | null;
             status: "applied" | "screening" | "interview" | "offer" | "hired" | "rejected";
-            appSource: "referral" | "agency" | "career_page" | "other" | "linkedin" | "indeed" | "internal";
+            appSource: "internal" | "referral" | "agency" | "career_page" | "other" | "linkedin" | "indeed";
             resumeScore: unknown;
         }[];
     }[]>;

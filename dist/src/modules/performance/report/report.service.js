@@ -442,7 +442,7 @@ let ReportService = class ReportService {
         if (!appraisalCycle && !performanceCycle) {
             return [];
         }
-        const [appraisals, goals, peerFeedback, mgrFeedback, selfFeedback, participationRecords, heatmap, topEmployees,] = await Promise.all([
+        const [appraisals, goals, peerFeedback, mgrFeedback, selfFeedback, participationRecords, heatmap,] = await Promise.all([
             this.getAppraisalReport(user),
             this.getGoalReport(user, {}),
             this.getFeedbackReport(user, { type: 'peer' }),
@@ -452,8 +452,27 @@ let ReportService = class ReportService {
             this.getCompetencyHeatmap(user, {
                 cycleId: '',
             }),
-            this.getTopEmployees(user, { cycleType: 'appraisal' }),
         ]);
+        const [topAppraisal] = await this.getTopEmployees(user, {
+            cycleType: 'appraisal',
+        });
+        const [topReview] = await this.getTopEmployees(user, {
+            cycleType: 'performance',
+        });
+        let topEmployee = null;
+        if (topAppraisal && topReview) {
+            topEmployee =
+                (topAppraisal.finalScore ?? 0) >= (topReview.finalScore ?? 0)
+                    ? { ...topAppraisal, source: 'appraisal' }
+                    : { ...topReview, source: 'review' };
+        }
+        else {
+            topEmployee = topAppraisal
+                ? { ...topAppraisal, source: 'appraisal' }
+                : topReview
+                    ? { ...topReview, source: 'review' }
+                    : null;
+        }
         const totalAppraisals = appraisals.length;
         const completedAppraisals = appraisals.filter((a) => a.appraisalScore != null).length;
         const completionRate = totalAppraisals
@@ -553,7 +572,7 @@ let ReportService = class ReportService {
                 completed: completedParticipants,
                 completionRate: participationRate,
             },
-            topEmployees: topEmployees,
+            topEmployees: [topEmployee],
         };
     }
 };

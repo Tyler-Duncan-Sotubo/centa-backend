@@ -11,14 +11,14 @@ export declare class PayrollAdjustmentsService {
         id: string;
         createdAt: string | null;
         companyId: string;
-        createdBy: string | null;
-        type: string;
         isDeleted: boolean | null;
         employeeId: string;
-        notes: string | null;
-        label: string | null;
+        type: string;
         payrollDate: string;
+        notes: string | null;
+        createdBy: string | null;
         amount: number;
+        label: string | null;
         taxable: boolean | null;
         proratable: boolean | null;
         recurring: boolean | null;

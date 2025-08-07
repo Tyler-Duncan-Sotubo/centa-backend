@@ -12,6 +12,7 @@ exports.employeeStatus = (0, pg_core_1.pgEnum)('employee_status', [
     'resigned',
     'terminated',
     'onboarding',
+    'inactive',
 ]);
 exports.employees = (0, pg_core_1.pgTable)('employees', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),

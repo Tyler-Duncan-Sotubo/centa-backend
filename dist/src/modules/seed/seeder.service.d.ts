@@ -9,6 +9,7 @@ import { DeductionsService } from '../payroll/deductions/deductions.service';
 import { HolidaysService } from '../leave/holidays/holidays.service';
 import { PerformanceCompetencyService } from '../performance/templates/seed/competency.service';
 import { PerformanceReviewQuestionService } from '../performance/templates/seed/questions.service';
+import { OffboardingSeederService } from '../lifecycle/offboarding/offboarding-seeder.service';
 export declare class SeedService {
     private readonly permissions;
     private readonly onboarding;
@@ -21,7 +22,8 @@ export declare class SeedService {
     private readonly holidays;
     private readonly performanceCompetencyService;
     private readonly performanceReviewQuestionService;
-    constructor(permissions: PermissionsService, onboarding: OnboardingSeederService, pipeline: PipelineSeederService, offerLetter: OfferLetterService, scoreCard: ScorecardTemplateService, emailTemplate: InterviewEmailTemplateService, applicationForm: ApplicationFormService, deductionType: DeductionsService, holidays: HolidaysService, performanceCompetencyService: PerformanceCompetencyService, performanceReviewQuestionService: PerformanceReviewQuestionService);
+    private readonly offboarding;
+    constructor(permissions: PermissionsService, onboarding: OnboardingSeederService, pipeline: PipelineSeederService, offerLetter: OfferLetterService, scoreCard: ScorecardTemplateService, emailTemplate: InterviewEmailTemplateService, applicationForm: ApplicationFormService, deductionType: DeductionsService, holidays: HolidaysService, performanceCompetencyService: PerformanceCompetencyService, performanceReviewQuestionService: PerformanceReviewQuestionService, offboarding: OffboardingSeederService);
     seedDatabase(): Promise<{
         message: string;
     }>;

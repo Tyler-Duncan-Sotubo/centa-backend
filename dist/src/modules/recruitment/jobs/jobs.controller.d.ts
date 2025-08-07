@@ -18,12 +18,13 @@ export declare class JobsController extends BaseController {
         country: string | null;
         currency: string;
         companyId: string;
-        city: string | null;
-        state: string | null;
-        createdBy: string;
         description: string | null;
         title: string;
+        city: string | null;
+        state: string | null;
         status: "draft" | "open" | "closed" | "archived";
+        isArchived: boolean;
+        createdBy: string;
         externalJobId: string | null;
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
@@ -38,7 +39,6 @@ export declare class JobsController extends BaseController {
         postedAt: Date | null;
         closedAt: Date | null;
         deadlineDate: string | null;
-        isArchived: boolean;
     }>;
     postJob(id: string, user: User): Promise<void>;
     findAll(user: User): Promise<{
@@ -115,7 +115,7 @@ export declare class JobsController extends BaseController {
         formId: string;
     }>;
     getApplicationForm(jobId: string): Promise<{
-        style: "resume_only" | "form_only" | "both";
+        style: "both" | "resume_only" | "form_only";
         includeReferences: boolean | null;
         fields: {
             id: string;

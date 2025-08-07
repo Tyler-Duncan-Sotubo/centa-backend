@@ -23,8 +23,8 @@ export declare class InterviewEmailTemplateService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
-        createdBy: string | null;
         body: string;
+        createdBy: string | null;
         isGlobal: boolean | null;
         subject: string;
     }>;
@@ -34,8 +34,8 @@ export declare class InterviewEmailTemplateService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
-        createdBy: string | null;
         body: string;
+        createdBy: string | null;
         isGlobal: boolean | null;
         subject: string;
     }>;

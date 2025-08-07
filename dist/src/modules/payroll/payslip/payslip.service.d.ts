@@ -14,12 +14,12 @@ export declare class PayslipService {
         id: string;
         companyId: string;
         employeeId: string;
-        payrollMonth: string;
-        payrollId: string;
         issuedAt: string | null;
+        payrollMonth: string;
         slipStatus: string | null;
         employerRemarks: string | null;
         pdfUrl: string | null;
+        payrollId: string;
     }[]>;
     private getCompany;
     generatePayslipsForCompany(company_id: string, payrollMonth: string): Promise<any>;

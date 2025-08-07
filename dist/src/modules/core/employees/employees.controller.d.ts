@@ -36,7 +36,7 @@ export declare class EmployeesController extends BaseController {
         email: string;
         departmentId: string | null;
         department: any;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         jobRole: string | null;
         costCenter: string | null;
         location: string | null;
@@ -52,7 +52,7 @@ export declare class EmployeesController extends BaseController {
         email: string;
         departmentId: string | null;
         department: any;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         jobRole: string | null;
         costCenter: string | null;
         location: string | null;
@@ -69,7 +69,7 @@ export declare class EmployeesController extends BaseController {
         email: string;
         departmentId: string | null;
         department: any;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         jobRole: string | null;
         costCenter: string | null;
         location: string | null;
@@ -85,7 +85,7 @@ export declare class EmployeesController extends BaseController {
         email: string;
         departmentId: string | null;
         department: any;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         jobRole: string | null;
         costCenter: string | null;
         location: string | null;
@@ -187,7 +187,7 @@ export declare class EmployeesController extends BaseController {
             lastName: string;
             employeeNumber: string;
             email: string;
-            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
             probationEndDate: string | null;
             departmentId: string | null;
             department: any;
@@ -218,7 +218,7 @@ export declare class EmployeesController extends BaseController {
             lastName: string;
             employeeNumber: string;
             email: string;
-            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
             probationEndDate: string | null;
             departmentId: string | null;
             department: any;
@@ -345,7 +345,7 @@ export declare class EmployeesController extends BaseController {
         lastName: string;
         employeeNumber: string;
         email: string;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         probationEndDate: string | null;
         departmentId: string | null;
         department: any;
@@ -376,7 +376,7 @@ export declare class EmployeesController extends BaseController {
         lastName: string;
         employeeNumber: string;
         email: string;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         probationEndDate: string | null;
         departmentId: string | null;
         department: any;
@@ -405,7 +405,7 @@ export declare class EmployeesController extends BaseController {
         costCenterId: string | null;
         locationId: string | null;
         payGroupId: string | null;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         employmentStartDate: string;
         employmentEndDate: Date | null;
         confirmed: boolean | null;
@@ -435,7 +435,7 @@ export declare class EmployeesController extends BaseController {
         costCenterId: string | null;
         locationId: string | null;
         payGroupId: string | null;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         employmentStartDate: string;
         employmentEndDate: Date | null;
         confirmed: boolean | null;
@@ -457,7 +457,7 @@ export declare class EmployeesController extends BaseController {
         costCenterId: string | null;
         locationId: string | null;
         payGroupId: string | null;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         employmentStartDate: string;
         employmentEndDate: Date | null;
         confirmed: boolean | null;
@@ -481,7 +481,7 @@ export declare class EmployeesController extends BaseController {
         firstName: string;
         lastName: string;
         email: string;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         departmentName: any;
         jobRoleTitle: string | null;
         costCenterName: string | null;
@@ -492,7 +492,7 @@ export declare class EmployeesController extends BaseController {
         firstName: string;
         lastName: string;
         email: string;
-        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding";
+        employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         departmentName: any;
         jobRoleTitle: string | null;
         costCenterName: string | null;

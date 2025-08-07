@@ -9,12 +9,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.LifecycleModule = void 0;
 const common_1 = require("@nestjs/common");
 const onboarding_module_1 = require("./onboarding/onboarding.module");
+const offboarding_module_1 = require("./offboarding/offboarding.module");
 let LifecycleModule = class LifecycleModule {
 };
 exports.LifecycleModule = LifecycleModule;
 exports.LifecycleModule = LifecycleModule = __decorate([
     (0, common_1.Module)({
-        imports: [onboarding_module_1.OnboardingModule],
+        imports: [onboarding_module_1.OnboardingModule, offboarding_module_1.OffboardingModule],
         exports: [onboarding_module_1.OnboardingModule],
     })
 ], LifecycleModule);

@@ -8,8 +8,8 @@ export declare class AssessmentConclusionsService {
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
-        summary: string | null;
         assessmentId: string;
+        summary: string | null;
         strengths: string | null;
         areasForImprovement: string | null;
         finalScore: number | null;

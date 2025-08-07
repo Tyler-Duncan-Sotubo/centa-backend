@@ -12,9 +12,9 @@ export declare class FeedbackQuestionsController extends BaseController {
         isActive: boolean | null;
         companyId: string;
         type: string;
-        order: number | null;
         question: string;
         inputType: string | null;
+        order: number | null;
     }>;
     findAll(): Promise<{
         id: string;

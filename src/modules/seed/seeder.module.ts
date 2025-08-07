@@ -8,6 +8,7 @@ import { InterviewEmailTemplateService } from '../recruitment/interviews/email-t
 import { ApplicationFormService } from '../recruitment/jobs/applicationForm.service';
 import { PerformanceCompetencyService } from '../performance/templates/seed/competency.service';
 import { PerformanceReviewQuestionService } from '../performance/templates/seed/questions.service';
+import { OffboardingSeederService } from '../lifecycle/offboarding/offboarding-seeder.service';
 
 @Module({
   controllers: [SeedController],
@@ -20,6 +21,7 @@ import { PerformanceReviewQuestionService } from '../performance/templates/seed/
     ApplicationFormService,
     PerformanceCompetencyService,
     PerformanceReviewQuestionService,
+    OffboardingSeederService,
   ],
 })
 export class SeederModule {}

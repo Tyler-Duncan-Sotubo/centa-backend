@@ -128,7 +128,7 @@ export declare const performanceAssessments: import("drizzle-orm/pg-core").PgTab
             tableName: "performance_assessments";
             dataType: "string";
             columnType: "PgText";
-            data: "in_progress" | "submitted" | "not_started";
+            data: "not_started" | "in_progress" | "submitted";
             driverParam: string;
             notNull: false;
             hasDefault: true;
@@ -140,7 +140,7 @@ export declare const performanceAssessments: import("drizzle-orm/pg-core").PgTab
             identity: undefined;
             generated: undefined;
         }, {}, {
-            $type: "in_progress" | "submitted" | "not_started";
+            $type: "not_started" | "in_progress" | "submitted";
         }>;
         submittedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "submitted_at";

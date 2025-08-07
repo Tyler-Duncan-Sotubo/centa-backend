@@ -22,8 +22,9 @@ const deductions_service_1 = require("../payroll/deductions/deductions.service")
 const holidays_service_1 = require("../leave/holidays/holidays.service");
 const competency_service_1 = require("../performance/templates/seed/competency.service");
 const questions_service_1 = require("../performance/templates/seed/questions.service");
+const offboarding_seeder_service_1 = require("../lifecycle/offboarding/offboarding-seeder.service");
 let SeedService = class SeedService {
-    constructor(permissions, onboarding, pipeline, offerLetter, scoreCard, emailTemplate, applicationForm, deductionType, holidays, performanceCompetencyService, performanceReviewQuestionService) {
+    constructor(permissions, onboarding, pipeline, offerLetter, scoreCard, emailTemplate, applicationForm, deductionType, holidays, performanceCompetencyService, performanceReviewQuestionService, offboarding) {
         this.permissions = permissions;
         this.onboarding = onboarding;
         this.pipeline = pipeline;
@@ -35,6 +36,7 @@ let SeedService = class SeedService {
         this.holidays = holidays;
         this.performanceCompetencyService = performanceCompetencyService;
         this.performanceReviewQuestionService = performanceReviewQuestionService;
+        this.offboarding = offboarding;
     }
     async seedDatabase() {
         await Promise.all([
@@ -46,6 +48,7 @@ let SeedService = class SeedService {
             this.emailTemplate.seedSystemEmailTemplates(),
             this.applicationForm.seedDefaultFields(),
             this.holidays.insertHolidaysForCurrentYear('NG'),
+            this.offboarding.seedGlobalOffboardingData(),
         ]);
         await this.seedDeductionTypes();
         await this.performanceCompetencyService.seedGlobalCompetencies();
@@ -98,6 +101,7 @@ exports.SeedService = SeedService = __decorate([
         deductions_service_1.DeductionsService,
         holidays_service_1.HolidaysService,
         competency_service_1.PerformanceCompetencyService,
-        questions_service_1.PerformanceReviewQuestionService])
+        questions_service_1.PerformanceReviewQuestionService,
+        offboarding_seeder_service_1.OffboardingSeederService])
 ], SeedService);
 //# sourceMappingURL=seeder.service.js.map

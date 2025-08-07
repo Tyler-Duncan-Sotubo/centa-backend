@@ -12,11 +12,11 @@ export declare class FeedbackService {
         createdAt: Date | null;
         companyId: string;
         type: string;
-        isArchived: boolean | null;
         submittedAt: Date | null;
         senderId: string;
         recipientId: string;
         isAnonymous: boolean | null;
+        isArchived: boolean | null;
     }>;
     private resolveViewerIds;
     getFeedbackForRecipient(recipientId: string, viewer: User): Promise<any[]>;

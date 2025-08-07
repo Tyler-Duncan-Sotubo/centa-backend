@@ -3,3 +3,7 @@ export * from '../onboarding/schema/onboarding-template-checklists.schema';
 export * from '../onboarding/schema/onboarding-template-fields.schema';
 export * from '../onboarding/schema/onboarding-templates.schema';
 export * from './employee-lifecycle-tokens.schema';
+export * from '../offboarding/schema/termination-checklist-items.schema';
+export * from '../offboarding/schema/termination-reasons.schema';
+export * from '../offboarding/schema/termination-sessions.schema';
+export * from '../offboarding/schema/termination-types.schema';

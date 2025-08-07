@@ -10,18 +10,18 @@ export declare class OnboardingSeederController extends BaseController {
             id: string;
             templateId: string;
             order: number | null;
-            fieldKey: string;
             label: string;
-            fieldType: string;
             required: boolean | null;
+            fieldKey: string;
+            fieldType: string;
             tag: string;
         }[];
         checklist: {
             id: string;
             title: string;
             templateId: string;
-            assignee: "employee" | "hr" | "it" | "finance" | null;
             order: number | null;
+            assignee: "employee" | "hr" | "it" | "finance" | null;
             dueDaysAfterStart: number | null;
         }[];
         id: string;
@@ -77,18 +77,18 @@ export declare class OnboardingSeederController extends BaseController {
             id: string;
             templateId: string;
             order: number | null;
-            fieldKey: string;
             label: string;
-            fieldType: string;
             required: boolean | null;
+            fieldKey: string;
+            fieldType: string;
             tag: string;
         }[];
         checklist: {
             id: string;
             title: string;
             templateId: string;
-            assignee: "employee" | "hr" | "it" | "finance" | null;
             order: number | null;
+            assignee: "employee" | "hr" | "it" | "finance" | null;
             dueDaysAfterStart: number | null;
         }[];
         fieldCount: number;

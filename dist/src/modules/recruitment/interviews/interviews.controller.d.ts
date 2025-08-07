@@ -127,8 +127,8 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string | null;
-        isSystem: boolean | null;
         description: string | null;
+        isSystem: boolean | null;
     }>;
     deleteScorecardTemplate(templateId: string, user: User): Promise<{
         message: string;
@@ -139,8 +139,8 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string | null;
-        isSystem: boolean | null;
         description: string | null;
+        isSystem: boolean | null;
     }>;
     getAllEmailTemplates(user: User): Promise<{
         id: string;
@@ -159,8 +159,8 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
-        createdBy: string | null;
         body: string;
+        createdBy: string | null;
         isGlobal: boolean | null;
         subject: string;
     }>;
@@ -170,8 +170,8 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
-        createdBy: string | null;
         body: string;
+        createdBy: string | null;
         isGlobal: boolean | null;
         subject: string;
     }>;

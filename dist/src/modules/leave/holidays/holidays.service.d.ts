@@ -41,10 +41,10 @@ export declare class HolidaysService {
         country: string | null;
         companyId: string | null;
         type: string;
-        source: string | null;
         year: string;
         countryCode: string | null;
         isWorkingDayOverride: boolean | null;
+        source: string | null;
     }[]>;
     createHoliday(dto: CreateHolidayDto, user: User): Promise<{
         date: string;
@@ -55,10 +55,10 @@ export declare class HolidaysService {
         country: string | null;
         companyId: string | null;
         type: string;
-        source: string | null;
         year: string;
         countryCode: string | null;
         isWorkingDayOverride: boolean | null;
+        source: string | null;
     }>;
     findOne(id: string, user: User): Promise<void>;
     findAll(companyId: string): Promise<{

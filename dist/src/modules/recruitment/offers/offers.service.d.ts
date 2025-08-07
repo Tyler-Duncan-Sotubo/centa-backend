@@ -18,11 +18,11 @@ export declare class OffersService {
         updatedAt: Date | null;
         currency: string;
         companyId: string;
-        createdBy: string | null;
         startDate: string | null;
-        templateId: string | null;
         status: "pending" | "accepted" | "sent" | "declined" | "expired";
+        templateId: string | null;
         expiresAt: Date | null;
+        createdBy: string | null;
         applicationId: string;
         signingMethod: string;
         salary: string | null;

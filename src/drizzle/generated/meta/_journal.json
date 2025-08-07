@@ -176,6 +176,34 @@
       "when": 1754381450599,
       "tag": "0024_open_vanisher",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1754501704283,
+      "tag": "0025_violet_lucky_pierre",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1754510551528,
+      "tag": "0026_elite_ironclad",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1754514894349,
+      "tag": "0027_quick_jubilee",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1754522475248,
+      "tag": "0028_complex_living_mummy",
+      "breakpoints": true
     }
   ]
 }

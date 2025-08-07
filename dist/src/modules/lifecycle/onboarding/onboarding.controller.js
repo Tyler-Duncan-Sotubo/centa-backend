@@ -42,7 +42,6 @@ let OnboardingController = class OnboardingController extends base_controller_1.
 exports.OnboardingController = OnboardingController;
 __decorate([
     (0, common_1.Get)('employees'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -50,7 +49,6 @@ __decorate([
 ], OnboardingController.prototype, "getEmployeesInOnboarding", null);
 __decorate([
     (0, common_1.Post)('employee'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -59,7 +57,6 @@ __decorate([
 ], OnboardingController.prototype, "createEmployeeOnboarding", null);
 __decorate([
     (0, common_1.Get)('employees-onboarding/:employeeId'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('employeeId')),
     __metadata("design:type", Function),
@@ -68,7 +65,6 @@ __decorate([
 ], OnboardingController.prototype, "getEmployeeOnboardingDetail", null);
 __decorate([
     (0, common_1.Patch)('employee-checklist/:employeeId'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     __param(0, (0, common_1.Param)('employeeId')),
     __param(1, (0, common_1.Body)('checklistId')),
     __param(2, (0, common_1.Body)('status')),
@@ -78,6 +74,8 @@ __decorate([
 ], OnboardingController.prototype, "updateEmployeeChecklist", null);
 exports.OnboardingController = OnboardingController = __decorate([
     (0, common_1.Controller)('onboarding'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('permission', ['employees.manage']),
     __metadata("design:paramtypes", [onboarding_service_1.OnboardingService,
         seeder_service_1.OnboardingSeederService])
 ], OnboardingController);

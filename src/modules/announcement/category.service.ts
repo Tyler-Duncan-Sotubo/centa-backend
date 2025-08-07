@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Inject } from '@nestjs/common';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
 import { announcementCategories } from './schema/announcements.schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service';
 import { User } from 'src/common/types/user.type';
 
@@ -19,7 +19,12 @@ export class CategoryService {
     const [existing] = await this.db
       .select()
       .from(announcementCategories)
-      .where(eq(announcementCategories.name, name))
+      .where(
+        and(
+          eq(announcementCategories.name, name),
+          eq(announcementCategories.companyId, user.companyId),
+        ),
+      )
       .execute();
 
     if (existing) {
