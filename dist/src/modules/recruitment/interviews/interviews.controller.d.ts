@@ -159,9 +159,9 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
-        body: string;
-        createdBy: string | null;
         isGlobal: boolean | null;
+        createdBy: string | null;
+        body: string;
         subject: string;
     }>;
     cloneEmailTemplate(templateId: string, user: User): Promise<{
@@ -170,9 +170,9 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
-        body: string;
-        createdBy: string | null;
         isGlobal: boolean | null;
+        createdBy: string | null;
+        body: string;
         subject: string;
     }>;
     deleteEmailTemplate(templateId: string, user: User): Promise<{

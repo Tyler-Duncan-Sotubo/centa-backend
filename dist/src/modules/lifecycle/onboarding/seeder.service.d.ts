@@ -14,8 +14,8 @@ export declare class OnboardingSeederService {
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        status: "draft" | "published" | null;
         isGlobal: boolean | null;
+        status: "draft" | "published" | null;
     }>;
     createCompanyTemplate(companyId: string, dto: CreateOnboardingTemplateDto): Promise<{
         id: string;
@@ -23,8 +23,8 @@ export declare class OnboardingSeederService {
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        status: "draft" | "published" | null;
         isGlobal: boolean | null;
+        status: "draft" | "published" | null;
     }>;
     updateTemplateById(templateId: string, dto: CreateOnboardingTemplateDto): Promise<{
         status: string;
@@ -58,19 +58,19 @@ export declare class OnboardingSeederService {
     getTemplatesByCompanyWithDetails(companyId: string): Promise<{
         fields: {
             id: string;
-            templateId: string;
             order: number | null;
-            label: string;
-            required: boolean | null;
+            templateId: string;
             fieldKey: string;
+            label: string;
             fieldType: string;
+            required: boolean | null;
             tag: string;
         }[];
         checklist: {
             id: string;
             title: string;
-            templateId: string;
             order: number | null;
+            templateId: string;
             assignee: "employee" | "hr" | "it" | "finance" | null;
             dueDaysAfterStart: number | null;
         }[];
@@ -87,19 +87,19 @@ export declare class OnboardingSeederService {
     getTemplateByIdWithDetails(templateId: string): Promise<{
         fields: {
             id: string;
-            templateId: string;
             order: number | null;
-            label: string;
-            required: boolean | null;
+            templateId: string;
             fieldKey: string;
+            label: string;
             fieldType: string;
+            required: boolean | null;
             tag: string;
         }[];
         checklist: {
             id: string;
             title: string;
-            templateId: string;
             order: number | null;
+            templateId: string;
             assignee: "employee" | "hr" | "it" | "finance" | null;
             dueDaysAfterStart: number | null;
         }[];
@@ -108,7 +108,7 @@ export declare class OnboardingSeederService {
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        status: "draft" | "published" | null;
         isGlobal: boolean | null;
+        status: "draft" | "published" | null;
     }>;
 }

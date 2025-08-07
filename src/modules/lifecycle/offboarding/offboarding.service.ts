@@ -1,10 +1,14 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { CreateOffboardingDto } from './dto/create-offboarding.dto';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { CreateOffboardingBeginDto } from './dto/create-offboarding.dto';
 import { UpdateOffboardingDto } from './dto/update-offboarding.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { Inject } from '@nestjs/common';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql, and, desc } from 'drizzle-orm';
 import {
   employee_termination_checklist,
   termination_sessions,
@@ -20,6 +24,7 @@ import {
   termination_reasons,
   termination_types,
 } from 'src/drizzle/schema';
+import { AddOffboardingDetailsDto } from './dto/add-offboarding-details.dto';
 
 @Injectable()
 export class OffboardingService {
@@ -29,16 +34,16 @@ export class OffboardingService {
   ) {}
 
   // 1. CREATE OFFBOARDING SESSION + generate checklist
-  async create(createDto: CreateOffboardingDto, user: User) {
+  async begin(createDto: CreateOffboardingBeginDto, user: User) {
     const {
       employeeId,
       terminationType,
       terminationReason,
-      notes,
-      checklistItemIds,
+      terminationDate,
+      eligibleForRehire,
     } = createDto;
 
-    // 0. ensure employee is not already offboarded
+    // ensure no session already exists
     const [existingSession] = await this.db
       .select()
       .from(termination_sessions)
@@ -50,7 +55,6 @@ export class OffboardingService {
       );
     }
 
-    // 1. Create offboarding session
     const [session] = await this.db
       .insert(termination_sessions)
       .values({
@@ -58,8 +62,9 @@ export class OffboardingService {
         companyId: user.companyId,
         terminationType,
         terminationReason,
-        notes,
-        status: 'in_progress',
+        terminationDate,
+        eligibleForRehire: eligibleForRehire ?? true,
+        status: 'pending',
         startedAt: new Date(),
       })
       .returning();
@@ -68,7 +73,59 @@ export class OffboardingService {
       throw new BadRequestException('Failed to create termination session');
     }
 
-    // 2. Fetch checklist item details based on IDs
+    await this.auditService.logAction({
+      action: 'create',
+      entity: 'termination_session',
+      entityId: session.id,
+      userId: user.id,
+      details: 'Offboarding session begun',
+      changes: {
+        sessionId: session.id,
+        employeeId,
+        terminationType,
+        terminationReason,
+        terminationDate,
+        eligibleForRehire: session.eligibleForRehire,
+      },
+    });
+
+    return session;
+  }
+
+  // 2) ADD DETAILS — checklist snapshot + notes (later step)
+  async addDetails(
+    sessionId: string,
+    dto: AddOffboardingDetailsDto,
+    user: User,
+  ) {
+    const { checklistItemIds, notes } = dto;
+
+    // session must exist and be in_progress
+    const [session] = await this.db
+      .select()
+      .from(termination_sessions)
+      .where(eq(termination_sessions.id, sessionId));
+
+    if (!session) throw new NotFoundException('Termination session not found.');
+
+    if (session.status !== 'pending') {
+      throw new BadRequestException(
+        'Cannot modify a non-active termination session.',
+      );
+    }
+
+    // prevent double-adding checklist
+    const existingChecks = await this.db
+      .select()
+      .from(employee_termination_checklist)
+      .where(eq(employee_termination_checklist.sessionId, sessionId));
+    if (existingChecks.length > 0) {
+      throw new BadRequestException(
+        'Checklist already added for this session.',
+      );
+    }
+
+    // fetch checklist definitions
     const checklistItems = await this.db
       .select()
       .from(termination_checklist_items)
@@ -80,17 +137,17 @@ export class OffboardingService {
       );
     }
 
-    //find assigned assets
+    // employee's assigned assets (for dynamic steps)
     const assignedAssets = await this.db
       .select()
       .from(assets)
-      .where(eq(assets.employeeId, employeeId));
+      .where(eq(assets.employeeId, session.employeeId));
 
-    // 3. Insert checklist snapshot for this session
+    // build snapshot
     const finalChecklistItems = checklistItems.flatMap((item, index) => {
       if (item.isAssetReturnStep) {
         return assignedAssets.map((asset, assetIndex) => ({
-          sessionId: session.id,
+          sessionId,
           name: `Return: ${asset.name}`,
           description: `Return assigned asset: ${asset.name} (${asset.internalId})`,
           isAssetReturnStep: true,
@@ -103,7 +160,7 @@ export class OffboardingService {
 
       return [
         {
-          sessionId: session.id,
+          sessionId,
           name: item.name,
           description: item.description,
           isAssetReturnStep: false,
@@ -114,27 +171,89 @@ export class OffboardingService {
       ];
     });
 
-    await this.db
-      .insert(employee_termination_checklist)
-      .values(finalChecklistItems);
+    if (finalChecklistItems.length) {
+      await this.db
+        .insert(employee_termination_checklist)
+        .values(finalChecklistItems);
+    }
 
-    // 4. Audit the creation of the offboarding session
+    // attach notes (optional)
+    if (typeof notes === 'string' && notes.trim().length) {
+      await this.db
+        .update(termination_sessions)
+        .set({ notes })
+        .where(eq(termination_sessions.id, sessionId));
+    }
+
+    // update session status to in_progress
+    await this.db
+      .update(termination_sessions)
+      .set({ status: 'in_progress' })
+      .where(eq(termination_sessions.id, sessionId));
+
     await this.auditService.logAction({
-      action: 'create',
+      action: 'update',
       entity: 'termination_session',
-      entityId: session.id,
+      entityId: sessionId,
       userId: user.id,
-      details: 'Offboarding session created',
+      details: 'Offboarding details added (checklist & notes)',
       changes: {
-        sessionId: session.id,
-        employeeId,
-        terminationType,
-        terminationReason,
-        notes,
+        checklistItemIds,
+        hasNotes: !!notes,
       },
     });
 
-    return session;
+    return { sessionId, checklistCount: finalChecklistItems.length };
+  }
+
+  async findByEmployeeId(employeeId: string, companyId: string) {
+    const rows = await this.db
+      .select({
+        id: termination_sessions.id,
+        employeeId: termination_sessions.employeeId,
+        companyId: termination_sessions.companyId,
+
+        // use the joined table names
+        terminationType: termination_types.name,
+        terminationReason: termination_reasons.name,
+
+        terminationDate: termination_sessions.terminationDate,
+        eligibleForRehire: termination_sessions.eligibleForRehire,
+        status: termination_sessions.status,
+        startedAt: termination_sessions.startedAt,
+        completedAt: termination_sessions.completedAt,
+        notes: termination_sessions.notes,
+
+        // concat first and last name
+        employeeName: sql`CONCAT(${employees.firstName}, ' ', ${employees.lastName})`,
+      })
+      .from(termination_sessions)
+      .innerJoin(employees, eq(employees.id, termination_sessions.employeeId))
+      .innerJoin(
+        termination_types,
+        eq(termination_types.id, termination_sessions.terminationType),
+      )
+      .innerJoin(
+        termination_reasons,
+        eq(termination_reasons.id, termination_sessions.terminationReason),
+      )
+      .where(
+        and(
+          eq(termination_sessions.employeeId, employeeId),
+          eq(termination_sessions.companyId, companyId),
+        ),
+      )
+      .orderBy(desc(termination_sessions.startedAt))
+      .limit(1);
+
+    const session = rows[0];
+    if (!session) {
+      throw new BadRequestException(
+        'Termination session not found for employee',
+      );
+    }
+
+    return session; // now includes human-readable terminationType and terminationReason
   }
 
   // 2. GET ALL SESSIONS
@@ -329,11 +448,6 @@ export class OffboardingService {
 
       const employeeId = session.employeeId;
 
-      console.log(
-        'All checklist items completed for session:',
-        checklistItem.sessionId,
-      );
-
       await this.db
         .update(termination_sessions)
         .set({
@@ -350,11 +464,6 @@ export class OffboardingService {
         })
         .where(eq(employees.id, employeeId));
     }
-
-    console.log(
-      'All checklist items completed for session:',
-      checklistItem.sessionId,
-    );
 
     // 4. Audit log
     await this.auditService.logAction({
@@ -373,5 +482,46 @@ export class OffboardingService {
       message: 'Checklist item marked as completed',
       sessionCompleted: allCompleted,
     };
+  }
+
+  async cancel(sessionId: string, user: User) {
+    return this.db.transaction(async (tx) => {
+      const [session] = await tx
+        .select()
+        .from(termination_sessions)
+        .where(eq(termination_sessions.id, sessionId));
+
+      if (!session)
+        throw new NotFoundException('Termination session not found.');
+      if (session.status !== 'pending') {
+        throw new BadRequestException(
+          'Only pending sessions can be cancelled.',
+        );
+      }
+
+      // Audit snapshot BEFORE delete
+      await this.auditService.logAction({
+        action: 'delete',
+        entity: 'termination_session',
+        entityId: sessionId,
+        userId: user.id,
+        details: 'Termination session cancelled (hard delete)',
+        changes: { session },
+      });
+
+      // Delete dependent rows first
+      await tx
+        .delete(employee_termination_checklist)
+        .where(eq(employee_termination_checklist.sessionId, sessionId));
+
+      // If you have other dependents (notes table, emails queue, etc.), delete them here…
+
+      // Finally delete the session
+      await tx
+        .delete(termination_sessions)
+        .where(eq(termination_sessions.id, sessionId));
+
+      return { deleted: true, sessionId };
+    });
   }
 }

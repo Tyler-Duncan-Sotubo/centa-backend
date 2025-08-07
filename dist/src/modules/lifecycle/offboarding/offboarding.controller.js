@@ -15,18 +15,28 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.OffboardingController = void 0;
 const common_1 = require("@nestjs/common");
 const offboarding_service_1 = require("./offboarding.service");
-const create_offboarding_dto_1 = require("./dto/create-offboarding.dto");
 const update_offboarding_dto_1 = require("./dto/update-offboarding.dto");
 const base_controller_1 = require("../../../common/interceptor/base.controller");
 const jwt_auth_guard_1 = require("../../auth/guards/jwt-auth.guard");
 const current_user_decorator_1 = require("../../auth/decorator/current-user.decorator");
+const create_offboarding_dto_1 = require("./dto/create-offboarding.dto");
+const add_offboarding_details_dto_1 = require("./dto/add-offboarding-details.dto");
 let OffboardingController = class OffboardingController extends base_controller_1.BaseController {
     constructor(offboardingService) {
         super();
         this.offboardingService = offboardingService;
     }
-    create(createOffboardingDto, user) {
-        return this.offboardingService.create(createOffboardingDto, user);
+    begin(dto, user) {
+        return this.offboardingService.begin(dto, user);
+    }
+    addDetails(sessionId, dto, user) {
+        return this.offboardingService.addDetails(sessionId, dto, user);
+    }
+    cancel(sessionId, user) {
+        return this.offboardingService.cancel(sessionId, user);
+    }
+    findByEmployeeId(user, employeeId) {
+        return this.offboardingService.findByEmployeeId(employeeId, user.companyId);
     }
     findAll(user) {
         return this.offboardingService.findAll(user.companyId);
@@ -46,13 +56,38 @@ let OffboardingController = class OffboardingController extends base_controller_
 };
 exports.OffboardingController = OffboardingController;
 __decorate([
-    (0, common_1.Post)(),
+    (0, common_1.Post)('begin'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_offboarding_dto_1.CreateOffboardingDto, Object]),
+    __metadata("design:paramtypes", [create_offboarding_dto_1.CreateOffboardingBeginDto, Object]),
     __metadata("design:returntype", void 0)
-], OffboardingController.prototype, "create", null);
+], OffboardingController.prototype, "begin", null);
+__decorate([
+    (0, common_1.Post)(':sessionId/details'),
+    __param(0, (0, common_1.Param)('sessionId')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, add_offboarding_details_dto_1.AddOffboardingDetailsDto, Object]),
+    __metadata("design:returntype", void 0)
+], OffboardingController.prototype, "addDetails", null);
+__decorate([
+    (0, common_1.Post)(':sessionId/cancel'),
+    __param(0, (0, common_1.Param)('sessionId')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], OffboardingController.prototype, "cancel", null);
+__decorate([
+    (0, common_1.Get)('employee/:employeeId'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('employeeId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OffboardingController.prototype, "findByEmployeeId", null);
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

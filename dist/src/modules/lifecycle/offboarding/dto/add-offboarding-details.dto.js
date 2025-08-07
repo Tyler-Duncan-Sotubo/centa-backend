@@ -9,30 +9,19 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CreateOffboardingBeginDto = void 0;
+exports.AddOffboardingDetailsDto = void 0;
 const class_validator_1 = require("class-validator");
-class CreateOffboardingBeginDto {
+class AddOffboardingDetailsDto {
 }
-exports.CreateOffboardingBeginDto = CreateOffboardingBeginDto;
+exports.AddOffboardingDetailsDto = AddOffboardingDetailsDto;
 __decorate([
-    (0, class_validator_1.IsUUID)(),
-    __metadata("design:type", String)
-], CreateOffboardingBeginDto.prototype, "employeeId", void 0);
-__decorate([
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateOffboardingBeginDto.prototype, "terminationType", void 0);
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayNotEmpty)(),
+    __metadata("design:type", Array)
+], AddOffboardingDetailsDto.prototype, "checklistItemIds", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateOffboardingBeginDto.prototype, "terminationReason", void 0);
-__decorate([
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], CreateOffboardingBeginDto.prototype, "terminationDate", void 0);
-__decorate([
-    (0, class_validator_1.IsBoolean)(),
     (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", Boolean)
-], CreateOffboardingBeginDto.prototype, "eligibleForRehire", void 0);
-//# sourceMappingURL=create-offboarding.dto.js.map
+    __metadata("design:type", String)
+], AddOffboardingDetailsDto.prototype, "notes", void 0);
+//# sourceMappingURL=add-offboarding-details.dto.js.map

@@ -21,6 +21,7 @@ export declare class ShiftsService {
         companyId: string;
         locationId: string | null;
         isDeleted: boolean | null;
+        notes: string | null;
         startTime: string;
         endTime: string;
         workingDays: unknown;
@@ -29,7 +30,6 @@ export declare class ShiftsService {
         earlyClockInMinutes: number | null;
         allowLateClockOut: boolean | null;
         lateClockOutMinutes: number | null;
-        notes: string | null;
     }>;
     findAll(companyId: string): Omit<import("drizzle-orm/pg-core").PgSelectBase<"shifts", {
         id: import("drizzle-orm/pg-core").PgColumn<{

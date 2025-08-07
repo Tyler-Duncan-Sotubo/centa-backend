@@ -31,6 +31,10 @@ export const termination_sessions = pgTable(
     terminationReason: uuid('termination_reason_id').references(
       () => termination_reasons.id,
     ),
+
+    terminationDate: varchar('termination_date').notNull(),
+    eligibleForRehire: boolean('eligible_for_rehire').default(true),
+
     notes: text('notes'),
     status: varchar('status', { length: 20 }).default('in_progress'),
     startedAt: timestamp('started_at').defaultNow(),

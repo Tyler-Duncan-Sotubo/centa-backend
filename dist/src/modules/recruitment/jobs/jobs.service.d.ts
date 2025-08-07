@@ -25,7 +25,6 @@ export declare class JobsService {
         city: string | null;
         state: string | null;
         status: "draft" | "open" | "closed" | "archived";
-        isArchived: boolean;
         createdBy: string;
         externalJobId: string | null;
         jobType: "onsite" | "remote" | "hybrid";
@@ -41,6 +40,7 @@ export declare class JobsService {
         postedAt: Date | null;
         closedAt: Date | null;
         deadlineDate: string | null;
+        isArchived: boolean;
     }>;
     postJob(jobId: string, user: User): Promise<void>;
     findAll(companyId: string): Promise<{

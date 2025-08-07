@@ -12,9 +12,9 @@ export declare class PerformanceReviewQuestionService {
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string | null;
+        isGlobal: boolean | null;
         type: string;
         question: string;
-        isGlobal: boolean | null;
         competencyId: string | null;
         isMandatory: boolean | null;
         allowNotes: boolean | null;

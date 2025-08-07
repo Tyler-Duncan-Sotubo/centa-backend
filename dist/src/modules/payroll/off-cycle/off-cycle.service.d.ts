@@ -18,9 +18,8 @@ export declare class OffCycleService {
         companyId: string;
         userId: string | null;
         employeeId: string;
+        workflowId: string;
         grossSalary: string;
-        requestedAt: Date;
-        payrollMonth: string;
         payrollRunId: string;
         basic: string;
         housing: string;
@@ -38,6 +37,7 @@ export declare class OffCycleService {
         netSalary: string;
         taxableIncome: string;
         payrollDate: string;
+        payrollMonth: string;
         paymentStatus: string | null;
         paymentDate: string | null;
         paymentReference: string | null;
@@ -47,10 +47,10 @@ export declare class OffCycleService {
         isLeaver: boolean | null;
         isOffCycle: boolean | null;
         requestedBy: string;
+        requestedAt: Date;
         approvalStatus: string;
         lastApprovalAt: Date | null;
         lastApprovedBy: string | null;
-        workflowId: string;
         currentStep: number;
     }[]>;
     create(createOffCycleDto: CreateOffCycleDto, user: User): Promise<({

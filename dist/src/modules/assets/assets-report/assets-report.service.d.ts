@@ -14,9 +14,9 @@ export declare class AssetsReportService {
         companyId: string;
         description: string;
         employeeId: string;
-        documentUrl: string | null;
         status: string | null;
         assetId: string;
+        documentUrl: string | null;
         reportType: string;
         reportedAt: Date | null;
         resolvedAt: Date | null;

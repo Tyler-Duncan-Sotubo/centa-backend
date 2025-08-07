@@ -1,21 +1,59 @@
 import { OffboardingService } from './offboarding.service';
-import { CreateOffboardingDto } from './dto/create-offboarding.dto';
 import { UpdateOffboardingDto } from './dto/update-offboarding.dto';
 import { BaseController } from 'src/common/interceptor/base.controller';
 import { User } from 'src/common/types/user.type';
+import { CreateOffboardingBeginDto } from './dto/create-offboarding.dto';
+import { AddOffboardingDetailsDto } from './dto/add-offboarding-details.dto';
 export declare class OffboardingController extends BaseController {
     private readonly offboardingService;
     constructor(offboardingService: OffboardingService);
-    create(createOffboardingDto: CreateOffboardingDto, user: User): Promise<{
+    begin(dto: CreateOffboardingBeginDto, user: User): Promise<{
         id: string;
         companyId: string;
         employeeId: string;
-        status: string | null;
-        notes: string | null;
-        completedAt: Date | null;
-        startedAt: Date | null;
         terminationType: string | null;
         terminationReason: string | null;
+        terminationDate: string;
+        eligibleForRehire: boolean | null;
+        notes: string | null;
+        status: string | null;
+        startedAt: Date | null;
+        completedAt: Date | null;
+    }>;
+    addDetails(sessionId: string, dto: AddOffboardingDetailsDto, user: User): Promise<{
+        sessionId: string;
+        checklistCount: number;
+    }>;
+    cancel(sessionId: string, user: User): Promise<{
+        deleted: boolean;
+        sessionId: string;
+    }>;
+    findByEmployeeId(user: User, employeeId: string): Promise<{
+        id: string;
+        employeeId: string;
+        companyId: string;
+        terminationType: string;
+        terminationReason: string;
+        terminationDate: string;
+        eligibleForRehire: boolean | null;
+        status: string | null;
+        startedAt: Date | null;
+        completedAt: Date | null;
+        notes: string | null;
+        employeeName: unknown;
+    } | {
+        id: string;
+        employeeId: string;
+        companyId: string;
+        terminationType: string;
+        terminationReason: string;
+        terminationDate: string;
+        eligibleForRehire: boolean | null;
+        status: string | null;
+        startedAt: Date | null;
+        completedAt: Date | null;
+        notes: string | null;
+        employeeName: unknown;
     }>;
     findAll(user: User): Promise<{
         id: string;
@@ -42,22 +80,24 @@ export declare class OffboardingController extends BaseController {
             name: string;
             createdAt: Date | null;
             description: string | null;
-            order: number | null;
-            completed: boolean | null;
             completedAt: Date | null;
+            order: number | null;
             isAssetReturnStep: boolean | null;
             sessionId: string;
             assetId: string | null;
+            completed: boolean | null;
         }[];
         id: string;
         companyId: string;
         employeeId: string;
-        status: string | null;
-        notes: string | null;
-        completedAt: Date | null;
-        startedAt: Date | null;
         terminationType: string | null;
         terminationReason: string | null;
+        terminationDate: string;
+        eligibleForRehire: boolean | null;
+        notes: string | null;
+        status: string | null;
+        startedAt: Date | null;
+        completedAt: Date | null;
     }>;
     update(id: string, updateOffboardingDto: UpdateOffboardingDto, user: User): Promise<{
         id: string;
@@ -65,6 +105,8 @@ export declare class OffboardingController extends BaseController {
         companyId: string;
         terminationType: string | null;
         terminationReason: string | null;
+        terminationDate: string;
+        eligibleForRehire: boolean | null;
         notes: string | null;
         status: string | null;
         startedAt: Date | null;

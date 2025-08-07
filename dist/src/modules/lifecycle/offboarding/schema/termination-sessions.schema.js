@@ -16,6 +16,8 @@ exports.termination_sessions = (0, pg_core_1.pgTable)('termination_sessions', {
         .references(() => schema_1.companies.id, { onDelete: 'cascade' }),
     terminationType: (0, pg_core_1.uuid)('termination_type_id').references(() => termination_types_schema_1.termination_types.id),
     terminationReason: (0, pg_core_1.uuid)('termination_reason_id').references(() => termination_reasons_schema_1.termination_reasons.id),
+    terminationDate: (0, pg_core_1.varchar)('termination_date').notNull(),
+    eligibleForRehire: (0, pg_core_1.boolean)('eligible_for_rehire').default(true),
     notes: (0, pg_core_1.text)('notes'),
     status: (0, pg_core_1.varchar)('status', { length: 20 }).default('in_progress'),
     startedAt: (0, pg_core_1.timestamp)('started_at').defaultNow(),

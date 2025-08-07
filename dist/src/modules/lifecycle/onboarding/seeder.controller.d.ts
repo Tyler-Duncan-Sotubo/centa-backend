@@ -8,19 +8,19 @@ export declare class OnboardingSeederController extends BaseController {
     getGlobalTemplates(templateId: string): Promise<{
         fields: {
             id: string;
-            templateId: string;
             order: number | null;
-            label: string;
-            required: boolean | null;
+            templateId: string;
             fieldKey: string;
+            label: string;
             fieldType: string;
+            required: boolean | null;
             tag: string;
         }[];
         checklist: {
             id: string;
             title: string;
-            templateId: string;
             order: number | null;
+            templateId: string;
             assignee: "employee" | "hr" | "it" | "finance" | null;
             dueDaysAfterStart: number | null;
         }[];
@@ -29,8 +29,8 @@ export declare class OnboardingSeederController extends BaseController {
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        status: "draft" | "published" | null;
         isGlobal: boolean | null;
+        status: "draft" | "published" | null;
     }>;
     cloneTemplateForCompany(templateId: string, templateName: string, user: User): Promise<{
         id: string;
@@ -38,8 +38,8 @@ export declare class OnboardingSeederController extends BaseController {
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        status: "draft" | "published" | null;
         isGlobal: boolean | null;
+        status: "draft" | "published" | null;
     }>;
     createCompanyTemplate(dto: CreateOnboardingTemplateDto, user: User): Promise<{
         id: string;
@@ -47,8 +47,8 @@ export declare class OnboardingSeederController extends BaseController {
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        status: "draft" | "published" | null;
         isGlobal: boolean | null;
+        status: "draft" | "published" | null;
     }>;
     getCompanyTemplates(user: User): Promise<{
         templateSummaries: {
@@ -75,19 +75,19 @@ export declare class OnboardingSeederController extends BaseController {
     getTemplatesByCompanyWithDetails(user: User): Promise<{
         fields: {
             id: string;
-            templateId: string;
             order: number | null;
-            label: string;
-            required: boolean | null;
+            templateId: string;
             fieldKey: string;
+            label: string;
             fieldType: string;
+            required: boolean | null;
             tag: string;
         }[];
         checklist: {
             id: string;
             title: string;
-            templateId: string;
             order: number | null;
+            templateId: string;
             assignee: "employee" | "hr" | "it" | "finance" | null;
             dueDaysAfterStart: number | null;
         }[];

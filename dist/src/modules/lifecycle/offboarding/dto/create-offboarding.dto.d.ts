@@ -1,7 +1,7 @@
-export declare class CreateOffboardingDto {
+export declare class CreateOffboardingBeginDto {
     employeeId: string;
-    terminationType?: string;
-    terminationReason?: string;
-    notes?: string;
-    checklistItemIds: string[];
+    terminationType: string;
+    terminationReason: string;
+    terminationDate: string;
+    eligibleForRehire?: boolean;
 }

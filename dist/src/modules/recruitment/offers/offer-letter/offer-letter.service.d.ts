@@ -13,8 +13,8 @@ export declare class OfferLetterService {
         name: string;
         createdAt: Date | null;
         companyId: string | null;
-        isDefault: boolean | null;
         content: string;
+        isDefault: boolean | null;
         isSystemTemplate: boolean | null;
         clonedFromTemplateId: string | null;
     }>;
@@ -23,8 +23,8 @@ export declare class OfferLetterService {
         name: string;
         createdAt: Date | null;
         companyId: string | null;
-        isDefault: boolean | null;
         content: string;
+        isDefault: boolean | null;
         isSystemTemplate: boolean | null;
         clonedFromTemplateId: string | null;
     }>;

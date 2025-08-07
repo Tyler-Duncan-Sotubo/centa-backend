@@ -10,10 +10,10 @@ export declare class FeedbackQuestionService {
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string;
+        order: number | null;
         type: string;
         question: string;
         inputType: string | null;
-        order: number | null;
     }>;
     findAll(): Promise<{
         id: string;

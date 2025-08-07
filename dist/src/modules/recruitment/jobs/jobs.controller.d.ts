@@ -23,7 +23,6 @@ export declare class JobsController extends BaseController {
         city: string | null;
         state: string | null;
         status: "draft" | "open" | "closed" | "archived";
-        isArchived: boolean;
         createdBy: string;
         externalJobId: string | null;
         jobType: "onsite" | "remote" | "hybrid";
@@ -39,6 +38,7 @@ export declare class JobsController extends BaseController {
         postedAt: Date | null;
         closedAt: Date | null;
         deadlineDate: string | null;
+        isArchived: boolean;
     }>;
     postJob(id: string, user: User): Promise<void>;
     findAll(user: User): Promise<{
@@ -115,7 +115,7 @@ export declare class JobsController extends BaseController {
         formId: string;
     }>;
     getApplicationForm(jobId: string): Promise<{
-        style: "both" | "resume_only" | "form_only";
+        style: "resume_only" | "form_only" | "both";
         includeReferences: boolean | null;
         fields: {
             id: string;

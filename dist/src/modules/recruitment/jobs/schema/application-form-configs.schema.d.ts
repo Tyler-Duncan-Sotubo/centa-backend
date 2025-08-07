@@ -41,7 +41,7 @@ export declare const application_form_configs: import("drizzle-orm/pg-core").PgT
             tableName: "application_form_configs";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "both" | "resume_only" | "form_only";
+            data: "resume_only" | "form_only" | "both";
             driverParam: string;
             notNull: true;
             hasDefault: false;

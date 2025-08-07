@@ -20,9 +20,9 @@ export declare class OffersService {
         companyId: string;
         startDate: string | null;
         status: "pending" | "accepted" | "sent" | "declined" | "expired";
+        createdBy: string | null;
         templateId: string | null;
         expiresAt: Date | null;
-        createdBy: string | null;
         applicationId: string;
         signingMethod: string;
         salary: string | null;

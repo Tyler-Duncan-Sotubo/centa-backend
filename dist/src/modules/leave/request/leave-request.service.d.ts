@@ -27,14 +27,14 @@ export declare class LeaveRequestService {
         companyId: string;
         startDate: string;
         employeeId: string;
-        endDate: string;
-        leaveTypeId: string;
-        reason: string | null;
         status: string;
+        endDate: string;
+        reason: string | null;
+        requestedAt: Date | null;
+        leaveTypeId: string;
         totalDays: string;
         approverId: string | null;
         approvedAt: Date | null;
-        requestedAt: Date | null;
         rejectionReason: string | null;
         approvalChain: unknown;
         currentApprovalIndex: number | null;

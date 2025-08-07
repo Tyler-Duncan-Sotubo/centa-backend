@@ -12,8 +12,8 @@ export declare class DocumentsFolderService {
         name: string;
         createdAt: Date | null;
         companyId: string;
-        createdBy: string | null;
         permissionControlled: boolean | null;
+        createdBy: string | null;
         isSystem: boolean;
     }>;
     findAll(companyId: string): Promise<{
@@ -22,10 +22,10 @@ export declare class DocumentsFolderService {
             name: string;
             createdAt: Date | null;
             companyId: string;
-            type: string;
             category: string;
-            url: string;
+            type: string;
             folderId: string | null;
+            url: string;
             uploadedBy: string | null;
         }[];
         roleIds: string[];

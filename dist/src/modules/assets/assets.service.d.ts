@@ -20,11 +20,11 @@ export declare class AssetsService {
         isDeleted: boolean | null;
         employeeId: string | null;
         status: string;
-        category: string;
         internalId: string;
         modelName: string | null;
         color: string | null;
         specs: string | null;
+        category: string;
         manufacturer: string | null;
         serialNumber: string;
         purchasePrice: string;
@@ -45,11 +45,11 @@ export declare class AssetsService {
         isDeleted: boolean | null;
         employeeId: string | null;
         status: string;
-        category: string;
         internalId: string;
         modelName: string | null;
         color: string | null;
         specs: string | null;
+        category: string;
         manufacturer: string | null;
         serialNumber: string;
         purchasePrice: string;
