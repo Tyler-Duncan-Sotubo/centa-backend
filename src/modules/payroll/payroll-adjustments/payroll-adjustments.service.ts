@@ -22,7 +22,7 @@ export class PayrollAdjustmentsService {
         companyId: user.companyId,
         employeeId: dto.employeeId,
         payrollDate: new Date(dto.payrollDate).toDateString(),
-        amount: dto.amount * 100,
+        amount: dto.amount,
         type: dto.type,
         label: dto.label,
         taxable: dto.taxable ?? true,
