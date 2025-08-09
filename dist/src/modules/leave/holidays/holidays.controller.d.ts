@@ -66,7 +66,7 @@ export declare class HolidaysController extends BaseController {
         source: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-    }[]>;
+    }>;
     deleteHoliday(user: User, id: string): Promise<{
         message: string;
     }>;

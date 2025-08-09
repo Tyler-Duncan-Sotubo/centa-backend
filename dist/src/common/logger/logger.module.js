@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.LoggerModule = void 0;
 const common_1 = require("@nestjs/common");
 const nestjs_pino_1 = require("nestjs-pino");
+const isProd = process.env.NODE_ENV === 'production';
 let LoggerModule = class LoggerModule {
 };
 exports.LoggerModule = LoggerModule;
@@ -17,10 +18,41 @@ exports.LoggerModule = LoggerModule = __decorate([
         imports: [
             nestjs_pino_1.LoggerModule.forRoot({
                 pinoHttp: {
-                    transport: {
-                        target: 'pino-pretty',
-                        options: {
-                            singleLine: true,
+                    level: process.env.LOG_LEVEL || (isProd ? 'info' : 'debug'),
+                    redact: {
+                        paths: [
+                            'req.headers.authorization',
+                            'req.headers.cookie',
+                            'res.headers["set-cookie"]',
+                        ],
+                        remove: true,
+                    },
+                    genReqId: (req) => req.headers['x-request-id'] || crypto.randomUUID(),
+                    transport: isProd
+                        ? undefined
+                        : {
+                            target: 'pino-pretty',
+                            options: {
+                                singleLine: true,
+                                colorize: true,
+                                translateTime: 'SYS:standard',
+                            },
+                        },
+                    serializers: {
+                        req(req) {
+                            return {
+                                id: req.id,
+                                method: req.method,
+                                url: req.url,
+                                headers: {
+                                    host: req.headers?.host,
+                                    origin: req.headers?.origin,
+                                },
+                                remoteAddress: req.remoteAddress,
+                            };
+                        },
+                        res(res) {
+                            return { statusCode: res.statusCode };
                         },
                     },
                 },

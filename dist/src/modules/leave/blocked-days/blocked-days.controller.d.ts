@@ -14,7 +14,7 @@ export declare class BlockedDaysController extends BaseController {
         companyId: string | null;
         createdBy: string;
         reason: string | null;
-    }[]>;
+    }>;
     findAll(user: User): Promise<{
         id: string;
         date: string;
@@ -40,6 +40,8 @@ export declare class BlockedDaysController extends BaseController {
         reason: string | null;
         createdBy: string;
         createdAt: Date | null;
-    }[]>;
-    remove(id: string): Promise<any>;
+    }>;
+    remove(id: string): Promise<{
+        success: boolean;
+    }>;
 }

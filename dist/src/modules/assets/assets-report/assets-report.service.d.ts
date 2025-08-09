@@ -3,20 +3,25 @@ import { User } from 'src/common/types/user.type';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { AwsService } from 'src/common/aws/aws.service';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class AssetsReportService {
     private readonly db;
     private readonly auditService;
     private readonly awsService;
-    constructor(db: db, auditService: AuditService, awsService: AwsService);
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, awsService: AwsService, cache: CacheService);
+    private listKey;
+    private oneKey;
+    private invalidateAfterChange;
     create(dto: CreateAssetsReportDto, user: User): Promise<{
         id: string;
         updatedAt: Date | null;
         companyId: string;
         description: string;
         employeeId: string;
+        documentUrl: string | null;
         status: string | null;
         assetId: string;
-        documentUrl: string | null;
         reportType: string;
         reportedAt: Date | null;
         resolvedAt: Date | null;

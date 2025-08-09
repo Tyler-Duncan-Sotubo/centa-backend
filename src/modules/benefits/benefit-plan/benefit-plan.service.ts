@@ -13,18 +13,41 @@ import { EnrollBenefitPlanDto } from './dto/enroll-employee.dto';
 import { SingleEnrollBenefitDto } from './dto/single-employee-enroll.dto';
 import { differenceInYears, differenceInMonths } from 'date-fns';
 import { benefitGroups } from '../schema/benefit-groups.schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class BenefitPlanService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
+
+  // ---------- cache keys ----------
+  private plansListKey(companyId: string) {
+    return `company:${companyId}:benefit-plans:list`;
+  }
+  private planDetailKey(planId: string) {
+    return `benefit-plan:${planId}:detail`;
+  }
+  private employeeEnrollmentsKey(employeeId: string) {
+    return `employee:${employeeId}:benefit-enrollments`;
+  }
+  private async invalidateAfterPlanChange(companyId: string, planId?: string) {
+    const jobs = [this.cache.del(this.plansListKey(companyId))];
+    if (planId) jobs.push(this.cache.del(this.planDetailKey(planId)));
+    await Promise.allSettled(jobs);
+  }
+  private async invalidateEmployeeEnrollments(employeeIds: string[]) {
+    if (!employeeIds.length) return;
+    await Promise.allSettled(
+      employeeIds.map((id) => this.cache.del(this.employeeEnrollmentsKey(id))),
+    );
+  }
 
   async create(dto: CreateBenefitPlanDto, user: User) {
     const { name, startDate, endDate } = dto;
 
-    // check if the plan name already exists
     const [existingPlan] = await this.db
       .select()
       .from(benefitPlans)
@@ -42,79 +65,81 @@ export class BenefitPlanService {
       );
     }
 
-    if (new Date(startDate) >= new Date(endDate ? endDate : '')) {
+    if (endDate && new Date(startDate) >= new Date(endDate)) {
       throw new BadRequestException(
         'The start date must be before the end date.',
       );
     }
 
-    // create the new benefit plan
     const [newPlan] = await this.db
       .insert(benefitPlans)
-      .values({
-        ...dto,
-        companyId: user.companyId,
-      })
+      .values({ ...dto, companyId: user.companyId })
       .returning()
       .execute();
 
-    // log the creation of the new benefit plan
     await this.auditService.logAction({
       action: 'create',
       entity: 'benefit_plan',
       entityId: newPlan.id,
       userId: user.id,
       details: 'Created a new benefit plan',
-      changes: {
-        ...dto,
-        companyId: user.companyId,
-      },
+      changes: { ...dto, companyId: user.companyId },
     });
+
+    // 🔥 invalidate plan caches
+    await this.invalidateAfterPlanChange(user.companyId, newPlan.id);
+
+    return newPlan;
   }
 
   findAll(companyId: string) {
-    return this.db
-      .select()
-      .from(benefitPlans)
-      .where(and(eq(benefitPlans.companyId, companyId)))
-      .execute();
+    return this.cache.getOrSetCache(
+      this.plansListKey(companyId),
+      async () => {
+        return this.db
+          .select()
+          .from(benefitPlans)
+          .where(and(eq(benefitPlans.companyId, companyId)))
+          .execute();
+      },
+      // { ttl: 120 }
+    );
   }
 
   async findOne(id: string) {
-    const [benefitPlan] = await this.db
-      .select()
-      .from(benefitPlans)
-      .where(eq(benefitPlans.id, id))
-      .execute();
+    return this.cache.getOrSetCache(
+      this.planDetailKey(id),
+      async () => {
+        const [benefitPlan] = await this.db
+          .select()
+          .from(benefitPlans)
+          .where(eq(benefitPlans.id, id))
+          .execute();
 
-    if (!benefitPlan) {
-      throw new BadRequestException('Benefit plan not found');
-    }
-    return benefitPlan;
+        if (!benefitPlan)
+          throw new BadRequestException('Benefit plan not found');
+        return benefitPlan;
+      },
+      // { ttl: 300 }
+    );
   }
 
   async update(id: string, dto: UpdateBenefitPlanDto, user: User) {
-    const { startDate, endDate } = dto;
+    const existing = await this.findOne(id);
 
-    // check if the plan name already exists
-    await this.findOne(id);
-
-    // check if the start date is before the end date
     if (
-      new Date(startDate ? startDate : '') >= new Date(endDate ? endDate : '')
+      dto.startDate &&
+      dto.endDate &&
+      new Date(dto.startDate) >= new Date(dto.endDate)
     ) {
       throw new BadRequestException(
         'The start date must be before the end date.',
       );
     }
 
-    // update the benefit plan
     const [updatedPlan] = await this.db
       .update(benefitPlans)
-      .set({
-        ...dto,
-        companyId: user.companyId,
-      })
+      .set({ ...dto, companyId: user.companyId })
       .where(
         and(
           eq(benefitPlans.id, id),
@@ -124,25 +149,25 @@ export class BenefitPlanService {
       .returning()
       .execute();
 
-    // log the update of the benefit plan
     await this.auditService.logAction({
       action: 'update',
       entity: 'benefit_plan',
       entityId: updatedPlan.id,
       userId: user.id,
       details: 'Updated a benefit plan',
-      changes: {
-        ...dto,
-        companyId: user.companyId,
-      },
+      changes: { ...dto, companyId: user.companyId },
     });
+
+    // 🔥 invalidate caches
+    await this.invalidateAfterPlanChange(user.companyId, existing.id);
 
     return updatedPlan;
   }
 
   async remove(id: string, user: User) {
     await this.findOne(id);
-    const deletedPlan = await this.db
+
+    const deleted = await this.db
       .delete(benefitPlans)
       .where(
         and(
@@ -153,22 +178,20 @@ export class BenefitPlanService {
       .returning()
       .execute();
 
-    // log the deletion of the benefit plan
     await this.auditService.logAction({
       action: 'delete',
       entity: 'benefit_plan',
-      entityId: deletedPlan[0].id,
+      entityId: deleted[0].id,
       userId: user.id,
       details: 'Deleted a benefit plan',
-      changes: {
-        ...deletedPlan[0],
-        companyId: user.companyId,
-      },
+      changes: { ...deleted[0], companyId: user.companyId },
     });
+
+    // 🔥 invalidate caches
+    await this.invalidateAfterPlanChange(user.companyId, id);
   }
 
   private async findEmployeeById(employeeId: string, user: User) {
-    // check if the employee exists
     const [employee] = await this.db
       .select({
         id: employees.id,
@@ -186,47 +209,47 @@ export class BenefitPlanService {
       )
       .execute();
 
-    if (!employee) {
-      throw new BadRequestException('Employee not found');
-    }
-
+    if (!employee) throw new BadRequestException('Employee not found');
     return employee;
   }
 
-  // Get Employee Benefit Enrollments
+  // Get Employee Benefit Enrollments (cached per employee)
   async getEmployeeBenefitEnrollments(employeeId: string, user: User) {
     await this.findEmployeeById(employeeId, user);
 
-    const enrollments = await this.db
-      .select({
-        id: benefitEnrollments.id,
-        employeeId: benefitEnrollments.employeeId,
-        benefitPlanId: benefitEnrollments.benefitPlanId,
-        planName: benefitPlans.name,
-        category: benefitPlans.category,
-        selectedCoverage: benefitEnrollments.selectedCoverage,
-        // 👉 pull just the chosen tier’s price
-        monthlyCost: sql<string>`
-          (${benefitPlans.cost} ->> ${benefitEnrollments.selectedCoverage})
-        `,
-        startDate: benefitPlans.startDate,
-        endDate: benefitPlans.endDate,
-      })
-      .from(benefitEnrollments)
-      .innerJoin(
-        benefitPlans,
-        eq(benefitEnrollments.benefitPlanId, benefitPlans.id),
-      )
-      .where(
-        and(
-          eq(benefitEnrollments.employeeId, employeeId),
-          eq(benefitPlans.companyId, user.companyId),
-          eq(benefitEnrollments.isOptedOut, false),
-        ),
-      )
-      .execute();
+    return this.cache.getOrSetCache(
+      this.employeeEnrollmentsKey(employeeId),
+      async () => {
+        const enrollments = await this.db
+          .select({
+            id: benefitEnrollments.id,
+            employeeId: benefitEnrollments.employeeId,
+            benefitPlanId: benefitEnrollments.benefitPlanId,
+            planName: benefitPlans.name,
+            category: benefitPlans.category,
+            selectedCoverage: benefitEnrollments.selectedCoverage,
+            monthlyCost: sql<string>`(${benefitPlans.cost} ->> ${benefitEnrollments.selectedCoverage})`,
+            startDate: benefitPlans.startDate,
+            endDate: benefitPlans.endDate,
+          })
+          .from(benefitEnrollments)
+          .innerJoin(
+            benefitPlans,
+            eq(benefitEnrollments.benefitPlanId, benefitPlans.id),
+          )
+          .where(
+            and(
+              eq(benefitEnrollments.employeeId, employeeId),
+              eq(benefitPlans.companyId, user.companyId),
+              eq(benefitEnrollments.isOptedOut, false),
+            ),
+          )
+          .execute();
 
-    return enrollments;
+        return enrollments;
+      },
+      // { ttl: 120 }
+    );
   }
 
   // Employee Self-Enrollment
@@ -235,7 +258,6 @@ export class BenefitPlanService {
     dto: SingleEnrollBenefitDto,
     user: User,
   ) {
-    // ──────────────────── 1. Check plan belongs to this company ────────────────────
     const [benefitPlan] = await this.db
       .select()
       .from(benefitPlans)
@@ -246,31 +268,23 @@ export class BenefitPlanService {
         ),
       )
       .execute();
+    if (!benefitPlan) throw new BadRequestException('Benefit plan not found');
 
-    if (!benefitPlan) {
-      throw new BadRequestException('Benefit plan not found');
-    }
-
-    // ──────────────────── 2. Load benefit group + rules ────────────────────────────
     const [benefitGroup] = await this.db
       .select()
       .from(benefitGroups)
       .where(eq(benefitGroups.id, benefitPlan.benefitGroupId))
       .execute();
+    if (!benefitGroup) throw new BadRequestException('Benefit group not found');
 
-    if (!benefitGroup) {
-      throw new BadRequestException('Benefit group not found');
-    }
+    const { minAge, minMonths, onlyConfirmed } =
+      (benefitGroup.rules as {
+        minAge?: number;
+        minMonths?: number;
+        onlyConfirmed?: boolean;
+      }) || {};
 
-    const { minAge, minMonths, onlyConfirmed } = benefitGroup.rules as {
-      minAge?: number;
-      minMonths?: number;
-      onlyConfirmed?: boolean;
-    };
-
-    // ──────────────────── 3. Fetch employee & derive age/tenure ────────────────────
-    const employee = await this.findEmployeeById(employeeId, user); // already checks company
-
+    const employee = await this.findEmployeeById(employeeId, user);
     const today = new Date();
     const age = differenceInYears(today, employee.dateOfBirth || new Date());
     const tenureMonths = differenceInMonths(
@@ -279,29 +293,19 @@ export class BenefitPlanService {
     );
     const confirmedOk = !onlyConfirmed || !!employee.confirmed;
 
-    // ──────────────────── 4. Eligibility checks ────────────────────────────────────
     const messages: string[] = [];
-
-    if (minAge && age < minAge) {
+    if (minAge && age < minAge)
       messages.push(`You need to be at least ${minAge} years old to enroll.`);
-    }
-
-    if (minMonths && tenureMonths < minMonths) {
+    if (minMonths && tenureMonths < minMonths)
       messages.push(
         `You need to be employed for at least ${minMonths} months before enrolling. You’ve been with the company for ${tenureMonths} months.`,
       );
-    }
-
-    if (!confirmedOk) {
+    if (!confirmedOk)
       messages.push(
         `Only confirmed employees can enroll in this benefit plan.`,
       );
-    }
+    if (messages.length) throw new BadRequestException(messages.join(' '));
 
-    if (messages.length > 0) {
-      throw new BadRequestException(messages.join(' '));
-    }
-    // ──────────────────── 5. Already-enrolled check (unchanged) ────────────────────
     const existingEnrollment = await this.db
       .select()
       .from(benefitEnrollments)
@@ -313,14 +317,11 @@ export class BenefitPlanService {
         ),
       )
       .execute();
-
-    if (existingEnrollment.length > 0) {
+    if (existingEnrollment.length > 0)
       throw new BadRequestException(
         'You already enrolled in this benefit plan.',
       );
-    }
 
-    // ──────────────────── 6. Insert & audit (unchanged) ────────────────────────────
     await this.db
       .insert(benefitEnrollments)
       .values({
@@ -343,6 +344,9 @@ export class BenefitPlanService {
         companyId: user.companyId,
       },
     });
+
+    // 🔥 invalidate that employee’s enrollments cache
+    await this.invalidateEmployeeEnrollments([employeeId]);
   }
 
   // Opt Out of Benefit Plan
@@ -351,7 +355,6 @@ export class BenefitPlanService {
     benefitPlanId: string,
     user: User,
   ) {
-    // Validate the benefit plan
     const [benefitPlan] = await this.db
       .select()
       .from(benefitPlans)
@@ -362,20 +365,13 @@ export class BenefitPlanService {
         ),
       )
       .execute();
+    if (!benefitPlan) throw new BadRequestException('Benefit plan not found');
 
-    if (!benefitPlan) {
-      throw new BadRequestException('Benefit plan not found');
-    }
-
-    // Validate the employee exists
     await this.findEmployeeById(employeeId, user);
 
-    // Delete the enrollment
     await this.db
       .update(benefitEnrollments)
-      .set({
-        isOptedOut: true,
-      })
+      .set({ isOptedOut: true })
       .where(
         and(
           eq(benefitEnrollments.employeeId, employeeId),
@@ -384,30 +380,25 @@ export class BenefitPlanService {
       )
       .execute();
 
-    // Log the opt-out action
     await this.auditService.logAction({
       action: 'opt_out',
       entity: 'benefit_enrollment',
       entityId: `${employeeId}`,
       userId: user.id,
       details: 'Employee opted out of a benefit plan',
-      changes: {
-        employeeId,
-        benefitPlanId,
-        companyId: user.companyId,
-      },
+      changes: { employeeId, benefitPlanId, companyId: user.companyId },
     });
 
-    return {
-      message: 'Successfully opted out of the benefit plan.',
-    };
+    // 🔥 invalidate that employee’s enrollments cache
+    await this.invalidateEmployeeEnrollments([employeeId]);
+
+    return { message: 'Successfully opted out of the benefit plan.' };
   }
 
-  // Assign Employee to Benefit Plan
+  // Assign Employee(s) to Benefit Plan
   async enrollEmployeesToBenefitPlan(dto: EnrollBenefitPlanDto, user: User) {
     const { employeeIds, benefitPlanId } = dto;
 
-    // Validate the benefit plan
     const [benefitPlan] = await this.db
       .select()
       .from(benefitPlans)
@@ -418,17 +409,12 @@ export class BenefitPlanService {
         ),
       )
       .execute();
+    if (!benefitPlan) throw new BadRequestException('Benefit plan not found');
 
-    if (!benefitPlan) {
-      throw new BadRequestException('Benefit plan not found');
-    }
-
-    // Check each employee exists
     for (const employeeId of employeeIds) {
       await this.findEmployeeById(employeeId, user);
     }
 
-    // Assign all employees to the plan
     await this.db
       .insert(benefitEnrollments)
       .values(
@@ -440,7 +426,6 @@ export class BenefitPlanService {
       )
       .execute();
 
-    // Log each enrollment
     for (const employeeId of employeeIds) {
       await this.auditService.logAction({
         action: 'enroll',
@@ -448,24 +433,22 @@ export class BenefitPlanService {
         entityId: `${employeeId}-${benefitPlanId}`,
         userId: user.id,
         details: 'Enrolled an employee to a benefit plan',
-        changes: {
-          employeeId,
-          benefitPlanId,
-          companyId: user.companyId,
-        },
+        changes: { employeeId, benefitPlanId, companyId: user.companyId },
       });
     }
+
+    // 🔥 invalidate all impacted employees’ enrollments
+    await this.invalidateEmployeeEnrollments(employeeIds);
 
     return {
       message: `Successfully enrolled ${employeeIds.length} employee(s) to the benefit plan.`,
     };
   }
 
-  // Remove Employee from Benefit Plan
+  // Remove Employee(s) from Benefit Plan
   async removeEmployeesFromBenefitPlan(dto: EnrollBenefitPlanDto, user: User) {
     const { employeeIds, benefitPlanId } = dto;
 
-    // Validate benefit plan
     const [benefitPlan] = await this.db
       .select()
       .from(benefitPlans)
@@ -476,17 +459,12 @@ export class BenefitPlanService {
         ),
       )
       .execute();
+    if (!benefitPlan) throw new BadRequestException('Benefit plan not found');
 
-    if (!benefitPlan) {
-      throw new BadRequestException('Benefit plan not found');
-    }
-
-    // Validate all employee IDs
     for (const employeeId of employeeIds) {
       await this.findEmployeeById(employeeId, user);
     }
 
-    // Delete enrollments in batch
     await Promise.all(
       employeeIds.map((employeeId) =>
         this.db
@@ -501,7 +479,6 @@ export class BenefitPlanService {
       ),
     );
 
-    // Log each removal
     for (const employeeId of employeeIds) {
       await this.auditService.logAction({
         action: 'remove',
@@ -509,13 +486,12 @@ export class BenefitPlanService {
         entityId: `${employeeId}-${benefitPlanId}`,
         userId: user.id,
         details: 'Removed an employee from a benefit plan',
-        changes: {
-          employeeId,
-          benefitPlanId,
-          companyId: user.companyId,
-        },
+        changes: { employeeId, benefitPlanId, companyId: user.companyId },
       });
     }
+
+    // 🔥 invalidate enrollments
+    await this.invalidateEmployeeEnrollments(employeeIds);
 
     return {
       message: `Removed ${employeeIds.length} employee(s) from benefit plan successfully`,

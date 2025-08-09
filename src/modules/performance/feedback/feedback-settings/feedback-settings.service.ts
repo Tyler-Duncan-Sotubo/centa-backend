@@ -1,5 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { eq, and, inArray } from 'drizzle-orm';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
@@ -11,30 +10,43 @@ import { feedbackRules } from '../schema/performance-feedback-rules.schema';
 import { UpdateFeedbackRuleDto } from '../dto/update-feedback-rule.dto';
 import { UpdateFeedbackSettingsDto } from '../dto/update-feedback-settings.dto';
 import { companies } from 'src/drizzle/schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class FeedbackSettingsService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
 
-  // Create default feedback settings
-  async create(companyId: string) {
-    const now = new Date();
+  // -------- cache keys (no TTL) --------
+  private kSettings(companyId: string) {
+    return `fs:settings:${companyId}`;
+  }
+  private kRules(companyId: string) {
+    return `fs:rules:${companyId}`;
+  }
+  private async burst(companyId: string) {
+    await Promise.allSettled([
+      this.cache.del(this.kSettings(companyId)),
+      this.cache.del(this.kRules(companyId)),
+    ]);
+  }
 
-    // 1. Insert into feedback_settings
-    const [settings] = await this.db
-      .insert(feedbackSettings)
-      .values({
-        companyId,
-        enableEmployeeFeedback: true,
-        enableManagerFeedback: true,
-        allowAnonymous: true,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning();
+  // Create default feedback settings (idempotent + transactional)
+  async create(companyId: string) {
+    // guard: already exists?
+    const [exists] = await this.db
+      .select({ id: feedbackSettings.id })
+      .from(feedbackSettings)
+      .where(eq(feedbackSettings.companyId, companyId));
+    if (exists) {
+      // keep existing instead of erroring to make seeding safe
+      return await this.findOne(companyId);
+    }
+
+    const now = new Date();
 
     const defaultRules = [
       {
@@ -54,8 +66,9 @@ export class FeedbackSettingsService {
         enabled: true,
         scope: {
           officeOnly: true,
-          departments: [],
+          departmentOnly: false,
           offices: [],
+          departments: [],
         },
       },
       {
@@ -73,13 +86,23 @@ export class FeedbackSettingsService {
         group: 'manager',
         type: 'self',
         enabled: true,
-        scope: {},
+        scope: {
+          officeOnly: false,
+          departmentOnly: false,
+          offices: [],
+          departments: [],
+        },
       },
       {
         group: 'manager',
         type: 'peer',
         enabled: true,
-        scope: {},
+        scope: {
+          officeOnly: false,
+          departmentOnly: false,
+          offices: [],
+          departments: [],
+        },
       },
       {
         group: 'manager',
@@ -96,117 +119,122 @@ export class FeedbackSettingsService {
         group: 'manager',
         type: 'manager_to_employee',
         enabled: false,
-        scope: {},
+        scope: {
+          officeOnly: false,
+          departmentOnly: false,
+          offices: [],
+          departments: [],
+        },
       },
     ] as const;
 
-    // 2. Insert into feedback_rules
-    for (const rule of defaultRules) {
-      const [insertedRule] = await this.db
-        .insert(feedbackRules)
+    const created = await this.db.transaction(async (trx) => {
+      const [settings] = await trx
+        .insert(feedbackSettings)
         .values({
           companyId,
-          group: rule.group,
-          type: rule.type,
-          enabled: rule.enabled,
-          officeOnly:
-            'officeOnly' in rule.scope ? (rule.scope as any).officeOnly : false,
-          departmentOnly:
-            'departmentOnly' in rule.scope
-              ? (rule.scope as any).departmentOnly
-              : false,
+          enableEmployeeFeedback: true,
+          enableManagerFeedback: true,
+          allowAnonymous: true,
           createdAt: now,
           updatedAt: now,
         })
         .returning();
 
-      // 3. If scope has offices or departments, insert into feedback_rule_scopes
-      const officeScopes =
-        rule.scope &&
-        'offices' in rule.scope &&
-        Array.isArray((rule.scope as any).offices)
-          ? (rule.scope as any).offices
-          : [];
-      const departmentScopes =
-        rule.scope &&
-        'departments' in rule.scope &&
-        Array.isArray((rule.scope as any).departments)
-          ? (rule.scope as any).departments
-          : [];
+      for (const rule of defaultRules) {
+        const [insertedRule] = await trx
+          .insert(feedbackRules)
+          .values({
+            companyId,
+            group: rule.group,
+            type: rule.type,
+            enabled: rule.enabled,
+            officeOnly: rule.scope.officeOnly,
+            departmentOnly: rule.scope.departmentOnly,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .returning();
 
-      const scopeEntries = [
-        ...officeScopes.map((id) => ({
-          ruleId: insertedRule.id,
-          type: 'office' as const,
-          referenceId: id,
-          createdAt: now,
-        })),
-        ...departmentScopes.map((id) => ({
-          ruleId: insertedRule.id,
-          type: 'department' as const,
-          referenceId: id,
-          createdAt: now,
-        })),
-      ];
-
-      if (scopeEntries.length > 0) {
-        await this.db.insert(feedbackRuleScopes).values(scopeEntries);
+        const scopeEntries = [
+          ...rule.scope.offices.map((id) => ({
+            ruleId: insertedRule.id,
+            type: 'office' as const,
+            referenceId: id,
+            createdAt: now,
+          })),
+          ...rule.scope.departments.map((id) => ({
+            ruleId: insertedRule.id,
+            type: 'department' as const,
+            referenceId: id,
+            createdAt: now,
+          })),
+        ];
+        if (scopeEntries.length) {
+          await trx.insert(feedbackRuleScopes).values(scopeEntries);
+        }
       }
-    }
 
-    return settings;
+      return settings;
+    });
+
+    await this.burst(companyId);
+    return created;
   }
 
   async seedCompanies() {
     const allCompanies = await this.db
-      .select({
-        id: companies.id,
-      })
+      .select({ id: companies.id })
       .from(companies)
       .execute();
-
     for (const company of allCompanies) {
-      await this.create(company.id);
+      await this.create(company.id); // idempotent now
     }
   }
 
-  // Retrieve feedback settings for a company
+  // Retrieve feedback settings for a company (cached)
   async findOne(companyId: string) {
-    const [settings] = await this.db
-      .select()
-      .from(feedbackSettings)
-      .where(eq(feedbackSettings.companyId, companyId));
+    const settingsKey = this.kSettings(companyId);
+    const rulesKey = this.kRules(companyId);
+
+    const settings = await this.cache.getOrSetCache(settingsKey, async () => {
+      const [row] = await this.db
+        .select()
+        .from(feedbackSettings)
+        .where(eq(feedbackSettings.companyId, companyId));
+      return row ?? null;
+    });
 
     if (!settings) {
+      // return empty object like your original, or choose to auto-create
       return {};
     }
 
-    const rules = await this.db
-      .select()
-      .from(feedbackRules)
-      .where(eq(feedbackRules.companyId, companyId));
-
-    const ruleIds = rules.map((r) => r.id);
-
-    const scopes = ruleIds.length
-      ? await this.db
-          .select()
-          .from(feedbackRuleScopes)
-          .where(inArray(feedbackRuleScopes.ruleId, ruleIds))
-      : [];
+    const rules = await this.cache.getOrSetCache(rulesKey, async () => {
+      const r = await this.db
+        .select()
+        .from(feedbackRules)
+        .where(eq(feedbackRules.companyId, companyId));
+      const ruleIds = r.map((x) => x.id);
+      const s = ruleIds.length
+        ? await this.db
+            .select()
+            .from(feedbackRuleScopes)
+            .where(inArray(feedbackRuleScopes.ruleId, ruleIds))
+        : [];
+      return { rules: r, scopes: s };
+    });
 
     const feedbackRulesByGroup: Record<'employee' | 'manager', any[]> = {
       employee: [],
       manager: [],
     };
 
-    for (const rule of rules) {
-      const ruleScopes = scopes.filter((s) => s.ruleId === rule.id);
-
+    for (const rule of rules.rules) {
+      const ruleScopes = rules.scopes.filter((s) => s.ruleId === rule.id);
       const offices = ruleScopes
         .filter((s) => s.type === 'office')
         .map((s) => s.referenceId);
-
       const departments = ruleScopes
         .filter((s) => s.type === 'department')
         .map((s) => s.referenceId);
@@ -241,16 +269,11 @@ export class FeedbackSettingsService {
       .from(feedbackSettings)
       .where(eq(feedbackSettings.companyId, companyId));
 
-    if (!existing) {
-      throw new NotFoundException('Feedback settings not found');
-    }
+    if (!existing) throw new NotFoundException('Feedback settings not found');
 
     const [updated] = await this.db
       .update(feedbackSettings)
-      .set({
-        ...dto,
-        updatedAt: new Date(),
-      })
+      .set({ ...dto, updatedAt: new Date() })
       .where(eq(feedbackSettings.companyId, companyId))
       .returning();
 
@@ -263,6 +286,7 @@ export class FeedbackSettingsService {
       changes: dto,
     });
 
+    await this.burst(companyId);
     return updated;
   }
 
@@ -277,86 +301,90 @@ export class FeedbackSettingsService {
       .select()
       .from(feedbackSettings)
       .where(eq(feedbackSettings.companyId, companyId));
-
-    if (!existing) {
-      throw new NotFoundException('Feedback settings not found');
-    }
+    if (!existing) throw new NotFoundException('Feedback settings not found');
 
     const now = new Date();
 
-    // Upsert rule
-    const [rule] = await this.db
-      .select()
-      .from(feedbackRules)
-      .where(
-        and(
-          eq(feedbackRules.companyId, companyId),
-          eq(feedbackRules.group, group),
-          eq(feedbackRules.type, type),
-        ),
-      );
+    await this.db.transaction(async (trx) => {
+      const [rule] = await trx
+        .select()
+        .from(feedbackRules)
+        .where(
+          and(
+            eq(feedbackRules.companyId, companyId),
+            eq(feedbackRules.group, group),
+            eq(feedbackRules.type, type),
+          ),
+        );
 
-    let ruleId = rule?.id;
+      let ruleId = rule?.id;
 
-    if (ruleId) {
-      await this.db
-        .update(feedbackRules)
-        .set({
-          enabled,
-          officeOnly: scope?.officeOnly ?? false,
-          departmentOnly: scope?.departmentOnly ?? false,
-          updatedAt: now,
-        })
-        .where(eq(feedbackRules.id, ruleId));
-    } else {
-      const [inserted] = await this.db
-        .insert(feedbackRules)
-        .values({
-          companyId,
-          group,
-          type,
-          enabled,
-          officeOnly: scope?.officeOnly ?? false,
-          departmentOnly: scope?.departmentOnly ?? false,
+      if (ruleId) {
+        await trx
+          .update(feedbackRules)
+          .set({
+            enabled,
+            officeOnly: scope?.officeOnly ?? false,
+            departmentOnly: scope?.departmentOnly ?? false,
+            updatedAt: now,
+          })
+          .where(eq(feedbackRules.id, ruleId));
+      } else {
+        const [inserted] = await trx
+          .insert(feedbackRules)
+          .values({
+            companyId,
+            group,
+            type,
+            enabled,
+            officeOnly: scope?.officeOnly ?? false,
+            departmentOnly: scope?.departmentOnly ?? false,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .returning();
+        ruleId = inserted.id;
+      }
+
+      await trx
+        .delete(feedbackRuleScopes)
+        .where(eq(feedbackRuleScopes.ruleId, ruleId!));
+
+      const entries: Array<{
+        ruleId: string;
+        type: 'office' | 'department';
+        referenceId: string;
+        createdAt: Date;
+      }> = [];
+      for (const officeId of scope?.offices || []) {
+        entries.push({
+          ruleId: ruleId!,
+          type: 'office',
+          referenceId: officeId,
           createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
-      ruleId = inserted.id;
-    }
-
-    // Replace scope records
-    await this.db
-      .delete(feedbackRuleScopes)
-      .where(eq(feedbackRuleScopes.ruleId, ruleId));
-
-    const scopes: Array<{
-      ruleId: string;
-      type: 'office' | 'department';
-      referenceId: string;
-    }> = [];
-
-    for (const officeId of scope?.offices || []) {
-      scopes.push({ ruleId, type: 'office', referenceId: officeId });
-    }
-
-    for (const deptId of scope?.departments || []) {
-      scopes.push({ ruleId, type: 'department', referenceId: deptId });
-    }
-
-    if (scopes.length) {
-      await this.db.insert(feedbackRuleScopes).values(scopes);
-    }
+        });
+      }
+      for (const deptId of scope?.departments || []) {
+        entries.push({
+          ruleId: ruleId!,
+          type: 'department',
+          referenceId: deptId,
+          createdAt: now,
+        });
+      }
+      if (entries.length) await trx.insert(feedbackRuleScopes).values(entries);
+    });
 
     await this.auditService.logAction({
       action: 'update',
       entity: 'feedbackRule',
-      entityId: ruleId,
+      entityId: `${companyId}:${group}.${type}`,
       userId: user.id,
       details: `Updated feedback rule for ${group}.${type}`,
       changes: { enabled, scope },
     });
 
+    await this.burst(companyId);
     return { success: true };
   }
 }

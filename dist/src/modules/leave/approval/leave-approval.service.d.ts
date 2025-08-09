@@ -5,13 +5,19 @@ import { LeaveBalanceService } from '../balance/leave-balance.service';
 import { ApproveRejectLeaveDto } from './dto/approve-reject.dto';
 import { LeaveSettingsService } from '../settings/leave-settings.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class LeaveApprovalService {
     private readonly db;
     private readonly auditService;
     private readonly leaveBalanceService;
     private readonly leaveSettingsService;
     private readonly pusher;
-    constructor(db: db, auditService: AuditService, leaveBalanceService: LeaveBalanceService, leaveSettingsService: LeaveSettingsService, pusher: PusherService);
+    private readonly logger;
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, leaveBalanceService: LeaveBalanceService, leaveSettingsService: LeaveSettingsService, pusher: PusherService, logger: PinoLogger, cache: CacheService);
+    private detailKey;
+    private burstDetail;
     findOneById(leaveRequestId: string, companyId: string): Promise<{
         id: string;
         companyId: string;
@@ -53,7 +59,7 @@ export declare class LeaveApprovalService {
         partialDay: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-    }[]>;
+    }>;
     rejectLeaveRequest(leaveRequestId: string, dto: ApproveRejectLeaveDto, user: User, ip: string): Promise<{
         id: string;
         companyId: string;
@@ -74,5 +80,5 @@ export declare class LeaveApprovalService {
         partialDay: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-    }[]>;
+    }>;
 }

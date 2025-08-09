@@ -9,6 +9,7 @@ import { assetReports } from '../schema/asset-reports.schema';
 import { AwsService } from 'src/common/aws/aws.service';
 import { assets } from '../schema/assets.schema';
 import { employees } from 'src/drizzle/schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class AssetsReportService {
@@ -16,10 +17,23 @@ export class AssetsReportService {
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
     private readonly awsService: AwsService,
+    private readonly cache: CacheService,
   ) {}
 
+  // -------- cache keys + helpers --------
+  private listKey(companyId: string) {
+    return `company:${companyId}:asset-reports:list`;
+  }
+  private oneKey(reportId: string) {
+    return `asset-report:${reportId}:detail`;
+  }
+  private async invalidateAfterChange(companyId: string, reportId?: string) {
+    const jobs = [this.cache.del(this.listKey(companyId))];
+    if (reportId) jobs.push(this.cache.del(this.oneKey(reportId)));
+    await Promise.allSettled(jobs);
+  }
+
   async create(dto: CreateAssetsReportDto, user: User) {
-    // Check if the report already exists for the given employee and asset
     const [existingReport] = await this.db
       .select()
       .from(assetReports)
@@ -31,9 +45,8 @@ export class AssetsReportService {
 
     let documentUrl = dto.documentUrl;
 
-    // Handle base64 file upload to AWS if document is provided
     if (documentUrl?.startsWith('data:image')) {
-      const fileName = `asset-report-${Date.now()}.jpg`; // or .png based on content type
+      const fileName = `asset-report-${Date.now()}.jpg`;
       documentUrl = await this.awsService.uploadImageToS3(
         dto.employeeId,
         fileName,
@@ -41,7 +54,6 @@ export class AssetsReportService {
       );
     }
 
-    // Create the report
     const [newReport] = await this.db
       .insert(assetReports)
       .values({
@@ -49,14 +61,13 @@ export class AssetsReportService {
         assetId: dto.assetId,
         reportType: dto.reportType,
         description: dto.description,
-        documentUrl, // <-- updated here
+        documentUrl,
         reportedAt: new Date(),
         companyId: user.companyId,
       })
       .returning()
       .execute();
 
-    // Log the action
     await this.auditService.logAction({
       action: 'create',
       entity: 'asset_report',
@@ -72,65 +83,75 @@ export class AssetsReportService {
       },
     });
 
+    // bust caches
+    await this.invalidateAfterChange(user.companyId, newReport.id);
+
     return newReport;
   }
 
   async findAll(companyId: string) {
-    const allReports = await this.db
-      .select({
-        id: assetReports.id,
-        employeeId: assetReports.employeeId,
-        assetId: assetReports.assetId,
-        reportType: assetReports.reportType,
-        description: assetReports.description,
-        documentUrl: assetReports.documentUrl,
-        reportedAt: assetReports.reportedAt,
-        employeeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
-        employeeEmail: employees.email,
-        assetName: assets.name,
-        status: assetReports.status,
-        assetStatus: assets.status,
-      })
-      .from(assetReports)
-      .innerJoin(employees, eq(assetReports.employeeId, employees.id))
-      .leftJoin(assets, eq(assetReports.assetId, assets.id))
-      .where(eq(assetReports.companyId, companyId))
-      .orderBy(desc(assetReports.reportedAt))
-      .execute();
-
-    return allReports;
+    return this.cache.getOrSetCache(
+      this.listKey(companyId),
+      async () => {
+        return this.db
+          .select({
+            id: assetReports.id,
+            employeeId: assetReports.employeeId,
+            assetId: assetReports.assetId,
+            reportType: assetReports.reportType,
+            description: assetReports.description,
+            documentUrl: assetReports.documentUrl,
+            reportedAt: assetReports.reportedAt,
+            employeeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+            employeeEmail: employees.email,
+            assetName: assets.name,
+            status: assetReports.status,
+            assetStatus: assets.status,
+          })
+          .from(assetReports)
+          .innerJoin(employees, eq(assetReports.employeeId, employees.id))
+          .leftJoin(assets, eq(assetReports.assetId, assets.id))
+          .where(eq(assetReports.companyId, companyId))
+          .orderBy(desc(assetReports.reportedAt))
+          .execute();
+      },
+      // { ttl: 60 }
+    );
   }
 
   async findOne(id: string) {
-    const [report] = await this.db
-      .select()
-      .from(assetReports)
-      .where(eq(assetReports.id, id))
-      .execute();
+    return this.cache.getOrSetCache(
+      this.oneKey(id),
+      async () => {
+        const [report] = await this.db
+          .select()
+          .from(assetReports)
+          .where(eq(assetReports.id, id))
+          .execute();
 
-    if (!report) {
-      throw new BadRequestException(`Report with ID ${id} not found`);
-    }
+        if (!report) {
+          throw new BadRequestException(`Report with ID ${id} not found`);
+        }
 
-    return report;
+        return report;
+      },
+      // { ttl: 120 }
+    );
   }
 
   async update(id: string, user: User, status?: string, assetStatus?: string) {
-    // Find the existing report
-    const report = await this.findOne(id.toString());
+    const report = await this.findOne(id); // uses cache but we only need existence; mutation will burst
 
-    // Update the asset report status
     const [updatedReport] = await this.db
       .update(assetReports)
       .set({
-        status: status ?? report.status, // if provided
+        status: status ?? (report as any).status,
         updatedAt: new Date(),
       })
       .where(eq(assetReports.id, id))
       .returning()
       .execute();
 
-    // Update asset status if provided
     if (assetStatus) {
       await this.db
         .update(assets)
@@ -138,11 +159,12 @@ export class AssetsReportService {
           status: assetStatus,
           updatedAt: new Date().toISOString(),
         })
-        .where(eq(assets.id, report.assetId))
+        .where(eq(assets.id, (report as any).assetId))
         .execute();
+      // optional: if your AssetsService has caching, consider invalidating its keys here too
+      // via an AssetsCache helper or event.
     }
 
-    // Audit log
     await this.auditService.logAction({
       action: 'update',
       entity: 'asset_report',
@@ -154,6 +176,9 @@ export class AssetsReportService {
         assetStatus: assetStatus ?? 'unchanged',
       },
     });
+
+    // bust caches
+    await this.invalidateAfterChange(updatedReport.companyId, updatedReport.id);
 
     return updatedReport;
   }

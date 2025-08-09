@@ -12,14 +12,14 @@ export declare class OffboardingService {
         id: string;
         companyId: string;
         employeeId: string;
+        status: string | null;
+        notes: string | null;
+        startedAt: Date | null;
+        completedAt: Date | null;
         terminationType: string | null;
         terminationReason: string | null;
         terminationDate: string;
         eligibleForRehire: boolean | null;
-        notes: string | null;
-        status: string | null;
-        startedAt: Date | null;
-        completedAt: Date | null;
     }>;
     addDetails(sessionId: string, dto: AddOffboardingDetailsDto, user: User): Promise<{
         sessionId: string;
@@ -77,24 +77,24 @@ export declare class OffboardingService {
             name: string;
             createdAt: Date | null;
             description: string | null;
+            completed: boolean | null;
             completedAt: Date | null;
             order: number | null;
             isAssetReturnStep: boolean | null;
             sessionId: string;
             assetId: string | null;
-            completed: boolean | null;
         }[];
         id: string;
         companyId: string;
         employeeId: string;
+        status: string | null;
+        notes: string | null;
+        startedAt: Date | null;
+        completedAt: Date | null;
         terminationType: string | null;
         terminationReason: string | null;
         terminationDate: string;
         eligibleForRehire: boolean | null;
-        notes: string | null;
-        status: string | null;
-        startedAt: Date | null;
-        completedAt: Date | null;
     }>;
     update(id: string, dto: UpdateOffboardingDto, user: User): Promise<{
         id: string;

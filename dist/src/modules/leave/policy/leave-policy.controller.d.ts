@@ -6,7 +6,7 @@ import { LeavePolicyService } from './leave-policy.service';
 export declare class LeavePolicyController extends BaseController {
     private readonly leavePolicy;
     constructor(leavePolicy: LeavePolicyService);
-    createLeavePolicy(leaveTypeId: string, dto: CreateLeavePolicyDto, user: User, ip: string): Promise<{
+    createLeavePolicy(dto: CreateLeavePolicyDto, user: User, ip: string): Promise<{
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
@@ -97,5 +97,7 @@ export declare class LeavePolicyController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
     }>;
-    removeLeavePolicy(leaveTypeId: string, user: User, ip: string): Promise<void>;
+    removeLeavePolicy(leaveTypeId: string, user: User, ip: string): Promise<{
+        message: string;
+    }>;
 }

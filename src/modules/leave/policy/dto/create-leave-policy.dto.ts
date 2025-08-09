@@ -1,6 +1,15 @@
-import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 
 export class CreateLeavePolicyDto {
+  @IsUUID()
+  leaveTypeId: string;
+
   @IsBoolean()
   @IsOptional()
   accrualEnabled?: boolean;

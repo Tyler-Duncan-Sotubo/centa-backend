@@ -1,10 +1,14 @@
 import { UpdateLeaveBalanceDto } from './dto/update-leave-balance.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class LeaveBalanceService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly logger;
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, logger: PinoLogger, cache: CacheService);
     protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "leave_balances";
         schema: undefined;
@@ -182,6 +186,10 @@ export declare class LeaveBalanceService {
         };
         dialect: "pg";
     }>;
+    private allKey;
+    private empYearKey;
+    private empTypeYearKey;
+    private burstAfterChange;
     create(leaveTypeId: string, companyId: string, employeeId: string, year: number, entitlement: string, used: string, balance: string): Promise<{
         id: string;
         createdAt: Date | null;
@@ -266,5 +274,5 @@ export declare class LeaveBalanceService {
         balance: string;
         createdAt: Date | null;
         updatedAt: Date | null;
-    }[]>;
+    }>;
 }

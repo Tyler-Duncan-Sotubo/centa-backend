@@ -1,11 +1,10 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { CreateAssetDto } from './dto/create-asset.dto';
-import { UpdateAssetDto } from './dto/update-asset.dto';
+import { PinoLogger } from 'nestjs-pino';
 import { UsefulLifeService } from './useful-life.service';
 import { User } from 'src/common/types/user.type';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
-import { AuditService } from '../audit/audit.service';
+import { AuditService } from 'src/modules/audit/audit.service';
 import { assets } from './schema/assets.schema';
 import { eq, and, desc, isNull, sql } from 'drizzle-orm';
 import { companyLocations, employees } from '../core/schema';
@@ -13,6 +12,8 @@ import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { CreateBulkAssetDto } from './dto/create-bulk-asset.dto';
 import { assetReports } from './schema/asset-reports.schema';
+import { UpdateAssetDto } from './dto/update-asset.dto';
+import { CreateAssetDto } from './dto/create-asset.dto';
 
 @Injectable()
 export class AssetsService {
@@ -20,7 +21,10 @@ export class AssetsService {
     private readonly usefulLifeService: UsefulLifeService,
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
-  ) {}
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(AssetsService.name);
+  }
 
   private categoryMap = {
     Laptop: 'L',
@@ -30,6 +34,7 @@ export class AssetsService {
     Other: 'O',
   };
 
+  // -------------------------- CREATE (single) --------------------------
   async create(dto: CreateAssetDto, user: User) {
     // check if asset with same serial number already exists
     const existingAsset = await this.db
@@ -58,7 +63,8 @@ export class AssetsService {
     const existingCount = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(assets)
-      .where(eq(assets.category, dto.category));
+      .where(eq(assets.category, dto.category))
+      .execute();
 
     const categoryCode = this.categoryMap[dto.category] || 'A';
     const year = new Date(dto.purchaseDate).getFullYear().toString().slice(-2); // '25'
@@ -76,7 +82,7 @@ export class AssetsService {
         case 'Phone':
           return 'StraightLine';
         case 'Furniture':
-          return 'DecliningBalance'; // or 'StraightLine' based on your policy
+          return 'DecliningBalance';
         default:
           return 'StraightLine';
       }
@@ -92,13 +98,13 @@ export class AssetsService {
       locationId: dto.locationId,
       internalId: internalId,
     };
-    // Insert asset into the database
+
     const [newAsset] = await this.db
       .insert(assets)
       .values(assetData)
       .returning()
       .execute();
-    // Log the creation in the audit service
+
     await this.auditService.logAction({
       action: 'create',
       entity: 'asset',
@@ -119,7 +125,74 @@ export class AssetsService {
     return newAsset;
   }
 
+  // ----------------------- BULK CREATE (CSV/XLSX) -----------------------
   async bulkCreateAssets(companyId: string, rows: any[]) {
+    this.logger.info(
+      { companyId, rowCount: rows?.length ?? 0 },
+      'bulkCreateAssets:start',
+    );
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new BadRequestException({ message: 'CSV has no rows' });
+    }
+
+    // helpers
+    const trim = (v: any) => (typeof v === 'string' ? v.trim() : v);
+
+    const sanitizeRow = (r: Record<string, any>) => {
+      const out: Record<string, any> = {};
+      for (const k of Object.keys(r)) out[k] = trim(r[k]);
+      return out;
+    };
+
+    const toDateString = (v?: string) => {
+      if (!v) return undefined;
+      const raw = String(v).trim();
+      const iso = /^(\d{4})-(\d{2})-(\d{2})$/; // YYYY-MM-DD
+      const dmy = /^(\d{2})\/(\d{2})\/(\d{4})$/; // DD/MM/YYYY
+      const mdy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/; // MM/DD/YYYY
+      let y: number, m: number, d: number;
+
+      if (iso.test(raw)) {
+        return raw;
+      } else if (dmy.test(raw)) {
+        const [, dd, mm, yyyy] = raw.match(dmy)!;
+        y = +yyyy;
+        m = +mm;
+        d = +dd;
+      } else if (mdy.test(raw)) {
+        const [, mm, dd, yyyy] = raw.match(mdy)!;
+        y = +yyyy;
+        m = +mm;
+        d = +dd;
+      } else {
+        return undefined;
+      }
+
+      const utc = Date.UTC(y, m - 1, d);
+      const dt = new Date(utc);
+      return isNaN(dt.getTime()) ? undefined : dt.toISOString().slice(0, 10);
+    };
+
+    const toNumber = (v: any) => {
+      if (v === null || v === undefined || v === '') return NaN;
+      const n = Number(String(v).replace(/[, ]/g, '')); // allow "1,234.56"
+      return Number.isFinite(n) ? n : NaN;
+    };
+
+    const normalizeLoc = (s: string) =>
+      s
+        .toLowerCase()
+        .replace(/\b(branch|office)\b/g, '')
+        .replace(/\s+/g, '')
+        .trim();
+
+    // debug headers
+    const firstKeys = Object.keys(rows[0] ?? {});
+    this.logger.debug(
+      `bulkCreateAssets: first row keys -> ${JSON.stringify(firstKeys)}`,
+    );
+
     type Row = {
       'Asset Name': string;
       'Model Name'?: string;
@@ -137,177 +210,259 @@ export class AssetsService {
       'Return Date'?: string;
     };
 
-    // Preload employees
+    // preload employees & locations
     const allEmployees = await this.db
       .select({
         id: employees.id,
         fullName: sql<string>`LOWER(${employees.firstName} || ' ' || ${employees.lastName})`,
       })
       .from(employees)
-      .where(eq(employees.companyId, companyId));
+      .where(eq(employees.companyId, companyId))
+      .execute();
+    const employeeMap = new Map(allEmployees.map((e) => [e.fullName, e.id]));
 
-    const employeeMap = new Map(
-      allEmployees.map((e) => [e.fullName.toLowerCase(), e.id]),
-    );
-
-    // Preload office locations
     const allLocations = await this.db
       .select({
         id: companyLocations.id,
         name: sql<string>`LOWER(${companyLocations.name})`,
       })
       .from(companyLocations)
-      .where(eq(companyLocations.companyId, companyId));
+      .where(eq(companyLocations.companyId, companyId))
+      .execute();
 
-    const locationMap = new Map(
-      allLocations.map((l) => [l.name.toLowerCase(), l.id]),
+    const locationKeyed = new Map(allLocations.map((l) => [l.name, l.id])); // exact lowercased
+    const locationFuzzy = new Map(
+      allLocations.map((l) => [normalizeLoc(l.name), l.id]),
     );
 
-    const dtos: (CreateBulkAssetDto & {
-      employeeId?: string;
-      locationId: string;
-    })[] = [];
+    this.logger.debug(
+      `bulkCreateAssets: preloaded employees=${allEmployees.length}, locations=${allLocations.length}`,
+    );
+    this.logger.debug(
+      `bulkCreateAssets: location keys -> ${JSON.stringify([...locationKeyed.keys()].slice(0, 20))}`,
+    );
 
-    const existingCounts = new Map<string, number>();
+    // normalize & validate rows
+    const errors: Array<{ index: number; name?: string; reason: string }> = [];
+    const dtos: Array<
+      CreateBulkAssetDto & {
+        employeeId?: string;
+        locationId: string;
+        category: string;
+        year: number;
+      }
+    > = [];
 
-    for (const dto of dtos) {
-      const year = new Date(dto.purchaseDate)
-        .getFullYear()
-        .toString()
-        .slice(-2);
-      const prefix = `${dto.category}-${year}`;
-      if (!existingCounts.has(prefix)) {
-        const [{ count }] = await this.db
-          .select({ count: sql<number>`COUNT(*)` })
-          .from(assets)
-          .where(
-            and(
-              eq(assets.companyId, companyId),
-              eq(assets.category, dto.category),
-              sql`EXTRACT(YEAR FROM ${assets.purchaseDate}) = ${Number('20' + year)}`,
-            ),
+    for (let i = 0; i < rows.length; i++) {
+      const raw = sanitizeRow(rows[i] as Row);
+      const name = (raw['Asset Name'] ?? '').toString();
+
+      try {
+        const category = (raw.Category ?? '').toString();
+        const serial = (raw['Serial Number'] ?? '').toString();
+        const price = toNumber(raw['Purchase Price']);
+        const purchaseDate = toDateString(raw['Purchase Date']);
+
+        const locationNameRaw = (raw['Location Name'] ?? '').toString();
+        const exactKey = locationNameRaw.toLowerCase();
+        let locationId = locationKeyed.get(exactKey);
+        if (!locationId) {
+          locationId = locationFuzzy.get(normalizeLoc(locationNameRaw));
+        }
+
+        this.logger.debug(
+          `row#${i}: name="${name}", category="${category}", serial="${serial}", price="${raw['Purchase Price']}" -> ${price}, purchaseDate="${raw['Purchase Date']}" -> ${purchaseDate}, location="${locationNameRaw}" -> id=${locationId}`,
+        );
+
+        if (!name) throw new Error(`"Asset Name" is required`);
+        if (!category) throw new Error(`"Category" is required`);
+        if (!serial) throw new Error(`"Serial Number" is required`);
+        if (!Number.isFinite(price))
+          throw new Error(`"Purchase Price" is invalid`);
+        if (!purchaseDate)
+          throw new Error(`"Purchase Date" is required/invalid`);
+        if (!locationId)
+          throw new Error(`Unknown "Location Name": ${locationNameRaw}`);
+
+        let employeeId: string | undefined;
+        const empNameRaw = (raw['Employee Name'] ?? '').toString();
+        if (empNameRaw) {
+          const empKey = empNameRaw.toLowerCase();
+          employeeId = employeeMap.get(empKey);
+          if (!employeeId) {
+            this.logger.warn(
+              `row#${i}: Unknown "Employee Name": ${empNameRaw} (inserting unassigned)`,
+            );
+          }
+        }
+
+        const dto = plainToInstance(CreateBulkAssetDto, {
+          name,
+          modelName: raw['Model Name'] ?? '',
+          color: raw.Color ?? '',
+          specs: raw.Specs ?? '',
+          category,
+          manufacturer: raw.Manufacturer ?? '',
+          serialNumber: serial,
+          purchasePrice: String(price), // or `price` if DTO expects number
+          purchaseDate, // ISO yyyy-mm-dd
+          warrantyExpiry: toDateString(raw['Warranty Expiry']),
+          lendDate: toDateString(raw['Lend Date']),
+          returnDate: toDateString(raw['Return Date']),
+        });
+
+        const validationErrors = await validate(dto);
+        if (validationErrors.length) {
+          this.logger.warn(
+            `row#${i}: class-validator failed -> ${JSON.stringify(
+              validationErrors,
+            )}`,
           );
-        existingCounts.set(prefix, Number(count));
+          throw new Error(
+            `Validation failed: ${JSON.stringify(validationErrors)}`,
+          );
+        }
+
+        const year = new Date(dto.purchaseDate).getFullYear();
+        dtos.push({ ...dto, employeeId, locationId, category, year });
+      } catch (e: any) {
+        const reason = e?.message ?? 'Invalid row';
+        errors.push({ index: i, name, reason });
+        this.logger.error(`row#${i} FAILED: ${reason}`);
       }
     }
 
-    for (const row of rows as Row[]) {
-      const employeeName = row['Employee Name']?.trim().toLowerCase();
-      const employeeId = employeeName
-        ? employeeMap.get(employeeName)
-        : undefined;
+    this.logger.debug({ firstKeys }, 'bulkCreateAssets:first-row-keys');
 
-      if (employeeName && !employeeId) {
-        console.warn(`Skipping row with unknown employee: ${employeeName}`);
-        continue;
-      }
-
-      const locationName = row['Location Name']?.trim().toLowerCase();
-      const locationId = locationMap.get(locationName);
-
-      if (!locationId) {
-        console.warn(`Skipping row with unknown location: ${locationName}`);
-        continue;
-      }
-
-      const dto = plainToInstance(CreateBulkAssetDto, {
-        name: row['Asset Name'],
-        modelName: row['Model Name'],
-        color: row['Color'],
-        specs: row['Specs'],
-        category: row['Category'],
-        manufacturer: row['Manufacturer'],
-        serialNumber: row['Serial Number'],
-        purchasePrice: String(row['Purchase Price']),
-        purchaseDate: row['Purchase Date'],
-        warrantyExpiry: row['Warranty Expiry'] || undefined,
-        lendDate: row['Lend Date'] || undefined,
-        returnDate: row['Return Date'] || undefined,
+    if (dtos.length === 0) {
+      throw new BadRequestException({
+        message: 'No valid rows in CSV',
+        errors,
       });
-
-      const errors = await validate(dto);
-      if (errors.length) {
-        console.warn(`❌ Skipping invalid asset row:`, errors);
-        continue;
-      }
-
-      dtos.push({ ...dto, employeeId, locationId });
     }
 
-    const inserted = await this.db.transaction(async (trx) => {
-      const insertedAssets: (typeof assets.$inferSelect)[] = [];
+    // internalId planning (GLOBAL uniqueness by prefix)
+    const categoryMap: Record<string, string> = {
+      Laptop: 'L',
+      Monitor: 'M',
+      Phone: 'P',
+      Furniture: 'F',
+      Other: 'O',
+    };
+    const depMap: Record<string, string> = {
+      Laptop: 'StraightLine',
+      Monitor: 'StraightLine',
+      Phone: 'StraightLine',
+      Furniture: 'DecliningBalance',
+    };
 
-      // Parallel fetch useful life years
-      const usefulLifePromises = dtos.map((dto) =>
-        this.usefulLifeService.getUsefulLifeYears(dto.category, dto.name),
+    const prefixes = new Set<string>();
+    for (const d of dtos) {
+      const yy = String(d.year).slice(-2);
+      const code =
+        categoryMap[d.category] ?? d.category.charAt(0).toUpperCase();
+      prefixes.add(`${code}${yy}-`);
+    }
+
+    const prefixNext = new Map<string, number>();
+    for (const prefix of prefixes) {
+      const existing = await this.db
+        .select({ internalId: assets.internalId })
+        .from(assets)
+        .where(sql`${assets.internalId} LIKE ${prefix + '%'}`)
+        .orderBy(sql`${assets.internalId} DESC`)
+        .limit(500)
+        .execute();
+
+      let maxSeq = 0;
+      for (const row of existing) {
+        const m = row.internalId?.match(/^.+-(\d{3,})$/);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (!isNaN(n) && n > maxSeq) maxSeq = n;
+        }
+      }
+      prefixNext.set(prefix, maxSeq + 1);
+      this.logger.debug(
+        `internalId: prefix="${prefix}" -> startSeq=${maxSeq + 1}`,
       );
-      const usefulLives = await Promise.all(usefulLifePromises);
+    }
 
-      for (let i = 0; i < dtos.length; i++) {
-        const dto = dtos[i];
+    // insert each row individually (no global TX)
+    const inserted: (typeof assets.$inferSelect)[] = [];
 
-        const category = dto.category;
-        // Before the loop, preload count from the DB:
+    for (let i = 0; i < dtos.length; i++) {
+      const d = dtos[i];
+      const yy = String(d.year).slice(-2);
+      const code =
+        categoryMap[d.category] ?? d.category.charAt(0).toUpperCase();
+      const prefix = `${code}${yy}-`;
+      const next = prefixNext.get(prefix) ?? 1;
+      const seq = String(next).padStart(3, '0');
+      const internalId = `${prefix}${seq}`;
 
-        const categoryCode =
-          this.categoryMap?.[category] || category.charAt(0).toUpperCase();
-        const year = new Date(dto.purchaseDate)
-          .getFullYear()
-          .toString()
-          .slice(-2);
+      const usefulLife = await this.usefulLifeService.getUsefulLifeYears(
+        d.category,
+        d.name,
+      );
+      const depreciationMethod = depMap[d.category] ?? 'StraightLine';
 
-        const prefix = `${dto.category}-${year}`;
-        const count = existingCounts.get(prefix) || 0;
-        existingCounts.set(prefix, count + 1);
+      this.logger.debug(
+        `insert row#${i}: internalId=${internalId}, depMethod=${depreciationMethod}, usefulLife=${usefulLife}`,
+      );
 
-        const sequenceNumber = (count + 1).toString().padStart(3, '0');
-        const internalId = `${categoryCode}${year}-${sequenceNumber}`;
-        const depreciationMap: Record<string, string> = {
-          Laptop: 'StraightLine',
-          Monitor: 'StraightLine',
-          Phone: 'StraightLine',
-          Furniture: 'DecliningBalance',
-        };
-        const depreciationMethod =
-          depreciationMap[dto.category] || 'StraightLine';
-
-        const usefulLife = usefulLives[i];
-
-        const [asset] = await trx
+      try {
+        const [asset] = await this.db
           .insert(assets)
           .values({
             companyId,
-            name: dto.name,
-            modelName: dto.modelName,
-            color: dto.color,
-            specs: dto.specs,
-            category: dto.category,
-            manufacturer: dto.manufacturer,
-            serialNumber: dto.serialNumber,
-            purchasePrice: dto.purchasePrice,
-            purchaseDate: dto.purchaseDate,
-            warrantyExpiry: dto.warrantyExpiry,
-            employeeId: dto.employeeId ?? null,
-            locationId: dto.locationId,
-            lendDate: dto.lendDate?.toString(),
-            returnDate: dto.returnDate?.toString(),
+            name: d.name,
+            modelName: d.modelName,
+            color: d.color,
+            specs: d.specs,
+            category: d.category,
+            manufacturer: d.manufacturer,
+            serialNumber: d.serialNumber,
+            purchasePrice: d.purchasePrice,
+            purchaseDate: d.purchaseDate,
+            warrantyExpiry: d.warrantyExpiry ?? null,
+            employeeId: d.employeeId ?? null,
+            locationId: d.locationId,
+            lendDate: d.lendDate ?? null,
+            returnDate: d.returnDate ?? null,
             usefulLifeYears: usefulLife,
             depreciationMethod,
             internalId,
-            status: dto.employeeId ? 'assigned' : 'available',
+            status: d.employeeId ? 'assigned' : 'available',
           })
           .returning()
           .execute();
 
-        insertedAssets.push(asset);
+        inserted.push(asset);
+        prefixNext.set(prefix, next + 1);
+      } catch (e: any) {
+        const reason = e?.message ?? 'DB insert failed';
+        errors.push({ index: i, name: d.name, reason });
+        this.logger.error(`insert row#${i} FAILED: ${reason}`);
       }
+    }
 
-      return insertedAssets;
-    });
+    this.logger.info(
+      { inserted: inserted.length, errors: errors.length },
+      'bulkCreateAssets:done',
+    );
 
-    return inserted;
+    if (inserted.length === 0) {
+      throw new BadRequestException({
+        message: 'No assets were created from CSV',
+        errors,
+      });
+    }
+
+    return { insertedCount: inserted.length, inserted, errors };
   }
 
+  // ------------------------------ LIST ------------------------------
   async findAll(companyId: string) {
     const allAssets = await this.db
       .select({
@@ -350,6 +505,7 @@ export class AssetsService {
     return allAssets;
   }
 
+  // ------------------------------ GET ONE ------------------------------
   async findOne(id: string) {
     const [asset] = await this.db
       .select()
@@ -364,6 +520,7 @@ export class AssetsService {
     return asset;
   }
 
+  // --------------------------- BY EMPLOYEE ---------------------------
   async findByEmployeeId(employeeId: string) {
     const assetsByEmployee = await this.db
       .select({
@@ -395,8 +552,8 @@ export class AssetsService {
     return assetsByEmployee;
   }
 
+  // ------------------------------ UPDATE ------------------------------
   update(id: string, updateAssetDto: UpdateAssetDto, user: User) {
-    // Check if asset exists
     return this.db.transaction(async (tx) => {
       const [existingAsset] = await tx
         .select()
@@ -419,7 +576,6 @@ export class AssetsService {
         .returning()
         .execute();
 
-      // Log the update in the audit service
       await this.auditService.logAction({
         action: 'update',
         entity: 'asset',
@@ -434,9 +590,8 @@ export class AssetsService {
     });
   }
 
-  // request return of an asset
+  // -------------------------- REQUEST RETURN --------------------------
   async requestReturn(id: string) {
-    // Check if asset exists
     const [existingAsset] = await this.db
       .select()
       .from(assets)
@@ -445,22 +600,18 @@ export class AssetsService {
     if (!existingAsset) {
       throw new BadRequestException(`Asset with ID ${id} not found.`);
     }
-    // Check if asset is already returned
     if (existingAsset.returnDate) {
       throw new BadRequestException(
         `Asset with ID ${id} has already been returned.`,
       );
     }
-
-    // Send request to the employee // TODO: Implement notification logic
+    // TODO: Implement notification logic
   }
 
-  // change the status of an asset
+  // --------------------------- CHANGE STATUS ---------------------------
   async changeStatus(id: string, status: string, user: User) {
-    // Check if asset exists
     await this.findOne(id);
 
-    // Update asset status
     const [updatedAsset] = await this.db
       .update(assets)
       .set({
@@ -472,7 +623,6 @@ export class AssetsService {
       .returning()
       .execute();
 
-    // Log the status change in the audit service
     await this.auditService.logAction({
       action: 'change_status',
       entity: 'asset',
@@ -486,9 +636,9 @@ export class AssetsService {
     return updatedAsset;
   }
 
+  // ------------------------------ REMOVE ------------------------------
   remove(id: string, user: User) {
     return this.db.transaction(async (tx) => {
-      // Check if asset exists
       const [existingAsset] = await tx
         .select()
         .from(assets)
@@ -499,7 +649,6 @@ export class AssetsService {
         throw new BadRequestException(`Asset with ID ${id} not found.`);
       }
 
-      // Delete asset
       await tx
         .update(assets)
         .set({
@@ -509,7 +658,6 @@ export class AssetsService {
         .where(eq(assets.id, id))
         .execute();
 
-      // Log the deletion in the audit service
       await this.auditService.logAction({
         action: 'delete',
         entity: 'asset',

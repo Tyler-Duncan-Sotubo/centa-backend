@@ -12,6 +12,7 @@ const cache_manager_1 = require("@nestjs/cache-manager");
 const cache_service_1 = require("./cache.service");
 const redisStore = require("cache-manager-redis-store");
 const config_1 = require("@nestjs/config");
+const announcement_cache_service_1 = require("./announcement-cache.service");
 let CacheModule = class CacheModule {
 };
 exports.CacheModule = CacheModule;
@@ -32,8 +33,8 @@ exports.CacheModule = CacheModule = __decorate([
                 }),
             }),
         ],
-        providers: [cache_service_1.CacheService],
-        exports: [cache_manager_1.CacheModule, cache_service_1.CacheService],
+        providers: [cache_service_1.CacheService, announcement_cache_service_1.AnnouncementCacheService],
+        exports: [cache_manager_1.CacheModule, cache_service_1.CacheService, announcement_cache_service_1.AnnouncementCacheService],
     })
 ], CacheModule);
 //# sourceMappingURL=cache.module.js.map

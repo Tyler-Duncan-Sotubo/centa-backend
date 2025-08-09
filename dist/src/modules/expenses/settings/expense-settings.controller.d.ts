@@ -6,8 +6,8 @@ export declare class ExpenseSettingsController extends BaseController {
     constructor(expenseSettingsService: ExpensesSettingsService);
     getAllowanceSettings(user: User): Promise<{
         multiLevelApproval: boolean;
-        approverChain: any;
-        fallbackRoles: any;
+        approverChain: string[];
+        fallbackRoles: string[];
     }>;
     updatePayrollSetting(user: User, key: string, value: any): Promise<void>;
 }

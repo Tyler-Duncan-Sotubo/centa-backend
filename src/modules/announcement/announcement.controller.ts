@@ -21,6 +21,7 @@ import { CreateAnnouncementCommentDto } from './dto/create-announcement-comments
 import { ReactionService } from './reaction.service';
 import { CategoryService } from './category.service';
 import { Permission } from '../auth/permissions/permission-keys';
+import { ReactDto } from './dto/react.dto';
 
 @Controller('announcement')
 export class AnnouncementController extends BaseController {
@@ -98,10 +99,14 @@ export class AnnouncementController extends BaseController {
   @SetMetadata('permissions', [Permission.AnnouncementsReact])
   reactToComment(
     @Param('id') id: string,
-    @Body('reactionType') reactionType: string,
+    @Body() dto: ReactDto,
     @CurrentUser() user: User,
   ) {
-    return this.commentService.toggleCommentReaction(id, user.id, reactionType);
+    return this.commentService.toggleCommentReaction(
+      id,
+      user,
+      dto.reactionType,
+    );
   }
 
   @Post(':id/reaction')
@@ -109,10 +114,10 @@ export class AnnouncementController extends BaseController {
   @SetMetadata('permissions', [Permission.AnnouncementsReact])
   likeAnnouncement(
     @Param('id') id: string,
-    @Body('reactionType') reactionType: string,
+    @Body() dto: ReactDto,
     @CurrentUser() user: User,
   ) {
-    return this.reactionService.reactToAnnouncement(id, reactionType, user);
+    return this.reactionService.reactToAnnouncement(id, dto.reactionType, user);
   }
 
   // 🔥 CATEGORIES

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
-import { and, eq, or, isNull, sql } from 'drizzle-orm';
+import { and, eq, or, isNull, sql, asc } from 'drizzle-orm';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import {
@@ -15,48 +15,131 @@ import {
   scorecard_templates,
 } from '../schema';
 import { CreateScorecardTemplateDto } from './dto/create-score-card.dto';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class ScorecardTemplateService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
-  ) {}
-
-  async getAllTemplates(companyId: string) {
-    const templates = await this.db
-      .select({
-        id: scorecard_templates.id,
-        name: scorecard_templates.name,
-        description: scorecard_templates.description,
-        isSystem: scorecard_templates.isSystem,
-        createdAt: scorecard_templates.createdAt,
-        criteria: sql`json_agg(json_build_object(
-          'id', ${scorecard_criteria.id},
-          'name', ${scorecard_criteria.label},
-          'maxScore', ${scorecard_criteria.maxScore},
-          'description', ${scorecard_criteria.description}
-        ))`.as('criteria'),
-      })
-      .from(scorecard_templates)
-      .leftJoin(
-        scorecard_criteria,
-        eq(scorecard_templates.id, scorecard_criteria.templateId),
-      )
-      .where(
-        or(
-          isNull(scorecard_templates.companyId),
-          eq(scorecard_templates.companyId, companyId),
-        ),
-      )
-      .groupBy(scorecard_templates.id)
-      .orderBy(scorecard_templates.createdAt);
-
-    return templates;
+    private readonly logger: PinoLogger,
+    private readonly cache: CacheService,
+  ) {
+    this.logger.setContext(ScorecardTemplateService.name);
   }
 
+  // ---------- cache keys ----------
+  private listKey(companyId: string) {
+    return `scorecard:${companyId}:templates:list`; // includes system + company
+  }
+  private detailKey(templateId: string) {
+    return `scorecard:template:${templateId}:detail+criteria`;
+  }
+  private async burst(opts: { companyId?: string; templateId?: string }) {
+    const jobs: Promise<any>[] = [];
+    if (opts.companyId) jobs.push(this.cache.del(this.listKey(opts.companyId)));
+    if (opts.templateId)
+      jobs.push(this.cache.del(this.detailKey(opts.templateId)));
+    await Promise.allSettled(jobs);
+    this.logger.debug({ ...opts }, 'cache:burst:scorecard');
+  }
+
+  // ---------- reads ----------
+  async getAllTemplates(companyId: string) {
+    const key = this.listKey(companyId);
+    this.logger.debug({ key, companyId }, 'scorecard:list:cache:get');
+
+    return this.cache.getOrSetCache(key, async () => {
+      const rows = await this.db
+        .select({
+          id: scorecard_templates.id,
+          name: scorecard_templates.name,
+          description: scorecard_templates.description,
+          isSystem: scorecard_templates.isSystem,
+          createdAt: scorecard_templates.createdAt,
+          criteria: sql`json_agg(json_build_object(
+            'id', ${scorecard_criteria.id},
+            'name', ${scorecard_criteria.label},
+            'maxScore', ${scorecard_criteria.maxScore},
+            'description', ${scorecard_criteria.description}
+          ) ORDER BY ${scorecard_criteria.order})`.as('criteria'),
+        })
+        .from(scorecard_templates)
+        .leftJoin(
+          scorecard_criteria,
+          eq(scorecard_templates.id, scorecard_criteria.templateId),
+        )
+        .where(
+          or(
+            isNull(scorecard_templates.companyId),
+            eq(scorecard_templates.companyId, companyId),
+          ),
+        )
+        .groupBy(scorecard_templates.id)
+        .orderBy(asc(scorecard_templates.createdAt))
+        .execute();
+
+      this.logger.debug(
+        { companyId, count: rows.length },
+        'scorecard:list:db:done',
+      );
+      return rows;
+    });
+  }
+
+  async getTemplateWithCriteria(templateId: string, companyId?: string) {
+    const key = this.detailKey(templateId);
+    this.logger.debug({ key, templateId }, 'scorecard:detail:cache:get');
+
+    const payload = await this.cache.getOrSetCache(key, async () => {
+      const [tmpl] = await this.db
+        .select()
+        .from(scorecard_templates)
+        .where(
+          companyId
+            ? and(
+                eq(scorecard_templates.id, templateId),
+                or(
+                  isNull(scorecard_templates.companyId),
+                  eq(scorecard_templates.companyId, companyId),
+                ),
+              )
+            : eq(scorecard_templates.id, templateId),
+        )
+        .execute();
+
+      if (!tmpl) return null;
+
+      const criteria = await this.db
+        .select({
+          id: scorecard_criteria.id,
+          label: scorecard_criteria.label,
+          description: scorecard_criteria.description,
+          maxScore: scorecard_criteria.maxScore,
+          order: scorecard_criteria.order,
+        })
+        .from(scorecard_criteria)
+        .where(eq(scorecard_criteria.templateId, templateId))
+        .orderBy(asc(scorecard_criteria.order))
+        .execute();
+
+      return { ...tmpl, criteria };
+    });
+
+    if (!payload) {
+      this.logger.warn({ templateId }, 'scorecard:detail:not-found');
+      throw new NotFoundException('Template not found');
+    }
+
+    return payload;
+  }
+
+  // ---------- mutations ----------
   async create(user: User, dto: CreateScorecardTemplateDto) {
     const { companyId, id } = user;
+    this.logger.info({ companyId, name: dto?.name }, 'scorecard:create:start');
+
     const [template] = await this.db
       .insert(scorecard_templates)
       .values({
@@ -65,9 +148,10 @@ export class ScorecardTemplateService {
         companyId,
         isSystem: false,
       })
-      .returning();
+      .returning()
+      .execute();
 
-    const criteria = dto.criteria.map((c, index) => ({
+    const criteria = (dto.criteria ?? []).map((c, index) => ({
       templateId: template.id,
       label: c.label,
       description: c.description,
@@ -75,7 +159,9 @@ export class ScorecardTemplateService {
       order: index + 1,
     }));
 
-    await this.db.insert(scorecard_criteria).values(criteria);
+    if (criteria.length) {
+      await this.db.insert(scorecard_criteria).values(criteria).execute();
+    }
 
     await this.auditService.logAction({
       action: 'create',
@@ -95,50 +181,124 @@ export class ScorecardTemplateService {
       },
     });
 
+    await this.burst({ companyId, templateId: template.id });
+    this.logger.info({ id: template.id }, 'scorecard:create:done');
     return template;
   }
 
   async cloneTemplate(templateId: string, user: User) {
     const { companyId, id } = user;
-    const [template] = await this.db
-      .select()
-      .from(scorecard_templates)
-      .where(
-        and(
-          eq(scorecard_templates.id, templateId),
-          isNull(scorecard_templates.companyId),
-        ),
-      );
+    this.logger.info({ companyId, templateId }, 'scorecard:clone:start');
 
-    if (!template) throw new NotFoundException('System template not found');
+    const cloned = await this.db.transaction(async (trx) => {
+      // 1) Load source system template
+      const [template] = await trx
+        .select()
+        .from(scorecard_templates)
+        .where(
+          and(
+            eq(scorecard_templates.id, templateId),
+            isNull(scorecard_templates.companyId),
+          ),
+        )
+        .execute();
 
-    const [cloned] = await this.db
-      .insert(scorecard_templates)
-      .values({
-        name: `${template.name} (Copy)`,
-        description: template.description,
-        companyId,
-        isSystem: false,
-      })
-      .returning();
+      if (!template) {
+        this.logger.warn({ templateId }, 'scorecard:clone:not-found');
+        throw new NotFoundException('System template not found');
+      }
 
-    // log the creation of the cloned template
-    await this.auditService.logAction({
-      action: 'clone',
-      entity: 'scorecard_template',
-      entityId: cloned.id,
-      userId: id,
-      details: 'Cloned scorecard template',
-      changes: {
-        name: cloned.name,
-        description: cloned.description,
-      },
+      const targetName = `${template.name} (Copy)`;
+
+      // 2) Prevent multiple clones for the same company (same targetName)
+      const [dup] = await trx
+        .select({ id: scorecard_templates.id })
+        .from(scorecard_templates)
+        .where(
+          and(
+            eq(scorecard_templates.companyId, companyId),
+            eq(scorecard_templates.name, targetName),
+          ),
+        )
+        .limit(1)
+        .execute();
+
+      if (dup) {
+        this.logger.warn(
+          { companyId, templateId, name: targetName },
+          'scorecard:clone:duplicate',
+        );
+        throw new BadRequestException(
+          'This template has already been cloned for your company.',
+        );
+      }
+
+      // 3) Fetch criteria from source
+      const criteria = await trx
+        .select({
+          label: scorecard_criteria.label,
+          description: scorecard_criteria.description,
+          maxScore: scorecard_criteria.maxScore,
+          order: scorecard_criteria.order,
+        })
+        .from(scorecard_criteria)
+        .where(eq(scorecard_criteria.templateId, templateId))
+        .orderBy(scorecard_criteria.order)
+        .execute();
+
+      // 4) Create cloned template
+      const [newTpl] = await trx
+        .insert(scorecard_templates)
+        .values({
+          name: targetName,
+          description: template.description,
+          companyId,
+          isSystem: false,
+        })
+        .returning()
+        .execute();
+
+      // 5) Clone criteria
+      if (criteria.length) {
+        await trx
+          .insert(scorecard_criteria)
+          .values(
+            criteria.map((c) => ({
+              templateId: newTpl.id,
+              label: c.label,
+              description: c.description,
+              maxScore: c.maxScore,
+              order: c.order,
+            })),
+          )
+          .execute();
+      }
+
+      // 6) Audit
+      await this.auditService.logAction({
+        action: 'clone',
+        entity: 'scorecard_template',
+        entityId: newTpl.id,
+        userId: id,
+        details: 'Cloned scorecard template (with criteria)',
+        changes: {
+          name: newTpl.name,
+          description: newTpl.description,
+          criteriaCloned: criteria.length,
+        },
+      });
+
+      return newTpl;
     });
 
+    await this.burst({ companyId, templateId: cloned.id });
+    this.logger.info({ id: cloned.id }, 'scorecard:clone:done');
     return cloned;
   }
 
   async seedSystemTemplates() {
+    this.logger.info({}, 'scorecard:seed:start');
+
     const templates = [
       {
         name: 'General Screening',
@@ -240,7 +400,8 @@ export class ScorecardTemplateService {
           description: tmpl.description,
           isSystem: true,
         })
-        .returning();
+        .returning()
+        .execute();
 
       const criteria = tmpl.criteria.map((c, index) => ({
         templateId: template.id,
@@ -250,16 +411,18 @@ export class ScorecardTemplateService {
         order: index + 1,
       }));
 
-      await this.db.insert(scorecard_criteria).values(criteria);
+      await this.db.insert(scorecard_criteria).values(criteria).execute();
     }
 
+    await this.burst({});
+    this.logger.info({}, 'scorecard:seed:done');
     return { success: true };
   }
 
   async deleteTemplate(templateId: string, user: User) {
     const { companyId, id } = user;
+    this.logger.info({ companyId, templateId }, 'scorecard:delete:start');
 
-    // 1. Fetch the template
     const template = await this.db.query.scorecard_templates.findFirst({
       where: and(
         eq(scorecard_templates.id, templateId),
@@ -271,41 +434,41 @@ export class ScorecardTemplateService {
     });
 
     if (!template) {
+      this.logger.warn({ templateId }, 'scorecard:delete:not-found');
       throw new NotFoundException(`Template not found`);
     }
 
     if (template.isSystem) {
+      this.logger.warn({ templateId }, 'scorecard:delete:is-system');
       throw new BadRequestException(`System templates cannot be deleted`);
     }
 
-    // 2. Check if any interviews are using this template
     const isInUse = await this.db.query.interviewInterviewers.findFirst({
       where: eq(interviewInterviewers.scorecardTemplateId, templateId),
     });
     if (isInUse) {
+      this.logger.warn({ templateId }, 'scorecard:delete:in-use');
       throw new BadRequestException(
         `Cannot delete: This template is in use by one or more interviews`,
       );
     }
 
-    // 3. Proceed with deletion
     await this.db
       .delete(scorecard_templates)
-      .where(eq(scorecard_templates.id, templateId));
+      .where(eq(scorecard_templates.id, templateId))
+      .execute();
 
-    // 4. Log audit
     await this.auditService.logAction({
       action: 'delete',
       entity: 'scorecard_template',
       entityId: templateId,
       userId: id,
       details: 'Deleted scorecard template',
-      changes: {
-        name: template.name,
-        description: template.description,
-      },
+      changes: { name: template.name, description: template.description },
     });
 
+    await this.burst({ companyId, templateId });
+    this.logger.info({ templateId }, 'scorecard:delete:done');
     return { message: 'Template deleted successfully' };
   }
 }

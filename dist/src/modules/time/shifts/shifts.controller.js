@@ -42,7 +42,7 @@ let ShiftsController = class ShiftsController extends base_controller_1.BaseCont
         return this.shiftsService.update(id, updateShiftDto, user, ip);
     }
     remove(id, user) {
-        return this.shiftsService.remove(id, user.companyId);
+        return this.shiftsService.remove(id, user);
     }
 };
 exports.ShiftsController = ShiftsController;

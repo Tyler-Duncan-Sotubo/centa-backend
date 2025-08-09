@@ -13,6 +13,8 @@ import { eq } from 'drizzle-orm';
 import { companyTaxDetails } from '../schema/company-tax-details.schema';
 import { User } from 'src/common/types/user.type';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class CompanyTaxService {
@@ -22,89 +24,119 @@ export class CompanyTaxService {
     @Inject(DRIZZLE) private readonly db: db,
     private readonly audit: AuditService,
     private readonly companySettings: CompanySettingsService,
-  ) {}
+    private readonly logger: PinoLogger,
+    private readonly cache: CacheService,
+  ) {
+    this.logger.setContext(CompanyTaxService.name);
+  }
+
+  // -------- cache keys --------
+  private oneKey(companyId: string) {
+    return `company:tax:${companyId}`;
+  }
+
+  private async burst(companyId: string) {
+    await this.cache.del(this.oneKey(companyId));
+    this.logger.debug({ companyId }, 'companyTax:cache:burst');
+  }
 
   async create(dto: CreateCompanyTaxDto, user: User) {
-    const { tin, vatNumber, nhfCode, pensionCode } = dto;
+    this.logger.info({ companyId: user.companyId }, 'companyTax:create:start');
 
     // Check if the company already has tax details
-    const existingTaxDetails = await this.db
+    const existing = await this.db
       .select()
       .from(this.table)
       .where(eq(this.table.companyId, user.companyId))
       .execute();
 
-    if (existingTaxDetails.length > 0) {
+    if (existing.length > 0) {
+      this.logger.warn(
+        { companyId: user.companyId },
+        'companyTax:create:exists',
+      );
       throw new BadRequestException('Company already has tax details');
     }
 
-    // Insert new tax details
-    const result = await this.db
+    const [created] = await this.db
       .insert(this.table)
       .values({
         companyId: user.companyId,
-        tin,
-        vatNumber,
-        nhfCode,
-        pensionCode,
+        tin: dto.tin,
+        vatNumber: dto.vatNumber,
+        nhfCode: dto.nhfCode,
+        pensionCode: dto.pensionCode,
       })
       .returning()
       .execute();
 
-    // Log the creation in the audit table
     await this.audit.logAction({
       action: 'create',
       entity: 'companyTax',
-      entityId: result[0].id,
+      entityId: created.id,
       userId: user.id,
       changes: {
-        tin,
-        vatNumber,
-        nhfCode,
-        pensionCode,
+        tin: dto.tin,
+        vatNumber: dto.vatNumber,
+        nhfCode: dto.nhfCode,
+        pensionCode: dto.pensionCode,
       },
     });
+
+    await this.burst(user.companyId);
+    this.logger.info({ id: created.id }, 'companyTax:create:done');
+    return created;
   }
 
   async findOne(companyId: string) {
-    const [taxDetails] = await this.db
-      .select()
-      .from(this.table)
-      .where(eq(this.table.companyId, companyId))
-      .execute();
+    const key = this.oneKey(companyId);
+    this.logger.debug({ companyId, key }, 'companyTax:findOne:cache:get');
 
-    if (!taxDetails) {
-      throw new NotFoundException('Company tax details not found');
-    }
+    return this.cache.getOrSetCache(key, async () => {
+      const [taxDetails] = await this.db
+        .select()
+        .from(this.table)
+        .where(eq(this.table.companyId, companyId))
+        .execute();
 
-    return taxDetails;
+      if (!taxDetails) {
+        this.logger.warn({ companyId }, 'companyTax:findOne:not-found');
+        throw new NotFoundException('Company tax details not found');
+      }
+
+      this.logger.debug({ companyId }, 'companyTax:findOne:db:done');
+      return taxDetails;
+    });
   }
 
   async update(updateCompanyTaxDto: UpdateCompanyTaxDto, user: User) {
-    const taxDetails = await this.findOne(user.companyId);
+    this.logger.info(
+      { companyId: user.companyId, userId: user.id },
+      'companyTax:update:start',
+    );
 
-    const { tin, vatNumber, nhfCode, pensionCode } = updateCompanyTaxDto;
+    // previous (also validates existence)
+    const previous = await this.findOne(user.companyId);
 
-    const result = await this.db
+    const [updated] = await this.db
       .update(this.table)
       .set({
-        tin,
-        vatNumber,
-        nhfCode,
-        pensionCode,
+        tin: updateCompanyTaxDto.tin,
+        vatNumber: updateCompanyTaxDto.vatNumber,
+        nhfCode: updateCompanyTaxDto.nhfCode,
+        pensionCode: updateCompanyTaxDto.pensionCode,
       })
       .where(eq(this.table.companyId, user.companyId))
       .returning()
       .execute();
 
-    if (result.length > 0) {
-      const taxDetails = result[0];
-
+    // mark onboarding step complete if fully filled
+    if (updated) {
       const isComplete =
-        taxDetails.tin &&
-        taxDetails.vatNumber &&
-        taxDetails.pensionCode &&
-        taxDetails.nhfCode;
+        Boolean(updated.tin) &&
+        Boolean(updated.vatNumber) &&
+        Boolean(updated.pensionCode) &&
+        Boolean(updated.nhfCode);
 
       if (isComplete) {
         await this.companySettings.setSetting(
@@ -115,23 +147,29 @@ export class CompanyTaxService {
       }
     }
 
-    // Log the update in the audit table
     await this.audit.logAction({
       action: 'update',
       entity: 'companyTax',
-      entityId: taxDetails.id,
+      entityId: previous.id,
       userId: user.id,
       changes: {
         before: {
-          tin: result[0].tin,
-          vatNumber: result[0].vatNumber,
-          nhfCode: result[0].nhfCode,
-          pensionCode: result[0].pensionCode,
+          tin: previous.tin,
+          vatNumber: previous.vatNumber,
+          nhfCode: previous.nhfCode,
+          pensionCode: previous.pensionCode,
         },
-        after: { tin, vatNumber, nhfCode, pensionCode },
+        after: {
+          tin: updated.tin,
+          vatNumber: updated.vatNumber,
+          nhfCode: updated.nhfCode,
+          pensionCode: updated.pensionCode,
+        },
       },
     });
 
-    return result[0];
+    await this.burst(user.companyId);
+    this.logger.info({ id: updated.id }, 'companyTax:update:done');
+    return updated;
   }
 }

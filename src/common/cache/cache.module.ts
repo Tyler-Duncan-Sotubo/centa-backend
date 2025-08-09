@@ -3,6 +3,7 @@ import { CacheModule as NestCacheModule } from '@nestjs/cache-manager';
 import { CacheService } from './cache.service';
 import * as redisStore from 'cache-manager-redis-store';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AnnouncementCacheService } from './announcement-cache.service';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       }),
     }),
   ],
-  providers: [CacheService],
-  exports: [NestCacheModule, CacheService],
+  providers: [CacheService, AnnouncementCacheService],
+  exports: [NestCacheModule, CacheService, AnnouncementCacheService],
 })
 export class CacheModule {}

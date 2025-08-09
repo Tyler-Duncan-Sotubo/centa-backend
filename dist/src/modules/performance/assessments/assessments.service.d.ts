@@ -5,20 +5,31 @@ import { ClockInOutService } from 'src/modules/time/clock-in-out/clock-in-out.se
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { GetDashboardAssessmentsDto } from './dto/get-dashboard-assessments.dto';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class AssessmentsService {
     private readonly db;
     private readonly clockInOutService;
     private readonly auditService;
-    constructor(db: db, clockInOutService: ClockInOutService, auditService: AuditService);
+    private readonly logger;
+    private readonly cache;
+    constructor(db: db, clockInOutService: ClockInOutService, auditService: AuditService, logger: PinoLogger, cache: CacheService);
+    private oneKey;
+    private dashboardKey;
+    private userListKey;
+    private teamKey;
+    private reviewSummaryKey;
+    private attendanceKey;
+    private burst;
     createAssessment(dto: CreateAssessmentDto, user: User): Promise<{
         id: string;
         createdAt: Date | null;
         companyId: string;
-        status: "in_progress" | "submitted" | "not_started" | null;
         type: "manager" | "self" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
+        cycleId: string;
         templateId: string;
         submittedAt: Date | null;
-        cycleId: string;
         reviewerId: string;
         revieweeId: string;
     }>;
@@ -29,7 +40,7 @@ export declare class AssessmentsService {
     getAssessmentsForDashboard(companyId: string, filters?: GetDashboardAssessmentsDto): Promise<{
         id: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        status: "in_progress" | "not_started" | "submitted" | null;
         reviewer: string;
         employee: string;
         departmentName: any;
@@ -49,7 +60,7 @@ export declare class AssessmentsService {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        status: "in_progress" | "not_started" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -61,7 +72,7 @@ export declare class AssessmentsService {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        status: "in_progress" | "not_started" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -73,7 +84,7 @@ export declare class AssessmentsService {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        status: "in_progress" | "not_started" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;

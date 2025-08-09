@@ -9,24 +9,14 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OffboardingChecklistItemDto = void 0;
+exports.ReactDto = void 0;
 const class_validator_1 = require("class-validator");
-class OffboardingChecklistItemDto {
+const reaction_types_1 = require("../types/reaction-types");
+class ReactDto {
 }
-exports.OffboardingChecklistItemDto = OffboardingChecklistItemDto;
+exports.ReactDto = ReactDto;
 __decorate([
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsIn)(reaction_types_1.REACTION_TYPES, { message: 'Invalid reaction type' }),
     __metadata("design:type", String)
-], OffboardingChecklistItemDto.prototype, "name", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], OffboardingChecklistItemDto.prototype, "description", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsBoolean)(),
-    __metadata("design:type", Boolean)
-], OffboardingChecklistItemDto.prototype, "isAssetReturnStep", void 0);
-//# sourceMappingURL=offboading-checklist.dto.js.map
+], ReactDto.prototype, "reactionType", void 0);
+//# sourceMappingURL=react.dto.js.map

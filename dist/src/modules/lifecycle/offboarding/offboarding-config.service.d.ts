@@ -71,8 +71,8 @@ export declare class OffboardingConfigService {
         companyId: string | null;
         description: string | null;
         isGlobal: boolean | null;
-        isAssetReturnStep: boolean | null;
         order: number | null;
+        isAssetReturnStep: boolean | null;
     }>;
     updateChecklistItem(id: string, data: OffboardingChecklistItemDto, user: User): Promise<{
         id: string;

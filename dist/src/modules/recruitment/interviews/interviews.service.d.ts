@@ -3,11 +3,20 @@ import { User } from 'src/common/types/user.type';
 import { ScheduleInterviewDto } from './dto/schedule-interview.dto';
 import { FeedbackScoreDto } from './dto/feedback-score.dto';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class InterviewsService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
-    scheduleInterview(dto: ScheduleInterviewDto): Promise<{
+    private readonly logger;
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, logger: PinoLogger, cache: CacheService);
+    private allKey;
+    private detailKey;
+    private appListKey;
+    private feedbackKey;
+    private burst;
+    scheduleInterview(dto: ScheduleInterviewDto, user: User): Promise<{
         id: string;
         mode: string | null;
         createdAt: Date | null;
@@ -21,7 +30,7 @@ export declare class InterviewsService {
         eventId: string | null;
         emailTemplateId: string | null;
     }>;
-    rescheduleInterview(interviewId: string, dto: ScheduleInterviewDto): Promise<{
+    rescheduleInterview(interviewId: string, dto: ScheduleInterviewDto, user: User): Promise<{
         id: string;
         applicationId: string;
         stage: "phone_screen" | "tech" | "onsite" | "final";
@@ -35,28 +44,7 @@ export declare class InterviewsService {
         createdAt: Date | null;
         updatedAt: Date | null;
     }>;
-    findAllInterviews(companyId: string): Promise<{
-        id: string;
-        applicationId: string;
-        scheduledFor: Date;
-        durationMins: number;
-        stage: "phone_screen" | "tech" | "onsite" | "final";
-        mode: string | null;
-        meetingLink: string | null;
-        candidateName: string;
-        interviewers: {
-            interviewerId: string;
-            scorecardTemplateId: string | null;
-        }[];
-        scorecardCriteria: {
-            id: string;
-            label: string;
-            description: string | null;
-            maxScore: number;
-            order: number;
-            templateId: string;
-        }[];
-    }[]>;
+    findAllInterviews(companyId: string): Promise<any[]>;
     getInterviewDetails(interviewId: string): Promise<{
         interviewers: {
             interviewId: string;

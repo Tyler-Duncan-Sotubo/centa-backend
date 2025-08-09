@@ -1,16 +1,24 @@
 import { db } from 'src/drizzle/types/drizzle';
-import { CreateJobDto } from './dto/create-job.dto';
-import { UpdateJobDto } from './dto/update-job.dto';
 import { PipelineSeederService } from '../pipeline/pipeline-seeder.service';
 import { User } from 'src/common/types/user.type';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { PublicJobsDto } from './dto/public-jobs.dto';
 import { CompanyJobsDto } from './dto/company-job.dto';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
+import { CreateJobDto } from './dto/create-job.dto';
+import { UpdateJobDto } from './dto/update-job.dto';
 export declare class JobsService {
     private readonly db;
     private readonly pipelineSeederService;
     private readonly auditService;
-    constructor(db: db, pipelineSeederService: PipelineSeederService, auditService: AuditService);
+    private readonly logger;
+    private readonly cache;
+    constructor(db: db, pipelineSeederService: PipelineSeederService, auditService: AuditService, logger: PinoLogger, cache: CacheService);
+    private listKey;
+    private oneKey;
+    private publicJobKey;
+    private burst;
     create(createDto: CreateJobDto & {
         pipelineTemplateId?: string;
     }, user: User): Promise<{
@@ -20,12 +28,12 @@ export declare class JobsService {
         country: string | null;
         currency: string;
         companyId: string;
-        description: string | null;
-        title: string;
         city: string | null;
         state: string | null;
-        status: "draft" | "open" | "closed" | "archived";
         createdBy: string;
+        description: string | null;
+        title: string;
+        status: "draft" | "open" | "closed" | "archived";
         externalJobId: string | null;
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";

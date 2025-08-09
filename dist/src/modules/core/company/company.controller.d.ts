@@ -176,7 +176,7 @@ export declare class CompanyController extends BaseController {
         };
         pendingChecklists: {
             statusId: string;
-            checkListStatus: "in_progress" | "completed" | "pending" | "overdue" | "skipped" | "cancelled" | null;
+            checkListStatus: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
             checklistId: string;
             title: string;
             dueDaysAfterStart: number | null;
@@ -191,7 +191,7 @@ export declare class CompanyController extends BaseController {
                 email: any;
                 avatarUrl: string | null;
             } | null;
-            employees: any;
+            employees: any[];
             id: any;
             name: any;
             description: any;
@@ -203,7 +203,7 @@ export declare class CompanyController extends BaseController {
                 email: any;
                 avatarUrl: string | null;
             } | null;
-            employees: any;
+            employees: any[];
             id: any;
             name: any;
             description: any;
@@ -215,7 +215,7 @@ export declare class CompanyController extends BaseController {
                 email: any;
                 avatarUrl: string | null;
             } | null;
-            employees: any;
+            employees: any[];
             id: any;
             name: any;
             description: any;
@@ -227,7 +227,7 @@ export declare class CompanyController extends BaseController {
                 email: any;
                 avatarUrl: string | null;
             } | null;
-            employees: any;
+            employees: any[];
             id: any;
             name: any;
             description: any;

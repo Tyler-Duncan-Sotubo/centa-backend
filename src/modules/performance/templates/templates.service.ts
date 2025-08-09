@@ -4,7 +4,7 @@ import { UpdateTemplateDto } from './dto/update-template.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { Inject } from '@nestjs/common';
-import { eq, and } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import {
@@ -13,15 +13,51 @@ import {
   performanceReviewTemplates,
   performanceTemplateQuestions,
 } from '../schema';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class PerformanceTemplatesService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
-  ) {}
+    private readonly logger: PinoLogger,
+    private readonly cache: CacheService,
+  ) {
+    this.logger.setContext(PerformanceTemplatesService.name);
+  }
 
+  // ---------- cache keys ----------
+  private listKey(companyId: string) {
+    return `prt:${companyId}:list`;
+  }
+  private oneKey(companyId: string, id: string) {
+    return `prt:${companyId}:one:${id}`;
+  }
+  private qKey(companyId: string, id: string) {
+    return `prt:${companyId}:one:${id}:questions`;
+  }
+
+  private async burst(opts: { companyId: string; templateId?: string }) {
+    const jobs: Promise<unknown>[] = [];
+    // list
+    jobs.push(this.cache.del(this.listKey(opts.companyId)));
+    // one + questions
+    if (opts.templateId) {
+      jobs.push(this.cache.del(this.oneKey(opts.companyId, opts.templateId)));
+      jobs.push(this.cache.del(this.qKey(opts.companyId, opts.templateId)));
+    }
+    await Promise.allSettled(jobs);
+    this.logger.debug(opts, 'templates:cache:burst');
+  }
+
+  // ---------- mutations ----------
   async create(user: User, dto: CreateTemplateDto) {
+    this.logger.info(
+      { companyId: user.companyId, dto },
+      'templates:create:start',
+    );
+
     const { companyId, id: userId } = user;
     const [template] = await this.db
       .insert(performanceReviewTemplates)
@@ -59,81 +95,19 @@ export class PerformanceTemplatesService {
       },
     });
 
-    return template;
-  }
-
-  findAll(companyId: string) {
-    return this.db
-      .select()
-      .from(performanceReviewTemplates)
-      .where(eq(performanceReviewTemplates.companyId, companyId));
-  }
-
-  async findOne(id: string, companyId: string) {
-    const template = await this.db.query.performanceReviewTemplates.findFirst({
-      where: (tpl, { eq }) => eq(tpl.id, id),
-    });
-
-    if (!template) throw new NotFoundException('Template not found');
-
-    const questions = await this.db
-      .select({
-        id: performanceReviewQuestions.id,
-        question: performanceReviewQuestions.question,
-        type: performanceReviewQuestions.type,
-        isMandatory: performanceTemplateQuestions.isMandatory,
-        order: performanceTemplateQuestions.order,
-        competencyId: performanceReviewQuestions.competencyId,
-        competencyName: performanceCompetencies.name,
-      })
-      .from(performanceTemplateQuestions)
-      .innerJoin(
-        performanceReviewQuestions,
-        eq(
-          performanceTemplateQuestions.questionId,
-          performanceReviewQuestions.id,
-        ),
-      )
-      .innerJoin(
-        performanceReviewTemplates,
-        eq(
-          performanceTemplateQuestions.templateId,
-          performanceReviewTemplates.id,
-        ),
-      )
-      .leftJoin(
-        performanceCompetencies,
-        eq(performanceReviewQuestions.competencyId, performanceCompetencies.id),
-      )
-      .where(
-        and(
-          eq(performanceTemplateQuestions.templateId, id),
-          eq(performanceReviewTemplates.companyId, companyId),
-        ),
-      )
-      .orderBy(performanceTemplateQuestions.order);
-
-    return { ...template, questions };
-  }
-
-  async getById(id: string, companyId: string) {
-    const [template] = await this.db
-      .select()
-      .from(performanceReviewTemplates)
-      .where(
-        and(
-          eq(performanceReviewTemplates.id, id),
-          eq(performanceReviewTemplates.companyId, companyId),
-        ),
-      );
-
-    if (!template) throw new NotFoundException('Template not found');
-
+    await this.burst({ companyId, templateId: template.id });
+    this.logger.info({ id: template.id }, 'templates:create:done');
     return template;
   }
 
   async update(id: string, updateTemplateDto: UpdateTemplateDto, user: User) {
-    await this.getById(id, user.companyId);
+    this.logger.info(
+      { id, userId: user.id, updateTemplateDto },
+      'templates:update:start',
+    );
+
+    await this.getById(id, user.companyId); // ownership check
+
     const [updated] = await this.db
       .update(performanceReviewTemplates)
       .set({ ...updateTemplateDto })
@@ -159,10 +133,14 @@ export class PerformanceTemplatesService {
       },
     });
 
+    await this.burst({ companyId: user.companyId, templateId: id });
+    this.logger.info({ id }, 'templates:update:done');
     return updated;
   }
 
   async remove(id: string, user: User) {
+    this.logger.info({ id, userId: user.id }, 'templates:remove:start');
+
     const template = await this.getById(id, user.companyId);
     await this.db
       .delete(performanceReviewTemplates)
@@ -175,9 +153,20 @@ export class PerformanceTemplatesService {
       userId: user.id,
       details: `Deleted performance review template: ${template.name}`,
     });
+
+    await this.burst({ companyId: user.companyId, templateId: id });
+    this.logger.info({ id }, 'templates:remove:done');
   }
 
   async assignQuestions(templateId: string, questionIds: string[], user: User) {
+    this.logger.info(
+      { templateId, userId: user.id, count: questionIds.length },
+      'templates:assignQuestions:start',
+    );
+
+    // ensure template belongs to company
+    await this.getById(templateId, user.companyId);
+
     await this.db
       .delete(performanceTemplateQuestions)
       .where(eq(performanceTemplateQuestions.templateId, templateId));
@@ -186,10 +175,12 @@ export class PerformanceTemplatesService {
       templateId,
       questionId: qid,
       order: index,
-      isMandatory: true, // You can allow this to be passed in as well
+      isMandatory: true,
     }));
 
-    await this.db.insert(performanceTemplateQuestions).values(payload);
+    if (payload.length) {
+      await this.db.insert(performanceTemplateQuestions).values(payload);
+    }
 
     await this.auditService.logAction({
       action: 'assign_questions',
@@ -199,10 +190,20 @@ export class PerformanceTemplatesService {
       details: `Assigned ${payload.length} questions to template ${templateId}`,
     });
 
+    await this.burst({ companyId: user.companyId, templateId });
+    this.logger.info({ templateId }, 'templates:assignQuestions:done');
     return { success: true, count: payload.length };
   }
 
   async removeQuestion(templateId: string, questionId: string, user: User) {
+    this.logger.info(
+      { templateId, questionId, userId: user.id },
+      'templates:removeQuestion:start',
+    );
+
+    // ensure template belongs to company
+    await this.getById(templateId, user.companyId);
+
     await this.db
       .delete(performanceTemplateQuestions)
       .where(
@@ -220,11 +221,17 @@ export class PerformanceTemplatesService {
       details: `Removed question ${questionId} from template ${templateId}`,
     });
 
+    await this.burst({ companyId: user.companyId, templateId });
+    this.logger.info(
+      { templateId, questionId },
+      'templates:removeQuestion:done',
+    );
     return { success: true };
   }
 
   async seedDefaultTemplate(companyId: string) {
-    // Step 1: Create the template
+    this.logger.info({ companyId }, 'templates:seedDefault:start');
+
     const [template] = await this.db
       .insert(performanceReviewTemplates)
       .values({
@@ -243,9 +250,11 @@ export class PerformanceTemplatesService {
       })
       .returning();
 
-    if (!template) return;
+    if (!template) {
+      this.logger.warn({ companyId }, 'templates:seedDefault:insert-failed');
+      return;
+    }
 
-    // Step 2: Attach curated global questions
     const questionTexts = [
       'How clearly does the employee communicate in verbal interactions?',
       'Does the employee communicate effectively in writing?',
@@ -266,15 +275,145 @@ export class PerformanceTemplatesService {
       isMandatory: true,
     }));
 
-    await this.db.insert(performanceTemplateQuestions).values(payload);
+    if (payload.length) {
+      await this.db.insert(performanceTemplateQuestions).values(payload);
+    }
+
+    await this.burst({ companyId, templateId: template.id });
+    this.logger.info(
+      { id: template.id, count: payload.length },
+      'templates:seedDefault:done',
+    );
   }
 
+  // ---------- queries (cached) ----------
+  findAll(companyId: string) {
+    const key = this.listKey(companyId);
+    this.logger.debug({ companyId, key }, 'templates:findAll:cache:get');
+
+    return this.cache.getOrSetCache(key, async () => {
+      const rows = await this.db
+        .select()
+        .from(performanceReviewTemplates)
+        .where(eq(performanceReviewTemplates.companyId, companyId));
+
+      this.logger.debug(
+        { companyId, count: rows.length },
+        'templates:findAll:db:done',
+      );
+      return rows;
+    });
+  }
+
+  async findOne(id: string, companyId: string) {
+    const keyTpl = this.oneKey(companyId, id);
+    const keyQ = this.qKey(companyId, id);
+    this.logger.debug(
+      { id, companyId, keyTpl, keyQ },
+      'templates:findOne:cache:get',
+    );
+
+    // Cache template and questions separately then compose (helps when questions change)
+    const template = await this.cache.getOrSetCache(keyTpl, async () => {
+      const [tpl] = await this.db
+        .select()
+        .from(performanceReviewTemplates)
+        .where(
+          and(
+            eq(performanceReviewTemplates.id, id),
+            eq(performanceReviewTemplates.companyId, companyId),
+          ),
+        );
+
+      if (!tpl) {
+        this.logger.warn({ id, companyId }, 'templates:findOne:not-found');
+        throw new NotFoundException('Template not found');
+      }
+      return tpl;
+    });
+
+    const questions = await this.cache.getOrSetCache(keyQ, async () => {
+      const rows = await this.db
+        .select({
+          id: performanceReviewQuestions.id,
+          question: performanceReviewQuestions.question,
+          type: performanceReviewQuestions.type,
+          isMandatory: performanceTemplateQuestions.isMandatory,
+          order: performanceTemplateQuestions.order,
+          competencyId: performanceReviewQuestions.competencyId,
+          competencyName: performanceCompetencies.name,
+        })
+        .from(performanceTemplateQuestions)
+        .innerJoin(
+          performanceReviewQuestions,
+          eq(
+            performanceTemplateQuestions.questionId,
+            performanceReviewQuestions.id,
+          ),
+        )
+        .innerJoin(
+          performanceReviewTemplates,
+          eq(
+            performanceTemplateQuestions.templateId,
+            performanceReviewTemplates.id,
+          ),
+        )
+        .leftJoin(
+          performanceCompetencies,
+          eq(
+            performanceReviewQuestions.competencyId,
+            performanceCompetencies.id,
+          ),
+        )
+        .where(
+          and(
+            eq(performanceTemplateQuestions.templateId, id),
+            eq(performanceReviewTemplates.companyId, companyId),
+          ),
+        )
+        .orderBy(performanceTemplateQuestions.order);
+
+      this.logger.debug(
+        { id, count: rows.length },
+        'templates:findOne:questions:db:done',
+      );
+      return rows;
+    });
+
+    return { ...template, questions };
+  }
+
+  async getById(id: string, companyId: string) {
+    const key = this.oneKey(companyId, id);
+    this.logger.debug({ id, companyId, key }, 'templates:getById:cache:get');
+
+    return this.cache.getOrSetCache(key, async () => {
+      const [template] = await this.db
+        .select()
+        .from(performanceReviewTemplates)
+        .where(
+          and(
+            eq(performanceReviewTemplates.id, id),
+            eq(performanceReviewTemplates.companyId, companyId),
+          ),
+        );
+
+      if (!template) {
+        this.logger.warn({ id, companyId }, 'templates:getById:not-found');
+        throw new NotFoundException('Template not found');
+      }
+
+      return template;
+    });
+  }
+
+  // ---------- helpers ----------
   lookupQuestionIds = async (
-    db: db,
+    dbConn: db,
     questions: string[],
     companyId?: string,
   ) => {
-    const rows = await db.query.performanceReviewQuestions.findMany({
+    const rows = await dbConn.query.performanceReviewQuestions.findMany({
       where: (q, { and, eq, isNull }) =>
         and(
           companyId ? eq(q.companyId, companyId) : isNull(q.companyId),
@@ -283,13 +422,11 @@ export class PerformanceTemplatesService {
     });
 
     const matchedIds: string[] = [];
-
     for (const text of questions) {
       const match = rows.find((q) => q.question === text);
       if (match) matchedIds.push(match.id);
-      else console.warn(`⚠️ Question not found: ${text}`);
+      else this.logger.warn({ text }, 'templates:lookupQuestionIds:not-found');
     }
-
     return matchedIds;
   };
 }

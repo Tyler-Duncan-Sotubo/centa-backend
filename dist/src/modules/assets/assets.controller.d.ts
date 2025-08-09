@@ -12,6 +12,7 @@ export declare class AssetsController extends BaseController {
         createdAt: string | null;
         updatedAt: string | null;
         companyId: string;
+        category: string;
         locationId: string;
         isDeleted: boolean | null;
         employeeId: string | null;
@@ -20,7 +21,6 @@ export declare class AssetsController extends BaseController {
         modelName: string | null;
         color: string | null;
         specs: string | null;
-        category: string;
         manufacturer: string | null;
         serialNumber: string;
         purchasePrice: string;
@@ -32,30 +32,38 @@ export declare class AssetsController extends BaseController {
         usefulLifeYears: number;
     }>;
     bulkCreate(rows: any[], user: User): Promise<{
-        id: string;
-        name: string;
-        createdAt: string | null;
-        updatedAt: string | null;
-        companyId: string;
-        locationId: string;
-        isDeleted: boolean | null;
-        employeeId: string | null;
-        status: string;
-        internalId: string;
-        modelName: string | null;
-        color: string | null;
-        specs: string | null;
-        category: string;
-        manufacturer: string | null;
-        serialNumber: string;
-        purchasePrice: string;
-        purchaseDate: string;
-        depreciationMethod: string | null;
-        warrantyExpiry: string | null;
-        lendDate: string | null;
-        returnDate: string | null;
-        usefulLifeYears: number;
-    }[]>;
+        insertedCount: number;
+        inserted: {
+            id: string;
+            name: string;
+            createdAt: string | null;
+            updatedAt: string | null;
+            companyId: string;
+            category: string;
+            locationId: string;
+            isDeleted: boolean | null;
+            employeeId: string | null;
+            status: string;
+            internalId: string;
+            modelName: string | null;
+            color: string | null;
+            specs: string | null;
+            manufacturer: string | null;
+            serialNumber: string;
+            purchasePrice: string;
+            purchaseDate: string;
+            depreciationMethod: string | null;
+            warrantyExpiry: string | null;
+            lendDate: string | null;
+            returnDate: string | null;
+            usefulLifeYears: number;
+        }[];
+        errors: {
+            index: number;
+            name?: string;
+            reason: string;
+        }[];
+    }>;
     findAll(user: User): Promise<({
         id: string;
         name: string;

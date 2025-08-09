@@ -3,10 +3,15 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { UpdateFeedbackRuleDto } from '../dto/update-feedback-rule.dto';
 import { UpdateFeedbackSettingsDto } from '../dto/update-feedback-settings.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class FeedbackSettingsService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private kSettings;
+    private kRules;
+    private burst;
     create(companyId: string): Promise<{
         id: string;
         createdAt: Date | null;
@@ -15,6 +20,15 @@ export declare class FeedbackSettingsService {
         enableEmployeeFeedback: boolean | null;
         enableManagerFeedback: boolean | null;
         allowAnonymous: boolean | null;
+    } | {
+        id?: undefined;
+        companyId?: undefined;
+        enableEmployeeFeedback?: undefined;
+        enableManagerFeedback?: undefined;
+        allowAnonymous?: undefined;
+        createdAt?: undefined;
+        updatedAt?: undefined;
+        rules?: undefined;
     }>;
     seedCompanies(): Promise<void>;
     findOne(companyId: string): Promise<{

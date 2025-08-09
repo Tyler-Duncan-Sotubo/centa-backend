@@ -28,6 +28,7 @@ export declare class RunService {
     private round2;
     calculatePayroll(employeeId: string, payrollDate: string, payrollRunId: string, companyId: string, userId: string, workflowId: string): Promise<{
         name: string;
+        transport: string;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
@@ -39,7 +40,6 @@ export declare class RunService {
         payrollRunId: string;
         basic: string;
         housing: string;
-        transport: string;
         pensionContribution: string;
         employerPensionContribution: string;
         bonuses: string | null;
@@ -71,6 +71,7 @@ export declare class RunService {
     }>;
     calculatePayrollForCompany(user: User, payrollDate: string, groupId?: string): Promise<{
         name: string;
+        transport: string;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
@@ -82,7 +83,6 @@ export declare class RunService {
         payrollRunId: string;
         basic: string;
         housing: string;
-        transport: string;
         pensionContribution: string;
         employerPensionContribution: string;
         bonuses: string | null;

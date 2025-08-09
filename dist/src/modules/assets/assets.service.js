@@ -11,9 +11,11 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var AssetsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AssetsService = void 0;
 const common_1 = require("@nestjs/common");
+const nestjs_pino_1 = require("nestjs-pino");
 const useful_life_service_1 = require("./useful-life.service");
 const drizzle_module_1 = require("../../drizzle/drizzle.module");
 const audit_service_1 = require("../audit/audit.service");
@@ -24,11 +26,12 @@ const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 const create_bulk_asset_dto_1 = require("./dto/create-bulk-asset.dto");
 const asset_reports_schema_1 = require("./schema/asset-reports.schema");
-let AssetsService = class AssetsService {
-    constructor(usefulLifeService, db, auditService) {
+let AssetsService = AssetsService_1 = class AssetsService {
+    constructor(usefulLifeService, db, auditService, logger) {
         this.usefulLifeService = usefulLifeService;
         this.db = db;
         this.auditService = auditService;
+        this.logger = logger;
         this.categoryMap = {
             Laptop: 'L',
             Monitor: 'M',
@@ -36,6 +39,7 @@ let AssetsService = class AssetsService {
             Furniture: 'F',
             Other: 'O',
         };
+        this.logger.setContext(AssetsService_1.name);
     }
     async create(dto, user) {
         const existingAsset = await this.db
@@ -50,7 +54,8 @@ let AssetsService = class AssetsService {
         const existingCount = await this.db
             .select({ count: (0, drizzle_orm_1.sql) `COUNT(*)` })
             .from(assets_schema_1.assets)
-            .where((0, drizzle_orm_1.eq)(assets_schema_1.assets.category, dto.category));
+            .where((0, drizzle_orm_1.eq)(assets_schema_1.assets.category, dto.category))
+            .execute();
         const categoryCode = this.categoryMap[dto.category] || 'A';
         const year = new Date(dto.purchaseDate).getFullYear().toString().slice(-2);
         const sequenceNumber = (existingCount[0].count + 1)
@@ -104,129 +109,249 @@ let AssetsService = class AssetsService {
         return newAsset;
     }
     async bulkCreateAssets(companyId, rows) {
+        this.logger.info({ companyId, rowCount: rows?.length ?? 0 }, 'bulkCreateAssets:start');
+        if (!Array.isArray(rows) || rows.length === 0) {
+            throw new common_1.BadRequestException({ message: 'CSV has no rows' });
+        }
+        const trim = (v) => (typeof v === 'string' ? v.trim() : v);
+        const sanitizeRow = (r) => {
+            const out = {};
+            for (const k of Object.keys(r))
+                out[k] = trim(r[k]);
+            return out;
+        };
+        const toDateString = (v) => {
+            if (!v)
+                return undefined;
+            const raw = String(v).trim();
+            const iso = /^(\d{4})-(\d{2})-(\d{2})$/;
+            const dmy = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+            const mdy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+            let y, m, d;
+            if (iso.test(raw)) {
+                return raw;
+            }
+            else if (dmy.test(raw)) {
+                const [, dd, mm, yyyy] = raw.match(dmy);
+                y = +yyyy;
+                m = +mm;
+                d = +dd;
+            }
+            else if (mdy.test(raw)) {
+                const [, mm, dd, yyyy] = raw.match(mdy);
+                y = +yyyy;
+                m = +mm;
+                d = +dd;
+            }
+            else {
+                return undefined;
+            }
+            const utc = Date.UTC(y, m - 1, d);
+            const dt = new Date(utc);
+            return isNaN(dt.getTime()) ? undefined : dt.toISOString().slice(0, 10);
+        };
+        const toNumber = (v) => {
+            if (v === null || v === undefined || v === '')
+                return NaN;
+            const n = Number(String(v).replace(/[, ]/g, ''));
+            return Number.isFinite(n) ? n : NaN;
+        };
+        const normalizeLoc = (s) => s
+            .toLowerCase()
+            .replace(/\b(branch|office)\b/g, '')
+            .replace(/\s+/g, '')
+            .trim();
+        const firstKeys = Object.keys(rows[0] ?? {});
+        this.logger.debug(`bulkCreateAssets: first row keys -> ${JSON.stringify(firstKeys)}`);
         const allEmployees = await this.db
             .select({
             id: schema_1.employees.id,
             fullName: (0, drizzle_orm_1.sql) `LOWER(${schema_1.employees.firstName} || ' ' || ${schema_1.employees.lastName})`,
         })
             .from(schema_1.employees)
-            .where((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId));
-        const employeeMap = new Map(allEmployees.map((e) => [e.fullName.toLowerCase(), e.id]));
+            .where((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId))
+            .execute();
+        const employeeMap = new Map(allEmployees.map((e) => [e.fullName, e.id]));
         const allLocations = await this.db
             .select({
             id: schema_1.companyLocations.id,
             name: (0, drizzle_orm_1.sql) `LOWER(${schema_1.companyLocations.name})`,
         })
             .from(schema_1.companyLocations)
-            .where((0, drizzle_orm_1.eq)(schema_1.companyLocations.companyId, companyId));
-        const locationMap = new Map(allLocations.map((l) => [l.name.toLowerCase(), l.id]));
+            .where((0, drizzle_orm_1.eq)(schema_1.companyLocations.companyId, companyId))
+            .execute();
+        const locationKeyed = new Map(allLocations.map((l) => [l.name, l.id]));
+        const locationFuzzy = new Map(allLocations.map((l) => [normalizeLoc(l.name), l.id]));
+        this.logger.debug(`bulkCreateAssets: preloaded employees=${allEmployees.length}, locations=${allLocations.length}`);
+        this.logger.debug(`bulkCreateAssets: location keys -> ${JSON.stringify([...locationKeyed.keys()].slice(0, 20))}`);
+        const errors = [];
         const dtos = [];
-        const existingCounts = new Map();
-        for (const dto of dtos) {
-            const year = new Date(dto.purchaseDate)
-                .getFullYear()
-                .toString()
-                .slice(-2);
-            const prefix = `${dto.category}-${year}`;
-            if (!existingCounts.has(prefix)) {
-                const [{ count }] = await this.db
-                    .select({ count: (0, drizzle_orm_1.sql) `COUNT(*)` })
-                    .from(assets_schema_1.assets)
-                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(assets_schema_1.assets.companyId, companyId), (0, drizzle_orm_1.eq)(assets_schema_1.assets.category, dto.category), (0, drizzle_orm_1.sql) `EXTRACT(YEAR FROM ${assets_schema_1.assets.purchaseDate}) = ${Number('20' + year)}`));
-                existingCounts.set(prefix, Number(count));
+        for (let i = 0; i < rows.length; i++) {
+            const raw = sanitizeRow(rows[i]);
+            const name = (raw['Asset Name'] ?? '').toString();
+            try {
+                const category = (raw.Category ?? '').toString();
+                const serial = (raw['Serial Number'] ?? '').toString();
+                const price = toNumber(raw['Purchase Price']);
+                const purchaseDate = toDateString(raw['Purchase Date']);
+                const locationNameRaw = (raw['Location Name'] ?? '').toString();
+                const exactKey = locationNameRaw.toLowerCase();
+                let locationId = locationKeyed.get(exactKey);
+                if (!locationId) {
+                    locationId = locationFuzzy.get(normalizeLoc(locationNameRaw));
+                }
+                this.logger.debug(`row#${i}: name="${name}", category="${category}", serial="${serial}", price="${raw['Purchase Price']}" -> ${price}, purchaseDate="${raw['Purchase Date']}" -> ${purchaseDate}, location="${locationNameRaw}" -> id=${locationId}`);
+                if (!name)
+                    throw new Error(`"Asset Name" is required`);
+                if (!category)
+                    throw new Error(`"Category" is required`);
+                if (!serial)
+                    throw new Error(`"Serial Number" is required`);
+                if (!Number.isFinite(price))
+                    throw new Error(`"Purchase Price" is invalid`);
+                if (!purchaseDate)
+                    throw new Error(`"Purchase Date" is required/invalid`);
+                if (!locationId)
+                    throw new Error(`Unknown "Location Name": ${locationNameRaw}`);
+                let employeeId;
+                const empNameRaw = (raw['Employee Name'] ?? '').toString();
+                if (empNameRaw) {
+                    const empKey = empNameRaw.toLowerCase();
+                    employeeId = employeeMap.get(empKey);
+                    if (!employeeId) {
+                        this.logger.warn(`row#${i}: Unknown "Employee Name": ${empNameRaw} (inserting unassigned)`);
+                    }
+                }
+                const dto = (0, class_transformer_1.plainToInstance)(create_bulk_asset_dto_1.CreateBulkAssetDto, {
+                    name,
+                    modelName: raw['Model Name'] ?? '',
+                    color: raw.Color ?? '',
+                    specs: raw.Specs ?? '',
+                    category,
+                    manufacturer: raw.Manufacturer ?? '',
+                    serialNumber: serial,
+                    purchasePrice: String(price),
+                    purchaseDate,
+                    warrantyExpiry: toDateString(raw['Warranty Expiry']),
+                    lendDate: toDateString(raw['Lend Date']),
+                    returnDate: toDateString(raw['Return Date']),
+                });
+                const validationErrors = await (0, class_validator_1.validate)(dto);
+                if (validationErrors.length) {
+                    this.logger.warn(`row#${i}: class-validator failed -> ${JSON.stringify(validationErrors)}`);
+                    throw new Error(`Validation failed: ${JSON.stringify(validationErrors)}`);
+                }
+                const year = new Date(dto.purchaseDate).getFullYear();
+                dtos.push({ ...dto, employeeId, locationId, category, year });
+            }
+            catch (e) {
+                const reason = e?.message ?? 'Invalid row';
+                errors.push({ index: i, name, reason });
+                this.logger.error(`row#${i} FAILED: ${reason}`);
             }
         }
-        for (const row of rows) {
-            const employeeName = row['Employee Name']?.trim().toLowerCase();
-            const employeeId = employeeName
-                ? employeeMap.get(employeeName)
-                : undefined;
-            if (employeeName && !employeeId) {
-                console.warn(`Skipping row with unknown employee: ${employeeName}`);
-                continue;
-            }
-            const locationName = row['Location Name']?.trim().toLowerCase();
-            const locationId = locationMap.get(locationName);
-            if (!locationId) {
-                console.warn(`Skipping row with unknown location: ${locationName}`);
-                continue;
-            }
-            const dto = (0, class_transformer_1.plainToInstance)(create_bulk_asset_dto_1.CreateBulkAssetDto, {
-                name: row['Asset Name'],
-                modelName: row['Model Name'],
-                color: row['Color'],
-                specs: row['Specs'],
-                category: row['Category'],
-                manufacturer: row['Manufacturer'],
-                serialNumber: row['Serial Number'],
-                purchasePrice: String(row['Purchase Price']),
-                purchaseDate: row['Purchase Date'],
-                warrantyExpiry: row['Warranty Expiry'] || undefined,
-                lendDate: row['Lend Date'] || undefined,
-                returnDate: row['Return Date'] || undefined,
+        this.logger.debug({ firstKeys }, 'bulkCreateAssets:first-row-keys');
+        if (dtos.length === 0) {
+            throw new common_1.BadRequestException({
+                message: 'No valid rows in CSV',
+                errors,
             });
-            const errors = await (0, class_validator_1.validate)(dto);
-            if (errors.length) {
-                console.warn(`❌ Skipping invalid asset row:`, errors);
-                continue;
-            }
-            dtos.push({ ...dto, employeeId, locationId });
         }
-        const inserted = await this.db.transaction(async (trx) => {
-            const insertedAssets = [];
-            const usefulLifePromises = dtos.map((dto) => this.usefulLifeService.getUsefulLifeYears(dto.category, dto.name));
-            const usefulLives = await Promise.all(usefulLifePromises);
-            for (let i = 0; i < dtos.length; i++) {
-                const dto = dtos[i];
-                const category = dto.category;
-                const categoryCode = this.categoryMap?.[category] || category.charAt(0).toUpperCase();
-                const year = new Date(dto.purchaseDate)
-                    .getFullYear()
-                    .toString()
-                    .slice(-2);
-                const prefix = `${dto.category}-${year}`;
-                const count = existingCounts.get(prefix) || 0;
-                existingCounts.set(prefix, count + 1);
-                const sequenceNumber = (count + 1).toString().padStart(3, '0');
-                const internalId = `${categoryCode}${year}-${sequenceNumber}`;
-                const depreciationMap = {
-                    Laptop: 'StraightLine',
-                    Monitor: 'StraightLine',
-                    Phone: 'StraightLine',
-                    Furniture: 'DecliningBalance',
-                };
-                const depreciationMethod = depreciationMap[dto.category] || 'StraightLine';
-                const usefulLife = usefulLives[i];
-                const [asset] = await trx
+        const categoryMap = {
+            Laptop: 'L',
+            Monitor: 'M',
+            Phone: 'P',
+            Furniture: 'F',
+            Other: 'O',
+        };
+        const depMap = {
+            Laptop: 'StraightLine',
+            Monitor: 'StraightLine',
+            Phone: 'StraightLine',
+            Furniture: 'DecliningBalance',
+        };
+        const prefixes = new Set();
+        for (const d of dtos) {
+            const yy = String(d.year).slice(-2);
+            const code = categoryMap[d.category] ?? d.category.charAt(0).toUpperCase();
+            prefixes.add(`${code}${yy}-`);
+        }
+        const prefixNext = new Map();
+        for (const prefix of prefixes) {
+            const existing = await this.db
+                .select({ internalId: assets_schema_1.assets.internalId })
+                .from(assets_schema_1.assets)
+                .where((0, drizzle_orm_1.sql) `${assets_schema_1.assets.internalId} LIKE ${prefix + '%'}`)
+                .orderBy((0, drizzle_orm_1.sql) `${assets_schema_1.assets.internalId} DESC`)
+                .limit(500)
+                .execute();
+            let maxSeq = 0;
+            for (const row of existing) {
+                const m = row.internalId?.match(/^.+-(\d{3,})$/);
+                if (m) {
+                    const n = parseInt(m[1], 10);
+                    if (!isNaN(n) && n > maxSeq)
+                        maxSeq = n;
+                }
+            }
+            prefixNext.set(prefix, maxSeq + 1);
+            this.logger.debug(`internalId: prefix="${prefix}" -> startSeq=${maxSeq + 1}`);
+        }
+        const inserted = [];
+        for (let i = 0; i < dtos.length; i++) {
+            const d = dtos[i];
+            const yy = String(d.year).slice(-2);
+            const code = categoryMap[d.category] ?? d.category.charAt(0).toUpperCase();
+            const prefix = `${code}${yy}-`;
+            const next = prefixNext.get(prefix) ?? 1;
+            const seq = String(next).padStart(3, '0');
+            const internalId = `${prefix}${seq}`;
+            const usefulLife = await this.usefulLifeService.getUsefulLifeYears(d.category, d.name);
+            const depreciationMethod = depMap[d.category] ?? 'StraightLine';
+            this.logger.debug(`insert row#${i}: internalId=${internalId}, depMethod=${depreciationMethod}, usefulLife=${usefulLife}`);
+            try {
+                const [asset] = await this.db
                     .insert(assets_schema_1.assets)
                     .values({
                     companyId,
-                    name: dto.name,
-                    modelName: dto.modelName,
-                    color: dto.color,
-                    specs: dto.specs,
-                    category: dto.category,
-                    manufacturer: dto.manufacturer,
-                    serialNumber: dto.serialNumber,
-                    purchasePrice: dto.purchasePrice,
-                    purchaseDate: dto.purchaseDate,
-                    warrantyExpiry: dto.warrantyExpiry,
-                    employeeId: dto.employeeId ?? null,
-                    locationId: dto.locationId,
-                    lendDate: dto.lendDate?.toString(),
-                    returnDate: dto.returnDate?.toString(),
+                    name: d.name,
+                    modelName: d.modelName,
+                    color: d.color,
+                    specs: d.specs,
+                    category: d.category,
+                    manufacturer: d.manufacturer,
+                    serialNumber: d.serialNumber,
+                    purchasePrice: d.purchasePrice,
+                    purchaseDate: d.purchaseDate,
+                    warrantyExpiry: d.warrantyExpiry ?? null,
+                    employeeId: d.employeeId ?? null,
+                    locationId: d.locationId,
+                    lendDate: d.lendDate ?? null,
+                    returnDate: d.returnDate ?? null,
                     usefulLifeYears: usefulLife,
                     depreciationMethod,
                     internalId,
-                    status: dto.employeeId ? 'assigned' : 'available',
+                    status: d.employeeId ? 'assigned' : 'available',
                 })
                     .returning()
                     .execute();
-                insertedAssets.push(asset);
+                inserted.push(asset);
+                prefixNext.set(prefix, next + 1);
             }
-            return insertedAssets;
-        });
-        return inserted;
+            catch (e) {
+                const reason = e?.message ?? 'DB insert failed';
+                errors.push({ index: i, name: d.name, reason });
+                this.logger.error(`insert row#${i} FAILED: ${reason}`);
+            }
+        }
+        this.logger.info({ inserted: inserted.length, errors: errors.length }, 'bulkCreateAssets:done');
+        if (inserted.length === 0) {
+            throw new common_1.BadRequestException({
+                message: 'No assets were created from CSV',
+                errors,
+            });
+        }
+        return { insertedCount: inserted.length, inserted, errors };
     }
     async findAll(companyId) {
         const allAssets = await this.db
@@ -407,9 +532,10 @@ let AssetsService = class AssetsService {
     }
 };
 exports.AssetsService = AssetsService;
-exports.AssetsService = AssetsService = __decorate([
+exports.AssetsService = AssetsService = AssetsService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(1, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [useful_life_service_1.UsefulLifeService, Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [useful_life_service_1.UsefulLifeService, Object, audit_service_1.AuditService,
+        nestjs_pino_1.PinoLogger])
 ], AssetsService);
 //# sourceMappingURL=assets.service.js.map

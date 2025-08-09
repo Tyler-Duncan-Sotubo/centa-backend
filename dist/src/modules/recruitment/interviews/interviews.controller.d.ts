@@ -12,7 +12,7 @@ export declare class InterviewsController extends BaseController {
     private readonly scoreCard;
     private readonly emailTemplatesService;
     constructor(interviewsService: InterviewsService, scoreCard: ScorecardTemplateService, emailTemplatesService: InterviewEmailTemplateService);
-    scheduleInterview(dto: ScheduleInterviewDto): Promise<{
+    scheduleInterview(dto: ScheduleInterviewDto, user: User): Promise<{
         id: string;
         mode: string | null;
         createdAt: Date | null;
@@ -26,7 +26,7 @@ export declare class InterviewsController extends BaseController {
         eventId: string | null;
         emailTemplateId: string | null;
     }>;
-    rescheduleInterview(interviewId: string, dto: ScheduleInterviewDto): Promise<{
+    rescheduleInterview(interviewId: string, dto: ScheduleInterviewDto, user: User): Promise<{
         id: string;
         applicationId: string;
         stage: "phone_screen" | "tech" | "onsite" | "final";
@@ -40,28 +40,7 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
     }>;
-    listAllInterviews(user: User): Promise<{
-        id: string;
-        applicationId: string;
-        scheduledFor: Date;
-        durationMins: number;
-        stage: "phone_screen" | "tech" | "onsite" | "final";
-        mode: string | null;
-        meetingLink: string | null;
-        candidateName: string;
-        interviewers: {
-            interviewerId: string;
-            scorecardTemplateId: string | null;
-        }[];
-        scorecardCriteria: {
-            id: string;
-            label: string;
-            description: string | null;
-            maxScore: number;
-            order: number;
-            templateId: string;
-        }[];
-    }[]>;
+    listAllInterviews(user: User): Promise<any[]>;
     getInterviewDetails(interviewId: string): Promise<{
         interviewers: {
             interviewId: string;
@@ -127,8 +106,8 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string | null;
-        description: string | null;
         isSystem: boolean | null;
+        description: string | null;
     }>;
     deleteScorecardTemplate(templateId: string, user: User): Promise<{
         message: string;
@@ -139,8 +118,8 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string | null;
-        description: string | null;
         isSystem: boolean | null;
+        description: string | null;
     }>;
     getAllEmailTemplates(user: User): Promise<{
         id: string;
@@ -159,9 +138,9 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
-        isGlobal: boolean | null;
         createdBy: string | null;
         body: string;
+        isGlobal: boolean | null;
         subject: string;
     }>;
     cloneEmailTemplate(templateId: string, user: User): Promise<{
@@ -170,9 +149,9 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
-        isGlobal: boolean | null;
         createdBy: string | null;
         body: string;
+        isGlobal: boolean | null;
         subject: string;
     }>;
     deleteEmailTemplate(templateId: string, user: User): Promise<{

@@ -3,10 +3,16 @@ import { SaveResponseDto } from './dto/save-response.dto';
 import { BulkSaveResponsesDto } from './dto/bulk-save-responses.dto';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class AssessmentResponsesService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly logger;
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, logger: PinoLogger, cache: CacheService);
+    private listKey;
+    private burst;
     getResponsesForAssessment(assessmentId: string): Promise<{
         questionId: string;
         question: string;

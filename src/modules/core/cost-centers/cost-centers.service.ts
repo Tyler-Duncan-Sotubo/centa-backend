@@ -16,6 +16,8 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { User } from 'src/common/types/user.type';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
+import { CacheService } from 'src/common/cache/cache.service';
+import { PinoLogger } from 'nestjs-pino';
 
 @Injectable()
 export class CostCentersService extends BaseCrudService<
@@ -28,30 +30,56 @@ export class CostCentersService extends BaseCrudService<
     @Inject(DRIZZLE) db: db,
     audit: AuditService,
     private readonly companySettings: CompanySettingsService,
+    private readonly cache: CacheService,
+    private readonly logger: PinoLogger,
   ) {
     super(db, audit);
+    this.logger.setContext(CostCentersService.name);
   }
 
+  // ---------- cache keys ----------
+  private listKey(companyId: string) {
+    return `cc:${companyId}:list`;
+  }
+  private oneKey(companyId: string, id: string) {
+    return `cc:${companyId}:one:${id}`;
+  }
+  private async burst(companyId: string, id?: string) {
+    const jobs: Promise<any>[] = [this.cache.del(this.listKey(companyId))];
+    if (id) jobs.push(this.cache.del(this.oneKey(companyId, id)));
+    await Promise.allSettled(jobs);
+    this.logger.debug({ companyId, id }, 'cost-centers:cache:burst');
+  }
+
+  // ---------- mutations ----------
   async create(companyId: string, dto: CreateCostCenterDto) {
+    this.logger.info({ companyId, dto }, 'cost-centers:create:start');
+
     const { code, name, budget } = dto;
-    const costCenter = await this.db
+    const [created] = await this.db
       .insert(costCenters)
       .values({ code, name, budget, companyId })
       .returning({ id: costCenters.id })
       .execute();
 
-    // make onboarding step complete
     await this.companySettings.setSetting(
       companyId,
       'onboarding_cost_center',
       true,
     );
 
-    return costCenter[0];
+    await this.burst(companyId, created.id);
+    this.logger.info({ id: created.id }, 'cost-centers:create:done');
+    return created;
   }
 
   async bulkCreate(companyId: string, rows: any[]) {
-    // 1) Map and validate to DTOs
+    this.logger.info(
+      { companyId, rows: rows?.length },
+      'cost-centers:bulkCreate:start',
+    );
+
+    // 1) Map + validate
     const dtos: CreateCostCenterDto[] = [];
     for (const row of rows) {
       const dto = plainToInstance(CreateCostCenterDto, {
@@ -61,6 +89,7 @@ export class CostCentersService extends BaseCrudService<
       });
       const errs = await validate(dto);
       if (errs.length) {
+        this.logger.warn({ errs }, 'cost-centers:bulkCreate:validation-error');
         throw new BadRequestException(
           'Invalid CSV format or data: ' + JSON.stringify(errs),
         );
@@ -68,7 +97,7 @@ export class CostCentersService extends BaseCrudService<
       dtos.push(dto);
     }
 
-    // 2) Check for duplicates
+    // 2) Check duplicates
     const codes = dtos.map((d) => d.code);
     const duplicates = await this.db
       .select({ code: costCenters.code })
@@ -83,21 +112,24 @@ export class CostCentersService extends BaseCrudService<
 
     if (duplicates.length) {
       const duplicateCodes = duplicates.map((d) => d.code);
+      this.logger.warn(
+        { duplicateCodes },
+        'cost-centers:bulkCreate:duplicates',
+      );
       throw new BadRequestException(
         `Cost center codes already exist: ${duplicateCodes.join(', ')}`,
       );
     }
 
-    // 2) Insert in one transaction
+    // 3) Insert
     const inserted = await this.db.transaction(async (trx) => {
-      // prepare values
       const values = dtos.map((d) => ({
         companyId,
         code: d.code,
         name: d.name,
         budget: d.budget,
       }));
-      const result = await trx
+      return trx
         .insert(costCenters)
         .values(values)
         .returning({
@@ -107,46 +139,20 @@ export class CostCentersService extends BaseCrudService<
           budget: costCenters.budget,
         })
         .execute();
-
-      return result;
     });
 
-    // make onboarding step complete
     await this.companySettings.setSetting(
       companyId,
       'onboarding_cost_center',
       true,
     );
 
+    await this.burst(companyId); // list-level
+    this.logger.info(
+      { count: inserted.length },
+      'cost-centers:bulkCreate:done',
+    );
     return inserted;
-  }
-
-  async findAll(companyId: string) {
-    return this.db
-      .select({
-        id: costCenters.id,
-        code: costCenters.code,
-        name: costCenters.name,
-        budget: costCenters.budget,
-      })
-      .from(costCenters)
-      .where(eq(costCenters.companyId, companyId))
-      .execute();
-  }
-
-  async findOne(companyId: string, id: string) {
-    const [cc] = await this.db
-      .select({
-        id: costCenters.id,
-        code: costCenters.code,
-        name: costCenters.name,
-        budget: costCenters.budget,
-      })
-      .from(costCenters)
-      .where(and(eq(costCenters.companyId, companyId), eq(costCenters.id, id)))
-      .execute();
-    if (!cc) throw new NotFoundException(`Cost center ${id} not found`);
-    return cc;
   }
 
   async update(
@@ -156,7 +162,9 @@ export class CostCentersService extends BaseCrudService<
     userId: string,
     ip: string,
   ) {
-    return this.updateWithAudit(
+    this.logger.info({ companyId, id, userId }, 'cost-centers:update:start');
+
+    const result = await this.updateWithAudit(
       companyId,
       id,
       { code: dto.code, name: dto.name, budget: dto.budget },
@@ -168,25 +176,39 @@ export class CostCentersService extends BaseCrudService<
       userId,
       ip,
     );
+
+    await this.burst(companyId, id);
+    this.logger.info({ id }, 'cost-centers:update:done');
+    return result;
   }
 
   async remove(user: User, id: string) {
+    this.logger.info(
+      { companyId: user.companyId, id, userId: user.id },
+      'cost-centers:remove:start',
+    );
+
     const [deleted] = await this.db
       .delete(costCenters)
       .where(
         and(eq(costCenters.companyId, user.companyId), eq(costCenters.id, id)),
       )
-      .returning({ id: costCenters.id })
+      .returning({
+        id: costCenters.id,
+        code: costCenters.code,
+        name: costCenters.name,
+        budget: costCenters.budget,
+      })
       .execute();
 
     if (!deleted) {
+      this.logger.warn({ id }, 'cost-centers:remove:not-found');
       throw new NotFoundException(`Cost Centers ${id} not found`);
     }
 
-    // Audit the deletion
     await this.audit.logAction({
-      entity: 'delete',
-      action: 'Delete Cost Center',
+      entity: 'CostCenter',
+      action: 'Delete',
       details: 'Cost center deleted',
       userId: user.id,
       changes: {
@@ -195,6 +217,61 @@ export class CostCentersService extends BaseCrudService<
       },
     });
 
+    await this.burst(user.companyId, id);
+    this.logger.info({ id }, 'cost-centers:remove:done');
     return { id: deleted.id };
+  }
+
+  // ---------- queries ----------
+  async findAll(companyId: string) {
+    const key = this.listKey(companyId);
+    this.logger.debug({ companyId, key }, 'cost-centers:findAll:cache:get');
+
+    return this.cache.getOrSetCache(key, async () => {
+      const rows = await this.db
+        .select({
+          id: costCenters.id,
+          code: costCenters.code,
+          name: costCenters.name,
+          budget: costCenters.budget,
+        })
+        .from(costCenters)
+        .where(eq(costCenters.companyId, companyId))
+        .execute();
+
+      this.logger.debug(
+        { companyId, count: rows.length },
+        'cost-centers:findAll:db:done',
+      );
+      return rows;
+    });
+  }
+
+  async findOne(companyId: string, id: string) {
+    const key = this.oneKey(companyId, id);
+    this.logger.debug({ companyId, id, key }, 'cost-centers:findOne:cache:get');
+
+    return this.cache.getOrSetCache(key, async () => {
+      const [cc] = await this.db
+        .select({
+          id: costCenters.id,
+          code: costCenters.code,
+          name: costCenters.name,
+          budget: costCenters.budget,
+        })
+        .from(costCenters)
+        .where(
+          and(eq(costCenters.companyId, companyId), eq(costCenters.id, id)),
+        )
+        .execute();
+
+      if (!cc) {
+        this.logger.warn({ companyId, id }, 'cost-centers:findOne:not-found');
+        throw new NotFoundException(`Cost center ${id} not found`);
+      }
+
+      this.logger.debug({ id }, 'cost-centers:findOne:db:done');
+      return cc;
+    });
   }
 }

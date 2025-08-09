@@ -1,14 +1,16 @@
-import { CreateAssetDto } from './dto/create-asset.dto';
-import { UpdateAssetDto } from './dto/update-asset.dto';
+import { PinoLogger } from 'nestjs-pino';
 import { UsefulLifeService } from './useful-life.service';
 import { User } from 'src/common/types/user.type';
 import { db } from 'src/drizzle/types/drizzle';
-import { AuditService } from '../audit/audit.service';
+import { AuditService } from 'src/modules/audit/audit.service';
+import { UpdateAssetDto } from './dto/update-asset.dto';
+import { CreateAssetDto } from './dto/create-asset.dto';
 export declare class AssetsService {
     private readonly usefulLifeService;
     private readonly db;
     private readonly auditService;
-    constructor(usefulLifeService: UsefulLifeService, db: db, auditService: AuditService);
+    private readonly logger;
+    constructor(usefulLifeService: UsefulLifeService, db: db, auditService: AuditService, logger: PinoLogger);
     private categoryMap;
     create(dto: CreateAssetDto, user: User): Promise<{
         id: string;
@@ -16,6 +18,7 @@ export declare class AssetsService {
         createdAt: string | null;
         updatedAt: string | null;
         companyId: string;
+        category: string;
         locationId: string;
         isDeleted: boolean | null;
         employeeId: string | null;
@@ -24,7 +27,6 @@ export declare class AssetsService {
         modelName: string | null;
         color: string | null;
         specs: string | null;
-        category: string;
         manufacturer: string | null;
         serialNumber: string;
         purchasePrice: string;
@@ -36,30 +38,38 @@ export declare class AssetsService {
         usefulLifeYears: number;
     }>;
     bulkCreateAssets(companyId: string, rows: any[]): Promise<{
-        id: string;
-        name: string;
-        createdAt: string | null;
-        updatedAt: string | null;
-        companyId: string;
-        locationId: string;
-        isDeleted: boolean | null;
-        employeeId: string | null;
-        status: string;
-        internalId: string;
-        modelName: string | null;
-        color: string | null;
-        specs: string | null;
-        category: string;
-        manufacturer: string | null;
-        serialNumber: string;
-        purchasePrice: string;
-        purchaseDate: string;
-        depreciationMethod: string | null;
-        warrantyExpiry: string | null;
-        lendDate: string | null;
-        returnDate: string | null;
-        usefulLifeYears: number;
-    }[]>;
+        insertedCount: number;
+        inserted: {
+            id: string;
+            name: string;
+            createdAt: string | null;
+            updatedAt: string | null;
+            companyId: string;
+            category: string;
+            locationId: string;
+            isDeleted: boolean | null;
+            employeeId: string | null;
+            status: string;
+            internalId: string;
+            modelName: string | null;
+            color: string | null;
+            specs: string | null;
+            manufacturer: string | null;
+            serialNumber: string;
+            purchasePrice: string;
+            purchaseDate: string;
+            depreciationMethod: string | null;
+            warrantyExpiry: string | null;
+            lendDate: string | null;
+            returnDate: string | null;
+            usefulLifeYears: number;
+        }[];
+        errors: {
+            index: number;
+            name?: string;
+            reason: string;
+        }[];
+    }>;
     findAll(companyId: string): Promise<({
         id: string;
         name: string;

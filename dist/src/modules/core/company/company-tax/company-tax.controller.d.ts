@@ -6,7 +6,16 @@ import { BaseController } from 'src/common/interceptor/base.controller';
 export declare class CompanyTaxController extends BaseController {
     private readonly companyTaxService;
     constructor(companyTaxService: CompanyTaxService);
-    create(createCompanyTaxDto: CreateCompanyTaxDto, user: User): Promise<void>;
+    create(createCompanyTaxDto: CreateCompanyTaxDto, user: User): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date | null;
+        companyId: string;
+        tin: string;
+        vatNumber: string | null;
+        nhfCode: string | null;
+        pensionCode: string | null;
+    }>;
     findOne(user: User): Promise<{
         id: string;
         companyId: string;

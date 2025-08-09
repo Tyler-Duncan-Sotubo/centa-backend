@@ -3,31 +3,86 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import { Inject } from '@nestjs/common';
-import { eq, or, and } from 'drizzle-orm';
+import { and, eq, isNull, or } from 'drizzle-orm';
 import { CreateQuestionsDto } from './dto/create-questions.dto';
 import { performanceReviewQuestions } from '../schema/performance-review-questions.schema';
 import { UpdateQuestionsDto } from './dto/update-questions.dto';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { performanceCompetencies } from '../schema/performance-competencies.schema';
-import { questions } from './defaults';
+import { questions as defaultQuestions } from './defaults';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class PerformanceReviewQuestionService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
-  ) {}
+    private readonly logger: PinoLogger,
+    private readonly cache: CacheService,
+  ) {
+    this.logger.setContext(PerformanceReviewQuestionService.name);
+  }
 
+  // ---------- cache keys ----------
+  private listKey(companyId: string) {
+    return `prq:${companyId}:list`;
+  }
+  private oneKey(companyId: string, id: string) {
+    return `prq:${companyId}:one:${id}`;
+  }
+
+  private async burst(opts: { companyId?: string; id?: string }) {
+    const jobs: Promise<any>[] = [];
+    if (opts.companyId) {
+      jobs.push(this.cache.del(this.listKey(opts.companyId)));
+      if (opts.id)
+        jobs.push(this.cache.del(this.oneKey(opts.companyId, opts.id)));
+    }
+    await Promise.allSettled(jobs);
+    this.logger.debug(opts, 'prq:cache:burst');
+  }
+
+  // ---------- helpers ----------
+  /** Ensures the question exists and is owned by the company (NOT global). */
+  private async ensureCompanyOwned(id: string, companyId: string) {
+    const [row] = await this.db
+      .select()
+      .from(performanceReviewQuestions)
+      .where(
+        and(
+          eq(performanceReviewQuestions.id, id),
+          eq(performanceReviewQuestions.companyId, companyId),
+          // explicitly not global
+          eq(performanceReviewQuestions.isGlobal, false),
+        ),
+      );
+
+    if (!row) {
+      this.logger.warn(
+        { id, companyId },
+        'prq:ensureCompanyOwned:not-owned-or-missing',
+      );
+      throw new ForbiddenException('Only company questions can be modified');
+    }
+    return row;
+  }
+
+  // ---------- mutations ----------
   async create(user: User, dto: CreateQuestionsDto) {
-    const { companyId, id: userId } = user;
+    this.logger.info(
+      { userId: user.id, companyId: user.companyId },
+      'prq:create:start',
+    );
+
     const [created] = await this.db
       .insert(performanceReviewQuestions)
       .values({
-        companyId,
+        companyId: user.companyId,
         question: dto.question,
         type: dto.type,
         competencyId: dto.competencyId,
@@ -43,65 +98,32 @@ export class PerformanceReviewQuestionService {
       action: 'create',
       entity: 'performance_review_question',
       entityId: created.id,
-      userId: userId,
+      userId: user.id,
       details: `Created question: ${created.question}`,
     });
 
+    await this.burst({ companyId: user.companyId, id: created.id });
+    this.logger.info({ id: created.id }, 'prq:create:done');
     return created;
   }
 
-  async getAll(companyId: string) {
-    return this.db
-      .select()
-      .from(performanceReviewQuestions)
-      .where(
-        or(
-          eq(performanceReviewQuestions.companyId, companyId),
-          eq(performanceReviewQuestions.isGlobal, true),
-        ),
-      );
-  }
-
-  async getById(id: string, companyId: string) {
-    const [question] = await this.db
-      .select()
-      .from(performanceReviewQuestions)
-      .where(
-        and(
-          eq(performanceReviewQuestions.id, id),
-          or(
-            eq(performanceReviewQuestions.companyId, companyId),
-            eq(performanceReviewQuestions.isGlobal, true),
-          ),
-        ),
-      );
-
-    if (!question) throw new NotFoundException('Question not found');
-    if (question.companyId !== companyId)
-      throw new ForbiddenException(
-        'Cannot delete global or other company’s question',
-      );
-
-    return question;
-  }
-
   async update(id: string, user: User, dto: UpdateQuestionsDto) {
-    const { companyId, id: userId } = user;
-    // Make sure it's company-owned
-    await this.getById(id, companyId);
+    this.logger.info({ id, userId: user.id }, 'prq:update:start');
 
-    await this.db
+    await this.ensureCompanyOwned(id, user.companyId);
+
+    const [updated] = await this.db
       .update(performanceReviewQuestions)
       .set({ ...dto })
-      .where(eq(performanceReviewQuestions.id, id));
+      .where(eq(performanceReviewQuestions.id, id))
+      .returning();
 
-    // Log the update action
     await this.auditService.logAction({
       action: 'update',
       entity: 'performance_review_question',
       entityId: id,
-      userId: userId,
-      details: `Updated question: ${dto.question}`,
+      userId: user.id,
+      details: `Updated question: ${dto.question ?? updated.question}`,
       changes: {
         question: dto.question,
         type: dto.type,
@@ -111,12 +133,15 @@ export class PerformanceReviewQuestionService {
       },
     });
 
-    return { message: 'Updated successfully' };
+    await this.burst({ companyId: user.companyId, id });
+    this.logger.info({ id }, 'prq:update:done');
+    return updated;
   }
 
   async delete(id: string, user: User) {
-    const { companyId, id: userId } = user;
-    const question = await this.getById(id, companyId);
+    this.logger.info({ id, userId: user.id }, 'prq:delete:start');
+
+    const question = await this.ensureCompanyOwned(id, user.companyId);
 
     await this.db
       .delete(performanceReviewQuestions)
@@ -126,16 +151,19 @@ export class PerformanceReviewQuestionService {
       action: 'delete',
       entity: 'performance_review_question',
       entityId: id,
-      userId: userId,
+      userId: user.id,
       details: `Deleted question: ${question.question}`,
     });
 
+    await this.burst({ companyId: user.companyId, id });
+    this.logger.info({ id }, 'prq:delete:done');
     return { message: 'Deleted successfully' };
   }
 
   async seedGlobalReviewQuestions() {
-    for (const entry of questions) {
-      // Find the global competency by name
+    this.logger.info({}, 'prq:seedGlobals:start');
+
+    for (const entry of defaultQuestions) {
       const [competency] = await this.db
         .select()
         .from(performanceCompetencies)
@@ -143,11 +171,15 @@ export class PerformanceReviewQuestionService {
           and(
             eq(performanceCompetencies.name, entry.competency),
             eq(performanceCompetencies.isGlobal, true),
+            isNull(performanceCompetencies.companyId),
           ),
         );
 
       if (!competency) {
-        console.warn(`Competency not found: ${entry.competency}`);
+        this.logger.warn(
+          { competency: entry.competency },
+          'prq:seedGlobals:competency-missing',
+        );
         continue;
       }
 
@@ -179,6 +211,61 @@ export class PerformanceReviewQuestionService {
       }
     }
 
+    // global list is per-company cached; nothing to burst here
+    this.logger.info({}, 'prq:seedGlobals:done');
     return { message: 'Global questions seeded.' };
+  }
+
+  // ---------- queries (cached) ----------
+  async getAll(companyId: string) {
+    const key = this.listKey(companyId);
+    this.logger.debug({ companyId, key }, 'prq:getAll:cache:get');
+
+    return this.cache.getOrSetCache(key, async () => {
+      const rows = await this.db
+        .select()
+        .from(performanceReviewQuestions)
+        .where(
+          or(
+            eq(performanceReviewQuestions.companyId, companyId),
+            eq(performanceReviewQuestions.isGlobal, true),
+          ),
+        );
+
+      this.logger.debug(
+        { companyId, count: rows.length },
+        'prq:getAll:db:done',
+      );
+      return rows;
+    });
+  }
+
+  async getById(id: string, companyId: string) {
+    const key = this.oneKey(companyId, id);
+    this.logger.debug({ id, companyId, key }, 'prq:getById:cache:get');
+
+    return this.cache.getOrSetCache(key, async () => {
+      const [question] = await this.db
+        .select()
+        .from(performanceReviewQuestions)
+        .where(
+          and(
+            eq(performanceReviewQuestions.id, id),
+            or(
+              eq(performanceReviewQuestions.companyId, companyId),
+              eq(performanceReviewQuestions.isGlobal, true),
+            ),
+          ),
+        );
+
+      if (!question) {
+        this.logger.warn({ id, companyId }, 'prq:getById:not-found');
+        throw new NotFoundException('Question not found');
+      }
+
+      // NOTE: allow reading global; only block modification via ensureCompanyOwned()
+      this.logger.debug({ id }, 'prq:getById:db:done');
+      return question;
+    });
   }
 }

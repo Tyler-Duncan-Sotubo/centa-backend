@@ -14,8 +14,8 @@ export declare class OnboardingSeederService {
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        isGlobal: boolean | null;
         status: "draft" | "published" | null;
+        isGlobal: boolean | null;
     }>;
     createCompanyTemplate(companyId: string, dto: CreateOnboardingTemplateDto): Promise<{
         id: string;
@@ -23,8 +23,8 @@ export declare class OnboardingSeederService {
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        isGlobal: boolean | null;
         status: "draft" | "published" | null;
+        isGlobal: boolean | null;
     }>;
     updateTemplateById(templateId: string, dto: CreateOnboardingTemplateDto): Promise<{
         status: string;
@@ -58,8 +58,8 @@ export declare class OnboardingSeederService {
     getTemplatesByCompanyWithDetails(companyId: string): Promise<{
         fields: {
             id: string;
-            order: number | null;
             templateId: string;
+            order: number | null;
             fieldKey: string;
             label: string;
             fieldType: string;
@@ -69,9 +69,9 @@ export declare class OnboardingSeederService {
         checklist: {
             id: string;
             title: string;
-            order: number | null;
             templateId: string;
             assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         fieldCount: number;
@@ -87,8 +87,8 @@ export declare class OnboardingSeederService {
     getTemplateByIdWithDetails(templateId: string): Promise<{
         fields: {
             id: string;
-            order: number | null;
             templateId: string;
+            order: number | null;
             fieldKey: string;
             label: string;
             fieldType: string;
@@ -98,9 +98,9 @@ export declare class OnboardingSeederService {
         checklist: {
             id: string;
             title: string;
-            order: number | null;
             templateId: string;
             assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         id: string;
@@ -108,7 +108,7 @@ export declare class OnboardingSeederService {
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        isGlobal: boolean | null;
         status: "draft" | "published" | null;
+        isGlobal: boolean | null;
     }>;
 }

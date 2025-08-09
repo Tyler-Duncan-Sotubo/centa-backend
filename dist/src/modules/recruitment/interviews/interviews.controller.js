@@ -31,11 +31,11 @@ let InterviewsController = class InterviewsController extends base_controller_1.
         this.scoreCard = scoreCard;
         this.emailTemplatesService = emailTemplatesService;
     }
-    scheduleInterview(dto) {
-        return this.interviewsService.scheduleInterview(dto);
+    scheduleInterview(dto, user) {
+        return this.interviewsService.scheduleInterview(dto, user);
     }
-    rescheduleInterview(interviewId, dto) {
-        return this.interviewsService.rescheduleInterview(interviewId, dto);
+    rescheduleInterview(interviewId, dto, user) {
+        return this.interviewsService.rescheduleInterview(interviewId, dto, user);
     }
     listAllInterviews(user) {
         return this.interviewsService.findAllInterviews(user.companyId);
@@ -83,8 +83,9 @@ __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('permissions', ['interviews.schedule']),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [schedule_interview_dto_1.ScheduleInterviewDto]),
+    __metadata("design:paramtypes", [schedule_interview_dto_1.ScheduleInterviewDto, Object]),
     __metadata("design:returntype", void 0)
 ], InterviewsController.prototype, "scheduleInterview", null);
 __decorate([
@@ -93,8 +94,9 @@ __decorate([
     (0, common_1.SetMetadata)('permissions', ['interviews.schedule']),
     __param(0, (0, common_1.Param)('interviewId')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, schedule_interview_dto_1.ScheduleInterviewDto]),
+    __metadata("design:paramtypes", [String, schedule_interview_dto_1.ScheduleInterviewDto, Object]),
     __metadata("design:returntype", void 0)
 ], InterviewsController.prototype, "rescheduleInterview", null);
 __decorate([

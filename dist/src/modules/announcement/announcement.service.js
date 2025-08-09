@@ -22,13 +22,37 @@ const comment_service_1 = require("./comment.service");
 const reaction_service_1 = require("./reaction.service");
 const aws_service_1 = require("../../common/aws/aws.service");
 const schema_1 = require("../../drizzle/schema");
+const cache_service_1 = require("../../common/cache/cache.service");
+const announcement_cache_service_1 = require("../../common/cache/announcement-cache.service");
 let AnnouncementService = class AnnouncementService {
-    constructor(db, auditService, commentService, reactionService, awsService) {
+    constructor(db, auditService, commentService, reactionService, awsService, announcementCache, cache) {
         this.db = db;
         this.auditService = auditService;
         this.commentService = commentService;
         this.reactionService = reactionService;
         this.awsService = awsService;
+        this.announcementCache = announcementCache;
+        this.cache = cache;
+    }
+    listKey(companyId) {
+        return `company:${companyId}:announcements:list:full`;
+    }
+    listTwoKey(companyId) {
+        return `company:${companyId}:announcements:list:2`;
+    }
+    oneKey(id, userId) {
+        return `announcement:${id}:detail:user:${userId}`;
+    }
+    createFormKey(companyId) {
+        return `company:${companyId}:announcements:create-elements`;
+    }
+    async invalidateLists(companyId) {
+        await this.announcementCache.invalidateLists(companyId);
+    }
+    async invalidateOne(id, companyId) {
+        await Promise.allSettled([
+            this.announcementCache.invalidateLists(companyId),
+        ]);
     }
     create(dto, user) {
         return this.db.transaction(async (tx) => {
@@ -76,159 +100,167 @@ let AnnouncementService = class AnnouncementService {
                     publishedAt: newAnnouncement.publishedAt,
                 },
             });
+            await this.invalidateLists(user.companyId);
             return newAnnouncement;
         });
     }
     async findAll(companyId) {
-        const allAnnouncements = await this.db
-            .select({
-            id: announcements_schema_1.announcements.id,
-            title: announcements_schema_1.announcements.title,
-            body: announcements_schema_1.announcements.body,
-            publishedAt: announcements_schema_1.announcements.publishedAt,
-            category: announcements_schema_1.announcementCategories.name,
-            categoryId: announcements_schema_1.announcements.categoryId,
-            createdBy: (0, drizzle_orm_1.sql) `CONCAT(${schema_1.users.firstName}, ' ', ${schema_1.users.lastName})`.as('createdBy'),
-            role: schema_1.companyRoles.name,
-            avatarUrl: schema_1.users.avatar,
-        })
-            .from(announcements_schema_1.announcements)
-            .innerJoin(schema_1.users, (0, drizzle_orm_1.eq)(announcements_schema_1.announcements.createdBy, schema_1.users.id))
-            .innerJoin(schema_1.companyRoles, (0, drizzle_orm_1.eq)(schema_1.users.companyRoleId, schema_1.companyRoles.id))
-            .leftJoin(announcements_schema_1.announcementCategories, (0, drizzle_orm_1.eq)(announcements_schema_1.announcements.categoryId, announcements_schema_1.announcementCategories.id))
-            .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcements.companyId, companyId))
-            .orderBy((0, drizzle_orm_1.desc)(announcements_schema_1.announcements.publishedAt))
-            .limit(20)
-            .execute();
-        const announcementIds = allAnnouncements.map((a) => a.id);
-        const reactionCount = await this.db
-            .select({
-            announcementId: announcements_schema_1.announcementReactions.announcementId,
-            reactionType: announcements_schema_1.announcementReactions.reactionType,
-            count: (0, drizzle_orm_1.sql) `COUNT(*)`.as('count'),
-        })
-            .from(announcements_schema_1.announcementReactions)
-            .where((0, drizzle_orm_1.inArray)(announcements_schema_1.announcementReactions.announcementId, announcementIds))
-            .groupBy(announcements_schema_1.announcementReactions.announcementId, announcements_schema_1.announcementReactions.reactionType)
-            .execute();
-        const reactionMap = new Map();
-        reactionCount.forEach((r) => {
-            if (!reactionMap.has(r.announcementId)) {
-                reactionMap.set(r.announcementId, {});
+        return this.cache.getOrSetCache(this.listKey(companyId), async () => {
+            const allAnnouncements = await this.db
+                .select({
+                id: announcements_schema_1.announcements.id,
+                title: announcements_schema_1.announcements.title,
+                body: announcements_schema_1.announcements.body,
+                publishedAt: announcements_schema_1.announcements.publishedAt,
+                category: announcements_schema_1.announcementCategories.name,
+                categoryId: announcements_schema_1.announcements.categoryId,
+                createdBy: (0, drizzle_orm_1.sql) `CONCAT(${schema_1.users.firstName}, ' ', ${schema_1.users.lastName})`.as('createdBy'),
+                role: schema_1.companyRoles.name,
+                avatarUrl: schema_1.users.avatar,
+            })
+                .from(announcements_schema_1.announcements)
+                .innerJoin(schema_1.users, (0, drizzle_orm_1.eq)(announcements_schema_1.announcements.createdBy, schema_1.users.id))
+                .innerJoin(schema_1.companyRoles, (0, drizzle_orm_1.eq)(schema_1.users.companyRoleId, schema_1.companyRoles.id))
+                .leftJoin(announcements_schema_1.announcementCategories, (0, drizzle_orm_1.eq)(announcements_schema_1.announcements.categoryId, announcements_schema_1.announcementCategories.id))
+                .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcements.companyId, companyId))
+                .orderBy((0, drizzle_orm_1.desc)(announcements_schema_1.announcements.publishedAt))
+                .limit(20)
+                .execute();
+            const ids = allAnnouncements.map((a) => a.id);
+            if (ids.length === 0)
+                return [];
+            const reactionCount = await this.db
+                .select({
+                announcementId: announcements_schema_1.announcementReactions.announcementId,
+                reactionType: announcements_schema_1.announcementReactions.reactionType,
+                count: (0, drizzle_orm_1.sql) `COUNT(*)`.as('count'),
+            })
+                .from(announcements_schema_1.announcementReactions)
+                .where((0, drizzle_orm_1.inArray)(announcements_schema_1.announcementReactions.announcementId, ids))
+                .groupBy(announcements_schema_1.announcementReactions.announcementId, announcements_schema_1.announcementReactions.reactionType)
+                .execute();
+            const reactionMap = new Map();
+            for (const r of reactionCount) {
+                if (!reactionMap.has(r.announcementId)) {
+                    reactionMap.set(r.announcementId, {});
+                }
+                reactionMap.get(r.announcementId)[r.reactionType] = r.count;
             }
-            reactionMap.get(r.announcementId)[r.reactionType] = r.count;
+            const commentCount = await this.db
+                .select({
+                announcementId: announcements_schema_1.announcementComments.announcementId,
+                count: (0, drizzle_orm_1.sql) `COUNT(*)`.as('count'),
+            })
+                .from(announcements_schema_1.announcementComments)
+                .where((0, drizzle_orm_1.inArray)(announcements_schema_1.announcementComments.announcementId, ids))
+                .groupBy(announcements_schema_1.announcementComments.announcementId)
+                .execute();
+            const commentCountMap = new Map();
+            for (const c of commentCount)
+                commentCountMap.set(c.announcementId, c.count);
+            return allAnnouncements.map((a) => ({
+                id: a.id,
+                category: a.category,
+                categoryId: a.categoryId,
+                title: a.title,
+                body: a.body,
+                reactionCounts: reactionMap.get(a.id) || {},
+                commentCount: commentCountMap.get(a.id) || 0,
+                publishedAt: a.publishedAt,
+                createdBy: a.createdBy,
+                role: a.role,
+                avatarUrl: a.avatarUrl,
+            }));
         });
-        const commentCount = await this.db
-            .select({
-            announcementId: announcements_schema_1.announcementComments.announcementId,
-            count: (0, drizzle_orm_1.sql) `COUNT(*)`.as('count'),
-        })
-            .from(announcements_schema_1.announcementComments)
-            .where((0, drizzle_orm_1.inArray)(announcements_schema_1.announcementComments.announcementId, announcementIds))
-            .groupBy(announcements_schema_1.announcementComments.announcementId)
-            .execute();
-        const commentCountMap = new Map();
-        commentCount.forEach((c) => {
-            commentCountMap.set(c.announcementId, c.count);
-        });
-        return allAnnouncements.map((a) => ({
-            id: a.id,
-            category: a.category,
-            categoryId: a.categoryId,
-            title: a.title,
-            body: a.body,
-            reactionCounts: reactionMap.get(a.id) || {},
-            commentCount: commentCountMap.get(a.id) || 0,
-            publishedAt: a.publishedAt,
-            createdBy: a.createdBy,
-            role: a.role,
-            avatarUrl: a.avatarUrl,
-        }));
     }
     async findAllLimitTwo(companyId) {
-        const allAnnouncements = await this.db
-            .select({
-            id: announcements_schema_1.announcements.id,
-            title: announcements_schema_1.announcements.title,
-            body: announcements_schema_1.announcements.body,
-            publishedAt: announcements_schema_1.announcements.publishedAt,
-            category: announcements_schema_1.announcementCategories.name,
-            categoryId: announcements_schema_1.announcements.categoryId,
-            createdBy: (0, drizzle_orm_1.sql) `CONCAT(${schema_1.users.firstName}, ' ', ${schema_1.users.lastName})`.as('createdBy'),
-            role: schema_1.companyRoles.name,
-            avatarUrl: schema_1.users.avatar,
-        })
-            .from(announcements_schema_1.announcements)
-            .innerJoin(schema_1.users, (0, drizzle_orm_1.eq)(announcements_schema_1.announcements.createdBy, schema_1.users.id))
-            .innerJoin(schema_1.companyRoles, (0, drizzle_orm_1.eq)(schema_1.users.companyRoleId, schema_1.companyRoles.id))
-            .leftJoin(announcements_schema_1.announcementCategories, (0, drizzle_orm_1.eq)(announcements_schema_1.announcements.categoryId, announcements_schema_1.announcementCategories.id))
-            .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcements.companyId, companyId))
-            .orderBy((0, drizzle_orm_1.desc)(announcements_schema_1.announcements.publishedAt))
-            .limit(2)
-            .execute();
-        const announcementIds = allAnnouncements.map((a) => a.id);
-        const reactionCount = await this.db
-            .select({
-            announcementId: announcements_schema_1.announcementReactions.announcementId,
-            reactionType: announcements_schema_1.announcementReactions.reactionType,
-            count: (0, drizzle_orm_1.sql) `COUNT(*)`.as('count'),
-        })
-            .from(announcements_schema_1.announcementReactions)
-            .where((0, drizzle_orm_1.inArray)(announcements_schema_1.announcementReactions.announcementId, announcementIds))
-            .groupBy(announcements_schema_1.announcementReactions.announcementId, announcements_schema_1.announcementReactions.reactionType)
-            .execute();
-        const reactionMap = new Map();
-        reactionCount.forEach((r) => {
-            if (!reactionMap.has(r.announcementId)) {
-                reactionMap.set(r.announcementId, {});
+        return this.cache.getOrSetCache(this.listTwoKey(companyId), async () => {
+            const allAnnouncements = await this.db
+                .select({
+                id: announcements_schema_1.announcements.id,
+                title: announcements_schema_1.announcements.title,
+                body: announcements_schema_1.announcements.body,
+                publishedAt: announcements_schema_1.announcements.publishedAt,
+                category: announcements_schema_1.announcementCategories.name,
+                categoryId: announcements_schema_1.announcements.categoryId,
+                createdBy: (0, drizzle_orm_1.sql) `CONCAT(${schema_1.users.firstName}, ' ', ${schema_1.users.lastName})`.as('createdBy'),
+                role: schema_1.companyRoles.name,
+                avatarUrl: schema_1.users.avatar,
+            })
+                .from(announcements_schema_1.announcements)
+                .innerJoin(schema_1.users, (0, drizzle_orm_1.eq)(announcements_schema_1.announcements.createdBy, schema_1.users.id))
+                .innerJoin(schema_1.companyRoles, (0, drizzle_orm_1.eq)(schema_1.users.companyRoleId, schema_1.companyRoles.id))
+                .leftJoin(announcements_schema_1.announcementCategories, (0, drizzle_orm_1.eq)(announcements_schema_1.announcements.categoryId, announcements_schema_1.announcementCategories.id))
+                .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcements.companyId, companyId))
+                .orderBy((0, drizzle_orm_1.desc)(announcements_schema_1.announcements.publishedAt))
+                .limit(2)
+                .execute();
+            const ids = allAnnouncements.map((a) => a.id);
+            if (ids.length === 0)
+                return [];
+            const reactionCount = await this.db
+                .select({
+                announcementId: announcements_schema_1.announcementReactions.announcementId,
+                reactionType: announcements_schema_1.announcementReactions.reactionType,
+                count: (0, drizzle_orm_1.sql) `COUNT(*)`.as('count'),
+            })
+                .from(announcements_schema_1.announcementReactions)
+                .where((0, drizzle_orm_1.inArray)(announcements_schema_1.announcementReactions.announcementId, ids))
+                .groupBy(announcements_schema_1.announcementReactions.announcementId, announcements_schema_1.announcementReactions.reactionType)
+                .execute();
+            const reactionMap = new Map();
+            for (const r of reactionCount) {
+                if (!reactionMap.has(r.announcementId))
+                    reactionMap.set(r.announcementId, {});
+                reactionMap.get(r.announcementId)[r.reactionType] = r.count;
             }
-            reactionMap.get(r.announcementId)[r.reactionType] = r.count;
+            const commentCount = await this.db
+                .select({
+                announcementId: announcements_schema_1.announcementComments.announcementId,
+                count: (0, drizzle_orm_1.sql) `COUNT(*)`.as('count'),
+            })
+                .from(announcements_schema_1.announcementComments)
+                .where((0, drizzle_orm_1.inArray)(announcements_schema_1.announcementComments.announcementId, ids))
+                .groupBy(announcements_schema_1.announcementComments.announcementId)
+                .execute();
+            const commentCountMap = new Map();
+            for (const c of commentCount)
+                commentCountMap.set(c.announcementId, c.count);
+            return allAnnouncements.map((a) => ({
+                id: a.id,
+                title: a.title,
+                reactionCounts: reactionMap.get(a.id) || {},
+                commentCount: commentCountMap.get(a.id) || 0,
+                publishedAt: a.publishedAt,
+                createdBy: a.createdBy,
+                avatarUrl: a.avatarUrl,
+            }));
         });
-        const commentCount = await this.db
-            .select({
-            announcementId: announcements_schema_1.announcementComments.announcementId,
-            count: (0, drizzle_orm_1.sql) `COUNT(*)`.as('count'),
-        })
-            .from(announcements_schema_1.announcementComments)
-            .where((0, drizzle_orm_1.inArray)(announcements_schema_1.announcementComments.announcementId, announcementIds))
-            .groupBy(announcements_schema_1.announcementComments.announcementId)
-            .execute();
-        const commentCountMap = new Map();
-        commentCount.forEach((c) => {
-            commentCountMap.set(c.announcementId, c.count);
-        });
-        return allAnnouncements.map((a) => ({
-            id: a.id,
-            title: a.title,
-            reactionCounts: reactionMap.get(a.id) || {},
-            commentCount: commentCountMap.get(a.id) || 0,
-            publishedAt: a.publishedAt,
-            createdBy: a.createdBy,
-            avatarUrl: a.avatarUrl,
-        }));
     }
     async findOne(id, userId) {
-        const [announcement, likeCount, likedByCurrentUser, comments] = await Promise.all([
-            this.db
-                .select()
-                .from(announcements_schema_1.announcements)
-                .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcements.id, id))
-                .execute()
-                .then(([res]) => {
-                if (!res)
-                    throw new common_1.BadRequestException(`Announcement with id ${id} not found`);
-                return res;
-            }),
-            this.reactionService.countReactionsByType(id),
-            this.reactionService.hasUserReacted(id, userId),
-            this.commentService.getComments(id, userId),
-        ]);
-        return {
-            announcement,
-            likeCount,
-            likedByCurrentUser,
-            comments,
-        };
+        return this.cache.getOrSetCache(this.oneKey(id, userId), async () => {
+            const [announcement, likeCount, likedByCurrentUser, comments] = await Promise.all([
+                this.db
+                    .select()
+                    .from(announcements_schema_1.announcements)
+                    .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcements.id, id))
+                    .execute()
+                    .then(([res]) => {
+                    if (!res)
+                        throw new common_1.BadRequestException(`Announcement with id ${id} not found`);
+                    return res;
+                }),
+                this.reactionService.countReactionsByType(id),
+                this.reactionService.hasUserReacted(id, userId),
+                this.commentService.getComments(id, userId),
+            ]);
+            return {
+                announcement,
+                likeCount,
+                likedByCurrentUser,
+                comments,
+            };
+        });
     }
     async update(id, dto, user) {
         return this.db.transaction(async (tx) => {
@@ -267,6 +299,7 @@ let AnnouncementService = class AnnouncementService {
                     publishedAt: updatedAnnouncement.publishedAt,
                 },
             });
+            await this.invalidateOne(id, announcement.companyId);
             return updatedAnnouncement;
         });
     }
@@ -288,41 +321,44 @@ let AnnouncementService = class AnnouncementService {
                 userId: user.id,
                 details: `Deleted announcement with title: ${announcement.title}`,
             });
+            await this.invalidateOne(id, announcement.companyId);
             return { message: 'Announcement deleted successfully' };
         });
     }
     async getAllCreateElements(companyId) {
-        const [categories, allDepartments, AllLocations] = await Promise.all([
-            this.db
-                .select({
-                id: announcements_schema_1.announcementCategories.id,
-                name: announcements_schema_1.announcementCategories.name,
-            })
-                .from(announcements_schema_1.announcementCategories)
-                .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.companyId, companyId))
-                .execute(),
-            this.db
-                .select({
-                id: schema_1.departments.id,
-                name: schema_1.departments.name,
-            })
-                .from(schema_1.departments)
-                .where((0, drizzle_orm_1.eq)(schema_1.departments.companyId, companyId))
-                .execute(),
-            this.db
-                .select({
-                id: schema_1.companyLocations.id,
-                name: schema_1.companyLocations.name,
-            })
-                .from(schema_1.companyLocations)
-                .where((0, drizzle_orm_1.eq)(schema_1.companyLocations.companyId, companyId))
-                .execute(),
-        ]);
-        return {
-            categories,
-            departments: allDepartments,
-            locations: AllLocations,
-        };
+        return this.cache.getOrSetCache(this.createFormKey(companyId), async () => {
+            const [categories, allDepartments, AllLocations] = await Promise.all([
+                this.db
+                    .select({
+                    id: announcements_schema_1.announcementCategories.id,
+                    name: announcements_schema_1.announcementCategories.name,
+                })
+                    .from(announcements_schema_1.announcementCategories)
+                    .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.companyId, companyId))
+                    .execute(),
+                this.db
+                    .select({
+                    id: schema_1.departments.id,
+                    name: schema_1.departments.name,
+                })
+                    .from(schema_1.departments)
+                    .where((0, drizzle_orm_1.eq)(schema_1.departments.companyId, companyId))
+                    .execute(),
+                this.db
+                    .select({
+                    id: schema_1.companyLocations.id,
+                    name: schema_1.companyLocations.name,
+                })
+                    .from(schema_1.companyLocations)
+                    .where((0, drizzle_orm_1.eq)(schema_1.companyLocations.companyId, companyId))
+                    .execute(),
+            ]);
+            return {
+                categories,
+                departments: allDepartments,
+                locations: AllLocations,
+            };
+        });
     }
 };
 exports.AnnouncementService = AnnouncementService;
@@ -332,6 +368,8 @@ exports.AnnouncementService = AnnouncementService = __decorate([
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
         comment_service_1.CommentService,
         reaction_service_1.ReactionService,
-        aws_service_1.AwsService])
+        aws_service_1.AwsService,
+        announcement_cache_service_1.AnnouncementCacheService,
+        cache_service_1.CacheService])
 ], AnnouncementService);
 //# sourceMappingURL=announcement.service.js.map

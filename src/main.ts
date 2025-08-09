@@ -22,6 +22,9 @@ async function bootstrap() {
     },
   );
 
+  // must be before other bootstrapping logs
+  app.useLogger(app.get(Logger));
+
   app.setGlobalPrefix('api');
 
   // register Fastify plugins via import’d variables

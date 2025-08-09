@@ -5,12 +5,18 @@ import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { AssetsSettingsService } from '../settings/assets-settings.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class AssetsRequestService {
     private readonly db;
     private readonly auditService;
     private readonly assetsSettingsService;
     private readonly pusher;
-    constructor(db: db, auditService: AuditService, assetsSettingsService: AssetsSettingsService, pusher: PusherService);
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, assetsSettingsService: AssetsSettingsService, pusher: PusherService, cache: CacheService);
+    private listKey;
+    private oneKey;
+    private byEmployeeKey;
+    private invalidateAfterChange;
     handleAssetApprovalFlow(assetRequestId: string, user: User): Promise<void>;
     create(dto: CreateAssetsRequestDto, user: User): Promise<{
         id: string;
@@ -18,8 +24,8 @@ export declare class AssetsRequestService {
         updatedAt: Date | null;
         companyId: string;
         employeeId: string;
-        notes: string | null;
         status: string | null;
+        notes: string | null;
         rejectionReason: string | null;
         purpose: string;
         requestDate: string;

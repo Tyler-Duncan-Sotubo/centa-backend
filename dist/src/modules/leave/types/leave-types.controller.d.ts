@@ -48,7 +48,7 @@ export declare class LeaveTypesController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
     }>;
-    remove(id: string, user: User): Promise<{
+    remove(id: string, user: User, ip: string): Promise<{
         success: boolean;
         message: string;
     }>;

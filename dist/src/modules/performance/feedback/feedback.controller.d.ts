@@ -10,12 +10,12 @@ export declare class FeedbackController extends BaseController {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        type: string;
-        isArchived: boolean | null;
-        submittedAt: Date | null;
         senderId: string;
         recipientId: string;
+        type: string;
         isAnonymous: boolean | null;
+        submittedAt: Date | null;
+        isArchived: boolean | null;
     }>;
     findAll(user: User, type?: string, departmentId?: string): Promise<{
         id: string;
@@ -40,8 +40,25 @@ export declare class FeedbackController extends BaseController {
         departmentId: any;
         isArchived: boolean | null;
     }[]>;
-    getForRecipient(recipientId: string, user: User): Promise<any[]>;
-    findOne(id: string, user: User): Promise<"You do not have permission to view this feedback" | {
+    getForRecipient(recipientId: string, user: User): Promise<{
+        responses: {
+            id: string;
+            feedbackId: string;
+            question: string;
+            answer: string;
+            order: number | null;
+        }[];
+        id: string;
+        companyId: string;
+        senderId: string;
+        recipientId: string;
+        type: string;
+        isAnonymous: boolean | null;
+        submittedAt: Date | null;
+        createdAt: Date | null;
+        isArchived: boolean | null;
+    }[]>;
+    findOne(id: string, user: User): Promise<{
         responses: {
             answer: string;
             questionText: string | null;
@@ -51,10 +68,34 @@ export declare class FeedbackController extends BaseController {
         type: string;
         createdAt: Date | null;
         isAnonymous: boolean | null;
+        recipientId: string;
+        employeeName: string;
+        senderName: string;
+    } | {
+        responses: {
+            answer: string;
+            questionText: string | null;
+            inputType: string | null;
+        }[];
+        id: string;
+        type: string;
+        createdAt: Date | null;
+        isAnonymous: boolean | null;
+        recipientId: string;
         employeeName: string;
         senderName: string;
     }>;
-    update(id: string, dto: UpdateFeedbackDto, user: User): Promise<any>;
+    update(id: string, dto: UpdateFeedbackDto, user: User): Promise<{
+        id: string;
+        companyId: string;
+        senderId: string;
+        recipientId: string;
+        type: string;
+        isAnonymous: boolean | null;
+        submittedAt: Date | null;
+        createdAt: Date | null;
+        isArchived: boolean | null;
+    }>;
     remove(id: string, user: User): Promise<{
         id: string;
         companyId: string;

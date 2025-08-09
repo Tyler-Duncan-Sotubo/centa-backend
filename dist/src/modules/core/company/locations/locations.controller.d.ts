@@ -9,10 +9,10 @@ export declare class LocationsController extends BaseController {
     create(createLocationDto: CreateLocationDto, user: User, ip: string): Promise<{
         id: string;
         name: string;
-        createdAt: Date;
-        updatedAt: Date;
         isActive: boolean | null;
         country: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         isPrimary: boolean | null;
         street: string | null;
@@ -23,7 +23,7 @@ export declare class LocationsController extends BaseController {
         locale: string;
         latitude: number | null;
         longitude: number | null;
-    }[]>;
+    }>;
     findAll(user: User): Promise<{
         id: string;
         companyId: string;
@@ -96,7 +96,27 @@ export declare class LocationsController extends BaseController {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    findLocationManagers(id: string): Promise<{}>;
-    addLocationManager(id: string, employeeId: string): Promise<{}>;
-    updateLocationManager(id: string, employeeId: string): Promise<{}>;
+    findLocationManagers(id: string): Promise<({
+        locationId: string;
+        managerId: string;
+        name: any;
+        email: any;
+    } | {
+        locationId: string;
+        managerId: string;
+        name: any;
+        email: any;
+    })[]>;
+    addLocationManager(id: string, employeeId: string): Promise<{
+        id: string;
+        createdAt: Date;
+        locationId: string;
+        managerId: string;
+    }[]>;
+    updateLocationManager(id: string, employeeId: string): Promise<{
+        id: string;
+        createdAt: Date;
+        locationId: string;
+        managerId: string;
+    }[]>;
 }

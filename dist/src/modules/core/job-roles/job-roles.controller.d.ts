@@ -8,7 +8,7 @@ export declare class JobRolesController extends BaseController {
     constructor(jobRolesService: JobRolesService);
     create(createJobRoleDto: CreateJobRoleDto, user: User): Promise<{
         id: string;
-    }[]>;
+    }>;
     bulkCreate(rows: any[], user: User): Promise<{
         id: string;
         title: string;

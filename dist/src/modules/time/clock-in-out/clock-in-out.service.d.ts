@@ -1,3 +1,4 @@
+import { PinoLogger } from 'nestjs-pino';
 import { CreateClockInOutDto } from './dto/create-clock-in-out.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
@@ -7,6 +8,7 @@ import { EmployeeShiftsService } from '../employee-shifts/employee-shifts.servic
 import { User } from 'src/common/types/user.type';
 import { ReportService } from '../report/report.service';
 import { AdjustAttendanceDto } from './dto/adjust-attendance.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class ClockInOutService {
     private readonly db;
     private readonly auditService;
@@ -14,24 +16,20 @@ export declare class ClockInOutService {
     private readonly attendanceSettingsService;
     private readonly employeeShiftsService;
     private readonly reportService;
-    constructor(db: db, auditService: AuditService, employeesService: EmployeesService, attendanceSettingsService: AttendanceSettingsService, employeeShiftsService: EmployeeShiftsService, reportService: ReportService);
+    private readonly cache;
+    private readonly logger;
+    constructor(db: db, auditService: AuditService, employeesService: EmployeesService, attendanceSettingsService: AttendanceSettingsService, employeeShiftsService: EmployeeShiftsService, reportService: ReportService, cache: CacheService, logger: PinoLogger);
+    private statusKey;
+    private monthKey;
+    private todayISO;
+    private bumpAttendanceVersion;
+    private burstEmployeeDayCache;
+    private burstEmployeeMonthCache;
     checkLocation(latitude: string, longitude: string, employee: any): Promise<void>;
     private isWithinRadius;
     clockIn(user: User, dto: CreateClockInOutDto): Promise<string>;
     clockOut(user: User, latitude: string, longitude: string): Promise<string>;
-    getAttendanceStatus(employeeId: string, companyId: string): Promise<{
-        status: string;
-        checkInTime?: undefined;
-        checkOutTime?: undefined;
-    } | {
-        status: string;
-        checkInTime: Date;
-        checkOutTime: Date;
-    } | {
-        status: string;
-        checkInTime: Date;
-        checkOutTime: null;
-    }>;
+    getAttendanceStatus(employeeId: string, companyId: string): Promise<any>;
     getDailyDashboardStats(companyId: string): Promise<{
         sevenDayTrend: number[];
         wtdAttendanceRate: string;
@@ -52,8 +50,8 @@ export declare class ClockInOutService {
             averageCheckInTime: Date | null;
         };
         summaryList: {
-            employeeId: any;
-            employeeNumber: any;
+            employeeId: string;
+            employeeNumber: string;
             name: string;
             department: any;
             checkInTime: string | null;
@@ -72,8 +70,8 @@ export declare class ClockInOutService {
     }>;
     getDailyDashboardStatsByDate(companyId: string, date: string): Promise<{
         summaryList: {
-            employeeId: any;
-            employeeNumber: any;
+            employeeId: string;
+            employeeNumber: string;
             name: string;
             department: any;
             checkInTime: string | null;

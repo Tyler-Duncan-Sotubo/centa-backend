@@ -3,10 +3,18 @@ import { CreatePipelineDto } from './dto/create-pipeline.dto';
 import { UpdatePipelineDto } from './dto/update-pipeline.dto';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class PipelineService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly logger;
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, logger: PinoLogger, cache: CacheService);
+    private tmplListKey;
+    private tmplDetailKey;
+    private jobStagesKey;
+    private burst;
     createTemplate(user: User, dto: CreatePipelineDto): Promise<{
         id: string;
         name: string;

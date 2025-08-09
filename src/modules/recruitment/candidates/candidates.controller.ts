@@ -24,6 +24,6 @@ export class CandidatesController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.candidatesService.findOne(+id);
+    return this.candidatesService.findOne(id);
   }
 }

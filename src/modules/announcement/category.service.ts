@@ -5,19 +5,29 @@ import { announcementCategories } from './schema/announcements.schema';
 import { eq, and } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service';
 import { User } from 'src/common/types/user.type';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class CategoryService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
+
+  // ---------- cache keys ----------
+  private categoriesKey(companyId: string) {
+    return `company:${companyId}:announcement-categories`;
+  }
+  private async invalidateCategories(companyId: string) {
+    await this.cache.del(this.categoriesKey(companyId));
+  }
 
   // Create new category
   async createCategory(name: string, user: User) {
-    // Optional: enforce unique code per company
+    // enforce unique name per company
     const [existing] = await this.db
-      .select()
+      .select({ id: announcementCategories.id })
       .from(announcementCategories)
       .where(
         and(
@@ -25,22 +35,22 @@ export class CategoryService {
           eq(announcementCategories.companyId, user.companyId),
         ),
       )
+      .limit(1)
       .execute();
 
     if (existing) {
-      throw new BadRequestException('Category code already exists');
+      throw new BadRequestException('Category name already exists');
     }
 
     const [newCategory] = await this.db
       .insert(announcementCategories)
       .values({
-        companyId: user.companyId, // Assuming user has companyId
+        companyId: user.companyId,
         name,
       })
       .returning()
       .execute();
 
-    // Optionally log the creation in audit service
     await this.auditService.logAction({
       action: 'create',
       entity: 'announcement_category',
@@ -53,82 +63,116 @@ export class CategoryService {
       },
     });
 
+    // bust cache for the company’s category list
+    await this.invalidateCategories(user.companyId);
+
     return newCategory;
   }
 
   // Update category
   async updateCategory(id: string, name: string, user: User) {
-    // Optional: validate category exists
+    // fetch existing to get companyId for cache invalidation
     const [existing] = await this.db
-      .select()
+      .select({
+        id: announcementCategories.id,
+        companyId: announcementCategories.companyId,
+        name: announcementCategories.name,
+      })
       .from(announcementCategories)
       .where(eq(announcementCategories.id, id))
+      .limit(1)
       .execute();
 
-    if (!existing) {
-      throw new BadRequestException('Category not found');
+    if (!existing) throw new BadRequestException('Category not found');
+
+    // optional: enforce unique name within the same company
+    if (name && name !== existing.name) {
+      const [dup] = await this.db
+        .select({ id: announcementCategories.id })
+        .from(announcementCategories)
+        .where(
+          and(
+            eq(announcementCategories.companyId, existing.companyId),
+            eq(announcementCategories.name, name),
+          ),
+        )
+        .limit(1)
+        .execute();
+
+      if (dup) throw new BadRequestException('Category name already exists');
     }
 
     const [updated] = await this.db
       .update(announcementCategories)
-      .set({
-        name,
-      })
+      .set({ name })
       .where(eq(announcementCategories.id, id))
       .returning()
       .execute();
 
-    // Log the update in audit service
     await this.auditService.logAction({
       action: 'update',
       entity: 'announcement_category',
       entityId: updated.id,
       userId: user.id,
-      details: `Updated category ${id} to ${name} for company ${user.companyId}`,
+      details: `Updated category ${id} to ${name} for company ${existing.companyId}`,
       changes: {
         name: updated.name,
         companyId: updated.companyId,
       },
     });
 
+    // bust cache
+    await this.invalidateCategories(existing.companyId);
+
     return updated;
   }
 
   // Delete category
   async deleteCategory(id: string, user: User) {
+    // fetch to confirm + get companyId
     const [existing] = await this.db
-      .select()
+      .select({
+        id: announcementCategories.id,
+        companyId: announcementCategories.companyId,
+      })
       .from(announcementCategories)
       .where(eq(announcementCategories.id, id))
+      .limit(1)
       .execute();
 
-    if (!existing) {
-      throw new BadRequestException('Category not found');
-    }
+    if (!existing) throw new BadRequestException('Category not found');
 
     await this.db
       .delete(announcementCategories)
       .where(eq(announcementCategories.id, id))
       .execute();
 
-    // Log the deletion in audit service
     await this.auditService.logAction({
       action: 'delete',
       entity: 'announcement_category',
       entityId: id,
       userId: user.id,
-      details: `Deleted category ${id} for company ${user.companyId}`,
+      details: `Deleted category ${id} for company ${existing.companyId}`,
     });
+
+    // bust cache
+    await this.invalidateCategories(existing.companyId);
 
     return { success: true };
   }
 
-  // List categories for a company
+  // List categories for a company (cached)
   async listCategories(companyId: string) {
-    return await this.db
-      .select()
-      .from(announcementCategories)
-      .where(eq(announcementCategories.companyId, companyId))
-      .execute();
+    return this.cache.getOrSetCache(
+      this.categoriesKey(companyId),
+      async () => {
+        return this.db
+          .select()
+          .from(announcementCategories)
+          .where(eq(announcementCategories.companyId, companyId))
+          .execute();
+      },
+      // { ttl: 120 } // uncomment if your CacheService supports TTL
+    );
   }
 }

@@ -3,10 +3,20 @@ import { CreateOfferTemplateDto } from './dto/create-offer-template.dto';
 import { UpdateOfferTemplateDto } from './dto/update-offer-template.dto';
 import { User } from 'src/common/types/user.type';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class OfferLetterService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly logger;
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, logger: PinoLogger, cache: CacheService);
+    private sysListKey;
+    private companyListKey;
+    private companyNamesKey;
+    private combinedKey;
+    private tmplDetailKey;
+    private burst;
     seedSystemOfferLetterTemplates(): Promise<void>;
     cloneCompanyTemplate(user: User, templateId: string): Promise<{
         id: string;

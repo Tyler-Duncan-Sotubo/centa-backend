@@ -16,14 +16,14 @@ export declare class OnboardingService {
             assignee: "employee" | "hr" | "it" | "finance" | null;
             order: number | null;
             dueDaysAfterStart: number | null;
-            status: "in_progress" | "completed" | "pending" | "overdue" | "skipped" | "cancelled" | null;
+            status: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
             completedAt: Date | null;
         }[];
         employeeId: any;
         employeeName: unknown;
         email: any;
         templateId: string;
-        status: "in_progress" | "completed" | "pending" | null;
+        status: "pending" | "in_progress" | "completed" | null;
         startedAt: Date | null;
     } | {
         checklist: {
@@ -32,22 +32,22 @@ export declare class OnboardingService {
             assignee: "employee" | "hr" | "it" | "finance" | null;
             order: number | null;
             dueDaysAfterStart: number | null;
-            status: "in_progress" | "completed" | "pending" | "overdue" | "skipped" | "cancelled" | null;
+            status: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
             completedAt: Date | null;
         }[];
         employeeId: any;
         employeeName: unknown;
         email: any;
         templateId: string;
-        status: "in_progress" | "completed" | "pending" | null;
+        status: "pending" | "in_progress" | "completed" | null;
         startedAt: Date | null;
     })[]>;
     getEmployeeOnboardingDetail(companyId: string, employeeId: string): Promise<{
         checklist: {
             fields: ({
                 id: string;
-                order: number | null;
                 templateId: string;
+                order: number | null;
                 fieldKey: string;
                 label: string;
                 fieldType: string;
@@ -56,23 +56,23 @@ export declare class OnboardingService {
             } | undefined)[];
             id: string;
             title: string;
-            order: number | null;
             templateId: string;
             assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         employeeId: any;
         employeeName: unknown;
         email: any;
         templateId: string;
-        status: "in_progress" | "completed" | "pending" | null;
+        status: "pending" | "in_progress" | "completed" | null;
         startedAt: Date | null;
     } | {
         checklist: {
             fields: ({
                 id: string;
-                order: number | null;
                 templateId: string;
+                order: number | null;
                 fieldKey: string;
                 label: string;
                 fieldType: string;
@@ -81,16 +81,16 @@ export declare class OnboardingService {
             } | undefined)[];
             id: string;
             title: string;
-            order: number | null;
             templateId: string;
             assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         employeeId: any;
         employeeName: unknown;
         email: any;
         templateId: string;
-        status: "in_progress" | "completed" | "pending" | null;
+        status: "pending" | "in_progress" | "completed" | null;
         startedAt: Date | null;
     }>;
     saveEmployeeOnboardingData(employeeId: string, payload: EmployeeOnboardingInputDto): Promise<{
@@ -102,7 +102,7 @@ export declare class OnboardingService {
         id: string;
         employeeId: string;
         checklistId: string;
-        status: "in_progress" | "completed" | "pending" | "overdue" | "skipped" | "cancelled" | null;
+        status: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
         completedAt: Date | null;
     }>;
 }

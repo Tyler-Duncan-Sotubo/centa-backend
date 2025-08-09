@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  Inject,
+} from '@nestjs/common';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
 import { application_form_fields } from './schema/application-form-fields.schema';
@@ -9,34 +14,103 @@ import { CreateFieldDto } from './dto/create-field.dto';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { User } from 'src/common/types/user.type';
 import { application_field_definitions } from './schema/application-field-definitions.schema';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class ApplicationFormService {
-  constructor(@Inject(DRIZZLE) private readonly db: db) {}
+  constructor(
+    @Inject(DRIZZLE) private readonly db: db,
+    private readonly logger: PinoLogger,
+    private readonly cache: CacheService,
+  ) {
+    this.logger.setContext(ApplicationFormService.name);
+  }
 
+  // ---------- cache keys ----------
+  private defaultDefsKey() {
+    return `appform:defaults`;
+  }
+  private formConfigKey(jobId: string) {
+    return `appform:job:${jobId}:config`;
+  }
+  private formPreviewKey(jobId: string) {
+    return `appform:job:${jobId}:preview`;
+  }
+  private fieldsKey(jobId: string) {
+    return `appform:job:${jobId}:fields`;
+  }
+  private questionsKey(jobId: string) {
+    return `appform:job:${jobId}:questions`;
+  }
+  private async burst(opts: { jobId?: string; defaults?: boolean }) {
+    const jobs: Promise<any>[] = [];
+    if (opts.defaults) jobs.push(this.cache.del(this.defaultDefsKey()));
+    if (opts.jobId) {
+      jobs.push(this.cache.del(this.formConfigKey(opts.jobId)));
+      jobs.push(this.cache.del(this.formPreviewKey(opts.jobId)));
+      jobs.push(this.cache.del(this.fieldsKey(opts.jobId)));
+      jobs.push(this.cache.del(this.questionsKey(opts.jobId)));
+    }
+    await Promise.allSettled(jobs);
+    this.logger.debug({ ...opts }, 'cache:burst:application-form');
+  }
+
+  // ---------- seed & defaults ----------
   async seedDefaultFields() {
-    await this.db.insert(application_field_definitions).values(
-      defaultFields.map((field, index) => ({
-        section: field.section,
-        label: field.label,
-        fieldType: field.fieldType,
-        required: field.required,
-        isVisible: field.isVisible ?? true,
-        isEditable: field.isEditable ?? true,
-        order: index + 1,
-      })),
+    this.logger.info({}, 'appform:seedDefaults:start');
+
+    const count = (
+      await this.db.select().from(application_field_definitions).execute()
+    ).length;
+    if (count > 0) {
+      this.logger.warn({ count }, 'appform:seedDefaults:already-exists');
+      throw new BadRequestException('Default fields already exist');
+    }
+
+    await this.db
+      .insert(application_field_definitions)
+      .values(
+        defaultFields.map((field, index) => ({
+          section: field.section,
+          label: field.label,
+          fieldType: field.fieldType,
+          required: field.required,
+          isVisible: field.isVisible ?? true,
+          isEditable: field.isEditable ?? true,
+          order: index + 1,
+        })),
+      )
+      .execute();
+
+    await this.burst({ defaults: true });
+    this.logger.info(
+      { inserted: defaultFields.length },
+      'appform:seedDefaults:done',
     );
   }
 
   async getDefaultFields() {
-    const fields = await this.db.select().from(application_field_definitions);
-    if (fields.length === 0) {
+    const key = this.defaultDefsKey();
+    this.logger.debug({ key }, 'appform:getDefaults:cache:get');
+
+    const fields = await this.cache.getOrSetCache(key, async () => {
+      const rows = await this.db
+        .select()
+        .from(application_field_definitions)
+        .execute();
+      return rows;
+    });
+
+    if (!fields || fields.length === 0) {
+      this.logger.warn({}, 'appform:getDefaults:not-found');
       throw new NotFoundException('No default fields found');
     }
 
     return fields;
   }
 
+  // ---------- upsert form (config + optional extras) ----------
   async upsertApplicationForm(
     jobId: string,
     user: User,
@@ -47,10 +121,16 @@ export class ApplicationFormService {
       customQuestions?: CreateQuestionDto[];
     },
   ) {
+    this.logger.info(
+      { jobId, companyId: user.companyId, style: config?.style },
+      'appform:upsert:start',
+    );
+
     const existing = await this.db
       .select()
       .from(application_form_configs)
-      .where(eq(application_form_configs.jobId, jobId));
+      .where(eq(application_form_configs.jobId, jobId))
+      .execute();
 
     let formId: string;
 
@@ -62,9 +142,8 @@ export class ApplicationFormService {
           style: config.style,
           includeReferences: config.includeReferences ?? false,
         })
-        .where(eq(application_form_configs.id, formId));
-
-      // Optionally clear existing fields/questions here if you want a full overwrite
+        .where(eq(application_form_configs.id, formId))
+        .execute();
     } else {
       const [form] = await this.db
         .insert(application_form_configs)
@@ -73,75 +152,96 @@ export class ApplicationFormService {
           style: config.style,
           includeReferences: config.includeReferences ?? false,
         })
-        .returning();
-
+        .returning()
+        .execute();
       formId = form.id;
-
-      console.log('Created new application form config:', formId);
+      this.logger.debug({ jobId, formId }, 'appform:upsert:created');
     }
 
     // Add additional fields/questions if provided
     if (config.customFields?.length) {
-      await this.db.insert(application_form_fields).values(
-        config.customFields.map((f, i) => ({
-          formId,
-          section: f.section,
-          label: f.label,
-          fieldType: f.fieldType,
-          required: f.required ?? true,
-          isVisible: f.isVisible ?? true,
-          isEditable: f.isEditable ?? true,
-          order: f.order ?? i + 1,
-        })),
-      );
+      await this.db
+        .insert(application_form_fields)
+        .values(
+          config.customFields.map((f, i) => ({
+            formId,
+            section: f.section,
+            label: f.label,
+            fieldType: f.fieldType,
+            required: f.required ?? true,
+            isVisible: f.isVisible ?? true,
+            isEditable: f.isEditable ?? true,
+            order: f.order ?? i + 1,
+          })),
+        )
+        .execute();
     }
 
     if (config.customQuestions?.length) {
-      await this.db.insert(application_form_questions).values(
-        config.customQuestions.map((q, i) => ({
-          companyId: user.companyId,
-          formId,
-          question: q.question,
-          type: q.type,
-          required: q.required ?? true,
-          order: q.order ?? i + 1,
-        })),
-      );
+      await this.db
+        .insert(application_form_questions)
+        .values(
+          config.customQuestions.map((q, i) => ({
+            companyId: user.companyId,
+            formId,
+            question: q.question,
+            type: q.type,
+            required: q.required ?? true,
+            order: q.order ?? i + 1,
+          })),
+        )
+        .execute();
     }
 
+    await this.burst({ jobId });
+    this.logger.info({ jobId, formId }, 'appform:upsert:done');
     return { formId };
   }
 
+  // ---------- preview (cached) ----------
   async getFormPreview(jobId: string) {
-    const [config] = await this.db
-      .select()
-      .from(application_form_configs)
-      .where(eq(application_form_configs.jobId, jobId));
+    const key = this.formPreviewKey(jobId);
+    this.logger.debug({ key, jobId }, 'appform:preview:cache:get');
 
-    if (!config) {
+    const payload = await this.cache.getOrSetCache(key, async () => {
+      const [config] = await this.db
+        .select()
+        .from(application_form_configs)
+        .where(eq(application_form_configs.jobId, jobId))
+        .execute();
+
+      if (!config) return null;
+
+      const fields = await this.db
+        .select()
+        .from(application_form_fields)
+        .where(eq(application_form_fields.formId, config.id))
+        .orderBy(asc(application_form_fields.order))
+        .execute();
+
+      const questions = await this.db
+        .select()
+        .from(application_form_questions)
+        .where(eq(application_form_questions.formId, config.id))
+        .orderBy(asc(application_form_questions.order))
+        .execute();
+
+      return {
+        style: config.style,
+        includeReferences: config.includeReferences,
+        fields,
+        questions,
+      };
+    });
+
+    if (!payload) {
+      this.logger.warn({ jobId }, 'appform:preview:not-configured');
       throw new NotFoundException(
         'Application form not configured for this job',
       );
     }
 
-    const fields = await this.db
-      .select()
-      .from(application_form_fields)
-      .where(eq(application_form_fields.formId, config.id))
-      .orderBy(asc(application_form_fields.order));
-
-    const questions = await this.db
-      .select()
-      .from(application_form_questions)
-      .where(eq(application_form_questions.formId, config.id))
-      .orderBy(asc(application_form_questions.order));
-
-    return {
-      style: config.style,
-      includeReferences: config.includeReferences,
-      fields,
-      questions,
-    };
+    return payload;
   }
 }
 
@@ -260,10 +360,7 @@ const defaultFields: Array<{
     fieldType: 'date',
     required: false,
   },
-  {
-    section: 'custom',
-    label: 'Skills',
-    fieldType: 'text',
-    required: false,
-  },
+
+  // 🧩 Custom
+  { section: 'custom', label: 'Skills', fieldType: 'text', required: false },
 ];

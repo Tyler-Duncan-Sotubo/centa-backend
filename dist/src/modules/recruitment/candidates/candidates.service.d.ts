@@ -1,4 +1,6 @@
 import { db } from 'src/drizzle/types/drizzle';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 interface FindCandidatesOptions {
     search?: string;
     limit?: number;
@@ -8,8 +10,19 @@ interface FindCandidatesOptions {
 }
 export declare class CandidatesService {
     private readonly db;
-    constructor(db: db);
+    private readonly logger;
+    private readonly cache;
+    constructor(db: db, logger: PinoLogger, cache: CacheService);
+    private listKey;
+    private oneKey;
     findAll(options?: FindCandidatesOptions): Promise<any[]>;
-    findOne(id: number): string;
+    findOne(id: string): Promise<{
+        id: string;
+        name: string;
+        email: string;
+        phone: string | null;
+        resumeUrl: string | null;
+        profile: unknown;
+    }>;
 }
 export {};

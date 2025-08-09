@@ -7,7 +7,7 @@ import { User } from 'src/common/types/user.type';
 export declare class ApplicationsController extends BaseController {
     private readonly applicationsService;
     constructor(applicationsService: ApplicationsService);
-    submitApplication(createApplicationDto: CreateApplicationDto): Promise<{
+    submitApplication(createApplicationDto: CreateApplicationDto, user: User): Promise<{
         success: boolean;
         applicationId: string;
     }>;
@@ -67,6 +67,7 @@ export declare class ApplicationsController extends BaseController {
                 id: string;
                 name: string;
                 email: string;
+                scorecard?: any;
             }[];
             id: string;
             applicationId: string;

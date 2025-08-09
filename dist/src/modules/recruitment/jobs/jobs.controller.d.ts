@@ -18,12 +18,12 @@ export declare class JobsController extends BaseController {
         country: string | null;
         currency: string;
         companyId: string;
-        description: string | null;
-        title: string;
         city: string | null;
         state: string | null;
-        status: "draft" | "open" | "closed" | "archived";
         createdBy: string;
+        description: string | null;
+        title: string;
+        status: "draft" | "open" | "closed" | "archived";
         externalJobId: string | null;
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";

@@ -1,3 +1,4 @@
+import { PinoLogger } from 'nestjs-pino';
 import { CreateJobRoleDto } from './dto/create-job-role.dto';
 import { UpdateJobRoleDto } from './dto/update-job-role.dto';
 import { BaseCrudService } from 'src/common/services/base-crud.service';
@@ -5,12 +6,15 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { db } from 'src/drizzle/types/drizzle';
 import { jobRoles } from '../schema';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class JobRolesService extends BaseCrudService<{
     title: string;
     level?: string;
     description?: string;
 }, typeof jobRoles> {
     private readonly companySettings;
+    private readonly cache;
+    private readonly logger;
     protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "job_roles";
         schema: undefined;
@@ -141,14 +145,20 @@ export declare class JobRolesService extends BaseCrudService<{
         };
         dialect: "pg";
     }>;
-    constructor(db: db, audit: AuditService, companySettings: CompanySettingsService);
+    constructor(db: db, audit: AuditService, companySettings: CompanySettingsService, cache: CacheService, logger: PinoLogger);
+    private keys;
+    private invalidate;
     create(companyId: string, dto: CreateJobRoleDto): Promise<{
         id: string;
-    }[]>;
+    }>;
     bulkCreate(companyId: string, rows: any[]): Promise<{
         id: string;
         title: string;
     }[]>;
+    update(companyId: string, id: string, dto: UpdateJobRoleDto, userId: string, ip: string): Promise<{
+        id: any;
+    }>;
+    remove(companyId: string, id: string): Promise<any>;
     findAll(companyId: string): Promise<{
         id: string;
         title: string;
@@ -167,8 +177,4 @@ export declare class JobRolesService extends BaseCrudService<{
         createdAt: Date;
         updatedAt: Date;
     }>;
-    update(companyId: string, id: string, dto: UpdateJobRoleDto, userId: string, ip: string): Promise<{
-        id: any;
-    }>;
-    remove(companyId: string, id: string): Promise<any>;
 }

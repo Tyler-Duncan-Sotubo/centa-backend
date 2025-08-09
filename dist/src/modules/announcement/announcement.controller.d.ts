@@ -7,6 +7,7 @@ import { BaseController } from 'src/common/interceptor/base.controller';
 import { CreateAnnouncementCommentDto } from './dto/create-announcement-comments.dto';
 import { ReactionService } from './reaction.service';
 import { CategoryService } from './category.service';
+import { ReactDto } from './dto/react.dto';
 export declare class AnnouncementController extends BaseController {
     private readonly announcementService;
     private readonly commentService;
@@ -19,10 +20,10 @@ export declare class AnnouncementController extends BaseController {
         updatedAt: Date | null;
         link: string | null;
         companyId: string;
+        createdBy: string;
         departmentId: string | null;
         title: string;
         locationId: string | null;
-        createdBy: string;
         body: string;
         image: string | null;
         publishedAt: Date | null;
@@ -115,16 +116,16 @@ export declare class AnnouncementController extends BaseController {
         announcementId: string;
         comment: string;
     }>;
-    reactToComment(id: string, reactionType: string, user: User): Promise<{
+    reactToComment(id: string, dto: ReactDto, user: User): Promise<{
         reacted: boolean;
     }>;
-    likeAnnouncement(id: string, reactionType: string, user: User): Promise<{
+    likeAnnouncement(id: string, dto: ReactDto, user: User): Promise<{
         id: string;
-        createdAt: Date | null;
-        createdBy: string;
         announcementId: string;
+        createdBy: string;
         reactionType: string;
-    } | undefined>;
+        createdAt: Date | null;
+    }>;
     createCategory(name: string, user: User): Promise<{
         id: string;
         name: string;

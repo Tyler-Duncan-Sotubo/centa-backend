@@ -1,17 +1,23 @@
-import { User } from 'src/common/types/user.type';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from '../audit/audit.service';
+import { CacheService } from 'src/common/cache/cache.service';
+import { ReactionType } from './types/reaction-types';
 export declare class ReactionService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
-    reactToAnnouncement(announcementId: string, reactionType: string, user: User): Promise<{
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private reactionsCacheKey;
+    private reactionCountsKey;
+    reactToAnnouncement(announcementId: string, reactionType: ReactionType, user: {
         id: string;
-        createdAt: Date | null;
-        createdBy: string;
+    }): Promise<{
+        id: string;
         announcementId: string;
+        createdBy: string;
         reactionType: string;
-    } | undefined>;
+        createdAt: Date | null;
+    }>;
     getReactions(announcementId: string): Promise<{
         id: string;
         announcementId: string;

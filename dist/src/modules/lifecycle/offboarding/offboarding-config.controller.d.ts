@@ -73,8 +73,8 @@ export declare class OffboardingConfigController extends BaseController {
         companyId: string | null;
         description: string | null;
         isGlobal: boolean | null;
-        isAssetReturnStep: boolean | null;
         order: number | null;
+        isAssetReturnStep: boolean | null;
     }>;
     updateChecklistItem(id: string, user: User, dto: OffboardingChecklistItemDto): Promise<{
         id: string;

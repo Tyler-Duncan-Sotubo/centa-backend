@@ -12,6 +12,7 @@ export declare class OffCycleService {
     private calculateOffCyclePayroll;
     calculateAndPersistOffCycle(runId: string, user: User, payrollDate: string): Promise<{
         name: string;
+        transport: string;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
@@ -23,7 +24,6 @@ export declare class OffCycleService {
         payrollRunId: string;
         basic: string;
         housing: string;
-        transport: string;
         pensionContribution: string;
         employerPensionContribution: string;
         bonuses: string | null;

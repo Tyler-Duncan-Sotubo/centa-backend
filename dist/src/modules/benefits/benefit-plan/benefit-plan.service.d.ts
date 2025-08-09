@@ -5,11 +5,32 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { EnrollBenefitPlanDto } from './dto/enroll-employee.dto';
 import { SingleEnrollBenefitDto } from './dto/single-employee-enroll.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class BenefitPlanService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
-    create(dto: CreateBenefitPlanDto, user: User): Promise<void>;
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private plansListKey;
+    private planDetailKey;
+    private employeeEnrollmentsKey;
+    private invalidateAfterPlanChange;
+    private invalidateEmployeeEnrollments;
+    create(dto: CreateBenefitPlanDto, user: User): Promise<{
+        id: string;
+        name: string;
+        createdAt: Date | null;
+        split: string;
+        companyId: string;
+        category: string;
+        description: string | null;
+        startDate: Date;
+        endDate: Date | null;
+        employerContribution: number | null;
+        benefitGroupId: string;
+        coverageOptions: unknown;
+        cost: unknown;
+    }>;
     findAll(companyId: string): Promise<{
         id: string;
         companyId: string;

@@ -11,12 +11,12 @@ export declare class FeedbackQuestionsController extends BaseController {
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string;
-        order: number | null;
         type: string;
+        order: number | null;
         question: string;
         inputType: string | null;
     }>;
-    findAll(): Promise<{
+    findAll(user: User): Promise<{
         id: string;
         companyId: string;
         type: string;
@@ -26,7 +26,7 @@ export declare class FeedbackQuestionsController extends BaseController {
         isActive: boolean | null;
         createdAt: Date | null;
     }[]>;
-    findByType(type: string): Promise<{
+    findByType(type: string, user: User): Promise<{
         id: string;
         companyId: string;
         type: string;
@@ -36,7 +36,7 @@ export declare class FeedbackQuestionsController extends BaseController {
         isActive: boolean | null;
         createdAt: Date | null;
     }[]>;
-    findOne(id: string): Promise<{
+    findOne(id: string, user: User): Promise<{
         id: string;
         companyId: string;
         type: string;
@@ -46,7 +46,7 @@ export declare class FeedbackQuestionsController extends BaseController {
         isActive: boolean | null;
         createdAt: Date | null;
     }>;
-    update(id: string, dto: UpdateFeedbackQuestionDto): Promise<{
+    update(id: string, dto: UpdateFeedbackQuestionDto, user: User): Promise<{
         id: string;
         companyId: string;
         type: string;
@@ -56,7 +56,7 @@ export declare class FeedbackQuestionsController extends BaseController {
         isActive: boolean | null;
         createdAt: Date | null;
     }>;
-    remove(id: string): Promise<{
+    remove(id: string, user: User): Promise<{
         message: string;
     }>;
     reorder(type: string, payload: {
@@ -64,7 +64,7 @@ export declare class FeedbackQuestionsController extends BaseController {
             id: string;
             order: number;
         }[];
-    }): Promise<{
+    }, user: User): Promise<{
         message: string;
     }>;
 }

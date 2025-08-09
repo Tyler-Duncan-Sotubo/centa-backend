@@ -40,36 +40,6 @@ export declare class AuthService {
         };
         permissions: string[];
     } | {
-        user: {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
-        } | {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
-        };
-        backendTokens: {
-            accessToken: string;
-            refreshToken: string;
-            expiresIn: number;
-        };
-        permissions: string[];
-    } | {
         status: string;
         requiresVerification: boolean;
         tempToken: string;
@@ -85,36 +55,6 @@ export declare class AuthService {
             companyId: string;
             avatar: string | null;
             roleId: string;
-        };
-        backendTokens: {
-            accessToken: string;
-            refreshToken: string;
-            expiresIn: number;
-        };
-        permissions: string[];
-    } | {
-        user: {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
-        } | {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;

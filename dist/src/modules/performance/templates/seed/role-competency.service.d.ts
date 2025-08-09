@@ -3,10 +3,19 @@ import { User } from 'src/common/types/user.type';
 import { CreateRoleExpectationDto } from './dto/create-role-expectation.dto';
 import { UpdateRoleExpectationDto } from './dto/update-role-expectation.dto';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class RoleCompetencyExpectationService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly logger;
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, logger: PinoLogger, cache: CacheService);
+    private listKey;
+    private settingsKey;
+    private fieldsKey;
+    private levelsKey;
+    private burst;
     create(companyId: string, dto: CreateRoleExpectationDto, user: User): Promise<{
         id: string;
         companyId: string | null;

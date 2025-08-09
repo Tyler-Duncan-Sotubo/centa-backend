@@ -14,6 +14,7 @@ async function bootstrap() {
         bufferLogs: true,
         bodyParser: false,
     });
+    app.useLogger(app.get(nestjs_pino_1.Logger));
     app.setGlobalPrefix('api');
     const fastify = app.getHttpAdapter().getInstance();
     await app.register(multipart_1.default, {

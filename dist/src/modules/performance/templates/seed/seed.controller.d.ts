@@ -49,7 +49,13 @@ export declare class SeedController extends BaseController {
         name: string;
     }[]>;
     updateCompetency(user: User, id: string, dto: UpdateCompetencyDto): Promise<{
-        message: string;
+        id: string;
+        companyId: string | null;
+        name: string;
+        description: string | null;
+        isActive: boolean | null;
+        isGlobal: boolean | null;
+        createdAt: Date | null;
     }>;
     deleteCompetency(user: User, id: string): Promise<{
         message: string;
@@ -109,8 +115,8 @@ export declare class SeedController extends BaseController {
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string | null;
-        isGlobal: boolean | null;
         type: string;
+        isGlobal: boolean | null;
         question: string;
         competencyId: string | null;
         isMandatory: boolean | null;
@@ -129,7 +135,16 @@ export declare class SeedController extends BaseController {
         createdAt: Date | null;
     }[]>;
     updateQuestion(user: User, id: string, dto: UpdateQuestionsDto): Promise<{
-        message: string;
+        id: string;
+        companyId: string | null;
+        competencyId: string | null;
+        question: string;
+        type: string;
+        isMandatory: boolean | null;
+        allowNotes: boolean | null;
+        isActive: boolean | null;
+        isGlobal: boolean | null;
+        createdAt: Date | null;
     }>;
     deleteQuestion(user: User, id: string): Promise<{
         message: string;

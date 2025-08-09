@@ -3,24 +3,61 @@ import { User } from 'src/common/types/user.type';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { UpdateFeedbackDto } from './dto/update-feedback.dto';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class FeedbackService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly logger;
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, logger: PinoLogger, cache: CacheService);
+    private listKey;
+    private empListKey;
+    private oneKey;
+    private burst;
+    private getResponsesForFeedback;
+    private resolveViewerIds;
     create(dto: CreateFeedbackDto, user: User): Promise<{
         id: string;
         createdAt: Date | null;
         companyId: string;
-        type: string;
-        isArchived: boolean | null;
-        submittedAt: Date | null;
         senderId: string;
         recipientId: string;
+        type: string;
         isAnonymous: boolean | null;
+        submittedAt: Date | null;
+        isArchived: boolean | null;
     }>;
-    private resolveViewerIds;
-    getFeedbackForRecipient(recipientId: string, viewer: User): Promise<any[]>;
-    getFeedbackBySender(senderId: string): Promise<{
+    update(id: string, updateFeedbackDto: UpdateFeedbackDto, user: User): Promise<{
+        id: string;
+        companyId: string;
+        senderId: string;
+        recipientId: string;
+        type: string;
+        isAnonymous: boolean | null;
+        submittedAt: Date | null;
+        createdAt: Date | null;
+        isArchived: boolean | null;
+    }>;
+    remove(id: string, user: User): Promise<{
+        id: string;
+        companyId: string;
+        senderId: string;
+        recipientId: string;
+        type: string;
+        isAnonymous: boolean | null;
+        submittedAt: Date | null;
+        createdAt: Date | null;
+        isArchived: boolean | null;
+    }>;
+    getFeedbackForRecipient(recipientId: string, viewer: User): Promise<{
+        responses: {
+            id: string;
+            feedbackId: string;
+            question: string;
+            answer: string;
+            order: number | null;
+        }[];
         id: string;
         companyId: string;
         senderId: string;
@@ -31,9 +68,16 @@ export declare class FeedbackService {
         createdAt: Date | null;
         isArchived: boolean | null;
     }[]>;
-    getResponsesForFeedback(feedbackIds: string[]): Promise<{
-        feedbackId: string;
-        questionId: string;
+    getFeedbackBySender(senderId: string): Promise<{
+        id: string;
+        companyId: string;
+        senderId: string;
+        recipientId: string;
+        type: string;
+        isAnonymous: boolean | null;
+        submittedAt: Date | null;
+        createdAt: Date | null;
+        isArchived: boolean | null;
     }[]>;
     findAll(companyId: string, filters?: {
         type?: string;
@@ -63,7 +107,7 @@ export declare class FeedbackService {
         departmentId: any;
         isArchived: boolean | null;
     }[]>;
-    findOne(id: string, user: User): Promise<"You do not have permission to view this feedback" | {
+    findOne(id: string, user: User): Promise<{
         responses: {
             answer: string;
             questionText: string | null;
@@ -73,19 +117,21 @@ export declare class FeedbackService {
         type: string;
         createdAt: Date | null;
         isAnonymous: boolean | null;
+        recipientId: string;
         employeeName: string;
         senderName: string;
-    }>;
-    update(id: string, updateFeedbackDto: UpdateFeedbackDto, user: User): Promise<any>;
-    remove(id: string, user: User): Promise<{
+    } | {
+        responses: {
+            answer: string;
+            questionText: string | null;
+            inputType: string | null;
+        }[];
         id: string;
-        companyId: string;
-        senderId: string;
-        recipientId: string;
         type: string;
-        isAnonymous: boolean | null;
-        submittedAt: Date | null;
         createdAt: Date | null;
-        isArchived: boolean | null;
+        isAnonymous: boolean | null;
+        recipientId: string;
+        employeeName: string;
+        senderName: string;
     }>;
 }

@@ -8,8 +8,8 @@ export declare class OnboardingSeederController extends BaseController {
     getGlobalTemplates(templateId: string): Promise<{
         fields: {
             id: string;
-            order: number | null;
             templateId: string;
+            order: number | null;
             fieldKey: string;
             label: string;
             fieldType: string;
@@ -19,9 +19,9 @@ export declare class OnboardingSeederController extends BaseController {
         checklist: {
             id: string;
             title: string;
-            order: number | null;
             templateId: string;
             assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         id: string;
@@ -29,8 +29,8 @@ export declare class OnboardingSeederController extends BaseController {
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        isGlobal: boolean | null;
         status: "draft" | "published" | null;
+        isGlobal: boolean | null;
     }>;
     cloneTemplateForCompany(templateId: string, templateName: string, user: User): Promise<{
         id: string;
@@ -38,8 +38,8 @@ export declare class OnboardingSeederController extends BaseController {
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        isGlobal: boolean | null;
         status: "draft" | "published" | null;
+        isGlobal: boolean | null;
     }>;
     createCompanyTemplate(dto: CreateOnboardingTemplateDto, user: User): Promise<{
         id: string;
@@ -47,8 +47,8 @@ export declare class OnboardingSeederController extends BaseController {
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        isGlobal: boolean | null;
         status: "draft" | "published" | null;
+        isGlobal: boolean | null;
     }>;
     getCompanyTemplates(user: User): Promise<{
         templateSummaries: {
@@ -75,8 +75,8 @@ export declare class OnboardingSeederController extends BaseController {
     getTemplatesByCompanyWithDetails(user: User): Promise<{
         fields: {
             id: string;
-            order: number | null;
             templateId: string;
+            order: number | null;
             fieldKey: string;
             label: string;
             fieldType: string;
@@ -86,9 +86,9 @@ export declare class OnboardingSeederController extends BaseController {
         checklist: {
             id: string;
             title: string;
-            order: number | null;
             templateId: string;
             assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         fieldCount: number;

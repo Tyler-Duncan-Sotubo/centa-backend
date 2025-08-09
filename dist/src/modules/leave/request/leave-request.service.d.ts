@@ -9,6 +9,8 @@ import { HolidaysService } from 'src/modules/leave/holidays/holidays.service';
 import { LeaveBalanceService } from '../balance/leave-balance.service';
 import { BlockedDaysService } from '../blocked-days/blocked-days.service';
 import { ReservedDaysService } from '../reserved-days/reserved-days.service';
+import { PinoLogger } from 'nestjs-pino';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class LeaveRequestService {
     private readonly db;
     private readonly leavePolicyService;
@@ -19,7 +21,13 @@ export declare class LeaveRequestService {
     private readonly holidayService;
     private readonly blockedDaysService;
     private readonly reservedDaysService;
-    constructor(db: db, leavePolicyService: LeavePolicyService, leaveSettingsService: LeaveSettingsService, leaveBalanceService: LeaveBalanceService, employeesService: EmployeesService, auditService: AuditService, holidayService: HolidaysService, blockedDaysService: BlockedDaysService, reservedDaysService: ReservedDaysService);
+    private readonly logger;
+    private readonly cache;
+    constructor(db: db, leavePolicyService: LeavePolicyService, leaveSettingsService: LeaveSettingsService, leaveBalanceService: LeaveBalanceService, employeesService: EmployeesService, auditService: AuditService, holidayService: HolidaysService, blockedDaysService: BlockedDaysService, reservedDaysService: ReservedDaysService, logger: PinoLogger, cache: CacheService);
+    private oneKey;
+    private listKey;
+    private byEmpKey;
+    private burst;
     applyForLeave(dto: CreateLeaveRequestDto, user: User, ip: string): Promise<{
         id: string;
         createdAt: Date | null;
@@ -27,14 +35,14 @@ export declare class LeaveRequestService {
         companyId: string;
         startDate: string;
         employeeId: string;
-        status: string;
         endDate: string;
-        reason: string | null;
-        requestedAt: Date | null;
         leaveTypeId: string;
+        reason: string | null;
+        status: string;
         totalDays: string;
         approverId: string | null;
         approvedAt: Date | null;
+        requestedAt: Date | null;
         rejectionReason: string | null;
         approvalChain: unknown;
         currentApprovalIndex: number | null;
