@@ -20,23 +20,23 @@ import { AnnouncementCacheService } from './announcement-cache.service';
         const password = config.get<string>('REDIS_PASSWORD') || '';
         const db = Number(config.get('REDIS_DB') ?? 0);
         const useTls =
-          String(config.get('REDIS_TLS') ?? 'true').toLowerCase() === 'true';
+          String(config.get('REDIS_TLS') ?? 'true').toLowerCase() === 'true'; // Redis Cloud often needs TLS
+        const prefix = config.get<string>('REDIS_PREFIX') ?? 'app:';
+        const ttlSeconds = Number(config.get('CACHE_TTL') ?? 7200);
 
-        const proto = useTls ? 'rediss' : 'redis';
+        const proto = useTls ? 'redis' : 'redis';
+        // No username: use :password@
         const auth = password ? `:${encodeURIComponent(password)}@` : '';
-        const url = `${proto}://${auth}${host}:${port}/${db}`;
-
-        // Option A: flat-ish keys "app:cache:<yourKey>"
-        const namespace = 'app:cache'; // combine prefix and namespace
+        const redisUrl = `${proto}://${auth}${host}:${port}/${db}`;
 
         const store = new Keyv({
-          store: new KeyvRedis(url), // no keyPrefix option
-          namespace, // use combined prefix and namespace
+          store: new KeyvRedis(redisUrl, { namespace: prefix }),
         });
 
         return {
+          // cache-manager v6: Keyv stores array + TTL in **milliseconds**
           stores: [store],
-          ttl: (config.get<number>('CACHE_TTL') ?? 7200) * 1000, // ms
+          ttl: ttlSeconds * 1000,
         };
       },
     }),

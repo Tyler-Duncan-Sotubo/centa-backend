@@ -31,17 +31,17 @@ exports.CacheModule = CacheModule = __decorate([
                     const password = config.get('REDIS_PASSWORD') || '';
                     const db = Number(config.get('REDIS_DB') ?? 0);
                     const useTls = String(config.get('REDIS_TLS') ?? 'true').toLowerCase() === 'true';
-                    const proto = useTls ? 'rediss' : 'redis';
+                    const prefix = config.get('REDIS_PREFIX') ?? 'app:';
+                    const ttlSeconds = Number(config.get('CACHE_TTL') ?? 7200);
+                    const proto = useTls ? 'redis' : 'redis';
                     const auth = password ? `:${encodeURIComponent(password)}@` : '';
-                    const url = `${proto}://${auth}${host}:${port}/${db}`;
-                    const namespace = 'app:cache';
+                    const redisUrl = `${proto}://${auth}${host}:${port}/${db}`;
                     const store = new keyv_1.default({
-                        store: new redis_1.default(url),
-                        namespace,
+                        store: new redis_1.default(redisUrl, { namespace: prefix }),
                     });
                     return {
                         stores: [store],
-                        ttl: (config.get('CACHE_TTL') ?? 7200) * 1000,
+                        ttl: ttlSeconds * 1000,
                     };
                 },
             }),
