@@ -19,8 +19,8 @@ export declare class PerformanceCompetencyService {
     create(companyId: string | null, dto: CreateCompetencyDto, userId: string): Promise<{
         id: string;
         name: string;
-        isActive: boolean | null;
         createdAt: Date | null;
+        isActive: boolean | null;
         companyId: string | null;
         description: string | null;
         isGlobal: boolean | null;

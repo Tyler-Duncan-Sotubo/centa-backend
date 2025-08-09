@@ -21,12 +21,12 @@ export declare class FeedbackService {
         id: string;
         createdAt: Date | null;
         companyId: string;
+        type: string;
+        isArchived: boolean | null;
+        submittedAt: Date | null;
         senderId: string;
         recipientId: string;
-        type: string;
         isAnonymous: boolean | null;
-        submittedAt: Date | null;
-        isArchived: boolean | null;
     }>;
     update(id: string, updateFeedbackDto: UpdateFeedbackDto, user: User): Promise<{
         id: string;

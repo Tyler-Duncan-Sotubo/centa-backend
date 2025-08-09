@@ -12,12 +12,12 @@ export declare class AssessmentsController extends BaseController {
         createdAt: Date | null;
         companyId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "not_started" | "submitted" | null;
-        cycleId: string;
         templateId: string;
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
-        reviewerId: string;
+        cycleId: string;
         revieweeId: string;
+        reviewerId: string;
     }>;
     start(id: string, user: User): Promise<void>;
     submit(id: string, dto: SubmitAssessmentDto, user: User): Promise<{
@@ -26,7 +26,7 @@ export declare class AssessmentsController extends BaseController {
     getDashboard(user: User, filters: GetDashboardAssessmentsDto): Promise<{
         id: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "not_started" | "submitted" | null;
+        status: "in_progress" | "submitted" | "not_started" | null;
         reviewer: string;
         employee: string;
         departmentName: any;
@@ -46,7 +46,7 @@ export declare class AssessmentsController extends BaseController {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "not_started" | "submitted" | null;
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -58,7 +58,7 @@ export declare class AssessmentsController extends BaseController {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "not_started" | "submitted" | null;
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -70,7 +70,7 @@ export declare class AssessmentsController extends BaseController {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "not_started" | "submitted" | null;
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;

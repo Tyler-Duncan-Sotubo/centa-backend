@@ -17,6 +17,7 @@ const schedule_1 = require("@nestjs/schedule");
 const modules_module_1 = require("./modules/modules.module");
 const company_settings_module_1 = require("./company-settings/company-settings.module");
 const holidays_module_1 = require("./modules/leave/holidays/holidays.module");
+const cache_module_1 = require("./common/cache/cache.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -27,6 +28,7 @@ exports.AppModule = AppModule = __decorate([
             schedule_1.ScheduleModule.forRoot(),
             drizzle_module_1.DrizzleModule,
             logger_1.LoggerModule,
+            cache_module_1.CacheModule,
             config_1.ConfigModule.forRoot({
                 isGlobal: true,
                 validationSchema: Joi.object({

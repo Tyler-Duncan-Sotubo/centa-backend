@@ -389,7 +389,7 @@ let ExpensesService = ExpensesService_1 = class ExpensesService {
         }
         return { insertedCount: inserted.length, inserted, errors };
     }
-    findAll(companyId) {
+    async findAll(companyId) {
         return this.cache.getOrSetCache(this.listKey(companyId), async () => {
             const latestApprovals = this.db.$with('latest_approvals').as(this.db
                 .select({

@@ -9,9 +9,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CacheModule = void 0;
 const common_1 = require("@nestjs/common");
 const cache_manager_1 = require("@nestjs/cache-manager");
-const cache_service_1 = require("./cache.service");
-const redisStore = require("cache-manager-redis-store");
 const config_1 = require("@nestjs/config");
+const keyv_1 = require("keyv");
+const redis_1 = require("@keyv/redis");
+const cache_service_1 = require("./cache.service");
 const announcement_cache_service_1 = require("./announcement-cache.service");
 let CacheModule = class CacheModule {
 };
@@ -21,16 +22,28 @@ exports.CacheModule = CacheModule = __decorate([
         imports: [
             config_1.ConfigModule.forRoot(),
             cache_manager_1.CacheModule.registerAsync({
+                isGlobal: true,
                 imports: [config_1.ConfigModule],
                 inject: [config_1.ConfigService],
-                useFactory: (configService) => ({
-                    store: redisStore,
-                    host: configService.get('REDIS_HOST'),
-                    port: configService.get('REDIS_PORT'),
-                    ttl: configService.get('CACHE_TTL'),
-                    password: configService.get('REDIS_PASSWORD'),
-                    isGlobal: true,
-                }),
+                useFactory: async (config) => {
+                    const host = config.get('REDIS_HOST');
+                    const port = config.get('REDIS_PORT');
+                    const password = config.get('REDIS_PASSWORD') || '';
+                    const db = Number(config.get('REDIS_DB') ?? 0);
+                    const useTls = String(config.get('REDIS_TLS') ?? 'true').toLowerCase() === 'true';
+                    const proto = useTls ? 'rediss' : 'redis';
+                    const auth = password ? `:${encodeURIComponent(password)}@` : '';
+                    const url = `${proto}://${auth}${host}:${port}/${db}`;
+                    const namespace = 'app:cache';
+                    const store = new keyv_1.default({
+                        store: new redis_1.default(url),
+                        namespace,
+                    });
+                    return {
+                        stores: [store],
+                        ttl: (config.get('CACHE_TTL') ?? 7200) * 1000,
+                    };
+                },
             }),
         ],
         providers: [cache_service_1.CacheService, announcement_cache_service_1.AnnouncementCacheService],

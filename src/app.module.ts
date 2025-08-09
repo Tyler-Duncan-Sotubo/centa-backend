@@ -8,6 +8,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ModulesModule } from './modules/modules.module';
 import { CompanySettingsModule } from './company-settings/company-settings.module';
 import { HolidaysModule } from './modules/leave/holidays/holidays.module';
+import { CacheModule } from './common/cache/cache.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { HolidaysModule } from './modules/leave/holidays/holidays.module';
     ScheduleModule.forRoot(),
     DrizzleModule,
     LoggerModule,
+    CacheModule,
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: Joi.object({
