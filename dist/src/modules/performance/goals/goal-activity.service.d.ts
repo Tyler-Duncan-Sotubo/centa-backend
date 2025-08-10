@@ -48,10 +48,10 @@ export declare class GoalActivityService {
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        goalId: string;
         fileName: string;
         fileUrl: string;
         comment: string;
-        goalId: string;
         uploadedById: string;
     }>;
     updateAttachment(attachmentId: string, user: User, dto: UpdateGoalAttachmentDto): Promise<{

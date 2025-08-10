@@ -1,6 +1,6 @@
 // modules/employees/groups/group.schema.ts
 import { pgTable, uuid, varchar, timestamp, index } from 'drizzle-orm/pg-core';
-import { employees } from '../schema/employee.schema';
+import { employees } from './employee.schema';
 import { companies } from '../../schema';
 
 export const groups = pgTable('employee_groups', {

@@ -183,7 +183,9 @@ let EmployeeShiftsService = EmployeeShiftsService_1 = class EmployeeShiftsServic
             shiftIds: [dto.shiftId],
             dates: [dto.shiftDate],
         });
-        this.logger.info({ id: rec.id }, 'assignShift:done');
+        await this.bumpCalendarVersion(user.companyId);
+        const ver = await this.getCalendarVersion(user.companyId);
+        this.logger.info({ id: rec.id, calendarVer: ver }, 'assignShift:done');
         return rec;
     }
     async updateShift(employeeShiftId, dto, user, ip) {
@@ -327,7 +329,9 @@ let EmployeeShiftsService = EmployeeShiftsService_1 = class EmployeeShiftsServic
             shiftIds: oldRec.shiftId ? [oldRec.shiftId] : [],
             dates: [oldRec.shiftDate],
         });
-        this.logger.info({ assignmentId }, 'removeAssignment:done');
+        await this.bumpCalendarVersion(user.companyId);
+        const ver = await this.getCalendarVersion(user.companyId);
+        this.logger.info({ assignmentId, calendarVer: ver }, 'removeAssignment:done');
         return { success: true };
     }
     async bulkRemoveAssignments(employeeIds, user, ip) {

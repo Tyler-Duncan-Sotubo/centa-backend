@@ -46,6 +46,93 @@ let CacheService = CacheService_1 = class CacheService {
     async del(key) {
         await this.cacheManager.del(key);
     }
+    buildVersionedKey(companyId, ver, ...parts) {
+        return ['company', companyId, `v${ver}`, ...parts].join(':');
+    }
+    getRedisClient() {
+        const anyCache = this.cacheManager;
+        const stores = anyCache?.stores ?? (anyCache?.store ? [anyCache.store] : []);
+        const first = stores[0] ?? anyCache?.store;
+        const client = first?.store?.redis || first?.store?.client || first?.client || null;
+        return client ?? null;
+    }
+    async getCompanyVersion(companyId) {
+        const versionKey = `company:${companyId}:ver`;
+        const client = this.getRedisClient();
+        if (client?.get) {
+            const raw = await client.get(versionKey);
+            if (raw)
+                return Number(raw);
+            if (client.set)
+                await client.set(versionKey, '1');
+            return 1;
+        }
+        const raw = await this.cacheManager.get(versionKey);
+        if (raw)
+            return Number(raw);
+        await this.cacheManager.set(versionKey, '1');
+        return 1;
+    }
+    async bumpCompanyVersion(companyId) {
+        const versionKey = `company:${companyId}:ver`;
+        const client = this.getRedisClient();
+        if (client?.incr) {
+            const v = await client.incr(versionKey);
+            return Number(v);
+        }
+        this.logger.warn(`bumpCompanyVersion: Redis INCR not available; falling back to non-atomic bump for company=${companyId}`);
+        const current = await this.getCompanyVersion(companyId);
+        const next = current + 1;
+        await this.cacheManager.set(versionKey, String(next));
+        return next;
+    }
+    async getOrSetVersioned(companyId, keyParts, compute, opts) {
+        const ver = await this.getCompanyVersion(companyId);
+        const key = this.buildVersionedKey(companyId, ver, ...keyParts);
+        const hit = await this.cacheManager.get(key);
+        if (hit !== undefined && hit !== null)
+            return hit;
+        const val = await compute();
+        const ttl = opts?.ttlSeconds ? opts.ttlSeconds * 1000 : this.ttlMs;
+        await this.cacheManager.set(key, val, ttl);
+        if (opts?.tags?.length) {
+            await this.attachTags(key, opts.tags);
+        }
+        return val;
+    }
+    async attachTags(cacheKey, tags) {
+        const client = this.getRedisClient();
+        if (!client?.sadd) {
+            this.logger.debug(`attachTags: Redis SADD not available; skipping tags for ${cacheKey}`);
+            return;
+        }
+        const pipe = client.multi?.() ?? client.pipeline?.();
+        for (const tag of tags) {
+            pipe.sadd(`tag:${tag}`, cacheKey);
+        }
+        await pipe.exec();
+    }
+    async invalidateTags(tags) {
+        const client = this.getRedisClient();
+        if (!client?.smembers) {
+            this.logger.debug('invalidateTags: Redis SMEMBERS not available; skipping tag invalidation');
+            return;
+        }
+        const keysToDelete = [];
+        for (const tag of tags) {
+            const tkey = `tag:${tag}`;
+            const members = await client.smembers(tkey);
+            if (members?.length)
+                keysToDelete.push(...members);
+        }
+        if (keysToDelete.length) {
+            await client.del(...keysToDelete);
+        }
+        const delPipe = client.multi?.() ?? client.pipeline?.();
+        for (const tag of tags)
+            delPipe.del(`tag:${tag}`);
+        await delPipe.exec();
+    }
     async debugInfo() {
         const anyCache = this.cacheManager;
         const stores = anyCache?.stores ?? (anyCache?.store ? [anyCache.store] : []);

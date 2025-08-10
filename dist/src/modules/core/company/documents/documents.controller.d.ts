@@ -22,8 +22,8 @@ export declare class DocumentsController extends BaseController {
         name: string;
         createdAt: Date | null;
         companyId: string;
-        permissionControlled: boolean | null;
         createdBy: string | null;
+        permissionControlled: boolean | null;
         isSystem: boolean;
     }>;
     findAllFolders(user: User): Promise<{
@@ -33,9 +33,9 @@ export declare class DocumentsController extends BaseController {
             name: string;
             createdAt: Date | null;
             companyId: string;
-            folderId: string | null;
             type: string;
             category: string;
+            folderId: string | null;
             uploadedBy: string | null;
         }[];
         roleIds: string[];

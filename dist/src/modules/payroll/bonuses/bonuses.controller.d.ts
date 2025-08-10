@@ -11,8 +11,8 @@ export declare class BonusesController extends BaseController {
         createdAt: Date | null;
         companyId: string;
         createdBy: string;
-        employeeId: string;
         status: string | null;
+        employeeId: string;
         effectiveDate: string;
         amount: string;
         bonusType: string;

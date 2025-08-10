@@ -39,5 +39,5 @@ __exportStar(require("../offers/schema/offers.schema"), exports);
 __exportStar(require("../offers/offer-letter/schema/offer-letter-template-variable-links.schema"), exports);
 __exportStar(require("../offers/offer-letter/schema/offer-letter-template-variables.schema"), exports);
 __exportStar(require("../offers/offer-letter/schema/generated-offer-letters.schema"), exports);
-__exportStar(require("../schema/attachments.schema"), exports);
+__exportStar(require("./attachments.schema"), exports);
 //# sourceMappingURL=index.js.map

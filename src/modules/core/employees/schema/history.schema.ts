@@ -8,7 +8,7 @@ import {
   timestamp,
   index,
 } from 'drizzle-orm/pg-core';
-import { employees } from '../schema/employee.schema';
+import { employees } from './employee.schema';
 
 export const historyTypeEnum = pgEnum('history_type', [
   'employment',

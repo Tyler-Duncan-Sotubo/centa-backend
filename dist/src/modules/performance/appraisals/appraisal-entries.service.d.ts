@@ -34,9 +34,9 @@ export declare class AppraisalEntriesService {
             id: string;
             createdAt: Date | null;
             notes: string | null;
+            appraisalId: string;
             competencyId: string;
             expectedLevelId: string;
-            appraisalId: string;
             employeeLevelId: string | null;
             managerLevelId: string | null;
         };

@@ -27,10 +27,10 @@ export declare class DeductionsController extends BaseController {
     assignDeductionToEmployee(dto: CreateEmployeeDeductionDto, user: User): Promise<{
         id: string;
         isActive: boolean;
+        metadata: unknown;
         startDate: string;
         employeeId: string;
         endDate: string | null;
-        metadata: unknown;
         deductionTypeId: string;
         rateType: "fixed" | "percentage";
         rateValue: string;

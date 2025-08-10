@@ -14,8 +14,8 @@ export declare class ReservedDaysController extends BaseController {
         startDate: string;
         employeeId: string | null;
         endDate: string;
-        reason: string | null;
         leaveTypeId: string;
+        reason: string | null;
     }>;
     findAll(user: User): Promise<({
         id: string;

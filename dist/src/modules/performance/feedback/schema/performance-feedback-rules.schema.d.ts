@@ -60,7 +60,7 @@ export declare const feedbackRules: import("drizzle-orm/pg-core").PgTableWithCol
             tableName: "performance_feedback_rules";
             dataType: "string";
             columnType: "PgText";
-            data: "self" | "peer" | "manager_to_employee" | "employee_to_manager";
+            data: "peer" | "self" | "manager_to_employee" | "employee_to_manager";
             driverParam: string;
             notNull: true;
             hasDefault: false;
@@ -72,7 +72,7 @@ export declare const feedbackRules: import("drizzle-orm/pg-core").PgTableWithCol
             identity: undefined;
             generated: undefined;
         }, {}, {
-            $type: "self" | "peer" | "manager_to_employee" | "employee_to_manager";
+            $type: "peer" | "self" | "manager_to_employee" | "employee_to_manager";
         }>;
         enabled: import("drizzle-orm/pg-core").PgColumn<{
             name: "enabled";

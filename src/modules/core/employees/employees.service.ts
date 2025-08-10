@@ -1620,6 +1620,16 @@ export class EmployeesService {
         )
         .execute();
 
+      // Invalidate cache for the company
+      await this.invalidateCacheKeys(companyId, {
+        touchList: true,
+      });
+
+      this.logger.info(
+        { companyId, count: createdEmps.length },
+        'employees:bulkCreate:done',
+      );
+
       return createdEmps;
     });
 

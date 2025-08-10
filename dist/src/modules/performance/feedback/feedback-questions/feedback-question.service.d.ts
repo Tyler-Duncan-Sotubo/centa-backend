@@ -15,11 +15,11 @@ export declare class FeedbackQuestionService {
     private burst;
     create(dto: CreateFeedbackQuestionDto, user: User): Promise<{
         id: string;
-        createdAt: Date | null;
         isActive: boolean | null;
+        createdAt: Date | null;
         companyId: string;
-        type: string;
         order: number | null;
+        type: string;
         question: string;
         inputType: string | null;
     }>;

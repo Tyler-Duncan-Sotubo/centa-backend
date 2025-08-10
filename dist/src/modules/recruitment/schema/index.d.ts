@@ -23,4 +23,4 @@ export * from '../offers/schema/offers.schema';
 export * from '../offers/offer-letter/schema/offer-letter-template-variable-links.schema';
 export * from '../offers/offer-letter/schema/offer-letter-template-variables.schema';
 export * from '../offers/offer-letter/schema/generated-offer-letters.schema';
-export * from '../schema/attachments.schema';
+export * from './attachments.schema';

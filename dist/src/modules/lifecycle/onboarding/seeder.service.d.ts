@@ -58,10 +58,10 @@ export declare class OnboardingSeederService {
     getTemplatesByCompanyWithDetails(companyId: string): Promise<{
         fields: {
             id: string;
-            templateId: string;
             order: number | null;
-            fieldKey: string;
             label: string;
+            templateId: string;
+            fieldKey: string;
             fieldType: string;
             required: boolean | null;
             tag: string;
@@ -69,9 +69,9 @@ export declare class OnboardingSeederService {
         checklist: {
             id: string;
             title: string;
+            order: number | null;
             templateId: string;
             assignee: "employee" | "hr" | "it" | "finance" | null;
-            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         fieldCount: number;
@@ -87,10 +87,10 @@ export declare class OnboardingSeederService {
     getTemplateByIdWithDetails(templateId: string): Promise<{
         fields: {
             id: string;
-            templateId: string;
             order: number | null;
-            fieldKey: string;
             label: string;
+            templateId: string;
+            fieldKey: string;
             fieldType: string;
             required: boolean | null;
             tag: string;
@@ -98,9 +98,9 @@ export declare class OnboardingSeederService {
         checklist: {
             id: string;
             title: string;
+            order: number | null;
             templateId: string;
             assignee: "employee" | "hr" | "it" | "finance" | null;
-            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         id: string;

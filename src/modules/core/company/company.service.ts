@@ -249,184 +249,180 @@ export class CompanyService {
   async getCompanySummary(companyId: string) {
     const key = this.summaryKey(companyId);
     this.logger.debug({ companyId, key }, 'company:summary:cache:get');
+    const now = new Date();
 
-    return this.cache.getOrSetCache(key, async () => {
-      const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-      const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const prevStartDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevEndDate = new Date(now.getFullYear(), now.getMonth(), 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-      const prevStartDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const prevEndDate = new Date(now.getFullYear(), now.getMonth(), 0);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+    const [
+      allEmployees,
+      company,
+      allHolidays,
+      allDepartments,
+      payrollSummary,
+      recentLeaves,
+      attendanceSummary,
+      allAnnouncements,
+    ] = await Promise.all([
+      this.db
+        .select({
+          id: employees.id,
+          employmentStartDate: employees.employmentStartDate,
+          employmentEndDate: employees.employmentEndDate,
+          employeeNumber: employees.employeeNumber,
+          email: employees.email,
+          firstName: employees.firstName,
+          lastName: employees.lastName,
+          departments: departments.name,
+          jobRole: jobRoles.title,
+          annualGross: employeeCompensations.grossSalary,
+        })
+        .from(employees)
+        .leftJoin(departments, eq(departments.id, employees.departmentId))
+        .leftJoin(jobRoles, eq(jobRoles.id, employees.jobRoleId))
+        .leftJoin(
+          employeeCompensations,
+          eq(employeeCompensations.employeeId, employees.id),
+        )
+        .where(
+          and(
+            eq(employees.companyId, companyId),
+            eq(employees.employmentStatus, 'active'),
+          ),
+        )
+        .execute(),
 
-      const [
-        allEmployees,
-        company,
-        allHolidays,
-        allDepartments,
-        payrollSummary,
-        recentLeaves,
-        attendanceSummary,
-        allAnnouncements,
-      ] = await Promise.all([
-        this.db
-          .select({
-            id: employees.id,
-            employmentStartDate: employees.employmentStartDate,
-            employmentEndDate: employees.employmentEndDate,
-            employeeNumber: employees.employeeNumber,
-            email: employees.email,
-            firstName: employees.firstName,
-            lastName: employees.lastName,
-            departments: departments.name,
-            jobRole: jobRoles.title,
-            annualGross: employeeCompensations.grossSalary,
-          })
-          .from(employees)
-          .leftJoin(departments, eq(departments.id, employees.departmentId))
-          .leftJoin(jobRoles, eq(jobRoles.id, employees.jobRoleId))
-          .leftJoin(
-            employeeCompensations,
-            eq(employeeCompensations.employeeId, employees.id),
-          )
-          .where(
-            and(
-              eq(employees.companyId, companyId),
-              eq(employees.employmentStatus, 'active'),
-            ),
-          )
-          .execute(),
+      this.db
+        .select({ companyName: companies.name })
+        .from(companies)
+        .where(eq(companies.id, companyId))
+        .execute(),
 
-        this.db
-          .select({ companyName: companies.name })
-          .from(companies)
-          .where(eq(companies.id, companyId))
-          .execute(),
+      this.db
+        .select({
+          date: holidays.date,
+          name: holidays.name,
+        })
+        .from(holidays)
+        .where(
+          and(
+            gte(holidays.date, startDate.toISOString()),
+            lte(holidays.date, endDate.toISOString()),
+          ),
+        )
+        .execute(),
 
-        this.db
-          .select({
-            date: holidays.date,
-            name: holidays.name,
-          })
-          .from(holidays)
-          .where(
-            and(
-              gte(holidays.date, startDate.toISOString()),
-              lte(holidays.date, endDate.toISOString()),
-            ),
-          )
-          .execute(),
+      this.db
+        .select({
+          department: departments.name,
+          employees: sql<number>`COUNT(${employees.id})`,
+        })
+        .from(departments)
+        .leftJoin(employees, eq(employees.departmentId, departments.id))
+        .where(eq(departments.companyId, companyId))
+        .groupBy(departments.name)
+        .execute(),
 
-        this.db
-          .select({
-            department: departments.name,
-            employees: sql<number>`COUNT(${employees.id})`,
-          })
-          .from(departments)
-          .leftJoin(employees, eq(employees.departmentId, departments.id))
-          .where(eq(departments.companyId, companyId))
-          .groupBy(departments.name)
-          .execute(),
+      this.payrollReport.getPayrollSummary(companyId),
 
-        this.payrollReport.getPayrollSummary(companyId),
+      this.db
+        .select({
+          name: sql<string>`CONCAT(${employees.firstName}, ' ', ${employees.lastName})`,
+          leaveType: leaveTypes.name,
+          startDate: leaveRequests.startDate,
+          endDate: leaveRequests.endDate,
+        })
+        .from(leaveRequests)
+        .innerJoin(employees, eq(leaveRequests.employeeId, employees.id))
+        .innerJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
+        .where(
+          and(
+            eq(employees.companyId, companyId),
+            eq(leaveRequests.status, 'approved'),
+            lte(leaveRequests.startDate, today.toISOString()),
+            gte(leaveRequests.endDate, today.toISOString()),
+          ),
+        )
+        .orderBy(desc(leaveRequests.startDate))
+        .execute(),
 
-        this.db
-          .select({
-            name: sql<string>`CONCAT(${employees.firstName}, ' ', ${employees.lastName})`,
-            leaveType: leaveTypes.name,
-            startDate: leaveRequests.startDate,
-            endDate: leaveRequests.endDate,
-          })
-          .from(leaveRequests)
-          .innerJoin(employees, eq(leaveRequests.employeeId, employees.id))
-          .innerJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
-          .where(
-            and(
-              eq(employees.companyId, companyId),
-              eq(leaveRequests.status, 'approved'),
-              lte(leaveRequests.startDate, today.toISOString()),
-              gte(leaveRequests.endDate, today.toISOString()),
-            ),
-          )
-          .orderBy(desc(leaveRequests.startDate))
-          .execute(),
+      this.attendanceReport.getLast6MonthsAttendanceSummary(companyId),
 
-        this.attendanceReport.getLast6MonthsAttendanceSummary(companyId),
+      this.db
+        .select({ id: announcements.id, title: announcements.title })
+        .from(announcements)
+        .where(eq(announcements.companyId, companyId))
+        .execute(),
+    ]);
 
-        this.db
-          .select({ id: announcements.id, title: announcements.title })
-          .from(announcements)
-          .where(eq(announcements.companyId, companyId))
-          .execute(),
-      ]);
+    const totalEmployees = allEmployees.filter(
+      (emp) =>
+        !emp.employmentEndDate || new Date(emp.employmentEndDate) > endDate,
+    ).length;
 
-      const totalEmployees = allEmployees.filter(
-        (emp) =>
-          !emp.employmentEndDate || new Date(emp.employmentEndDate) > endDate,
-      ).length;
-
-      const newStarters = allEmployees.filter((emp) => {
-        const start = new Date(emp.employmentStartDate);
-        return start >= startDate && start <= endDate;
-      });
-
-      const leavers = allEmployees.filter((emp) => {
-        if (!emp.employmentEndDate) return false;
-        const end = new Date(emp.employmentEndDate);
-        return end >= startDate && end <= endDate;
-      });
-
-      const prevNewStarters = allEmployees.filter((emp) => {
-        const start = new Date(emp.employmentStartDate);
-        return start >= prevStartDate && start <= prevEndDate;
-      });
-
-      const prevLeavers = allEmployees.filter((emp) => {
-        if (!emp.employmentEndDate) return false;
-        const end = new Date(emp.employmentEndDate);
-        return end >= prevStartDate && end <= prevEndDate;
-      });
-
-      const prevTotalEmployees = allEmployees.filter(
-        (emp) =>
-          !emp.employmentEndDate ||
-          new Date(emp.employmentEndDate) > prevEndDate,
-      ).length;
-
-      const onboardingSettings =
-        await this.companySettingsService.getOnboardingSettings(companyId);
-
-      const tasksArray = Object.entries(onboardingSettings);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const completed = tasksArray.filter(([_, done]) => done).length;
-      const total = tasksArray.length;
-      const allTasksCompleted = completed === total;
-
-      const result = {
-        companyName: company[0]?.companyName ?? company[0]?.companyName,
-        allHolidays,
-        totalEmployees,
-        allEmployees,
-        allDepartments,
-        newStartersCount: newStarters.length,
-        leaversCount: leavers.length,
-        previousMonth: {
-          totalEmployees: prevTotalEmployees,
-          newStartersCount: prevNewStarters.length,
-          leaversCount: prevLeavers.length,
-        },
-        payrollSummary,
-        recentLeaves,
-        attendanceSummary,
-        announcements: allAnnouncements,
-        onboardingTaskCompleted: allTasksCompleted,
-      };
-
-      this.logger.debug({ companyId }, 'company:summary:db:done');
-      return result;
+    const newStarters = allEmployees.filter((emp) => {
+      const start = new Date(emp.employmentStartDate);
+      return start >= startDate && start <= endDate;
     });
+
+    const leavers = allEmployees.filter((emp) => {
+      if (!emp.employmentEndDate) return false;
+      const end = new Date(emp.employmentEndDate);
+      return end >= startDate && end <= endDate;
+    });
+
+    const prevNewStarters = allEmployees.filter((emp) => {
+      const start = new Date(emp.employmentStartDate);
+      return start >= prevStartDate && start <= prevEndDate;
+    });
+
+    const prevLeavers = allEmployees.filter((emp) => {
+      if (!emp.employmentEndDate) return false;
+      const end = new Date(emp.employmentEndDate);
+      return end >= prevStartDate && end <= prevEndDate;
+    });
+
+    const prevTotalEmployees = allEmployees.filter(
+      (emp) =>
+        !emp.employmentEndDate || new Date(emp.employmentEndDate) > prevEndDate,
+    ).length;
+
+    const onboardingSettings =
+      await this.companySettingsService.getOnboardingSettings(companyId);
+
+    const tasksArray = Object.entries(onboardingSettings);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const completed = tasksArray.filter(([_, done]) => done).length;
+    const total = tasksArray.length;
+    const allTasksCompleted = completed === total;
+
+    const result = {
+      companyName: company[0]?.companyName ?? company[0]?.companyName,
+      allHolidays,
+      totalEmployees,
+      allEmployees,
+      allDepartments,
+      newStartersCount: newStarters.length,
+      leaversCount: leavers.length,
+      previousMonth: {
+        totalEmployees: prevTotalEmployees,
+        newStartersCount: prevNewStarters.length,
+        leaversCount: prevLeavers.length,
+      },
+      payrollSummary,
+      recentLeaves,
+      attendanceSummary,
+      announcements: allAnnouncements,
+      onboardingTaskCompleted: allTasksCompleted,
+    };
+
+    this.logger.debug({ companyId }, 'company:summary:db:done');
+    return result;
   }
 
   async getEmployeeSummary(employeeId: string) {

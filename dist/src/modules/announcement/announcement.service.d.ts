@@ -25,18 +25,18 @@ export declare class AnnouncementService {
     private invalidateOne;
     create(dto: CreateAnnouncementDto, user: User): Promise<{
         id: string;
+        link: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-        link: string | null;
         companyId: string;
         createdBy: string;
-        departmentId: string | null;
         title: string;
-        locationId: string | null;
         body: string;
+        expiresAt: Date | null;
+        departmentId: string | null;
+        locationId: string | null;
         image: string | null;
         publishedAt: Date | null;
-        expiresAt: Date | null;
         isPublished: boolean | null;
         categoryId: string;
     }>;

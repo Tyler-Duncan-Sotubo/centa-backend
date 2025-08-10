@@ -11,11 +11,11 @@ export declare class AssetsRequestController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        employeeId: string;
         status: string | null;
+        employeeId: string;
         notes: string | null;
-        rejectionReason: string | null;
         purpose: string;
+        rejectionReason: string | null;
         requestDate: string;
         assetType: string;
         urgency: string;

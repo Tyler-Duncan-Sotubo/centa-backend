@@ -41,7 +41,7 @@ export declare const interviews: import("drizzle-orm/pg-core").PgTableWithColumn
             tableName: "interviews";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "phone_screen" | "tech" | "onsite" | "final";
+            data: "onsite" | "phone_screen" | "tech" | "final";
             driverParam: string;
             notNull: true;
             hasDefault: false;

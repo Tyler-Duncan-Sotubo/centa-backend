@@ -1169,6 +1169,10 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 grossSalary: comp.grossSalary,
             })))
                 .execute();
+            await this.invalidateCacheKeys(companyId, {
+                touchList: true,
+            });
+            this.logger.info({ companyId, count: createdEmps.length }, 'employees:bulkCreate:done');
             return createdEmps;
         });
         await this.companySettingsService.setSetting(user.companyId, 'onboarding_upload_employees', true);

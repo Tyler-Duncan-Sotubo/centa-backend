@@ -5,23 +5,9 @@ import { GetGoalReportDto } from './dto/get-goal-report.dto';
 import { GetFeedbackReportDto } from './dto/get-feedback-report.dto';
 import { GetAssessmentReportDto } from './dto/get-assessment-report.dto';
 import { GetTopEmployeesDto } from './dto/get-top-employees.dto';
-import { PinoLogger } from 'nestjs-pino';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class ReportService {
     private readonly db;
-    private readonly logger;
-    private readonly cache;
-    constructor(db: db, logger: PinoLogger, cache: CacheService);
-    private kReportFilters;
-    private kAppraisal;
-    private kGoals;
-    private kFeedback;
-    private kAssessments;
-    private kTop;
-    private kHeatmap;
-    private kParticipation;
-    private kOverview;
-    private ser;
+    constructor(db: db);
     reportFilters(companyId: string): Promise<{
         cycles: {
             id: string;
@@ -96,109 +82,57 @@ export declare class ReportService {
         submittedAt: Date | null;
     })[]>;
     getGoalReport(user: User, filters?: GetGoalReportDto): Promise<({
-        goalId: any;
+        goalId: string;
         employeeId: any;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
+        title: string;
+        description: string | null;
+        type: string | null;
+        status: string | null;
+        weight: number | null;
+        startDate: string;
+        dueDate: string;
     } | {
-        goalId: any;
+        goalId: string;
         employeeId: any;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
+        title: string;
+        description: string | null;
+        type: string | null;
+        status: string | null;
+        weight: number | null;
+        startDate: string;
+        dueDate: string;
     } | {
-        goalId: any;
+        goalId: string;
         employeeId: any;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
+        title: string;
+        description: string | null;
+        type: string | null;
+        status: string | null;
+        weight: number | null;
+        startDate: string;
+        dueDate: string;
     } | {
-        goalId: any;
+        goalId: string;
         employeeId: any;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
-    } | {
-        goalId: any;
-        employeeId: any;
-        employeeName: string;
-        jobRoleName: string | null;
-        departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
-    } | {
-        goalId: any;
-        employeeId: any;
-        employeeName: string;
-        jobRoleName: string | null;
-        departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
-    } | {
-        goalId: any;
-        employeeId: any;
-        employeeName: string;
-        jobRoleName: string | null;
-        departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
-    } | {
-        goalId: any;
-        employeeId: any;
-        employeeName: string;
-        jobRoleName: string | null;
-        departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
+        title: string;
+        description: string | null;
+        type: string | null;
+        status: string | null;
+        weight: number | null;
+        startDate: string;
+        dueDate: string;
     })[]>;
     getFeedbackReport(user: User, filters: GetFeedbackReportDto): Promise<({
         senderName: string | undefined;
@@ -230,8 +164,8 @@ export declare class ReportService {
     getAssessmentReportSummary(user: User, filters?: GetAssessmentReportDto): Promise<({
         id: string;
         employeeId: string;
-        type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        type: "manager" | "peer" | "self";
+        status: "submitted" | "not_started" | "in_progress" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -244,8 +178,8 @@ export declare class ReportService {
     } | {
         id: string;
         employeeId: string;
-        type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        type: "manager" | "peer" | "self";
+        status: "submitted" | "not_started" | "in_progress" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -258,8 +192,8 @@ export declare class ReportService {
     } | {
         id: string;
         employeeId: string;
-        type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        type: "manager" | "peer" | "self";
+        status: "submitted" | "not_started" | "in_progress" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -352,7 +286,7 @@ export declare class ReportService {
             name: string;
             startDate: string;
             endDate: string;
-            status: "active" | "closed" | "upcoming";
+            status: "closed" | "active" | "upcoming";
         };
         cycleHealth: {
             totalAppraisals: number;

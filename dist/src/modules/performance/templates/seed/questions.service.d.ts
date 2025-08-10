@@ -17,12 +17,12 @@ export declare class PerformanceReviewQuestionService {
     private ensureCompanyOwned;
     create(user: User, dto: CreateQuestionsDto): Promise<{
         id: string;
-        createdAt: Date | null;
         isActive: boolean | null;
+        createdAt: Date | null;
         companyId: string | null;
         type: string;
-        isGlobal: boolean | null;
         question: string;
+        isGlobal: boolean | null;
         competencyId: string | null;
         isMandatory: boolean | null;
         allowNotes: boolean | null;

@@ -10,8 +10,8 @@ export declare class PayrollOverridesController {
         createdAt: string | null;
         companyId: string;
         employeeId: string;
-        notes: string | null;
         payrollDate: string;
+        notes: string | null;
         forceInclude: boolean | null;
     }>;
     findAll(user: User): Promise<{

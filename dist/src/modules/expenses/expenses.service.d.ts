@@ -33,11 +33,11 @@ export declare class ExpensesService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
+        status: string;
         employeeId: string;
+        amount: string;
         category: string;
         purpose: string;
-        amount: string;
-        status: string;
         submittedAt: Date | null;
         receiptUrl: string | null;
         paymentMethod: string | null;
@@ -52,11 +52,11 @@ export declare class ExpensesService {
             createdAt: Date | null;
             updatedAt: Date | null;
             companyId: string;
+            status: string;
             employeeId: string;
+            amount: string;
             category: string;
             purpose: string;
-            amount: string;
-            status: string;
             submittedAt: Date | null;
             receiptUrl: string | null;
             paymentMethod: string | null;

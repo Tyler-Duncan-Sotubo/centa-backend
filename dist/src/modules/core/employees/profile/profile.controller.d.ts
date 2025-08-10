@@ -7,16 +7,16 @@ export declare class ProfileController extends BaseController {
     constructor(profileService: ProfileService);
     create(employeeId: string, dto: CreateProfileDto, user: User, ip: string): Promise<{
         id: string;
+        country: string | null;
         createdAt: Date;
         updatedAt: Date;
-        country: string | null;
         state: string | null;
+        phone: string | null;
         employeeId: string;
         dateOfBirth: string | null;
         gender: string | null;
         maritalStatus: string | null;
         address: string | null;
-        phone: string | null;
         emergencyName: string | null;
         emergencyPhone: string | null;
     }>;

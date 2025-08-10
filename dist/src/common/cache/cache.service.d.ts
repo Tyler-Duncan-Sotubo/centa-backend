@@ -14,6 +14,16 @@ export declare class CacheService {
         ttlSeconds?: number;
     }): Promise<void>;
     del(key: string): Promise<void>;
+    buildVersionedKey(companyId: string, ver: number, ...parts: string[]): string;
+    private getRedisClient;
+    getCompanyVersion(companyId: string): Promise<number>;
+    bumpCompanyVersion(companyId: string): Promise<number>;
+    getOrSetVersioned<T>(companyId: string, keyParts: string[], compute: () => Promise<T>, opts?: {
+        ttlSeconds?: number;
+        tags?: string[];
+    }): Promise<T>;
+    private attachTags;
+    invalidateTags(tags: string[]): Promise<void>;
     debugInfo(): Promise<{
         mode: string;
         storeCount: number;

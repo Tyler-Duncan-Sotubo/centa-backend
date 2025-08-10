@@ -20,8 +20,8 @@ export declare class DocumentsFolderService {
         name: string;
         createdAt: Date | null;
         companyId: string;
-        permissionControlled: boolean | null;
         createdBy: string | null;
+        permissionControlled: boolean | null;
         isSystem: boolean;
     }>;
     update(id: string, dto: UpdateDocumentFoldersDto, user: User): Promise<{
@@ -43,9 +43,9 @@ export declare class DocumentsFolderService {
             name: string;
             createdAt: Date | null;
             companyId: string;
-            folderId: string | null;
             type: string;
             category: string;
+            folderId: string | null;
             uploadedBy: string | null;
         }[];
         roleIds: string[];

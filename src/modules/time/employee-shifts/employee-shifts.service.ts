@@ -282,14 +282,17 @@ export class EmployeeShiftsService {
     });
 
     // 7) Cache burst
+    // 4) Cache burst + bump calendar version
     await this.burstAll(user.companyId, {
       ids: [rec.id],
       employeeIds: [employeeId],
       shiftIds: [dto.shiftId],
       dates: [dto.shiftDate],
     });
+    await this.bumpCalendarVersion(user.companyId); // <--- NEW
 
-    this.logger.info({ id: rec.id }, 'assignShift:done');
+    const ver = await this.getCalendarVersion(user.companyId); // <--- NEW
+    this.logger.info({ id: rec.id, calendarVer: ver }, 'assignShift:done');
     return rec;
   }
 
@@ -533,7 +536,13 @@ export class EmployeeShiftsService {
       dates: [oldRec.shiftDate],
     });
 
-    this.logger.info({ assignmentId }, 'removeAssignment:done');
+    await this.bumpCalendarVersion(user.companyId); // <--- NEW
+
+    const ver = await this.getCalendarVersion(user.companyId); // <--- NEW
+    this.logger.info(
+      { assignmentId, calendarVer: ver },
+      'removeAssignment:done',
+    );
     return { success: true };
   }
 
