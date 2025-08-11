@@ -71,7 +71,7 @@ export declare class ApplicationsController extends BaseController {
             }[];
             id: string;
             applicationId: string;
-            stage: "onsite" | "phone_screen" | "tech" | "final";
+            stage: "phone_screen" | "tech" | "onsite" | "final";
             scheduledFor: Date;
             durationMins: number;
             meetingLink: string | null;

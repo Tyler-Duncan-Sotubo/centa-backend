@@ -13,8 +13,8 @@ export declare class CompensationController extends BaseController {
         updatedAt: Date;
         payFrequency: string;
         employeeId: string;
-        grossSalary: number;
         effectiveDate: string;
+        grossSalary: number;
         applyNHf: boolean;
     }>;
     findAll(id: string): Promise<{

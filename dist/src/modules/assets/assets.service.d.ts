@@ -18,10 +18,10 @@ export declare class AssetsService {
         createdAt: string | null;
         updatedAt: string | null;
         companyId: string;
-        status: string;
         locationId: string;
         isDeleted: boolean | null;
         employeeId: string | null;
+        status: string;
         category: string;
         internalId: string;
         modelName: string | null;
@@ -45,10 +45,10 @@ export declare class AssetsService {
             createdAt: string | null;
             updatedAt: string | null;
             companyId: string;
-            status: string;
             locationId: string;
             isDeleted: boolean | null;
             employeeId: string | null;
+            status: string;
             category: string;
             internalId: string;
             modelName: string | null;

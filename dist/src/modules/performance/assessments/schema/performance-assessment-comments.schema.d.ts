@@ -41,7 +41,7 @@ export declare const assessmentSectionComments: import("drizzle-orm/pg-core").Pg
             tableName: "performance_assessment_section_comments";
             dataType: "string";
             columnType: "PgText";
-            data: "feedback" | "goals" | "attendance" | "questionnaire";
+            data: "goals" | "feedback" | "attendance" | "questionnaire";
             driverParam: string;
             notNull: false;
             hasDefault: false;
@@ -53,7 +53,7 @@ export declare const assessmentSectionComments: import("drizzle-orm/pg-core").Pg
             identity: undefined;
             generated: undefined;
         }, {}, {
-            $type: "feedback" | "goals" | "attendance" | "questionnaire";
+            $type: "goals" | "feedback" | "attendance" | "questionnaire";
         }>;
         comment: import("drizzle-orm/pg-core").PgColumn<{
             name: "comment";

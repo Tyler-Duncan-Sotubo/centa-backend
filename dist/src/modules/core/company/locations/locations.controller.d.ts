@@ -14,10 +14,10 @@ export declare class LocationsController extends BaseController {
         createdAt: Date;
         updatedAt: Date;
         companyId: string;
-        state: string | null;
-        city: string | null;
         isPrimary: boolean | null;
         street: string | null;
+        city: string | null;
+        state: string | null;
         postalCode: string | null;
         timeZone: string | null;
         locale: string;

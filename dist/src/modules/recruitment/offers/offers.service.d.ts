@@ -27,14 +27,14 @@ export declare class OffersService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
+        startDate: string | null;
         createdBy: string | null;
         status: "pending" | "accepted" | "sent" | "declined" | "expired";
-        applicationId: string;
         templateId: string | null;
+        expiresAt: Date | null;
+        applicationId: string;
         signingMethod: string;
         salary: string | null;
-        startDate: string | null;
-        expiresAt: Date | null;
         letterUrl: string | null;
         signedLetterUrl: string | null;
         signingProviderEnvelopeId: string | null;

@@ -11,17 +11,17 @@ export declare class PayrollAdjustmentsService {
         id: string;
         createdAt: string | null;
         companyId: string;
-        createdBy: string | null;
-        type: string;
-        label: string | null;
         isDeleted: boolean | null;
         employeeId: string;
-        payrollDate: string;
+        createdBy: string | null;
         amount: number;
+        type: string;
+        notes: string | null;
+        label: string | null;
         taxable: boolean | null;
         proratable: boolean | null;
+        payrollDate: string;
         recurring: boolean | null;
-        notes: string | null;
     }>;
     findAll(companyId: string): Promise<{
         id: string;

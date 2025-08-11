@@ -38,14 +38,14 @@ export declare class DocumentsFolderService {
     }>;
     findAll(companyId: string): Promise<{
         files: {
-            url: string;
             id: string;
             name: string;
             createdAt: Date | null;
             companyId: string;
             type: string;
-            category: string;
             folderId: string | null;
+            url: string;
+            category: string;
             uploadedBy: string | null;
         }[];
         roleIds: string[];

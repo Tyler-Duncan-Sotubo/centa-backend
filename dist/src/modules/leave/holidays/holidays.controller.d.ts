@@ -33,8 +33,8 @@ export declare class HolidaysController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
-        source: string | null;
         type: string;
+        source: string | null;
         year: string;
         countryCode: string | null;
         isWorkingDayOverride: boolean | null;
@@ -47,8 +47,8 @@ export declare class HolidaysController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
-        source: string | null;
         type: string;
+        source: string | null;
         year: string;
         countryCode: string | null;
         isWorkingDayOverride: boolean | null;

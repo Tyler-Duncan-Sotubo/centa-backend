@@ -32,36 +32,32 @@ export class FeedbackQuestionsController extends BaseController {
 
   @Get()
   @SetMetadata('permissions', ['performance.reviews.read'])
-  findAll(@CurrentUser() user: User) {
-    return this.questionService.findAll(user.companyId);
+  findAll() {
+    return this.questionService.findAll();
   }
 
   @Get('type/:type')
   @SetMetadata('permissions', ['performance.reviews.read'])
-  findByType(@Param('type') type: string, @CurrentUser() user: User) {
-    return this.questionService.findByType(user.companyId, type);
+  findByType(@Param('type') type: string) {
+    return this.questionService.findByType(type);
   }
 
   @Get(':id')
   @SetMetadata('permissions', ['performance.reviews.read'])
-  findOne(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.questionService.findOne(user.companyId, id);
+  findOne(@Param('id') id: string) {
+    return this.questionService.findOne(id);
   }
 
   @Patch(':id')
   @SetMetadata('permissions', ['performance.cycles.manage'])
-  update(
-    @Param('id') id: string,
-    @Body() dto: UpdateFeedbackQuestionDto,
-    @CurrentUser() user: User,
-  ) {
-    return this.questionService.update(user.companyId, id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateFeedbackQuestionDto) {
+    return this.questionService.update(id, dto);
   }
 
   @Delete(':id')
   @SetMetadata('permissions', ['performance.cycles.manage'])
-  remove(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.questionService.delete(user.companyId, id);
+  remove(@Param('id') id: string) {
+    return this.questionService.delete(id);
   }
 
   @Patch('reorder/:type')
@@ -69,10 +65,8 @@ export class FeedbackQuestionsController extends BaseController {
   reorder(
     @Param('type') type: string,
     @Body() payload: { questions: { id: string; order: number }[] },
-    @CurrentUser() user: User,
   ) {
     return this.questionService.reorderQuestionsByType(
-      user.companyId,
       type as any,
       payload.questions,
     );

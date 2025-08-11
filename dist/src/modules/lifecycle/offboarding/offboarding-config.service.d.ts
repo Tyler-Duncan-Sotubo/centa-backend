@@ -70,8 +70,8 @@ export declare class OffboardingConfigService {
         createdAt: Date | null;
         companyId: string | null;
         description: string | null;
-        order: number | null;
         isGlobal: boolean | null;
+        order: number | null;
         isAssetReturnStep: boolean | null;
     }>;
     updateChecklistItem(id: string, data: OffboardingChecklistItemDto, user: User): Promise<{

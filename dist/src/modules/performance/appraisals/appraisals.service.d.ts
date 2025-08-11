@@ -4,19 +4,11 @@ import { User } from 'src/common/types/user.type';
 import { CreateAppraisalDto } from './dto/create-appraisal.dto';
 import { UpdateAppraisalDto } from './dto/update-appraisal.dto';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
-import { PinoLogger } from 'nestjs-pino';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class AppraisalsService {
     private readonly db;
     private readonly auditService;
     private readonly companySettingsService;
-    private readonly logger;
-    private readonly cache;
-    constructor(db: db, auditService: AuditService, companySettingsService: CompanySettingsService, logger: PinoLogger, cache: CacheService);
-    private oneKey;
-    private listKey;
-    private dashboardKey;
-    private burst;
+    constructor(db: db, auditService: AuditService, companySettingsService: CompanySettingsService);
     create(createDto: CreateAppraisalDto, companyId: string, userId?: string): Promise<{
         id: string;
         createdAt: Date | null;
@@ -58,7 +50,7 @@ export declare class AppraisalsService {
             name: string;
             startDate: string;
             endDate: string;
-            status: "closed" | "active" | "upcoming";
+            status: "active" | "upcoming" | "closed";
         } | null;
         currentCycleAppraisal: {
             id: string;
@@ -82,7 +74,33 @@ export declare class AppraisalsService {
             jobRoleName: string | null;
         }[];
     }>;
-    findOne(id: string, companyId: string): Promise<any>;
+    findOne(id: string, companyId: string): Promise<{
+        id: string;
+        cycleId: string;
+        employeeName: string;
+        managerName: string;
+        submittedByEmployee: boolean | null;
+        submittedByManager: boolean | null;
+        finalized: boolean | null;
+        recommendation: "promote" | "hold" | "exit" | null;
+        finalNote: string | null;
+        finalScore: number | null;
+        departmentName: any;
+        jobRoleName: string | null;
+    } | {
+        id: string;
+        cycleId: string;
+        employeeName: string;
+        managerName: string;
+        submittedByEmployee: boolean | null;
+        submittedByManager: boolean | null;
+        finalized: boolean | null;
+        recommendation: "promote" | "hold" | "exit" | null;
+        finalNote: string | null;
+        finalScore: number | null;
+        departmentName: any;
+        jobRoleName: string | null;
+    }>;
     updateManager(appraisalId: string, newManagerId: string, user: User): Promise<{
         id: string;
         companyId: string | null;

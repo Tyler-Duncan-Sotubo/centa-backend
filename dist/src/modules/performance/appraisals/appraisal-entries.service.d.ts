@@ -33,12 +33,12 @@ export declare class AppraisalEntriesService {
         data: {
             id: string;
             createdAt: Date | null;
-            notes: string | null;
             appraisalId: string;
             competencyId: string;
             expectedLevelId: string;
             employeeLevelId: string | null;
             managerLevelId: string | null;
+            notes: string | null;
         };
         user?: undefined;
     }>;

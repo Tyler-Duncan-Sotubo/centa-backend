@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
 import { eq, and } from 'drizzle-orm';
@@ -12,93 +13,56 @@ import { SaveResponseDto } from './dto/save-response.dto';
 import { BulkSaveResponsesDto } from './dto/bulk-save-responses.dto';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
-import { PinoLogger } from 'nestjs-pino';
-import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class AssessmentResponsesService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
-    private readonly logger: PinoLogger,
-    private readonly cache: CacheService,
-  ) {
-    this.logger.setContext(AssessmentResponsesService.name);
-  }
+  ) {}
 
-  // ---------- cache keys ----------
-  private listKey(assessmentId: string) {
-    return `assessment:${assessmentId}:responses`;
-  }
-  private async burst(assessmentId: string) {
-    await this.cache.del(this.listKey(assessmentId));
-    this.logger.debug({ assessmentId }, 'cache:burst:assessment-responses');
-  }
-
-  // ---------- queries (cached) ----------
   async getResponsesForAssessment(assessmentId: string) {
-    const key = this.listKey(assessmentId);
-    this.logger.debug({ key, assessmentId }, 'responses:get:cache:get');
+    // Step 1: Get the template ID for this assessment
+    const [assessment] = await this.db
+      .select({ templateId: performanceAssessments.templateId })
+      .from(performanceAssessments)
+      .where(eq(performanceAssessments.id, assessmentId));
 
-    return this.cache.getOrSetCache(key, async () => {
-      // Step 1: Get the template ID for this assessment
-      const [assessment] = await this.db
-        .select({ templateId: performanceAssessments.templateId })
-        .from(performanceAssessments)
-        .where(eq(performanceAssessments.id, assessmentId))
-        .execute();
+    if (!assessment) {
+      throw new NotFoundException('Assessment not found');
+    }
 
-      if (!assessment) {
-        this.logger.warn(
-          { assessmentId },
-          'responses:get:assessment:not-found',
-        );
-        throw new NotFoundException('Assessment not found');
-      }
-
-      // Step 2: Join response + question + template metadata
-      const results = await this.db
-        .select({
-          questionId: performanceReviewQuestions.id,
-          question: performanceReviewQuestions.question,
-          type: performanceReviewQuestions.type,
-          order: performanceTemplateQuestions.order,
-          response: assessmentResponses.response,
-        })
-        .from(assessmentResponses)
-        .innerJoin(
-          performanceReviewQuestions,
-          eq(assessmentResponses.questionId, performanceReviewQuestions.id),
-        )
-        .innerJoin(
-          performanceTemplateQuestions,
-          and(
-            eq(
-              performanceTemplateQuestions.questionId,
-              performanceReviewQuestions.id,
-            ),
-            eq(performanceTemplateQuestions.templateId, assessment.templateId),
+    // Step 2: Join response + question + template metadata
+    const results = await this.db
+      .select({
+        questionId: performanceReviewQuestions.id,
+        question: performanceReviewQuestions.question,
+        type: performanceReviewQuestions.type,
+        order: performanceTemplateQuestions.order,
+        response: assessmentResponses.response,
+      })
+      .from(assessmentResponses)
+      .innerJoin(
+        performanceReviewQuestions,
+        eq(assessmentResponses.questionId, performanceReviewQuestions.id),
+      )
+      .innerJoin(
+        performanceTemplateQuestions,
+        and(
+          eq(
+            performanceTemplateQuestions.questionId,
+            performanceReviewQuestions.id,
           ),
-        )
-        .where(eq(assessmentResponses.assessmentId, assessmentId))
-        .orderBy(performanceTemplateQuestions.order)
-        .execute();
+          eq(performanceTemplateQuestions.templateId, assessment.templateId),
+        ),
+      )
+      .where(eq(assessmentResponses.assessmentId, assessmentId))
+      .orderBy(performanceTemplateQuestions.order);
 
-      this.logger.debug(
-        { assessmentId, count: results.length },
-        'responses:get:db:done',
-      );
-      return results;
-    });
+    return results;
   }
 
-  // ---------- mutations ----------
   async saveResponse(assessmentId: string, dto: SaveResponseDto, user: User) {
-    this.logger.info(
-      { assessmentId, questionId: dto.questionId, userId: user.id },
-      'responses:save:start',
-    );
-
     // Remove existing response if any
     await this.db
       .delete(assessmentResponses)
@@ -107,18 +71,14 @@ export class AssessmentResponsesService {
           eq(assessmentResponses.assessmentId, assessmentId),
           eq(assessmentResponses.questionId, dto.questionId),
         ),
-      )
-      .execute();
+      );
 
-    await this.db
-      .insert(assessmentResponses)
-      .values({
-        assessmentId,
-        questionId: dto.questionId,
-        response: dto.response,
-        createdAt: new Date(),
-      })
-      .execute();
+    await this.db.insert(assessmentResponses).values({
+      assessmentId,
+      questionId: dto.questionId,
+      response: dto.response,
+      createdAt: new Date(),
+    });
 
     // Audit log
     await this.auditService.logAction({
@@ -134,11 +94,6 @@ export class AssessmentResponsesService {
       },
     });
 
-    await this.burst(assessmentId);
-    this.logger.info(
-      { assessmentId, questionId: dto.questionId },
-      'responses:save:done',
-    );
     return { success: true };
   }
 
@@ -147,28 +102,19 @@ export class AssessmentResponsesService {
     dto: BulkSaveResponsesDto,
     user: User,
   ) {
-    this.logger.info(
-      { assessmentId, count: dto.responses?.length ?? 0, userId: user.id },
-      'responses:bulkSave:start',
-    );
+    // Optional: delete all existing for that assessment and replace
+    await this.db
+      .delete(assessmentResponses)
+      .where(eq(assessmentResponses.assessmentId, assessmentId));
 
-    await this.db.transaction(async (trx) => {
-      await trx
-        .delete(assessmentResponses)
-        .where(eq(assessmentResponses.assessmentId, assessmentId))
-        .execute();
+    const payload = dto.responses.map((r) => ({
+      assessmentId,
+      questionId: r.questionId,
+      response: r.response,
+      createdAt: new Date(),
+    }));
 
-      const payload = dto.responses.map((r) => ({
-        assessmentId,
-        questionId: r.questionId,
-        response: r.response,
-        createdAt: new Date(),
-      }));
-
-      if (payload.length) {
-        await trx.insert(assessmentResponses).values(payload).execute();
-      }
-    });
+    await this.db.insert(assessmentResponses).values(payload);
 
     // Audit log
     await this.auditService.logAction({
@@ -179,12 +125,10 @@ export class AssessmentResponsesService {
       details: 'Bulk responses saved',
       changes: {
         assessmentId,
-        responses: dto.responses,
+        responses: payload,
       },
     });
 
-    await this.burst(assessmentId);
-    this.logger.info({ assessmentId }, 'responses:bulkSave:done');
-    return { success: true, count: dto.responses.length };
+    return { success: true, count: payload.length };
   }
 }

@@ -164,8 +164,8 @@ export declare class ReportService {
     getAssessmentReportSummary(user: User, filters?: GetAssessmentReportDto): Promise<({
         id: string;
         employeeId: string;
-        type: "manager" | "peer" | "self";
-        status: "submitted" | "not_started" | "in_progress" | null;
+        type: "self" | "manager" | "peer";
+        status: "not_started" | "in_progress" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -178,8 +178,8 @@ export declare class ReportService {
     } | {
         id: string;
         employeeId: string;
-        type: "manager" | "peer" | "self";
-        status: "submitted" | "not_started" | "in_progress" | null;
+        type: "self" | "manager" | "peer";
+        status: "not_started" | "in_progress" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -192,8 +192,8 @@ export declare class ReportService {
     } | {
         id: string;
         employeeId: string;
-        type: "manager" | "peer" | "self";
-        status: "submitted" | "not_started" | "in_progress" | null;
+        type: "self" | "manager" | "peer";
+        status: "not_started" | "in_progress" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -286,7 +286,7 @@ export declare class ReportService {
             name: string;
             startDate: string;
             endDate: string;
-            status: "closed" | "active" | "upcoming";
+            status: "active" | "upcoming" | "closed";
         };
         cycleHealth: {
             totalAppraisals: number;

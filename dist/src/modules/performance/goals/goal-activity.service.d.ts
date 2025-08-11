@@ -6,18 +6,11 @@ import { AddGoalCommentDto } from './dto/add-goal-comment.dto';
 import { S3StorageService } from 'src/common/aws/s3-storage.service';
 import { UploadGoalAttachmentDto } from './dto/upload-goal-attachment.dto';
 import { UpdateGoalAttachmentDto } from './dto/update-goal-attachment.dto';
-import { PinoLogger } from 'nestjs-pino';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class GoalActivityService {
     private readonly db;
     private readonly auditService;
     private readonly s3Service;
-    private readonly logger;
-    private readonly cache;
-    constructor(db: db, auditService: AuditService, s3Service: S3StorageService, logger: PinoLogger, cache: CacheService);
-    private goalKey;
-    private burst;
-    private getGoalCached;
+    constructor(db: db, auditService: AuditService, s3Service: S3StorageService);
     addProgressUpdate(goalId: string, dto: AddGoalProgressDto, user: User): Promise<{
         id: string;
         createdAt: Date | null;

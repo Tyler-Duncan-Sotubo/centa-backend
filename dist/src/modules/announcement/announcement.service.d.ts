@@ -29,14 +29,14 @@ export declare class AnnouncementService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        createdBy: string;
-        title: string;
-        body: string;
-        expiresAt: Date | null;
         departmentId: string | null;
+        title: string;
         locationId: string | null;
+        createdBy: string;
+        body: string;
         image: string | null;
         publishedAt: Date | null;
+        expiresAt: Date | null;
         isPublished: boolean | null;
         categoryId: string;
     }>;

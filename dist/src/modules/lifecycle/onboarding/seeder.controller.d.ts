@@ -8,10 +8,10 @@ export declare class OnboardingSeederController extends BaseController {
     getGlobalTemplates(templateId: string): Promise<{
         fields: {
             id: string;
-            order: number | null;
-            label: string;
             templateId: string;
+            order: number | null;
             fieldKey: string;
+            label: string;
             fieldType: string;
             required: boolean | null;
             tag: string;
@@ -19,8 +19,8 @@ export declare class OnboardingSeederController extends BaseController {
         checklist: {
             id: string;
             title: string;
-            order: number | null;
             templateId: string;
+            order: number | null;
             assignee: "employee" | "hr" | "it" | "finance" | null;
             dueDaysAfterStart: number | null;
         }[];
@@ -75,10 +75,10 @@ export declare class OnboardingSeederController extends BaseController {
     getTemplatesByCompanyWithDetails(user: User): Promise<{
         fields: {
             id: string;
-            order: number | null;
-            label: string;
             templateId: string;
+            order: number | null;
             fieldKey: string;
+            label: string;
             fieldType: string;
             required: boolean | null;
             tag: string;
@@ -86,8 +86,8 @@ export declare class OnboardingSeederController extends BaseController {
         checklist: {
             id: string;
             title: string;
-            order: number | null;
             templateId: string;
+            order: number | null;
             assignee: "employee" | "hr" | "it" | "finance" | null;
             dueDaysAfterStart: number | null;
         }[];

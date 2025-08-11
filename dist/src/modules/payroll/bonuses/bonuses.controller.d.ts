@@ -10,11 +10,11 @@ export declare class BonusesController extends BaseController {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        createdBy: string;
-        status: string | null;
         employeeId: string;
-        effectiveDate: string;
+        createdBy: string;
         amount: string;
+        effectiveDate: string;
+        status: string | null;
         bonusType: string;
     }[]>;
     findAll(user: User): Promise<({

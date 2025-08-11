@@ -3,15 +3,10 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { UpdateFeedbackRuleDto } from '../dto/update-feedback-rule.dto';
 import { UpdateFeedbackSettingsDto } from '../dto/update-feedback-settings.dto';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class FeedbackSettingsService {
     private readonly db;
     private readonly auditService;
-    private readonly cache;
-    constructor(db: db, auditService: AuditService, cache: CacheService);
-    private kSettings;
-    private kRules;
-    private burst;
+    constructor(db: db, auditService: AuditService);
     create(companyId: string): Promise<{
         id: string;
         createdAt: Date | null;
@@ -20,15 +15,6 @@ export declare class FeedbackSettingsService {
         enableEmployeeFeedback: boolean | null;
         enableManagerFeedback: boolean | null;
         allowAnonymous: boolean | null;
-    } | {
-        id?: undefined;
-        companyId?: undefined;
-        enableEmployeeFeedback?: undefined;
-        enableManagerFeedback?: undefined;
-        allowAnonymous?: undefined;
-        createdAt?: undefined;
-        updatedAt?: undefined;
-        rules?: undefined;
     }>;
     seedCompanies(): Promise<void>;
     findOne(companyId: string): Promise<{
@@ -48,7 +34,7 @@ export declare class FeedbackSettingsService {
         allowAnonymous: boolean | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-        rules: Record<"employee" | "manager", any[]>;
+        rules: Record<"manager" | "employee", any[]>;
     }>;
     update(companyId: string, dto: UpdateFeedbackSettingsDto, user: User): Promise<{
         id: string;

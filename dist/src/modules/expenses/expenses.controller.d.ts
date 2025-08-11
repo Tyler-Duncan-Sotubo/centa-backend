@@ -12,15 +12,15 @@ export declare class ExpensesController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        status: string;
         employeeId: string;
         amount: string;
+        status: string;
+        submittedAt: Date | null;
         category: string;
         purpose: string;
-        submittedAt: Date | null;
+        rejectionReason: string | null;
         receiptUrl: string | null;
         paymentMethod: string | null;
-        rejectionReason: string | null;
         deletedAt: Date | null;
     }>;
     bulkCreate(rows: any[], user: User): Promise<{
@@ -31,15 +31,15 @@ export declare class ExpensesController extends BaseController {
             createdAt: Date | null;
             updatedAt: Date | null;
             companyId: string;
-            status: string;
             employeeId: string;
             amount: string;
+            status: string;
+            submittedAt: Date | null;
             category: string;
             purpose: string;
-            submittedAt: Date | null;
+            rejectionReason: string | null;
             receiptUrl: string | null;
             paymentMethod: string | null;
-            rejectionReason: string | null;
             deletedAt: Date | null;
         }[];
         errors: {

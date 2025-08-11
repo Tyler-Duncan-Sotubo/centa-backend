@@ -28,11 +28,14 @@ export declare class JobsService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        createdBy: string;
-        externalJobId: string | null;
+        description: string | null;
         title: string;
-        state: string | null;
         city: string | null;
+        state: string | null;
+        createdBy: string;
+        status: "draft" | "closed" | "archived" | "open";
+        isArchived: boolean;
+        externalJobId: string | null;
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
         responsibilities: string[] | null;
@@ -43,19 +46,16 @@ export declare class JobsService {
         salaryRangeFrom: number | null;
         salaryRangeTo: number | null;
         benefits: string[] | null;
-        description: string | null;
-        status: "draft" | "open" | "closed" | "archived";
         postedAt: Date | null;
         closedAt: Date | null;
         deadlineDate: string | null;
-        isArchived: boolean;
     }>;
     postJob(jobId: string, user: User): Promise<void>;
     findAll(companyId: string): Promise<{
         id: string;
         title: string;
         description: string | null;
-        status: "draft" | "open" | "closed" | "archived";
+        status: "draft" | "closed" | "archived" | "open";
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
         deadlineDate: string | null;
@@ -81,7 +81,7 @@ export declare class JobsService {
         benefits: string[] | null;
         currency: string;
         description: string | null;
-        status: "draft" | "open" | "closed" | "archived";
+        status: "draft" | "closed" | "archived" | "open";
         postedAt: Date | null;
         closedAt: Date | null;
         createdAt: Date | null;
@@ -110,7 +110,7 @@ export declare class JobsService {
         benefits: string[] | null;
         currency: string;
         description: string | null;
-        status: "draft" | "open" | "closed" | "archived";
+        status: "draft" | "closed" | "archived" | "open";
         postedAt: Date | null;
         closedAt: Date | null;
         createdAt: Date | null;
@@ -125,7 +125,7 @@ export declare class JobsService {
         id: string;
         title: string;
         description: string | null;
-        status: "draft" | "open" | "closed" | "archived";
+        status: "draft" | "closed" | "archived" | "open";
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
         deadlineDate: string | null;
@@ -159,7 +159,7 @@ export declare class JobsService {
         benefits: string[] | null;
         currency: string;
         description: string | null;
-        status: "draft" | "open" | "closed" | "archived";
+        status: "draft" | "closed" | "archived" | "open";
         postedAt: Date | null;
         closedAt: Date | null;
         createdAt: Date | null;
@@ -171,7 +171,7 @@ export declare class JobsService {
         id: string;
         title: string;
         description: string | null;
-        status: "draft" | "open" | "closed" | "archived";
+        status: "draft" | "closed" | "archived" | "open";
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
         deadlineDate: string | null;
