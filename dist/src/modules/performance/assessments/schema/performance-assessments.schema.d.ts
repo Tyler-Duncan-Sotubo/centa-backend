@@ -109,7 +109,7 @@ export declare const performanceAssessments: import("drizzle-orm/pg-core").PgTab
             tableName: "performance_assessments";
             dataType: "string";
             columnType: "PgText";
-            data: "self" | "manager" | "peer";
+            data: "manager" | "self" | "peer";
             driverParam: string;
             notNull: true;
             hasDefault: false;
@@ -121,14 +121,14 @@ export declare const performanceAssessments: import("drizzle-orm/pg-core").PgTab
             identity: undefined;
             generated: undefined;
         }, {}, {
-            $type: "self" | "manager" | "peer";
+            $type: "manager" | "self" | "peer";
         }>;
         status: import("drizzle-orm/pg-core").PgColumn<{
             name: "status";
             tableName: "performance_assessments";
             dataType: "string";
             columnType: "PgText";
-            data: "not_started" | "in_progress" | "submitted";
+            data: "in_progress" | "submitted" | "not_started";
             driverParam: string;
             notNull: false;
             hasDefault: true;
@@ -140,7 +140,7 @@ export declare const performanceAssessments: import("drizzle-orm/pg-core").PgTab
             identity: undefined;
             generated: undefined;
         }, {}, {
-            $type: "not_started" | "in_progress" | "submitted";
+            $type: "in_progress" | "submitted" | "not_started";
         }>;
         submittedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "submitted_at";

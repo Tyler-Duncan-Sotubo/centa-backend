@@ -34,5 +34,7 @@ export declare class JobRolesController extends BaseController {
     update(id: string, updateJobRoleDto: UpdateJobRoleDto, user: User, ip: string): Promise<{
         id: any;
     }>;
-    remove(id: string, user: User): Promise<any>;
+    remove(id: string, user: User): Promise<{
+        id: string;
+    }>;
 }

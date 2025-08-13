@@ -75,6 +75,6 @@ export class ShiftsController extends BaseController {
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['shifts.manage'])
   remove(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.shiftsService.remove(id, user);
+    return this.shiftsService.remove(id, user.companyId);
   }
 }

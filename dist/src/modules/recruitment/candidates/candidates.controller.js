@@ -29,7 +29,7 @@ let CandidatesController = class CandidatesController {
         });
     }
     findOne(id) {
-        return this.candidatesService.findOne(id);
+        return this.candidatesService.findOne(+id);
     }
 };
 exports.CandidatesController = CandidatesController;

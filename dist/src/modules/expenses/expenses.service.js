@@ -11,11 +11,9 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-var ExpensesService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ExpensesService = void 0;
 const common_1 = require("@nestjs/common");
-const nestjs_pino_1 = require("nestjs-pino");
 const drizzle_module_1 = require("../../drizzle/drizzle.module");
 const audit_service_1 = require("../audit/audit.service");
 const drizzle_orm_1 = require("drizzle-orm");
@@ -30,41 +28,14 @@ const create_bulk_expense_dto_1 = require("./dto/create-bulk-expense.dto");
 const export_util_1 = require("../../utils/export.util");
 const s3_storage_service_1 = require("../../common/aws/s3-storage.service");
 const pusher_service_1 = require("../notification/services/pusher.service");
-const cache_service_1 = require("../../common/cache/cache.service");
-let ExpensesService = ExpensesService_1 = class ExpensesService {
-    constructor(db, auditService, awsService, expenseSettingsService, awsStorage, pusher, logger, cache) {
+let ExpensesService = class ExpensesService {
+    constructor(db, auditService, awsService, expenseSettingsService, awsStorage, pusher) {
         this.db = db;
         this.auditService = auditService;
         this.awsService = awsService;
         this.expenseSettingsService = expenseSettingsService;
         this.awsStorage = awsStorage;
         this.pusher = pusher;
-        this.logger = logger;
-        this.cache = cache;
-        this.logger.setContext(ExpensesService_1.name);
-    }
-    listKey(companyId) {
-        return `company:${companyId}:expenses:list`;
-    }
-    byEmpKey(employeeId) {
-        return `employee:${employeeId}:expenses:list`;
-    }
-    oneKey(expenseId) {
-        return `expense:${expenseId}:detail`;
-    }
-    reportKey(companyId, filters) {
-        const f = filters ? JSON.stringify(filters) : 'none';
-        return `company:${companyId}:expenses:report:${f}`;
-    }
-    async invalidateAfterChange(opts) {
-        const ops = [];
-        if (opts.companyId)
-            ops.push(this.cache.del(this.listKey(opts.companyId)));
-        if (opts.employeeId)
-            ops.push(this.cache.del(this.byEmpKey(opts.employeeId)));
-        if (opts.expenseId)
-            ops.push(this.cache.del(this.oneKey(opts.expenseId)));
-        await Promise.allSettled(ops);
     }
     async exportAndUploadExcel(rows, columns, filenameBase, companyId, folder) {
         if (!rows.length) {
@@ -226,225 +197,121 @@ let ExpensesService = ExpensesService_1 = class ExpensesService {
                 paymentMethod: expense.paymentMethod,
             },
         });
-        await this.invalidateAfterChange({
-            companyId: user.companyId,
-            expenseId: expense.id,
-            employeeId: expense.employeeId,
-        });
         return expense;
     }
     async bulkCreateExpenses(companyId, rows, user) {
-        this.logger.info({ companyId, rowCount: rows?.length ?? 0 }, 'bulkCreateExpenses:start');
-        if (!Array.isArray(rows) || rows.length === 0) {
-            throw new common_1.BadRequestException({ message: 'CSV has no rows' });
-        }
-        const trim = (v) => (typeof v === 'string' ? v.trim() : v);
-        const sanitizeRow = (r) => {
-            const out = {};
-            for (const k of Object.keys(r))
-                out[k] = trim(r[k]);
-            return out;
-        };
-        const toNumber = (v) => {
-            if (v === null || v === undefined || v === '')
-                return NaN;
-            const n = Number(String(v).replace(/[, ]/g, ''));
-            return Number.isFinite(n) ? n : NaN;
-        };
-        const toDateString = (v) => {
-            if (!v)
-                return undefined;
-            const raw = String(v).trim();
-            const iso = /^(\d{4})-(\d{2})-(\d{2})$/;
-            const dmy = /^(\d{2})\/(\d{2})\/(\d{4})$/;
-            const mdy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-            let y, m, d;
-            if (iso.test(raw))
-                return raw;
-            if (dmy.test(raw)) {
-                const [, dd, mm, yyyy] = raw.match(dmy);
-                y = +yyyy;
-                m = +mm;
-                d = +dd;
-            }
-            else if (mdy.test(raw)) {
-                const [, mm, dd, yyyy] = raw.match(mdy);
-                y = +yyyy;
-                m = +mm;
-                d = +dd;
-            }
-            else {
-                return undefined;
-            }
-            const dt = new Date(Date.UTC(y, m - 1, d));
-            return isNaN(dt.getTime()) ? undefined : dt.toISOString().slice(0, 10);
-        };
-        const firstKeys = Object.keys(rows[0] ?? {});
-        this.logger.debug(`bulkCreateExpenses: first row keys -> ${JSON.stringify(firstKeys)}`);
         const allEmployees = await this.db
             .select({
             id: schema_1.employees.id,
             fullName: (0, drizzle_orm_1.sql) `LOWER(${schema_1.employees.firstName} || ' ' || ${schema_1.employees.lastName})`,
         })
             .from(schema_1.employees)
-            .where((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId))
-            .execute();
-        const employeeMap = new Map(allEmployees.map((e) => [e.fullName, e.id]));
-        this.logger.debug(`bulkCreateExpenses: preloaded employees=${allEmployees.length}`);
-        const errors = [];
-        const prepared = [];
-        for (let i = 0; i < rows.length; i++) {
-            const raw = sanitizeRow(rows[i]);
-            try {
-                const empName = String(raw['Employee Name'] ?? '').toLowerCase();
-                const dateStr = toDateString(raw['Date']);
-                const category = String(raw['Category'] ?? '');
-                const purpose = String(raw['Purpose'] ?? '');
-                const amount = toNumber(raw['Amount']);
-                const paymentMethod = String(raw['Payment Method'] ?? '');
-                const employeeId = employeeMap.get(empName);
-                this.logger.debug(`row#${i}: employee="${raw['Employee Name']}" -> ${employeeId ? 'ok' : 'NOT FOUND'}, date="${raw['Date']}" -> ${dateStr}, category="${category}", purpose="${purpose}", amount="${raw['Amount']}" -> ${amount}, payment="${paymentMethod}"`);
-                if (!employeeId)
-                    throw new Error(`Unknown "Employee Name": ${raw['Employee Name']}`);
-                if (!dateStr)
-                    throw new Error(`"Date" is required/invalid`);
-                if (!category)
-                    throw new Error(`"Category" is required`);
-                if (!purpose)
-                    throw new Error(`"Purpose" is required`);
-                if (!Number.isFinite(amount))
-                    throw new Error(`"Amount" is invalid`);
-                if (!paymentMethod)
-                    throw new Error(`"Payment Method" is required`);
-                const dto = (0, class_transformer_1.plainToInstance)(create_bulk_expense_dto_1.CreateBulkExpenseDto, {
-                    date: dateStr,
-                    category,
-                    purpose,
-                    amount,
-                    paymentMethod,
-                });
-                const validationErrors = await (0, class_validator_1.validate)(dto);
-                if (validationErrors.length) {
-                    this.logger.warn(`row#${i}: class-validator failed -> ${JSON.stringify(validationErrors)}`);
-                    throw new Error(`Validation failed: ${JSON.stringify(validationErrors)}`);
-                }
-                prepared.push({ ...dto, employeeId });
+            .where((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId));
+        const employeeMap = new Map(allEmployees.map((e) => [e.fullName.toLowerCase(), e.id]));
+        const dtos = [];
+        for (const row of rows) {
+            const employeeName = row['Employee Name']?.trim().toLowerCase();
+            if (!employeeName) {
+                console.warn(`Skipping row with missing employee name:`, row);
+                continue;
             }
-            catch (e) {
-                const reason = e?.message ?? 'Invalid row';
-                errors.push({ index: i, name: raw['Employee Name'], reason });
-                this.logger.error(`row#${i} FAILED: ${reason}`);
+            const employeeId = employeeMap.get(employeeName);
+            if (!employeeId) {
+                console.warn(`Skipping row with unknown employee: ${employeeName}`);
+                continue;
             }
-        }
-        this.logger.debug(`bulkCreateExpenses: preparedRows=${prepared.length}, errorRows=${errors.length}`);
-        if (prepared.length === 0) {
-            throw new common_1.BadRequestException({
-                message: 'No valid rows in CSV',
-                errors,
+            const dto = (0, class_transformer_1.plainToInstance)(create_bulk_expense_dto_1.CreateBulkExpenseDto, {
+                date: row['Date'],
+                category: row['Category'],
+                purpose: row['Purpose'],
+                amount: parseFloat(row['Amount']),
+                status: 'Requested',
+                paymentMethod: row['Payment Method'],
             });
+            const errors = await (0, class_validator_1.validate)(dto);
+            if (errors.length) {
+                console.warn(`❌ Skipping invalid row for ${employeeName}:`, errors);
+                continue;
+            }
+            dtos.push({ ...dto, employeeId });
         }
-        const inserted = [];
-        for (let i = 0; i < prepared.length; i++) {
-            const d = prepared[i];
-            try {
-                const [exp] = await this.db
+        const inserted = await this.db.transaction(async (trx) => {
+            const insertedExpenses = [];
+            for (const dto of dtos) {
+                const [expense] = await trx
                     .insert(expense_schema_1.expenses)
                     .values({
                     companyId,
-                    employeeId: d.employeeId,
-                    date: d.date,
-                    category: d.category,
-                    purpose: d.purpose,
-                    amount: d.amount,
+                    employeeId: dto.employeeId,
+                    date: dto.date,
+                    category: dto.category,
+                    purpose: dto.purpose,
+                    amount: dto.amount,
                     status: 'requested',
                     submittedAt: new Date(),
-                    paymentMethod: d.paymentMethod,
+                    paymentMethod: dto.paymentMethod,
                 })
                     .returning()
                     .execute();
-                inserted.push(exp);
-                await this.invalidateAfterChange({ companyId });
-                for (const eId of new Set(inserted.map((x) => x.employeeId).filter(Boolean))) {
-                    await this.invalidateAfterChange({ employeeId: eId });
-                }
-                try {
-                    await this.handleExpenseApprovalFlow(exp.id, user);
-                }
-                catch (flowErr) {
-                    this.logger.warn({ expenseId: exp.id, err: flowErr?.message }, 'bulkCreateExpenses:approvalFlowFailed');
-                }
+                insertedExpenses.push(expense);
             }
-            catch (e) {
-                const reason = e?.message ?? 'DB insert failed';
-                errors.push({ index: i, name: 'unknown', reason });
-                this.logger.error(`insert row#${i} FAILED: ${reason}`);
-            }
-        }
-        this.logger.info({ inserted: inserted.length, errors: errors.length }, 'bulkCreateExpenses:done');
-        if (inserted.length === 0) {
-            throw new common_1.BadRequestException({
-                message: 'No expenses were created from CSV',
-                errors,
-            });
-        }
-        return { insertedCount: inserted.length, inserted, errors };
-    }
-    async findAll(companyId) {
-        return this.cache.getOrSetCache(this.listKey(companyId), async () => {
-            const latestApprovals = this.db.$with('latest_approvals').as(this.db
-                .select({
-                expenseId: expense_approval_schema_1.expenseApprovals.expenseId,
-                actorId: expense_approval_schema_1.expenseApprovals.actorId,
-                createdAt: expense_approval_schema_1.expenseApprovals.createdAt,
-                rowNumber: (0, drizzle_orm_1.sql) `ROW_NUMBER() OVER (PARTITION BY ${expense_approval_schema_1.expenseApprovals.expenseId} ORDER BY ${expense_approval_schema_1.expenseApprovals.createdAt} DESC)`.as('row_number'),
-            })
-                .from(expense_approval_schema_1.expenseApprovals)
-                .where((0, drizzle_orm_1.eq)(expense_approval_schema_1.expenseApprovals.action, 'approved')));
-            return this.db
-                .with(latestApprovals)
-                .select({
-                id: expense_schema_1.expenses.id,
-                date: expense_schema_1.expenses.date,
-                submittedAt: expense_schema_1.expenses.submittedAt,
-                category: expense_schema_1.expenses.category,
-                purpose: expense_schema_1.expenses.purpose,
-                amount: expense_schema_1.expenses.amount,
-                status: expense_schema_1.expenses.status,
-                paymentMethod: expense_schema_1.expenses.paymentMethod,
-                receiptUrl: expense_schema_1.expenses.receiptUrl,
-                requester: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
-                employeeId: expense_schema_1.expenses.employeeId,
-                approvedBy: (0, drizzle_orm_1.sql) `concat(${schema_1.users.firstName}, ' ', ${schema_1.users.lastName})`,
-            })
-                .from(expense_schema_1.expenses)
-                .leftJoin(schema_1.employees, (0, drizzle_orm_1.eq)(expense_schema_1.expenses.employeeId, schema_1.employees.id))
-                .leftJoin(latestApprovals, (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(expense_schema_1.expenses.id, latestApprovals.expenseId), (0, drizzle_orm_1.eq)(latestApprovals.rowNumber, 1)))
-                .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(latestApprovals.actorId, schema_1.users.id))
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(expense_schema_1.expenses.companyId, companyId), (0, drizzle_orm_1.isNull)(expense_schema_1.expenses.deletedAt)))
-                .orderBy((0, drizzle_orm_1.desc)(expense_schema_1.expenses.createdAt));
+            return insertedExpenses;
         });
+        for (const expense of inserted) {
+            await this.handleExpenseApprovalFlow(expense.id, user);
+        }
+        return inserted;
+    }
+    findAll(companyId) {
+        const latestApprovals = this.db.$with('latest_approvals').as(this.db
+            .select({
+            expenseId: expense_approval_schema_1.expenseApprovals.expenseId,
+            actorId: expense_approval_schema_1.expenseApprovals.actorId,
+            createdAt: expense_approval_schema_1.expenseApprovals.createdAt,
+            rowNumber: (0, drizzle_orm_1.sql) `ROW_NUMBER() OVER (PARTITION BY ${expense_approval_schema_1.expenseApprovals.expenseId} ORDER BY ${expense_approval_schema_1.expenseApprovals.createdAt} DESC)`.as('row_number'),
+        })
+            .from(expense_approval_schema_1.expenseApprovals)
+            .where((0, drizzle_orm_1.eq)(expense_approval_schema_1.expenseApprovals.action, 'approved')));
+        return this.db
+            .with(latestApprovals)
+            .select({
+            id: expense_schema_1.expenses.id,
+            date: expense_schema_1.expenses.date,
+            submittedAt: expense_schema_1.expenses.submittedAt,
+            category: expense_schema_1.expenses.category,
+            purpose: expense_schema_1.expenses.purpose,
+            amount: expense_schema_1.expenses.amount,
+            status: expense_schema_1.expenses.status,
+            paymentMethod: expense_schema_1.expenses.paymentMethod,
+            receiptUrl: expense_schema_1.expenses.receiptUrl,
+            requester: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
+            employeeId: expense_schema_1.expenses.employeeId,
+            approvedBy: (0, drizzle_orm_1.sql) `concat(${schema_1.users.firstName}, ' ', ${schema_1.users.lastName})`,
+        })
+            .from(expense_schema_1.expenses)
+            .leftJoin(schema_1.employees, (0, drizzle_orm_1.eq)(expense_schema_1.expenses.employeeId, schema_1.employees.id))
+            .leftJoin(latestApprovals, (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(expense_schema_1.expenses.id, latestApprovals.expenseId), (0, drizzle_orm_1.eq)(latestApprovals.rowNumber, 1)))
+            .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(latestApprovals.actorId, schema_1.users.id))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(expense_schema_1.expenses.companyId, companyId), (0, drizzle_orm_1.isNull)(expense_schema_1.expenses.deletedAt)))
+            .orderBy((0, drizzle_orm_1.desc)(expense_schema_1.expenses.createdAt));
     }
     async findAllByEmployeeId(employeeId) {
-        return this.cache.getOrSetCache(this.byEmpKey(employeeId), async () => {
-            return this.db
-                .select()
-                .from(expense_schema_1.expenses)
-                .where((0, drizzle_orm_1.eq)(expense_schema_1.expenses.employeeId, employeeId))
-                .orderBy((0, drizzle_orm_1.desc)(expense_schema_1.expenses.createdAt))
-                .execute();
-        });
+        const expensesList = await this.db
+            .select()
+            .from(expense_schema_1.expenses)
+            .where((0, drizzle_orm_1.eq)(expense_schema_1.expenses.employeeId, employeeId))
+            .orderBy((0, drizzle_orm_1.desc)(expense_schema_1.expenses.createdAt));
+        return expensesList;
     }
     async findOne(id) {
-        return this.cache.getOrSetCache(this.oneKey(id), async () => {
-            const [expense] = await this.db
-                .select()
-                .from(expense_schema_1.expenses)
-                .where((0, drizzle_orm_1.eq)(expense_schema_1.expenses.id, id))
-                .execute();
-            if (!expense)
-                throw new common_1.BadRequestException(`Expense with ID ${id} not found`);
-            return expense;
-        });
+        const [expense] = await this.db
+            .select()
+            .from(expense_schema_1.expenses)
+            .where((0, drizzle_orm_1.eq)(expense_schema_1.expenses.id, id));
+        if (!expense) {
+            throw new common_1.BadRequestException(`Expense with ID ${id} not found`);
+        }
+        return expense;
     }
     async update(id, dto, user) {
         const expense = await this.findOne(id);
@@ -485,11 +352,6 @@ let ExpensesService = ExpensesService_1 = class ExpensesService {
                 receiptUrl: updated.receiptUrl,
                 paymentMethod: updated.paymentMethod,
             },
-        });
-        await this.invalidateAfterChange({
-            companyId: user.companyId,
-            expenseId: updated.id,
-            employeeId: updated.employeeId,
         });
         return updated;
     }
@@ -644,11 +506,6 @@ let ExpensesService = ExpensesService_1 = class ExpensesService {
                 .execute();
             await this.pusher.createEmployeeNotification(user.companyId, expense.employeeId, `Your expense request has been ${action}`, 'expense');
             await this.pusher.createNotification(user.companyId, `Your expense request has been ${action}`, 'expense');
-            await this.invalidateAfterChange({
-                companyId: user.companyId,
-                expenseId,
-                employeeId: expense.employeeId,
-            });
             return `Expense fully approved via fallback`;
         }
         await this.db
@@ -697,11 +554,6 @@ let ExpensesService = ExpensesService_1 = class ExpensesService {
             changes: {
                 deletedAt: updated.deletedAt,
             },
-        });
-        await this.invalidateAfterChange({
-            companyId: user.companyId,
-            expenseId: id,
-            employeeId: updated.employeeId,
         });
         return { success: true, id: updated.id };
     }
@@ -790,15 +642,13 @@ let ExpensesService = ExpensesService_1 = class ExpensesService {
     }
 };
 exports.ExpensesService = ExpensesService;
-exports.ExpensesService = ExpensesService = ExpensesService_1 = __decorate([
+exports.ExpensesService = ExpensesService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
         aws_service_1.AwsService,
         expense_settings_service_1.ExpensesSettingsService,
         s3_storage_service_1.S3StorageService,
-        pusher_service_1.PusherService,
-        nestjs_pino_1.PinoLogger,
-        cache_service_1.CacheService])
+        pusher_service_1.PusherService])
 ], ExpensesService);
 //# sourceMappingURL=expenses.service.js.map

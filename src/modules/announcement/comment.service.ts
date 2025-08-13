@@ -11,62 +11,43 @@ import {
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { CreateAnnouncementCommentDto } from './dto/create-announcement-comments.dto';
 import { users } from '../auth/schema';
-import { CacheService } from 'src/common/cache/cache.service';
-import { REACTION_TYPES, ReactionType } from './types/reaction-types';
-import { AnnouncementCacheService } from 'src/common/cache/announcement-cache.service';
 
 @Injectable()
 export class CommentService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
-    private readonly cache: CacheService,
-    private readonly announcementCache: AnnouncementCacheService,
   ) {}
 
-  // ------- cache keys -------
-  private commentsKey(announcementId: string) {
-    return `announcement:${announcementId}:comments`; // list of comments w/ author info
-  }
-  private reactionCountsKey(announcementId: string) {
-    return `announcement:${announcementId}:comment-reaction-counts`; // map of {commentId: [{reactionType,count}]}
-  }
-  private async invalidateAnnouncementCaches(announcementId: string) {
-    await Promise.allSettled([
-      this.cache.del(this.commentsKey(announcementId)),
-      this.cache.del(this.reactionCountsKey(announcementId)),
-    ]);
-  }
-
-  // ------- create -------
   async createComment(
     dto: CreateAnnouncementCommentDto,
     announcementId: string,
     user: User,
   ) {
+    // Check if the announcement exists
     const [announcement] = await this.db
-      .select({ id: announcements.id })
+      .select()
       .from(announcements)
       .where(eq(announcements.id, announcementId))
-      .limit(1)
       .execute();
 
     if (!announcement) {
       throw new BadRequestException('Announcement not found');
     }
 
+    // Insert the comment into the database
     const [newComment] = await this.db
       .insert(announcementComments)
       .values({
         comment: dto.comment,
         createdBy: user.id,
-        // createdAt via DB default is preferred; if column lacks default, keep this:
         createdAt: new Date(),
-        announcementId,
+        announcementId: announcementId,
       })
       .returning()
       .execute();
 
+    // Log the creation in the audit service
     await this.auditService.logAction({
       action: 'create',
       entity: 'announcement_comment',
@@ -80,73 +61,44 @@ export class CommentService {
       },
     });
 
-    // bust caches affected
-    await this.invalidateAnnouncementCaches(announcementId);
-
     return newComment;
   }
 
-  // ------- read (with caching) -------
   async getComments(announcementId: string, userId: string) {
-    // 1) base comments (cached)
-    const comments = await this.cache.getOrSetCache(
-      this.commentsKey(announcementId),
-      async () => {
-        return this.db
-          .select({
-            id: announcementComments.id,
-            comment: announcementComments.comment,
-            createdAt: announcementComments.createdAt,
-            createdBy:
-              sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`.as(
-                'createdBy',
-              ),
-            avatarUrl: users.avatar,
-          })
-          .from(announcementComments)
-          .innerJoin(users, eq(announcementComments.createdBy, users.id))
-          .where(eq(announcementComments.announcementId, announcementId))
-          .orderBy(desc(announcementComments.createdAt))
-          .execute();
-      },
-      // { ttl: 60 } // if your CacheService supports TTLs
-    );
-
-    if (comments.length === 0) return [];
+    const comments = await this.db
+      .select({
+        id: announcementComments.id,
+        comment: announcementComments.comment,
+        createdAt: announcementComments.createdAt,
+        createdBy:
+          sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`.as(
+            'createdBy',
+          ),
+        avatarUrl: users.avatar,
+      })
+      .from(announcementComments)
+      .innerJoin(users, eq(announcementComments.createdBy, users.id))
+      .where(eq(announcementComments.announcementId, announcementId))
+      .orderBy(desc(announcementComments.createdAt))
+      .execute();
 
     const commentIds = comments.map((c) => c.id);
 
-    // 2) reaction counts for these comments (cached, user-agnostic)
-    const counts = await this.cache.getOrSetCache(
-      this.reactionCountsKey(announcementId),
-      async () => {
-        const rows = await this.db
-          .select({
-            commentId: commentReactions.commentId,
-            reactionType: commentReactions.reactionType,
-            count: sql<number>`COUNT(*)`.as('count'),
-          })
-          .from(commentReactions)
-          .where(inArray(commentReactions.commentId, commentIds))
-          .groupBy(commentReactions.commentId, commentReactions.reactionType)
-          .execute();
+    if (commentIds.length === 0) return [];
 
-        // store as { [commentId]: [{reactionType,count}] }
-        const map: Record<string, { reactionType: string; count: number }[]> =
-          {};
-        for (const rc of rows) {
-          if (!map[rc.commentId]) map[rc.commentId] = [];
-          map[rc.commentId].push({
-            reactionType: rc.reactionType,
-            count: rc.count,
-          });
-        }
-        return map;
-      },
-      // { ttl: 30 }
-    );
+    // 1️⃣ Reactions count (already grouped per reactionType)
+    const reactionCounts = await this.db
+      .select({
+        commentId: commentReactions.commentId,
+        reactionType: commentReactions.reactionType,
+        count: sql<number>`COUNT(*)`.as('count'),
+      })
+      .from(commentReactions)
+      .where(inArray(commentReactions.commentId, commentIds))
+      .groupBy(commentReactions.commentId, commentReactions.reactionType)
+      .execute();
 
-    // 3) user-specific reactions (live, not cached)
+    // 2️⃣ User reactions for current user
     const userReactions = await this.db
       .select({
         commentId: commentReactions.commentId,
@@ -161,29 +113,41 @@ export class CommentService {
       )
       .execute();
 
+    // 3️⃣ Build maps for quick access
     const userReactionMap = new Map<string, string[]>();
-    for (const ur of userReactions) {
-      if (!userReactionMap.has(ur.commentId))
+    userReactions.forEach((ur) => {
+      if (!userReactionMap.has(ur.commentId)) {
         userReactionMap.set(ur.commentId, []);
+      }
       userReactionMap.get(ur.commentId)!.push(ur.reactionType);
-    }
+    });
 
-    // 4) merge
-    return comments.map((c) => ({
-      ...c,
-      reactions: counts[c.id] || [],
-      userReactions: userReactionMap.get(c.id) || [],
+    const reactionCountMap = new Map<
+      string,
+      { reactionType: string; count: number }[]
+    >();
+    reactionCounts.forEach((rc) => {
+      if (!reactionCountMap.has(rc.commentId)) {
+        reactionCountMap.set(rc.commentId, []);
+      }
+      reactionCountMap.get(rc.commentId)!.push({
+        reactionType: rc.reactionType,
+        count: rc.count,
+      });
+    });
+
+    // 4️⃣ Final response
+    return comments.map((comment) => ({
+      ...comment,
+      reactions: reactionCountMap.get(comment.id) || [],
+      userReactions: userReactionMap.get(comment.id) || [],
     }));
   }
 
-  // ------- delete -------
   async deleteComment(commentId: string, user: User) {
-    // confirm & get announcementId for cache invalidation
+    // Check if the comment exists
     const [comment] = await this.db
-      .select({
-        id: announcementComments.id,
-        announcementId: announcementComments.announcementId,
-      })
+      .select()
       .from(announcementComments)
       .where(
         and(
@@ -191,16 +155,19 @@ export class CommentService {
           eq(announcementComments.createdBy, user.id),
         ),
       )
-      .limit(1)
       .execute();
 
-    if (!comment) throw new BadRequestException('Comment not found');
+    if (!comment) {
+      throw new BadRequestException('Comment not found');
+    }
 
+    // Delete the comment from the database
     await this.db
       .delete(announcementComments)
       .where(eq(announcementComments.id, commentId))
       .execute();
 
+    // Log the deletion in the audit service
     await this.auditService.logAction({
       action: 'delete',
       entity: 'announcement_comment',
@@ -209,71 +176,53 @@ export class CommentService {
       details: `Deleted comment with ID: ${commentId}`,
     });
 
-    // reactions on this comment may be cascade-deleted via FK; either way counts change
-    await this.invalidateAnnouncementCaches(comment.announcementId);
-
     return { message: 'Comment deleted successfully' };
   }
 
-  // ------- toggle reaction (with cache busting) -------
+  // Reactions on Comments
   async toggleCommentReaction(
     commentId: string,
-    user: User,
-    reactionType: ReactionType,
+    userId: string,
+    reactionType: string,
   ) {
-    const { id: userId, companyId } = user;
-    if (!REACTION_TYPES.includes(reactionType)) {
+    const validReactions = [
+      'like',
+      'love',
+      'celebrate',
+      'sad',
+      'angry',
+      'clap',
+      'happy',
+    ];
+
+    if (!validReactions.includes(reactionType)) {
       throw new BadRequestException('Invalid reaction type');
     }
 
-    // Need announcementId to bust caches after mutation
-    const [comment] = await this.db
-      .select({
-        id: announcementComments.id,
-        announcementId: announcementComments.announcementId,
-      })
-      .from(announcementComments)
-      .where(eq(announcementComments.id, commentId))
-      .limit(1)
+    // Check if user has already reacted with this type
+    const [existingReaction] = await this.db
+      .select()
+      .from(commentReactions)
+      .where(
+        and(
+          eq(commentReactions.commentId, commentId),
+          eq(commentReactions.createdBy, userId),
+          eq(commentReactions.reactionType, reactionType),
+        ),
+      )
       .execute();
 
-    if (!comment) throw new BadRequestException('Comment not found');
-
-    // Use a transaction; guard with unique(commentId, createdBy, reactionType)
-    const reacted = await this.db.transaction(async (tx) => {
-      const [existing] = await tx
-        .select({ id: commentReactions.id })
-        .from(commentReactions)
-        .where(
-          and(
-            eq(commentReactions.commentId, commentId),
-            eq(commentReactions.createdBy, userId),
-            eq(commentReactions.reactionType, reactionType),
-          ),
-        )
-        .limit(1)
+    if (existingReaction) {
+      // User already reacted — remove reaction (toggle off)
+      await this.db
+        .delete(commentReactions)
+        .where(eq(commentReactions.id, existingReaction.id))
         .execute();
 
-      if (existing) {
-        await tx
-          .delete(commentReactions)
-          .where(eq(commentReactions.id, existing.id))
-          .execute();
-
-        await this.auditService.logAction({
-          action: 'comment_reaction_removed',
-          entity: 'announcement_comment',
-          entityId: commentId,
-          userId,
-          details: `Removed ${reactionType} on comment ${commentId}`,
-          changes: { id: existing.id, reactionType },
-        });
-
-        return false;
-      }
-
-      // Insert, ignore race duplicates if another concurrent insert wins
-      await tx
+      return { reacted: false };
+    } else {
+      // Insert new reaction
+      await this.db
         .insert(commentReactions)
         .values({
           commentId,
@@ -283,26 +232,7 @@ export class CommentService {
         })
         .execute();
 
-      await this.auditService.logAction({
-        action: 'comment_reaction_added',
-        entity: 'announcement_comment',
-        entityId: commentId,
-        userId,
-        details: `Added ${reactionType} on comment ${commentId}`,
-      });
-
-      return true;
-    });
-
-    await Promise.allSettled([
-      this.cache.del(this.commentsKey(comment.announcementId)),
-      this.cache.del(this.reactionCountsKey(comment.announcementId)),
-      // if supported: this.cache.delByPrefix(this.announcementDetailPrefix(comment.announcementId)),
-    ]);
-    await Promise.allSettled([
-      this.announcementCache.invalidateLists(companyId),
-    ]);
-
-    return { reacted };
+      return { reacted: true };
+    }
   }
 }

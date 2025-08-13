@@ -3,13 +3,9 @@ import { db } from 'src/drizzle/types/drizzle';
 import { User } from 'src/common/types/user.type';
 import { CreateLeavePolicyDto } from './dto/create-leave-policy.dto';
 import { UpdateLeavePolicyDto } from './dto/update-leave-policy.dto';
-import { PinoLogger } from 'nestjs-pino';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class LeavePolicyService {
     private readonly auditService;
     private readonly db;
-    private readonly logger;
-    private readonly cache;
     protected readonly table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "leave_policies";
         schema: undefined;
@@ -310,12 +306,7 @@ export declare class LeavePolicyService {
         };
         dialect: "pg";
     }>;
-    constructor(auditService: AuditService, db: db, logger: PinoLogger, cache: CacheService);
-    private oneKey;
-    private listKey;
-    private byLeaveTypeKey;
-    private accrualListKey;
-    private burst;
+    constructor(auditService: AuditService, db: db);
     bulkCreateLeavePolicies(companyId: string, rows: any[]): Promise<{
         id: string;
         createdAt: Date | null;
@@ -335,7 +326,7 @@ export declare class LeavePolicyService {
         eligibilityRules: unknown;
         isSplittable: boolean | null;
     }[]>;
-    create(dto: CreateLeavePolicyDto, user: User, ip: string): Promise<{
+    create(leaveTypeId: string, dto: CreateLeavePolicyDto, user: User, ip: string): Promise<{
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
@@ -407,7 +398,7 @@ export declare class LeavePolicyService {
         createdAt: Date | null;
         updatedAt: Date | null;
     }>;
-    findAllAccrualPolicies(companyId?: string): Promise<{
+    findAllAccrualPolicies(): Promise<{
         id: string;
         companyId: string;
         leaveTypeId: string;
@@ -426,7 +417,7 @@ export declare class LeavePolicyService {
         createdAt: Date | null;
         updatedAt: Date | null;
     }[]>;
-    findAllNonAccrualPolicies(companyId?: string): Promise<{
+    findAllNonAccrualPolicies(): Promise<{
         id: string;
         companyId: string;
         leaveTypeId: string;
@@ -464,7 +455,5 @@ export declare class LeavePolicyService {
         createdAt: Date | null;
         updatedAt: Date | null;
     }>;
-    remove(leavePolicyId: string, user: User, ip: string): Promise<{
-        message: string;
-    }>;
+    remove(leavePolicyId: string, user: User, ip: string): Promise<void>;
 }

@@ -18,10 +18,26 @@ const drizzle_module_1 = require("../../../drizzle/drizzle.module");
 const drizzle_orm_1 = require("drizzle-orm");
 const audit_service_1 = require("../../audit/audit.service");
 const performance_appraisal_cycle_schema_1 = require("./schema/performance-appraisal-cycle.schema");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let AppraisalCycleService = class AppraisalCycleService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
+        this.ttlSeconds = 60 * 5;
+    }
+    ns(companyId) {
+        return ['performance', 'appraisal-cycles', companyId];
+    }
+    tags(companyId) {
+        return [
+            `company:${companyId}`,
+            'performance',
+            'performance:appraisal-cycles',
+        ];
+    }
+    async bump(companyId) {
+        await this.cache.bumpCompanyVersion(companyId);
     }
     async create(createDto, companyId, userId) {
         const existing = await this.db
@@ -57,68 +73,72 @@ let AppraisalCycleService = class AppraisalCycleService {
                 },
             });
         }
+        await this.bump(companyId);
         return created;
     }
     async findAll(companyId) {
-        const appraisalCycles = await this.db
+        const key = [...this.ns(companyId), 'all'];
+        const rows = await this.cache.getOrSetVersioned(companyId, [...key], async () => this.db
             .select()
             .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
             .where((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, companyId))
             .orderBy((0, drizzle_orm_1.asc)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate))
-            .execute();
-        const today = new Date().toISOString();
-        const currentCycle = appraisalCycles.find((cycle) => cycle.startDate <= today &&
-            cycle.endDate >= today &&
-            cycle.companyId === companyId);
-        return appraisalCycles.map((cycle) => ({
-            ...cycle,
-            status: cycle.id === currentCycle?.id ? 'active' : 'upcoming',
+            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        const nowIso = new Date().toISOString();
+        const current = rows.find((c) => c.startDate <= nowIso && c.endDate >= nowIso);
+        return rows.map((c) => ({
+            ...c,
+            status: c.id === current?.id ? 'active' : 'upcoming',
         }));
     }
     async getLastCycle(companyId) {
-        const [lastCycle] = await this.db
-            .select()
-            .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
-            .where((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, companyId))
-            .orderBy((0, drizzle_orm_1.desc)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate))
-            .limit(1)
-            .execute();
-        return lastCycle ?? null;
+        const key = [...this.ns(companyId), 'last'];
+        return this.cache.getOrSetVersioned(companyId, [...key], async () => {
+            const [lastCycle] = await this.db
+                .select()
+                .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
+                .where((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, companyId))
+                .orderBy((0, drizzle_orm_1.desc)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate))
+                .limit(1)
+                .execute();
+            return lastCycle ?? null;
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+    }
+    async getLast(companyId) {
+        return this.getLastCycle(companyId);
     }
     async findCurrent(companyId) {
-        const today = new Date().toISOString();
-        const current = await this.db
-            .select()
-            .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, companyId), (0, drizzle_orm_1.lte)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate, today), (0, drizzle_orm_1.gte)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.endDate, today)))
-            .orderBy((0, drizzle_orm_1.desc)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate))
-            .limit(1)
-            .execute();
-        return current[0] ?? null;
+        const day = new Date().toISOString().slice(0, 10);
+        const key = [...this.ns(companyId), 'current', day];
+        return this.cache.getOrSetVersioned(companyId, [...key], async () => {
+            const today = new Date().toISOString();
+            const current = await this.db
+                .select()
+                .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, companyId), (0, drizzle_orm_1.lte)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate, today), (0, drizzle_orm_1.gte)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.endDate, today)))
+                .orderBy((0, drizzle_orm_1.desc)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate))
+                .limit(1)
+                .execute();
+            return current[0] ?? null;
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async findOne(id, companyId) {
-        const [cycle] = await this.db
-            .select()
-            .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.id, id), (0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, companyId)))
-            .execute();
+        const key = [...this.ns(companyId), 'one', id];
+        const cycle = await this.cache.getOrSetVersioned(companyId, [...key], async () => {
+            const [row] = await this.db
+                .select()
+                .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.id, id), (0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, companyId)))
+                .limit(1)
+                .execute();
+            return row ?? null;
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
         if (!cycle) {
             throw new common_1.NotFoundException(`Appraisal cycle with ID ${id} not found`);
         }
-        const today = new Date().toISOString();
-        const isActive = cycle.startDate <= today && cycle.endDate >= today;
-        cycle.status = isActive ? 'active' : 'upcoming';
-        return cycle;
-    }
-    async getLast(companyId) {
-        const [last] = await this.db
-            .select()
-            .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
-            .where((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, companyId))
-            .orderBy((0, drizzle_orm_1.desc)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate))
-            .limit(1)
-            .execute();
-        return last ?? null;
+        const nowIso = new Date().toISOString();
+        const isActive = cycle.startDate <= nowIso && cycle.endDate >= nowIso;
+        return { ...cycle, status: isActive ? 'active' : 'upcoming' };
     }
     async update(id, updateDto, user) {
         await this.findOne(id, user.companyId);
@@ -142,6 +162,7 @@ let AppraisalCycleService = class AppraisalCycleService {
                 updatedAt: new Date().toISOString(),
             },
         });
+        await this.bump(user.companyId);
         return updated;
     }
     async remove(id, user) {
@@ -161,6 +182,7 @@ let AppraisalCycleService = class AppraisalCycleService {
                 deletedAt: new Date().toISOString(),
             },
         });
+        await this.bump(companyId);
         return { message: 'Cycle deleted successfully' };
     }
 };
@@ -168,6 +190,7 @@ exports.AppraisalCycleService = AppraisalCycleService;
 exports.AppraisalCycleService = AppraisalCycleService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], AppraisalCycleService);
 //# sourceMappingURL=appraisal-cycle.service.js.map

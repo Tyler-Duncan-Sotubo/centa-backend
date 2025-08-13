@@ -11,13 +11,13 @@ export declare class AssetsRequestController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        employeeId: string;
-        status: string | null;
-        notes: string | null;
         requestDate: string;
         assetType: string;
         purpose: string;
         urgency: string;
+        notes: string | null;
+        status: string | null;
+        employeeId: string;
         rejectionReason: string | null;
     }>;
     findAll(user: User): Promise<({
@@ -75,9 +75,9 @@ export declare class AssetsRequestController extends BaseController {
         requestDate: string;
         approvalStatus: string | null;
         steps: {
-            fallbackRoles: any;
-            isUserEligible: any;
-            isFallback: any;
+            fallbackRoles: string[];
+            isUserEligible: boolean;
+            isFallback: boolean;
             id: string;
             sequence: number;
             role: string;

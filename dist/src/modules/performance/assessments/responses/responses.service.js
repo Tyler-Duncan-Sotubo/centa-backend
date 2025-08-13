@@ -21,35 +21,67 @@ const performance_assessment_responses_schema_1 = require("../schema/performance
 const schema_1 = require("../../../../drizzle/schema");
 const performance_assessments_schema_1 = require("../schema/performance-assessments.schema");
 const audit_service_1 = require("../../../audit/audit.service");
+const cache_service_1 = require("../../../../common/cache/cache.service");
 let AssessmentResponsesService = class AssessmentResponsesService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
+        this.ttlSeconds = 10 * 60;
+    }
+    tags(companyId) {
+        return [`company:${companyId}:assessments`];
+    }
+    async invalidate(companyId) {
+        await this.cache.bumpCompanyVersion(companyId);
     }
     async getResponsesForAssessment(assessmentId) {
-        const [assessment] = await this.db
-            .select({ templateId: performance_assessments_schema_1.performanceAssessments.templateId })
-            .from(performance_assessments_schema_1.performanceAssessments)
-            .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.id, assessmentId));
-        if (!assessment) {
-            throw new common_1.NotFoundException('Assessment not found');
-        }
-        const results = await this.db
+        const [meta] = await this.db
             .select({
-            questionId: schema_1.performanceReviewQuestions.id,
-            question: schema_1.performanceReviewQuestions.question,
-            type: schema_1.performanceReviewQuestions.type,
-            order: schema_1.performanceTemplateQuestions.order,
-            response: performance_assessment_responses_schema_1.assessmentResponses.response,
+            templateId: performance_assessments_schema_1.performanceAssessments.templateId,
+            companyId: performance_assessments_schema_1.performanceAssessments.companyId,
         })
-            .from(performance_assessment_responses_schema_1.assessmentResponses)
-            .innerJoin(schema_1.performanceReviewQuestions, (0, drizzle_orm_1.eq)(performance_assessment_responses_schema_1.assessmentResponses.questionId, schema_1.performanceReviewQuestions.id))
-            .innerJoin(schema_1.performanceTemplateQuestions, (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.questionId, schema_1.performanceReviewQuestions.id), (0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, assessment.templateId)))
-            .where((0, drizzle_orm_1.eq)(performance_assessment_responses_schema_1.assessmentResponses.assessmentId, assessmentId))
-            .orderBy(schema_1.performanceTemplateQuestions.order);
-        return results;
+            .from(performance_assessments_schema_1.performanceAssessments)
+            .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.id, assessmentId))
+            .limit(1);
+        if (!meta)
+            throw new common_1.NotFoundException('Assessment not found');
+        return this.cache.getOrSetVersioned(meta.companyId, ['assessments', 'responses', assessmentId], async () => {
+            const results = await this.db
+                .select({
+                questionId: schema_1.performanceReviewQuestions.id,
+                question: schema_1.performanceReviewQuestions.question,
+                type: schema_1.performanceReviewQuestions.type,
+                order: schema_1.performanceTemplateQuestions.order,
+                response: performance_assessment_responses_schema_1.assessmentResponses.response,
+            })
+                .from(schema_1.performanceTemplateQuestions)
+                .innerJoin(schema_1.performanceReviewQuestions, (0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.questionId, schema_1.performanceReviewQuestions.id))
+                .leftJoin(performance_assessment_responses_schema_1.assessmentResponses, (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_assessment_responses_schema_1.assessmentResponses.assessmentId, assessmentId), (0, drizzle_orm_1.eq)(performance_assessment_responses_schema_1.assessmentResponses.questionId, schema_1.performanceReviewQuestions.id)))
+                .where((0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, meta.templateId))
+                .orderBy(schema_1.performanceTemplateQuestions.order);
+            return results;
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(meta.companyId) });
     }
     async saveResponse(assessmentId, dto, user) {
+        const [meta] = await this.db
+            .select({
+            templateId: performance_assessments_schema_1.performanceAssessments.templateId,
+            companyId: performance_assessments_schema_1.performanceAssessments.companyId,
+        })
+            .from(performance_assessments_schema_1.performanceAssessments)
+            .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.id, assessmentId))
+            .limit(1);
+        if (!meta)
+            throw new common_1.NotFoundException('Assessment not found');
+        const [belongs] = await this.db
+            .select({ questionId: schema_1.performanceTemplateQuestions.questionId })
+            .from(schema_1.performanceTemplateQuestions)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, meta.templateId), (0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.questionId, dto.questionId)))
+            .limit(1);
+        if (!belongs) {
+            throw new common_1.BadRequestException('Question does not belong to assessment template');
+        }
         await this.db
             .delete(performance_assessment_responses_schema_1.assessmentResponses)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_assessment_responses_schema_1.assessmentResponses.assessmentId, assessmentId), (0, drizzle_orm_1.eq)(performance_assessment_responses_schema_1.assessmentResponses.questionId, dto.questionId)));
@@ -71,9 +103,33 @@ let AssessmentResponsesService = class AssessmentResponsesService {
                 response: dto.response,
             },
         });
+        await this.invalidate(meta.companyId);
         return { success: true };
     }
     async bulkSaveResponses(assessmentId, dto, user) {
+        const [meta] = await this.db
+            .select({
+            templateId: performance_assessments_schema_1.performanceAssessments.templateId,
+            companyId: performance_assessments_schema_1.performanceAssessments.companyId,
+        })
+            .from(performance_assessments_schema_1.performanceAssessments)
+            .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.id, assessmentId))
+            .limit(1);
+        if (!meta)
+            throw new common_1.NotFoundException('Assessment not found');
+        const ids = dto.responses.map((r) => r.questionId);
+        if (ids.length === 0) {
+            return { success: true, count: 0 };
+        }
+        const validQs = await this.db
+            .select({ questionId: schema_1.performanceTemplateQuestions.questionId })
+            .from(schema_1.performanceTemplateQuestions)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, meta.templateId), (0, drizzle_orm_1.inArray)(schema_1.performanceTemplateQuestions.questionId, ids)));
+        const validSet = new Set(validQs.map((q) => q.questionId));
+        const invalid = ids.filter((id) => !validSet.has(id));
+        if (invalid.length) {
+            throw new common_1.BadRequestException(`Some questions do not belong to the assessment template: ${invalid.join(', ')}`);
+        }
         await this.db
             .delete(performance_assessment_responses_schema_1.assessmentResponses)
             .where((0, drizzle_orm_1.eq)(performance_assessment_responses_schema_1.assessmentResponses.assessmentId, assessmentId));
@@ -95,6 +151,7 @@ let AssessmentResponsesService = class AssessmentResponsesService {
                 responses: payload,
             },
         });
+        await this.invalidate(meta.companyId);
         return { success: true, count: payload.length };
     }
 };
@@ -102,6 +159,7 @@ exports.AssessmentResponsesService = AssessmentResponsesService;
 exports.AssessmentResponsesService = AssessmentResponsesService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_2.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], AssessmentResponsesService);
 //# sourceMappingURL=responses.service.js.map

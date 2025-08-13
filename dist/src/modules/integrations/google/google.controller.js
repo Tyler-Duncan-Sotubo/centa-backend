@@ -32,7 +32,7 @@ let GoogleController = class GoogleController extends base_controller_1.BaseCont
         return this.googleService.findOne(user.companyId);
     }
     update(updateGoogleDto, user) {
-        return this.googleService.update(user.companyId, updateGoogleDto);
+        return this.googleService.update(user, updateGoogleDto);
     }
 };
 exports.GoogleController = GoogleController;

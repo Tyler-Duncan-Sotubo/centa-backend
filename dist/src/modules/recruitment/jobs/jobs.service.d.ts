@@ -1,40 +1,31 @@
 import { db } from 'src/drizzle/types/drizzle';
+import { CreateJobDto } from './dto/create-job.dto';
+import { UpdateJobDto } from './dto/update-job.dto';
 import { PipelineSeederService } from '../pipeline/pipeline-seeder.service';
 import { User } from 'src/common/types/user.type';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { PublicJobsDto } from './dto/public-jobs.dto';
 import { CompanyJobsDto } from './dto/company-job.dto';
-import { PinoLogger } from 'nestjs-pino';
-import { CacheService } from 'src/common/cache/cache.service';
-import { CreateJobDto } from './dto/create-job.dto';
-import { UpdateJobDto } from './dto/update-job.dto';
 export declare class JobsService {
     private readonly db;
     private readonly pipelineSeederService;
     private readonly auditService;
-    private readonly logger;
-    private readonly cache;
-    constructor(db: db, pipelineSeederService: PipelineSeederService, auditService: AuditService, logger: PinoLogger, cache: CacheService);
-    private listKey;
-    private oneKey;
-    private publicJobKey;
-    private burst;
+    constructor(db: db, pipelineSeederService: PipelineSeederService, auditService: AuditService);
     create(createDto: CreateJobDto & {
         pipelineTemplateId?: string;
     }, user: User): Promise<{
         id: string;
-        country: string | null;
-        currency: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        country: string | null;
+        currency: string;
         companyId: string;
-        description: string | null;
-        title: string;
         city: string | null;
         state: string | null;
         createdBy: string;
-        status: "draft" | "closed" | "archived" | "open";
-        isArchived: boolean;
+        description: string | null;
+        title: string;
+        status: "draft" | "open" | "closed" | "archived";
         externalJobId: string | null;
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
@@ -49,13 +40,14 @@ export declare class JobsService {
         postedAt: Date | null;
         closedAt: Date | null;
         deadlineDate: string | null;
+        isArchived: boolean;
     }>;
     postJob(jobId: string, user: User): Promise<void>;
     findAll(companyId: string): Promise<{
         id: string;
         title: string;
         description: string | null;
-        status: "draft" | "closed" | "archived" | "open";
+        status: "draft" | "open" | "closed" | "archived";
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
         deadlineDate: string | null;
@@ -81,7 +73,7 @@ export declare class JobsService {
         benefits: string[] | null;
         currency: string;
         description: string | null;
-        status: "draft" | "closed" | "archived" | "open";
+        status: "draft" | "open" | "closed" | "archived";
         postedAt: Date | null;
         closedAt: Date | null;
         createdAt: Date | null;
@@ -110,7 +102,7 @@ export declare class JobsService {
         benefits: string[] | null;
         currency: string;
         description: string | null;
-        status: "draft" | "closed" | "archived" | "open";
+        status: "draft" | "open" | "closed" | "archived";
         postedAt: Date | null;
         closedAt: Date | null;
         createdAt: Date | null;
@@ -125,7 +117,7 @@ export declare class JobsService {
         id: string;
         title: string;
         description: string | null;
-        status: "draft" | "closed" | "archived" | "open";
+        status: "draft" | "open" | "closed" | "archived";
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
         deadlineDate: string | null;
@@ -159,7 +151,7 @@ export declare class JobsService {
         benefits: string[] | null;
         currency: string;
         description: string | null;
-        status: "draft" | "closed" | "archived" | "open";
+        status: "draft" | "open" | "closed" | "archived";
         postedAt: Date | null;
         closedAt: Date | null;
         createdAt: Date | null;
@@ -171,7 +163,7 @@ export declare class JobsService {
         id: string;
         title: string;
         description: string | null;
-        status: "draft" | "closed" | "archived" | "open";
+        status: "draft" | "open" | "closed" | "archived";
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
         deadlineDate: string | null;

@@ -31,17 +31,17 @@ let ReservedDaysController = class ReservedDaysController extends base_controlle
     findAll(user) {
         return this.reservedDaysService.findAll(user.companyId);
     }
-    findOne(id, user) {
-        return this.reservedDaysService.findOne(id, user);
+    findOne(id) {
+        return this.reservedDaysService.findOne(id);
     }
-    findByEmployee(id, user) {
-        return this.reservedDaysService.findByEmployee(id, user.companyId);
+    findByEmployee(id) {
+        return this.reservedDaysService.findByEmployee(id);
     }
     update(id, updateReservedDayDto, user) {
         return this.reservedDaysService.update(id, updateReservedDayDto, user);
     }
-    remove(id, user) {
-        return this.reservedDaysService.remove(id, user);
+    remove(id) {
+        return this.reservedDaysService.remove(id);
     }
 };
 exports.ReservedDaysController = ReservedDaysController;
@@ -69,9 +69,8 @@ __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('permissions', ['reserved_days.read']),
     __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], ReservedDaysController.prototype, "findOne", null);
 __decorate([
@@ -79,9 +78,8 @@ __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('permissions', ['reserved_days.manage']),
     __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], ReservedDaysController.prototype, "findByEmployee", null);
 __decorate([
@@ -100,9 +98,8 @@ __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('permissions', ['reserved_days.manage']),
     __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], ReservedDaysController.prototype, "remove", null);
 exports.ReservedDaysController = ReservedDaysController = __decorate([

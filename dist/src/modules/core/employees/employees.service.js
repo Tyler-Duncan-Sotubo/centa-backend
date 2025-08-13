@@ -11,7 +11,6 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-var EmployeesService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EmployeesService = void 0;
 const common_1 = require("@nestjs/common");
@@ -55,9 +54,8 @@ const payslip_service_1 = require("../../payroll/payslip/payslip.service");
 const leave_requests_schema_1 = require("../../leave/schema/leave-requests.schema");
 const leave_types_schema_1 = require("../../leave/schema/leave-types.schema");
 const onboarding_service_1 = require("../../lifecycle/onboarding/onboarding.service");
-const nestjs_pino_1 = require("nestjs-pino");
-let EmployeesService = EmployeesService_1 = class EmployeesService {
-    constructor(db, audit, profileService, historyService, dependentsService, certificationsService, compensationService, financeService, deptSvc, roleSvc, ccSvc, groupsService, config, employeeInvitationService, cacheService, companySettingsService, permissionService, leaveBalanceService, attendanceSettingsService, employeeShiftsService, payslipService, onboardingService, logger) {
+let EmployeesService = class EmployeesService {
+    constructor(db, audit, profileService, historyService, dependentsService, certificationsService, compensationService, financeService, deptSvc, roleSvc, ccSvc, groupsService, config, employeeInvitationService, cacheService, companySettingsService, permissionService, leaveBalanceService, attendanceSettingsService, employeeShiftsService, payslipService, onboardingService) {
         this.db = db;
         this.audit = audit;
         this.profileService = profileService;
@@ -80,47 +78,7 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
         this.employeeShiftsService = employeeShiftsService;
         this.payslipService = payslipService;
         this.onboardingService = onboardingService;
-        this.logger = logger;
         this.table = schema_1.employees;
-        this.logger.setContext(EmployeesService_1.name);
-    }
-    keys(companyId) {
-        return {
-            listActive: `employees:list:active:${companyId}`,
-            listSummary: `employees:list:summary:${companyId}`,
-            managersList: `employees:managers:list:${companyId}`,
-            byUser: (userId) => `employees:byUser:${companyId}:${userId}`,
-            one: (employeeId) => `employees:one:${companyId}:${employeeId}`,
-            profile: (employeeId) => `employees:profile:${companyId}:${employeeId}`,
-            attendanceMonth: (employeeId, ym) => `employees:attendance:month:${companyId}:${employeeId}:${ym}`,
-            attendanceDate: (employeeId, date) => `employees:attendance:date:${companyId}:${employeeId}:${date}`,
-            leaveList: (employeeId) => `employees:leave:list:${companyId}:${employeeId}`,
-            employeeSummary: (employeeId) => `employees:summary:${companyId}:${employeeId}`,
-            managerUserId: (employeeId) => `employees:managerUserId:${companyId}:${employeeId}`,
-            hrRepUserId: `employees:hrRepUserId:${companyId}`,
-            superAdminUserId: `employees:superAdminUserId:${companyId}`,
-        };
-    }
-    async invalidateCacheKeys(companyId, opts) {
-        const keys = [
-            opts?.touchList ? this.keys(companyId).listActive : null,
-            opts?.touchList ? this.keys(companyId).listSummary : null,
-            opts?.touchList ? this.keys(companyId).managersList : null,
-            opts?.employeeId ? this.keys(companyId).one(opts.employeeId) : null,
-            opts?.employeeId ? this.keys(companyId).profile(opts.employeeId) : null,
-            opts?.employeeId
-                ? this.keys(companyId).employeeSummary(opts.employeeId)
-                : null,
-            opts?.employeeId
-                ? this.keys(companyId).managerUserId(opts.employeeId)
-                : null,
-            opts?.userId ? this.keys(companyId).byUser(opts.userId) : null,
-            opts?.touchList ? this.keys(companyId).hrRepUserId : null,
-            opts?.touchList ? this.keys(companyId).superAdminUserId : null,
-        ].filter(Boolean);
-        this.logger.debug({ companyId, keys }, 'employees:cache:invalidate:start');
-        await Promise.all(keys.map((key) => this.cacheService.del?.(key)));
-        this.logger.debug({ companyId }, 'employees:cache:invalidate:done');
     }
     generateToken(payload) {
         const jwtSecret = this.config.get('JWT_SECRET') || 'defaultSecret';
@@ -129,7 +87,6 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
         });
     }
     async createEmployeeNumber(companyId) {
-        this.logger.info({ companyId }, 'employees:createEmployeeNumber:start');
         const [seqRow] = await this.db
             .select({ next: employee_sequences_schema_1.employeeSequences.nextNumber })
             .from(employee_sequences_schema_1.employeeSequences)
@@ -151,13 +108,11 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 .execute();
         }
         const empNum = `HR${String(seq).padStart(2, '0')}`;
-        this.logger.info({ companyId, employeeNumber: empNum }, 'employees:createEmployeeNumber:done');
         return empNum;
     }
     async create(dto, currentUser) {
-        const { companyId, id: actorUserId } = currentUser;
-        this.logger.info({ companyId, dtoEmail: dto.email }, 'employees:create:start');
-        const result = await this.db.transaction(async (trx) => {
+        const { companyId, id } = currentUser;
+        return this.db.transaction(async (trx) => {
             const [seqRow] = await trx
                 .select({ next: employee_sequences_schema_1.employeeSequences.nextNumber })
                 .from(employee_sequences_schema_1.employeeSequences)
@@ -185,11 +140,10 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 .where((0, drizzle_orm_1.eq)(schema_2.users.email, dto.email.toLowerCase()))
                 .execute();
             if (existing.length) {
-                this.logger.warn({ companyId, email: dto.email }, 'employees:create:duplicate-email');
                 throw new common_1.BadRequestException('Email already in use');
             }
             const token = this.generateToken({ email: dto.email });
-            const expires_at = new Date(Date.now() + 60 * 60 * 1000);
+            const expires_at = new Date(Date.now() + 1 * 60 * 60 * 1000);
             const [authUser] = await trx
                 .insert(schema_2.users)
                 .values({
@@ -229,7 +183,12 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 .execute();
             await trx
                 .insert(schema_2.PasswordResetToken)
-                .values({ user_id: authUser.id, token, expires_at, is_used: false })
+                .values({
+                user_id: authUser.id,
+                token,
+                expires_at,
+                is_used: false,
+            })
                 .execute();
             const [company] = await trx
                 .select({ name: schema_1.companies.name, id: schema_1.companies.id })
@@ -244,24 +203,15 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                     grossSalary: dto.grossSalary,
                     currency: 'NGN',
                     effectiveDate: dto.employmentStartDate,
-                }, actorUserId, 'system', trx);
+                }, id, 'system', trx);
             }
             const inviteLink = `${this.config.get('EMPLOYEE_PORTAL_URL')}/auth/reset-password/${token}`;
             await this.employeeInvitationService.sendInvitationEmail(emp.email, emp.firstName, company.name, 'Employee', inviteLink);
             await this.companySettingsService.setSetting(companyId, 'onboarding_upload_employees', true);
-            return { emp, authUserId: authUser.id };
+            return emp;
         });
-        await this.invalidateCacheKeys(companyId, {
-            employeeId: result.emp.id,
-            userId: result.authUserId,
-            touchList: true,
-        });
-        this.logger.info({ companyId, employeeId: result.emp.id }, 'employees:create:done');
-        return result.emp;
     }
     async createEmployee(dto, user, employee_id) {
-        const { companyId } = user;
-        this.logger.info({ companyId, hasExistingId: !!employee_id, email: dto.email }, 'employees:createEmployee:start');
         let employeeId;
         if (employee_id) {
             employeeId = employee_id;
@@ -330,8 +280,6 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 });
             }
         });
-        await this.invalidateCacheKeys(companyId, { employeeId, touchList: true });
-        this.logger.info({ companyId, employeeId }, 'employees:createEmployee:done');
         return employeeId;
     }
     async findAll(employeeId, companyId, month) {
@@ -371,90 +319,83 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
         };
     }
     async getEmployeeByUserId(user_id) {
-        const [rowCompany] = await this.db
-            .select({ companyId: schema_1.employees.companyId })
+        const result = await this.db
+            .select({
+            first_name: schema_1.employees.firstName,
+            last_name: schema_1.employees.lastName,
+            avatar: schema_2.users.avatar,
+            userId: schema_1.employees.userId,
+            email: schema_1.employees.email,
+            group_id: schema_1.employees.payGroupId,
+            companyId: schema_1.companies.id,
+            id: schema_1.employees.id,
+            company_name: schema_1.companies.name,
+            start_date: schema_1.employees.employmentStartDate,
+            department_name: schema_1.departments.name,
+            job_role: schema_1.jobRoles.title,
+            employee_number: schema_1.employees.employeeNumber,
+            managerId: schema_1.employees.managerId,
+            location: schema_1.companyLocations.name,
+        })
             .from(schema_1.employees)
+            .innerJoin(schema_1.companies, (0, drizzle_orm_1.eq)(schema_1.companies.id, schema_1.employees.companyId))
+            .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_2.users.id, schema_1.employees.userId))
+            .leftJoin(schema_1.companyLocations, (0, drizzle_orm_1.eq)(schema_1.companyLocations.id, schema_1.employees.locationId))
+            .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.departments.id, schema_1.employees.departmentId))
+            .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.jobRoles.id, schema_1.employees.jobRoleId))
             .where((0, drizzle_orm_1.eq)(schema_1.employees.userId, user_id))
-            .limit(1)
             .execute();
-        const companyId = rowCompany?.companyId ?? 'unknown';
-        const cacheKey = this.keys(companyId).byUser(user_id);
-        this.logger.debug({ user_id, companyId, cacheKey }, 'employees:getEmployeeByUserId:start');
-        const result = await this.cacheService.getOrSetCache(cacheKey, async () => {
-            const rows = await this.db
-                .select({
-                first_name: schema_1.employees.firstName,
-                last_name: schema_1.employees.lastName,
-                avatar: schema_2.users.avatar,
-                userId: schema_1.employees.userId,
-                email: schema_1.employees.email,
-                group_id: schema_1.employees.payGroupId,
-                companyId: schema_1.companies.id,
-                id: schema_1.employees.id,
-                company_name: schema_1.companies.name,
-                start_date: schema_1.employees.employmentStartDate,
-                department_name: schema_1.departments.name,
-                job_role: schema_1.jobRoles.title,
-                employee_number: schema_1.employees.employeeNumber,
-                managerId: schema_1.employees.managerId,
-                location: schema_1.companyLocations.name,
-            })
-                .from(schema_1.employees)
-                .innerJoin(schema_1.companies, (0, drizzle_orm_1.eq)(schema_1.companies.id, schema_1.employees.companyId))
-                .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_2.users.id, schema_1.employees.userId))
-                .leftJoin(schema_1.companyLocations, (0, drizzle_orm_1.eq)(schema_1.companyLocations.id, schema_1.employees.locationId))
-                .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.departments.id, schema_1.employees.departmentId))
-                .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.jobRoles.id, schema_1.employees.jobRoleId))
-                .where((0, drizzle_orm_1.eq)(schema_1.employees.userId, user_id))
-                .execute();
-            if (rows.length === 0) {
-                this.logger.warn({ user_id }, 'employees:getEmployeeByUserId:not-found');
-                throw new common_1.BadRequestException('Employee not found, please provide a valid email');
+        if (result.length === 0) {
+            throw new common_1.BadRequestException('Employee not found, please provide a valid email');
+        }
+        let employeeManager = {
+            id: '',
+            name: '',
+            email: '',
+        };
+        if (result[0]) {
+            const managerId = result[0].managerId;
+            if (managerId) {
+                const [manager] = await this.db
+                    .select({
+                    id: schema_1.employees.id,
+                    name: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
+                    email: schema_1.employees.email,
+                })
+                    .from(schema_1.employees)
+                    .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_2.users.id))
+                    .where((0, drizzle_orm_1.eq)(schema_1.employees.id, managerId))
+                    .execute();
+                if (manager) {
+                    employeeManager = {
+                        id: manager.id,
+                        email: manager.email,
+                        name: manager.name || '',
+                    };
+                }
             }
-            return rows[0];
-        });
-        let employeeManager = { id: '', name: '', email: '' };
-        if (result.managerId) {
-            const [manager] = await this.db
-                .select({
-                id: schema_1.employees.id,
-                name: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
-                email: schema_1.employees.email,
-            })
-                .from(schema_1.employees)
-                .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_2.users.id))
-                .where((0, drizzle_orm_1.eq)(schema_1.employees.id, result.managerId))
-                .execute();
-            if (manager) {
-                employeeManager = {
-                    id: manager.id,
-                    email: manager.email,
-                    name: manager.name || '',
-                };
+            else {
+                const superAdminUserId = await this.findSuperAdminUser(result[0].companyId);
+                const [superAdmin] = await this.db
+                    .select({
+                    id: schema_2.users.id,
+                    name: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
+                    email: schema_2.users.email,
+                })
+                    .from(schema_2.users)
+                    .where((0, drizzle_orm_1.eq)(schema_2.users.id, superAdminUserId))
+                    .execute();
+                if (superAdmin) {
+                    employeeManager = {
+                        id: superAdmin.id,
+                        name: superAdmin.name || '',
+                        email: superAdmin.email,
+                    };
+                }
             }
         }
-        else {
-            const superAdminUserId = await this.findSuperAdminUser(result.companyId);
-            const [superAdmin] = await this.db
-                .select({
-                id: schema_2.users.id,
-                name: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
-                email: schema_2.users.email,
-            })
-                .from(schema_2.users)
-                .where((0, drizzle_orm_1.eq)(schema_2.users.id, superAdminUserId))
-                .execute();
-            if (superAdmin) {
-                employeeManager = {
-                    id: superAdmin.id,
-                    name: superAdmin.name || '',
-                    email: superAdmin.email,
-                };
-            }
-        }
-        this.logger.debug({ user_id, employeeId: result.id, companyId }, 'employees:getEmployeeByUserId:done');
         return {
-            ...result,
+            ...result[0],
             employeeManager,
         };
     }
@@ -471,9 +412,8 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
         return finance;
     }
     async findAllEmployees(companyId) {
-        const cacheKey = this.keys(companyId).listActive;
-        this.logger.debug({ companyId, cacheKey }, 'employees:findAllEmployees:start');
-        const data = await this.cacheService.getOrSetCache(cacheKey, async () => {
+        const cacheKey = `employees:${companyId}`;
+        return this.cacheService.getOrSetCache(cacheKey, async () => {
             const allEmployees = await this.db
                 .select({
                 id: schema_1.employees.id,
@@ -504,12 +444,9 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 .execute();
             return allEmployees;
         });
-        this.logger.debug({ companyId, count: data.length }, 'employees:findAllEmployees:done');
-        return data;
     }
     async findAllCompanyEmployeesSummary(companyId, search) {
-        const cacheKey = this.keys(companyId).listSummary;
-        this.logger.debug({ companyId, cacheKey, hasSearch: !!search }, 'employees:findAllCompanyEmployeesSummary:start');
+        const cacheKey = `employees:${companyId}:summary`;
         const allEmployees = await this.cacheService.getOrSetCache(cacheKey, async () => {
             return this.db
                 .select({
@@ -523,79 +460,62 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 .execute();
         });
         if (!search) {
-            this.logger.debug({ companyId, count: allEmployees.length }, 'employees:findAllCompanyEmployeesSummary:done');
             return allEmployees;
         }
         const q = search.toLowerCase();
-        const filtered = allEmployees.filter((e) => [e.firstName, e.lastName, e.employeeNumber].some((field) => field.toLowerCase().includes(q)));
-        this.logger.debug({ companyId, count: filtered.length, search }, 'employees:findAllCompanyEmployeesSummary:filtered');
-        return filtered;
+        return allEmployees.filter((e) => [e.firstName, e.lastName, e.employeeNumber].some((field) => field.toLowerCase().includes(q)));
     }
-    async findOneByUserId(user) {
-        const { id: userId, companyId } = user;
-        const cacheKey = this.keys(companyId).byUser(userId);
-        this.logger.debug({ userId, companyId, cacheKey }, 'employees:findOneByUserId:start');
-        const employee = await this.cacheService.getOrSetCache(cacheKey, async () => {
-            const [emp] = await this.db
+    async findOneByUserId(userId) {
+        const cacheKey = `employee:${userId}`;
+        return this.cacheService.getOrSetCache(cacheKey, async () => {
+            const [employee] = await this.db
                 .select()
                 .from(this.table)
                 .where((0, drizzle_orm_1.eq)(this.table.userId, userId))
                 .execute();
-            if (!emp) {
-                this.logger.warn({ userId }, 'employees:findOneByUserId:not-found');
+            if (!employee) {
                 throw new common_1.NotFoundException('Employee not found');
             }
-            return emp;
+            return employee;
         });
-        this.logger.debug({ userId, companyId, employeeId: employee.id }, 'employees:findOneByUserId:done');
-        return employee;
     }
     async findOne(employeeId, companyId) {
-        const cacheKey = this.keys(companyId).one(employeeId);
-        this.logger.debug({ companyId, employeeId, cacheKey }, 'employees:findOne:start');
-        const employee = await this.cacheService.getOrSetCache(cacheKey, async () => {
-            const [row] = await this.db
-                .select({
-                id: this.table.id,
-                firstName: this.table.firstName,
-                lastName: this.table.lastName,
-                employeeNumber: this.table.employeeNumber,
-                email: this.table.email,
-                employmentStatus: this.table.employmentStatus,
-                probationEndDate: this.table.probationEndDate,
-                departmentId: this.table.departmentId,
-                department: schema_1.departments.name,
-                jobRoleId: this.table.jobRoleId,
-                jobRole: schema_1.jobRoles.title,
-                costCenter: schema_1.costCenters.name,
-                costCenterId: this.table.costCenterId,
-                location: schema_1.companyLocations.name,
-                payGroupId: this.table.payGroupId,
-                locationId: this.table.locationId,
-                payGroup: pay_groups_schema_1.payGroups.name,
-                managerId: this.table.managerId,
-                avatarUrl: schema_2.users.avatar,
-                effectiveDate: this.table.employmentStartDate,
-                companyRoleId: schema_2.users.companyRoleId,
-                role: schema_2.companyRoles.name,
-                confirmed: this.table.confirmed,
-            })
-                .from(this.table)
-                .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(this.table.userId, schema_2.users.id))
-                .innerJoin(schema_2.companyRoles, (0, drizzle_orm_1.eq)(schema_2.users.companyRoleId, schema_2.companyRoles.id))
-                .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(this.table.departmentId, schema_1.departments.id))
-                .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(this.table.jobRoleId, schema_1.jobRoles.id))
-                .leftJoin(schema_1.costCenters, (0, drizzle_orm_1.eq)(this.table.costCenterId, schema_1.costCenters.id))
-                .leftJoin(schema_1.companyLocations, (0, drizzle_orm_1.eq)(this.table.locationId, schema_1.companyLocations.id))
-                .leftJoin(pay_groups_schema_1.payGroups, (0, drizzle_orm_1.eq)(this.table.payGroupId, pay_groups_schema_1.payGroups.id))
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.id, employeeId), (0, drizzle_orm_1.eq)(this.table.companyId, companyId)))
-                .execute();
-            if (!row) {
-                this.logger.warn({ companyId, employeeId }, 'employees:findOne:not-found');
-                throw new common_1.BadRequestException('Employee not found');
-            }
-            return row;
-        });
+        const [employee] = await this.db
+            .select({
+            id: this.table.id,
+            firstName: this.table.firstName,
+            lastName: this.table.lastName,
+            employeeNumber: this.table.employeeNumber,
+            email: this.table.email,
+            employmentStatus: this.table.employmentStatus,
+            probationEndDate: this.table.probationEndDate,
+            departmentId: this.table.departmentId,
+            department: schema_1.departments.name,
+            jobRoleId: this.table.jobRoleId,
+            jobRole: schema_1.jobRoles.title,
+            costCenter: schema_1.costCenters.name,
+            costCenterId: this.table.costCenterId,
+            location: schema_1.companyLocations.name,
+            payGroupId: this.table.payGroupId,
+            locationId: this.table.locationId,
+            payGroup: pay_groups_schema_1.payGroups.name,
+            managerId: this.table.managerId,
+            avatarUrl: schema_2.users.avatar,
+            effectiveDate: this.table.employmentStartDate,
+            companyRoleId: schema_2.users.companyRoleId,
+            role: schema_2.companyRoles.name,
+            confirmed: this.table.confirmed,
+        })
+            .from(this.table)
+            .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(this.table.userId, schema_2.users.id))
+            .innerJoin(schema_2.companyRoles, (0, drizzle_orm_1.eq)(schema_2.users.companyRoleId, schema_2.companyRoles.id))
+            .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(this.table.departmentId, schema_1.departments.id))
+            .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(this.table.jobRoleId, schema_1.jobRoles.id))
+            .leftJoin(schema_1.costCenters, (0, drizzle_orm_1.eq)(this.table.costCenterId, schema_1.costCenters.id))
+            .leftJoin(schema_1.companyLocations, (0, drizzle_orm_1.eq)(this.table.locationId, schema_1.companyLocations.id))
+            .leftJoin(pay_groups_schema_1.payGroups, (0, drizzle_orm_1.eq)(this.table.payGroupId, pay_groups_schema_1.payGroups.id))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.id, employeeId), (0, drizzle_orm_1.eq)(this.table.companyId, companyId)))
+            .execute();
         let employeeManager = {
             id: '',
             firstName: '',
@@ -603,166 +523,133 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
             email: '',
             avatarUrl: '',
         };
-        if (employee.managerId) {
-            const [manager] = await this.db
-                .select({
-                id: schema_1.employees.id,
-                firstName: schema_1.employees.firstName,
-                lastName: schema_1.employees.lastName,
-                email: schema_1.employees.email,
-                avatarUrl: schema_2.users.avatar,
-            })
-                .from(schema_1.employees)
-                .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_2.users.id))
-                .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employee.managerId))
-                .execute();
-            if (manager) {
-                employeeManager = {
-                    id: manager.id,
-                    firstName: manager.firstName,
-                    lastName: manager.lastName,
-                    email: manager.email,
-                    avatarUrl: manager.avatarUrl || '',
-                };
+        if (employee) {
+            const managerId = employee.managerId;
+            if (managerId) {
+                const [manager] = await this.db
+                    .select({
+                    id: schema_1.employees.id,
+                    firstName: schema_1.employees.firstName,
+                    lastName: schema_1.employees.lastName,
+                    email: schema_1.employees.email,
+                    avatarUrl: schema_2.users.avatar,
+                })
+                    .from(schema_1.employees)
+                    .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_2.users.id))
+                    .where((0, drizzle_orm_1.eq)(schema_1.employees.id, managerId))
+                    .execute();
+                if (manager) {
+                    employeeManager = {
+                        id: manager.id,
+                        firstName: manager.firstName,
+                        lastName: manager.lastName,
+                        email: manager.email,
+                        avatarUrl: manager.avatarUrl || '',
+                    };
+                }
+            }
+            else {
+                const superAdminUserId = await this.findSuperAdminUser(companyId);
+                const [superAdmin] = await this.db
+                    .select({
+                    id: schema_2.users.id,
+                    firstName: schema_2.users.firstName,
+                    lastName: schema_2.users.lastName,
+                    email: schema_2.users.email,
+                    avatarUrl: schema_2.users.avatar,
+                })
+                    .from(schema_2.users)
+                    .where((0, drizzle_orm_1.eq)(schema_2.users.id, superAdminUserId))
+                    .execute();
+                if (superAdmin) {
+                    employeeManager = {
+                        id: superAdmin.id,
+                        firstName: superAdmin.firstName ?? '',
+                        lastName: superAdmin.lastName ?? '',
+                        email: superAdmin.email,
+                        avatarUrl: superAdmin.avatarUrl || '',
+                    };
+                }
             }
         }
-        else {
-            const superAdminUserId = await this.findSuperAdminUser(companyId);
-            const [superAdmin] = await this.db
-                .select({
-                id: schema_2.users.id,
-                firstName: schema_2.users.firstName,
-                lastName: schema_2.users.lastName,
-                email: schema_2.users.email,
-                avatarUrl: schema_2.users.avatar,
-            })
-                .from(schema_2.users)
-                .where((0, drizzle_orm_1.eq)(schema_2.users.id, superAdminUserId))
-                .execute();
-            if (superAdmin) {
-                employeeManager = {
-                    id: superAdmin.id,
-                    firstName: superAdmin.firstName ?? '',
-                    lastName: superAdmin.lastName ?? '',
-                    email: superAdmin.email,
-                    avatarUrl: superAdmin.avatarUrl || '',
-                };
-            }
+        if (!employee) {
+            throw new common_1.BadRequestException('Employee not found');
         }
-        this.logger.debug({ companyId, employeeId }, 'employees:findOne:done');
         return {
             ...employee,
             employeeManager,
         };
     }
     async findEmployeeSummaryByUserId(employeeId) {
-        const [rowCompany] = await this.db
-            .select({ companyId: schema_1.employees.companyId })
+        const [employee] = await this.db
+            .select({
+            id: schema_1.employees.id,
+            confirmed: schema_1.employees.confirmed,
+            gender: schema_1.employeeProfiles.gender,
+            level: schema_1.jobRoles.level,
+            country: schema_1.employeeProfiles.country,
+            department: schema_1.departments.name,
+            userId: schema_1.employees.userId,
+        })
             .from(schema_1.employees)
+            .innerJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
+            .innerJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
+            .leftJoin(schema_1.employeeProfiles, (0, drizzle_orm_1.eq)(schema_1.employees.id, schema_1.employeeProfiles.employeeId))
             .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId))
-            .limit(1)
             .execute();
-        const companyId = rowCompany?.companyId ?? 'unknown';
-        const cacheKey = this.keys(companyId).employeeSummary(employeeId);
-        this.logger.debug({ companyId, employeeId, cacheKey }, 'employees:summary:start');
-        const employee = await this.cacheService.getOrSetCache(cacheKey, async () => {
-            const [e] = await this.db
-                .select({
-                id: schema_1.employees.id,
-                confirmed: schema_1.employees.confirmed,
-                gender: schema_1.employeeProfiles.gender,
-                level: schema_1.jobRoles.level,
-                country: schema_1.employeeProfiles.country,
-                department: schema_1.departments.name,
-                userId: schema_1.employees.userId,
-            })
-                .from(schema_1.employees)
-                .innerJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
-                .innerJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
-                .leftJoin(schema_1.employeeProfiles, (0, drizzle_orm_1.eq)(schema_1.employees.id, schema_1.employeeProfiles.employeeId))
-                .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId))
-                .execute();
-            if (!e) {
-                return null;
-            }
-            return e;
-        });
         if (!employee) {
-            this.logger.warn({ companyId, employeeId }, 'employees:summary:not-found');
             throw new common_1.NotFoundException('Employee not found.');
         }
-        this.logger.debug({ companyId, employeeId }, 'employees:summary:done');
         return employee;
     }
     async findManagerByEmployeeId(employeeId, companyId) {
-        const cacheKey = this.keys(companyId).managerUserId(employeeId);
-        this.logger.debug({ companyId, employeeId, cacheKey }, 'employees:managerUserId:start');
-        const loader = async () => {
-            const [employee] = await this.db
-                .select({ managerId: schema_1.employees.managerId })
+        const [employee] = await this.db
+            .select({ managerId: schema_1.employees.managerId })
+            .from(schema_1.employees)
+            .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId))
+            .execute();
+        if (employee?.managerId) {
+            const [manager] = await this.db
+                .select({ userId: schema_1.employees.userId })
                 .from(schema_1.employees)
-                .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId))
+                .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employee.managerId))
                 .execute();
-            if (employee?.managerId) {
-                const [manager] = await this.db
-                    .select({ userId: schema_1.employees.userId })
-                    .from(schema_1.employees)
-                    .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employee.managerId))
-                    .execute();
-                if (manager?.userId) {
-                    return manager.userId;
-                }
-                this.logger.warn({ companyId, employeeId, managerId: employee.managerId }, 'employees:managerUserId:manager-record-missing');
+            if (manager?.userId) {
+                return manager.userId;
             }
-            const superAdmin = await this.findSuperAdminUser(companyId);
-            return superAdmin;
-        };
-        const userId = await this.cacheService.getOrSetCache(cacheKey, loader);
-        this.logger.debug({ companyId, employeeId, userId }, 'employees:managerUserId:done');
-        return userId;
+            console.warn('ManagerId exists but user record not found, fallback to super admin.');
+        }
+        return await this.findSuperAdminUser(companyId);
     }
     async findHrRepresentative(companyId) {
-        const cacheKey = this.keys(companyId).hrRepUserId;
-        this.logger.debug({ companyId, cacheKey }, 'employees:hrRep:start');
-        const userId = await this.cacheService.getOrSetCache(cacheKey, async () => {
-            const [hr] = await this.db
-                .select({ userId: schema_2.users.id })
-                .from(schema_1.employees)
-                .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_2.users.id))
-                .innerJoin(schema_2.companyRoles, (0, drizzle_orm_1.eq)(schema_2.users.companyRoleId, schema_2.companyRoles.id))
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(schema_2.companyRoles.name, 'hr_manager')))
-                .limit(1)
-                .execute();
-            return hr?.userId ?? null;
-        });
-        if (!userId) {
-            this.logger.warn({ companyId }, 'employees:hrRep:not-found');
+        const [hr] = await this.db
+            .select({ userId: schema_2.users.id })
+            .from(schema_1.employees)
+            .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_2.users.id))
+            .innerJoin(schema_2.companyRoles, (0, drizzle_orm_1.eq)(schema_2.users.companyRoleId, schema_2.companyRoles.id))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(schema_2.companyRoles.name, 'hr_manager')))
+            .limit(1)
+            .execute();
+        if (!hr?.userId) {
             throw new common_1.NotFoundException('HR representative not found.');
         }
-        this.logger.debug({ companyId, userId }, 'employees:hrRep:done');
-        return userId;
+        return hr.userId;
     }
     async findSuperAdminUser(companyId) {
-        const cacheKey = this.keys(companyId).superAdminUserId;
-        this.logger.debug({ companyId, cacheKey }, 'employees:superAdmin:start');
-        const id = await this.cacheService.getOrSetCache(cacheKey, async () => {
-            const [ceo] = await this.db
-                .select({ id: schema_2.users.id })
-                .from(schema_2.users)
-                .innerJoin(schema_2.companyRoles, (0, drizzle_orm_1.eq)(schema_2.users.companyRoleId, schema_2.companyRoles.id))
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_2.users.companyId, companyId), (0, drizzle_orm_1.eq)(schema_2.companyRoles.name, 'super_admin')))
-                .execute();
-            return ceo?.id ?? null;
-        });
-        if (!id) {
-            this.logger.warn({ companyId }, 'employees:superAdmin:not-found');
+        const [ceo] = await this.db
+            .select({
+            id: schema_2.users.id,
+        })
+            .from(schema_2.users)
+            .innerJoin(schema_2.companyRoles, (0, drizzle_orm_1.eq)(schema_2.users.companyRoleId, schema_2.companyRoles.id))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_2.users.companyId, companyId), (0, drizzle_orm_1.eq)(schema_2.companyRoles.name, 'super_admin')))
+            .execute();
+        if (!ceo) {
             throw new common_1.NotFoundException('CEO user not found.');
         }
-        this.logger.debug({ companyId, userId: id }, 'employees:superAdmin:done');
-        return id;
+        return ceo.id;
     }
     async update(employeeId, dto, userId, ip) {
-        this.logger.info({ employeeId, userId, ip }, 'employees:update:start');
         const [employee] = await this.db
             .select()
             .from(this.table)
@@ -810,34 +697,18 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                     changes,
                 });
             }
-            this.logger.info({ employeeId }, 'employees:update:done');
             return updated;
         }
     }
     async remove(employeeId) {
-        this.logger.info({ employeeId }, 'employees:remove:start');
-        const [empRow] = await this.db
-            .select({ companyId: schema_1.employees.companyId, userId: schema_1.employees.userId })
-            .from(schema_1.employees)
-            .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId))
-            .execute();
         const result = await this.db
             .delete(this.table)
             .where((0, drizzle_orm_1.eq)(this.table.id, employeeId))
             .returning({ id: this.table.id })
             .execute();
         if (!result.length) {
-            this.logger.warn({ employeeId }, 'employees:remove:not-found');
             throw new common_1.NotFoundException(`employee ${employeeId} not found`);
         }
-        if (empRow?.companyId) {
-            await this.invalidateCacheKeys(empRow.companyId, {
-                employeeId,
-                userId: empRow.userId,
-                touchList: true,
-            });
-        }
-        this.logger.info({ employeeId }, 'employees:remove:done');
         return { deleted: true, id: result[0].id };
     }
     async buildTemplateWorkbook(companyId) {
@@ -917,7 +788,6 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
     }
     async bulkCreate(user, rows) {
         const { companyId } = user;
-        this.logger.info({ companyId, rows: rows?.length ?? 0 }, 'employees:bulkCreate:start');
         const roleNameMap = new Map([
             ['HR Manager', 'hr_manager'],
             ['HR Assistant', 'hr_assistant'],
@@ -1169,10 +1039,6 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 grossSalary: comp.grossSalary,
             })))
                 .execute();
-            await this.invalidateCacheKeys(companyId, {
-                touchList: true,
-            });
-            this.logger.info({ companyId, count: createdEmps.length }, 'employees:bulkCreate:done');
             return createdEmps;
         });
         await this.companySettingsService.setSetting(user.companyId, 'onboarding_upload_employees', true);
@@ -1184,33 +1050,25 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
         };
     }
     async getManagers(companyId) {
-        const cacheKey = this.keys(companyId).managersList;
-        this.logger.debug({ companyId, cacheKey }, 'employees:getManagers:start');
-        const managers = await this.cacheService.getOrSetCache(cacheKey, async () => {
-            const rows = await this.db
-                .select({
-                id: schema_1.employees.id,
-                name: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
-            })
-                .from(schema_1.employees)
-                .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_2.users.id))
-                .innerJoin(schema_2.companyRoles, (0, drizzle_orm_1.eq)(schema_2.users.companyRoleId, schema_2.companyRoles.id))
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(schema_2.companyRoles.name, 'manager')))
-                .execute();
-            return rows;
-        });
-        this.logger.debug({ companyId, count: managers.length }, 'employees:getManagers:done');
+        const managers = await this.db
+            .select({
+            id: schema_1.employees.id,
+            name: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
+        })
+            .from(schema_1.employees)
+            .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_2.users.id))
+            .innerJoin(schema_2.companyRoles, (0, drizzle_orm_1.eq)(schema_2.users.companyRoleId, schema_2.companyRoles.id))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(schema_2.companyRoles.name, 'manager')))
+            .execute();
         return managers;
     }
     async assignManager(employeeId, managerId) {
-        this.logger.info({ employeeId, managerId }, 'employees:assignManager:start');
         const [employee] = await this.db
-            .select({ id: this.table.id, companyId: this.table.companyId })
+            .select()
             .from(this.table)
             .where((0, drizzle_orm_1.eq)(this.table.id, employeeId))
             .execute();
         if (!employee) {
-            this.logger.warn({ employeeId }, 'employees:assignManager:not-found');
             throw new common_1.NotFoundException('Employee not found');
         }
         const [updated] = await this.db
@@ -1219,19 +1077,15 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
             .where((0, drizzle_orm_1.eq)(this.table.id, employeeId))
             .returning()
             .execute();
-        await this.invalidateCacheKeys(employee.companyId, { employeeId });
-        this.logger.info({ employeeId, managerId }, 'employees:assignManager:done');
         return updated;
     }
     async removeManager(employeeId) {
-        this.logger.info({ employeeId }, 'employees:removeManager:start');
         const [employee] = await this.db
-            .select({ id: this.table.id, companyId: this.table.companyId })
+            .select()
             .from(this.table)
             .where((0, drizzle_orm_1.eq)(this.table.id, employeeId))
             .execute();
         if (!employee) {
-            this.logger.warn({ employeeId }, 'employees:removeManager:not-found');
             throw new common_1.NotFoundException('Employee not found');
         }
         const [updated] = await this.db
@@ -1240,8 +1094,6 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
             .where((0, drizzle_orm_1.eq)(this.table.id, employeeId))
             .returning()
             .execute();
-        await this.invalidateCacheKeys(employee.companyId, { employeeId });
-        this.logger.info({ employeeId }, 'employees:removeManager:done');
         return updated;
     }
     async findFallbackManagers(companyId) {
@@ -1260,10 +1112,8 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
         return results;
     }
     async resolveFallbackManager(companyId) {
-        this.logger.debug({ companyId }, 'employees:resolveFallbackManager:start');
         const fallback = await this.companySettingsService.getDefaultManager(companyId);
         if (fallback?.defaultManager) {
-            this.logger.debug({ companyId, userId: fallback.defaultManager }, 'employees:resolveFallbackManager:default');
             return fallback.defaultManager;
         }
         const [superAdmin] = await this.db
@@ -1273,9 +1123,7 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_2.users.companyId, companyId), (0, drizzle_orm_1.eq)(schema_2.companyRoles.name, 'super_admin')))
             .limit(1)
             .execute();
-        const id = superAdmin?.id ?? null;
-        this.logger.debug({ companyId, userId: id }, 'employees:resolveFallbackManager:done');
-        return id;
+        return superAdmin?.id ?? null;
     }
     async search(dto) {
         const { search, departmentId, jobRoleId, costCenterId, status, locationId, } = dto;
@@ -1311,150 +1159,117 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
             .execute();
     }
     async getEmployeeAttendanceByMonth(employeeId, companyId, yearMonth) {
-        const cacheKey = this.keys(companyId).attendanceMonth(employeeId, yearMonth);
-        this.logger.debug({ companyId, employeeId, yearMonth, cacheKey }, 'employees:attendanceByMonth:start');
-        const loader = async () => {
-            const [y, m] = yearMonth.split('-').map(Number);
-            const start = new Date(y, m - 1, 1);
-            const end = new Date(y, m - 1, new Date(y, m, 0).getDate());
-            const startOfMonth = new Date(start);
-            startOfMonth.setHours(0, 0, 0, 0);
-            const endOfMonth = new Date(end);
-            endOfMonth.setHours(23, 59, 59, 999);
-            const recs = await this.db
-                .select()
-                .from(schema_2.attendanceRecords)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_2.attendanceRecords.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_2.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_2.attendanceRecords.clockIn, startOfMonth), (0, drizzle_orm_1.lte)(schema_2.attendanceRecords.clockIn, endOfMonth)))
-                .execute();
-            const map = new Map();
-            for (const r of recs) {
-                const day = r.clockIn.toISOString().split('T')[0];
-                map.set(day, r);
-            }
-            const allDays = (0, date_fns_1.eachDayOfInterval)({ start, end }).map((d) => (0, date_fns_1.format)(d, 'yyyy-MM-dd'));
-            const todayStr = new Date().toISOString().split('T')[0];
-            const days = allDays.filter((dateKey) => dateKey <= todayStr);
-            const summaryList = await Promise.all(days.map(async (dateKey) => {
-                const day = await this.getEmployeeAttendanceByDate(employeeId, companyId, dateKey);
-                return {
-                    date: dateKey,
-                    checkInTime: day.checkInTime,
-                    checkOutTime: day.checkOutTime,
-                    status: day.status,
-                };
-            }));
-            return { summaryList };
-        };
-        const result = await this.cacheService.getOrSetCache(cacheKey, loader);
-        this.logger.debug({ companyId, employeeId, yearMonth, days: result.summaryList.length }, 'employees:attendanceByMonth:done');
-        return result;
+        const [y, m] = yearMonth.split('-').map(Number);
+        const start = new Date(y, m - 1, 1);
+        const end = new Date(y, m - 1, new Date(y, m, 0).getDate());
+        const startOfMonth = new Date(start);
+        startOfMonth.setHours(0, 0, 0, 0);
+        const endOfMonth = new Date(end);
+        endOfMonth.setHours(23, 59, 59, 999);
+        const recs = await this.db
+            .select()
+            .from(schema_2.attendanceRecords)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_2.attendanceRecords.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_2.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_2.attendanceRecords.clockIn, startOfMonth), (0, drizzle_orm_1.lte)(schema_2.attendanceRecords.clockIn, endOfMonth)))
+            .execute();
+        const map = new Map();
+        for (const r of recs) {
+            const day = r.clockIn.toISOString().split('T')[0];
+            map.set(day, r);
+        }
+        const allDays = (0, date_fns_1.eachDayOfInterval)({ start, end }).map((d) => (0, date_fns_1.format)(d, 'yyyy-MM-dd'));
+        const todayStr = new Date().toISOString().split('T')[0];
+        const days = allDays.filter((dateKey) => dateKey <= todayStr);
+        const summaryList = await Promise.all(days.map(async (dateKey) => {
+            const day = await this.getEmployeeAttendanceByDate(employeeId, companyId, dateKey);
+            return {
+                date: dateKey,
+                checkInTime: day.checkInTime,
+                checkOutTime: day.checkOutTime,
+                status: day.status,
+            };
+        }));
+        return { summaryList };
     }
     async getEmployeeAttendanceByDate(employeeId, companyId, date) {
         const target = new Date(date).toISOString().split('T')[0];
-        const isToday = target === new Date().toISOString().split('T')[0];
-        const cacheKey = this.keys(companyId).attendanceDate(employeeId, target);
-        this.logger.debug({ companyId, employeeId, target, cacheKey, isToday }, 'employees:attendanceByDate:start');
-        const compute = async () => {
-            const startOfDay = new Date(`${target}T00:00:00.000Z`);
-            const endOfDay = new Date(`${target}T23:59:59.999Z`);
-            const s = await this.attendanceSettingsService.getAllAttendanceSettings(companyId);
-            const useShifts = s['use_shifts'] ?? false;
-            const defaultStartTimeStr = s['default_start_time'] ?? '09:00';
-            const defaultEndTimeStr = s['default_end_time'] ?? '17:00';
-            const lateToleranceMins = Number(s['late_tolerance_minutes'] ?? 10);
-            const recs = await this.db
-                .select()
-                .from(schema_2.attendanceRecords)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_2.attendanceRecords.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_2.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_2.attendanceRecords.clockIn, startOfDay), (0, drizzle_orm_1.lte)(schema_2.attendanceRecords.clockIn, endOfDay)))
-                .execute();
-            const rec = recs[0] ?? null;
-            if (!rec) {
-                return {
-                    date: target,
-                    checkInTime: null,
-                    checkOutTime: null,
-                    status: 'absent',
-                    workDurationMinutes: null,
-                    overtimeMinutes: 0,
-                    isLateArrival: false,
-                    isEarlyDeparture: false,
-                };
-            }
-            let startTimeStr = defaultStartTimeStr;
-            let endTimeStr = defaultEndTimeStr;
-            let tolerance = lateToleranceMins;
-            if (useShifts) {
-                const shift = await this.employeeShiftsService.getActiveShiftForEmployee(employeeId, companyId, target);
-                if (shift) {
-                    startTimeStr = shift.startTime ?? startTimeStr;
-                    endTimeStr = shift.endTime ?? endTimeStr;
-                    tolerance = shift.lateToleranceMinutes ?? tolerance;
-                }
-            }
-            const shiftStart = (0, date_fns_1.parseISO)(`${target}T${startTimeStr}:00`);
-            const shiftEnd = (0, date_fns_1.parseISO)(`${target}T${endTimeStr}:00`);
-            const checkIn = new Date(rec.clockIn);
-            const checkOut = rec.clockOut ? new Date(rec.clockOut) : null;
-            const diffLate = (checkIn.getTime() - shiftStart.getTime()) / 60000;
-            const isLateArrival = diffLate > tolerance;
-            const isEarlyDeparture = checkOut
-                ? checkOut.getTime() < shiftEnd.getTime()
-                : false;
-            const workDurationMinutes = rec.workDurationMinutes;
-            const overtimeMinutes = rec.overtimeMinutes ?? 0;
-            const status = checkIn
-                ? isLateArrival
-                    ? 'late'
-                    : 'present'
-                : 'absent';
-            const payload = {
+        const startOfDay = new Date(`${target}T00:00:00.000Z`);
+        const endOfDay = new Date(`${target}T23:59:59.999Z`);
+        const s = await this.attendanceSettingsService.getAllAttendanceSettings(companyId);
+        const useShifts = s['use_shifts'] ?? false;
+        const defaultStartTimeStr = s['default_start_time'] ?? '09:00';
+        const lateToleranceMins = Number(s['late_tolerance_minutes'] ?? 10);
+        const recs = await this.db
+            .select()
+            .from(schema_2.attendanceRecords)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_2.attendanceRecords.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_2.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_2.attendanceRecords.clockIn, startOfDay), (0, drizzle_orm_1.lte)(schema_2.attendanceRecords.clockIn, endOfDay)))
+            .execute();
+        const rec = recs[0] ?? null;
+        if (!rec) {
+            return {
                 date: target,
-                checkInTime: checkIn.toTimeString().slice(0, 8),
-                checkOutTime: checkOut?.toTimeString().slice(0, 8) ?? null,
-                status,
-                workDurationMinutes,
-                overtimeMinutes,
-                isLateArrival,
-                isEarlyDeparture,
+                checkInTime: null,
+                checkOutTime: null,
+                status: 'absent',
+                workDurationMinutes: null,
+                overtimeMinutes: 0,
+                isLateArrival: false,
+                isEarlyDeparture: false,
             };
-            return payload;
+        }
+        let startTimeStr = defaultStartTimeStr;
+        let tolerance = lateToleranceMins;
+        if (useShifts) {
+            const shift = await this.employeeShiftsService.getActiveShiftForEmployee(employeeId, companyId, target);
+            if (shift) {
+                startTimeStr = shift.startTime;
+                tolerance = shift.lateToleranceMinutes ?? lateToleranceMins;
+            }
+        }
+        const shiftStart = (0, date_fns_1.parseISO)(`${target}T${startTimeStr}:00`);
+        const checkIn = new Date(rec.clockIn);
+        const checkOut = rec.clockOut ? new Date(rec.clockOut) : null;
+        const diffLate = (checkIn.getTime() - shiftStart.getTime()) / 60000;
+        const isLateArrival = diffLate > tolerance;
+        const isEarlyDeparture = checkOut
+            ? checkOut.getTime() <
+                (0, date_fns_1.parseISO)(`${target}T${(useShifts && (await this.employeeShiftsService.getActiveShiftForEmployee(employeeId, companyId, target)))?.end_time ?? s['default_end_time'] ?? '17:00'}:00`).getTime()
+            : false;
+        const workDurationMinutes = rec.workDurationMinutes;
+        const overtimeMinutes = rec.overtimeMinutes;
+        return {
+            date: target,
+            checkInTime: checkIn.toTimeString().slice(0, 8),
+            checkOutTime: checkOut?.toTimeString().slice(0, 8) ?? null,
+            status: checkIn ? (isLateArrival ? 'late' : 'present') : 'absent',
+            workDurationMinutes,
+            overtimeMinutes: overtimeMinutes ?? 0,
+            isLateArrival,
+            isEarlyDeparture,
         };
-        const result = isToday
-            ? await compute()
-            : await this.cacheService.getOrSetCache(cacheKey, compute);
-        this.logger.debug({ companyId, employeeId, target, status: result.status }, 'employees:attendanceByDate:done');
-        return result;
     }
     async findAllLeaveRequestByEmployeeId(employeeId, companyId) {
-        const cacheKey = this.keys(companyId).leaveList(employeeId);
-        this.logger.debug({ companyId, employeeId, cacheKey }, 'employees:leaveRequests:start');
-        const leaveRequestsData = await this.cacheService.getOrSetCache(cacheKey, async () => {
-            const data = await this.db
-                .select({
-                requestId: leave_requests_schema_1.leaveRequests.id,
-                employeeId: leave_requests_schema_1.leaveRequests.employeeId,
-                leaveType: leave_types_schema_1.leaveTypes.name,
-                startDate: leave_requests_schema_1.leaveRequests.startDate,
-                endDate: leave_requests_schema_1.leaveRequests.endDate,
-                status: leave_requests_schema_1.leaveRequests.status,
-                reason: leave_requests_schema_1.leaveRequests.reason,
-            })
-                .from(leave_requests_schema_1.leaveRequests)
-                .innerJoin(leave_types_schema_1.leaveTypes, (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.leaveTypeId, leave_types_schema_1.leaveTypes.id))
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.employeeId, employeeId), (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.companyId, companyId)))
-                .execute();
-            return data;
-        });
-        if (!leaveRequestsData || leaveRequestsData.length === 0) {
-            this.logger.warn({ companyId, employeeId }, 'employees:leaveRequests:not-found');
+        const leaveRequestsData = await this.db
+            .select({
+            requestId: leave_requests_schema_1.leaveRequests.id,
+            employeeId: leave_requests_schema_1.leaveRequests.employeeId,
+            leaveType: leave_types_schema_1.leaveTypes.name,
+            startDate: leave_requests_schema_1.leaveRequests.startDate,
+            endDate: leave_requests_schema_1.leaveRequests.endDate,
+            status: leave_requests_schema_1.leaveRequests.status,
+            reason: leave_requests_schema_1.leaveRequests.reason,
+        })
+            .from(leave_requests_schema_1.leaveRequests)
+            .innerJoin(leave_types_schema_1.leaveTypes, (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.leaveTypeId, leave_types_schema_1.leaveTypes.id))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.employeeId, employeeId), (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.companyId, companyId)))
+            .execute();
+        if (!leaveRequestsData) {
             throw new common_1.NotFoundException('Leave requests not found');
         }
-        this.logger.debug({ companyId, employeeId, count: leaveRequestsData.length }, 'employees:leaveRequests:done');
         return leaveRequestsData;
     }
 };
 exports.EmployeesService = EmployeesService;
-exports.EmployeesService = EmployeesService = EmployeesService_1 = __decorate([
+exports.EmployeesService = EmployeesService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
@@ -1477,7 +1292,6 @@ exports.EmployeesService = EmployeesService = EmployeesService_1 = __decorate([
         attendance_settings_service_1.AttendanceSettingsService,
         employee_shifts_service_1.EmployeeShiftsService,
         payslip_service_1.PayslipService,
-        onboarding_service_1.OnboardingService,
-        nestjs_pino_1.PinoLogger])
+        onboarding_service_1.OnboardingService])
 ], EmployeesService);
 //# sourceMappingURL=employees.service.js.map

@@ -11,36 +11,47 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PayrollSettingsService = void 0;
 const common_1 = require("@nestjs/common");
+const cache_service_1 = require("../../../common/cache/cache.service");
 const company_settings_service_1 = require("../../../company-settings/company-settings.service");
 let PayrollSettingsService = class PayrollSettingsService {
-    constructor(companySettingsService) {
+    constructor(companySettingsService, cache) {
         this.companySettingsService = companySettingsService;
+        this.cache = cache;
+        this.ttlSeconds = 60 * 60;
+    }
+    tags(companyId) {
+        return [
+            `company:${companyId}:settings`,
+            `company:${companyId}:settings:group:payroll`,
+        ];
     }
     async getAllPayrollSettings(companyId) {
-        const settings = await this.companySettingsService.getAllSettings(companyId);
-        const payrollSettings = {};
-        for (const setting of settings) {
-            if (setting.key.startsWith('payroll.')) {
-                const strippedKey = setting.key.replace('payroll.', '');
-                payrollSettings[strippedKey] = setting.value;
+        return this.cache.getOrSetVersioned(companyId, ['payroll', 'all'], async () => {
+            const settings = await this.companySettingsService.getAllSettings(companyId);
+            const payrollSettings = {};
+            for (const setting of settings) {
+                if (setting.key.startsWith('payroll.')) {
+                    const strippedKey = setting.key.replace('payroll.', '');
+                    payrollSettings[strippedKey] = setting.value;
+                }
             }
-        }
-        return payrollSettings;
+            return payrollSettings;
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async payrollSettings(companyId) {
-        return await this.companySettingsService.getPayrollConfig(companyId);
+        return this.cache.getOrSetVersioned(companyId, ['payroll', 'config'], () => this.companySettingsService.getPayrollConfig(companyId), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async allowanceSettings(companyId) {
-        return await this.companySettingsService.getAllowanceConfig(companyId);
+        return this.cache.getOrSetVersioned(companyId, ['payroll', 'allowance'], () => this.companySettingsService.getAllowanceConfig(companyId), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async getApprovalAndProrationSettings(companyId) {
-        return await this.companySettingsService.getApprovalAndProrationSettings(companyId);
+        return this.cache.getOrSetVersioned(companyId, ['payroll', 'approval_proration'], () => this.companySettingsService.getApprovalAndProrationSettings(companyId), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async getThirteenthMonthSettings(companyId) {
-        return await this.companySettingsService.getThirteenthMonthSettings(companyId);
+        return this.cache.getOrSetVersioned(companyId, ['payroll', '13th_month'], () => this.companySettingsService.getThirteenthMonthSettings(companyId), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async getLoanSettings(companyId) {
-        return await this.companySettingsService.getLoanSettings(companyId);
+        return this.cache.getOrSetVersioned(companyId, ['payroll', 'loan'], () => this.companySettingsService.getLoanSettings(companyId), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async updatePayrollSetting(companyId, key, value) {
         const settingKey = `payroll.${key}`;
@@ -50,6 +61,7 @@ let PayrollSettingsService = class PayrollSettingsService {
 exports.PayrollSettingsService = PayrollSettingsService;
 exports.PayrollSettingsService = PayrollSettingsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [company_settings_service_1.CompanySettingsService])
+    __metadata("design:paramtypes", [company_settings_service_1.CompanySettingsService,
+        cache_service_1.CacheService])
 ], PayrollSettingsService);
 //# sourceMappingURL=payroll-settings.service.js.map

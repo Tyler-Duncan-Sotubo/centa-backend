@@ -1,7 +1,11 @@
+import { CacheService } from 'src/common/cache/cache.service';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 export declare class PayrollSettingsService {
     private readonly companySettingsService;
-    constructor(companySettingsService: CompanySettingsService);
+    private readonly cache;
+    constructor(companySettingsService: CompanySettingsService, cache: CacheService);
+    private ttlSeconds;
+    private tags;
     getAllPayrollSettings(companyId: string): Promise<Record<string, any>>;
     payrollSettings(companyId: string): Promise<any>;
     allowanceSettings(companyId: string): Promise<any>;

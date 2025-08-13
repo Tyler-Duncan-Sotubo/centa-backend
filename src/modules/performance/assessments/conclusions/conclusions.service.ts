@@ -13,10 +13,25 @@ import { UpdateConclusionDto } from './dto/update-conclusion.dto';
 import { assessmentConclusions } from '../schema/performance-assessment-conclusions.schema';
 import { performanceAssessments } from '../schema/performance-assessments.schema';
 import { companyRoles, users } from 'src/drizzle/schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class AssessmentConclusionsService {
-  constructor(@Inject(DRIZZLE) private readonly db: db) {}
+  private readonly ttlSeconds = 10 * 60; // cache for 10 minutes
+
+  constructor(
+    @Inject(DRIZZLE) private readonly db: db,
+    private readonly cache: CacheService,
+  ) {}
+
+  private tags(companyId: string) {
+    return [`company:${companyId}:assessments`];
+  }
+  private async invalidate(companyId: string) {
+    await this.cache.bumpCompanyVersion(companyId);
+    // Optionally, if native Redis sets are available this will clear tag sets:
+    // await this.cache.invalidateTags(this.tags(companyId));
+  }
 
   async createConclusion(
     assessmentId: string,
@@ -28,11 +43,9 @@ export class AssessmentConclusionsService {
       .from(performanceAssessments)
       .where(eq(performanceAssessments.id, assessmentId));
 
-    if (!assessment) {
-      throw new NotFoundException('Assessment not found');
-    }
+    if (!assessment) throw new NotFoundException('Assessment not found');
 
-    if (assessment.reviewerId !== authorId && !this.isHR(authorId)) {
+    if (assessment.reviewerId !== authorId && !(await this.isHR(authorId))) {
       throw new ForbiddenException('Not authorized to submit this conclusion');
     }
 
@@ -41,9 +54,7 @@ export class AssessmentConclusionsService {
       .from(assessmentConclusions)
       .where(eq(assessmentConclusions.assessmentId, assessmentId));
 
-    if (existing) {
-      throw new BadRequestException('Conclusion already exists');
-    }
+    if (existing) throw new BadRequestException('Conclusion already exists');
 
     const [created] = await this.db
       .insert(assessmentConclusions)
@@ -57,8 +68,9 @@ export class AssessmentConclusionsService {
     if (created) {
       await this.db
         .update(performanceAssessments)
-        .set({ status: 'submitted' })
+        .set({ status: 'submitted', submittedAt: new Date() })
         .where(eq(performanceAssessments.id, assessmentId));
+      await this.invalidate(assessment.companyId);
     }
 
     return created;
@@ -74,16 +86,14 @@ export class AssessmentConclusionsService {
       .from(assessmentConclusions)
       .where(eq(assessmentConclusions.assessmentId, assessmentId));
 
-    if (!conclusion) {
-      throw new NotFoundException('Conclusion not found');
-    }
+    if (!conclusion) throw new NotFoundException('Conclusion not found');
 
     const [assessment] = await this.db
       .select()
       .from(performanceAssessments)
       .where(eq(performanceAssessments.id, assessmentId));
 
-    if (assessment?.reviewerId !== authorId && !this.isHR(authorId)) {
+    if (assessment?.reviewerId !== authorId && !(await this.isHR(authorId))) {
       throw new ForbiddenException('Not authorized to update this conclusion');
     }
 
@@ -93,34 +103,48 @@ export class AssessmentConclusionsService {
       .where(eq(assessmentConclusions.assessmentId, assessmentId))
       .returning();
 
+    await this.invalidate(assessment.companyId);
     return updated;
   }
 
+  /** Cached + versioned fetch. */
   async getConclusionByAssessment(assessmentId: string) {
-    const [conclusion] = await this.db
-      .select()
-      .from(assessmentConclusions)
-      .where(eq(assessmentConclusions.assessmentId, assessmentId));
+    // need companyId for version scope
+    const [assessment] = await this.db
+      .select({
+        companyId: performanceAssessments.companyId,
+      })
+      .from(performanceAssessments)
+      .where(eq(performanceAssessments.id, assessmentId))
+      .limit(1);
 
-    if (!conclusion) {
-      throw new NotFoundException('Conclusion not found');
-    }
+    if (!assessment) throw new NotFoundException('Assessment not found');
 
-    return conclusion;
+    return this.cache.getOrSetVersioned(
+      assessment.companyId,
+      ['assessments', 'conclusion', assessmentId],
+      async () => {
+        const [conclusion] = await this.db
+          .select()
+          .from(assessmentConclusions)
+          .where(eq(assessmentConclusions.assessmentId, assessmentId));
+        if (!conclusion) throw new NotFoundException('Conclusion not found');
+        return conclusion;
+      },
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(assessment.companyId) },
+    );
   }
 
-  // Stub: Replace with role/permission check
+  // Role/permission check: look up the user's company role by userId.
   private async isHR(userId: string): Promise<boolean> {
-    const [userRole] = await this.db
-      .select()
-      .from(companyRoles)
-      .innerJoin(users, eq(users.companyId, companyRoles.companyId))
-      .where(eq(companyRoles.companyId, userId));
+    const [row] = await this.db
+      .select({ roleName: companyRoles.name })
+      .from(users)
+      .leftJoin(companyRoles, eq(companyRoles.id, users.companyRoleId))
+      .where(eq(users.id, userId))
+      .limit(1);
 
-    return (
-      userRole?.company_roles?.name === 'hr_manager' ||
-      userRole?.company_roles?.name === 'admin' ||
-      userRole?.company_roles?.name === 'super_admin'
-    );
+    const role = row?.roleName ?? '';
+    return role === 'hr_manager' || role === 'admin' || role === 'super_admin';
   }
 }

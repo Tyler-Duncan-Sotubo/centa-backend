@@ -20,7 +20,6 @@ import {
 import { assetApprovals } from '../schema/asset-approval.schema';
 import { AssetsSettingsService } from '../settings/assets-settings.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
-import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class AssetsRequestService {
@@ -29,39 +28,17 @@ export class AssetsRequestService {
     private readonly auditService: AuditService,
     private readonly assetsSettingsService: AssetsSettingsService,
     private readonly pusher: PusherService,
-    private readonly cache: CacheService,
   ) {}
 
-  // -------- cache keys & helpers --------
-  private listKey(companyId: string) {
-    return `company:${companyId}:asset-requests:list`;
-  }
-  private oneKey(requestId: string) {
-    return `asset-request:${requestId}:detail`;
-  }
-  private byEmployeeKey(employeeId: string) {
-    return `employee:${employeeId}:asset-requests`;
-  }
-  private async invalidateAfterChange(opts: {
-    companyId: string;
-    requestId?: string;
-    employeeId?: string;
-  }) {
-    const jobs = [this.cache.del(this.listKey(opts.companyId))];
-    if (opts.requestId) jobs.push(this.cache.del(this.oneKey(opts.requestId)));
-    if (opts.employeeId)
-      jobs.push(this.cache.del(this.byEmployeeKey(opts.employeeId)));
-    await Promise.allSettled(jobs);
-  }
-
-  // ---------- approval flow ----------
   async handleAssetApprovalFlow(assetRequestId: string, user: User) {
+    // 1. Load approval settings
     const assetSettings = await this.assetsSettingsService.getAssetSettings(
       user.companyId,
     );
     const multi = assetSettings.multiLevelApproval;
     const chain = assetSettings.approverChain || [];
 
+    // 2. Reuse or create approvalWorkflow for this request
     let [workflow] = await this.db
       .select()
       .from(approvalWorkflows)
@@ -89,6 +66,7 @@ export class AssetsRequestService {
 
     const workflowId = workflow.id;
 
+    // 3. Create approval steps if not exist
     const existingSteps = await this.db
       .select()
       .from(approvalSteps)
@@ -109,7 +87,7 @@ export class AssetsRequestService {
             {
               workflowId,
               sequence: 1,
-              role: 'it_manager',
+              role: 'it_manager', // default role for asset requests
               status: 'approved',
               minApprovals: 1,
               maxApprovals: 1,
@@ -123,6 +101,7 @@ export class AssetsRequestService {
         .returning({ id: approvalSteps.id })
         .execute();
 
+      // 4. Create initial approval record
       await this.db
         .insert(assetApprovals)
         .values({
@@ -136,7 +115,7 @@ export class AssetsRequestService {
         .execute();
     }
 
-    // auto-approve path (not multi)
+    // 5. Auto-approve if not multi-level
     if (!multi) {
       const [step] = await this.db
         .select()
@@ -149,6 +128,7 @@ export class AssetsRequestService {
         )
         .execute();
 
+      // update the asset request status to 'approved' immediately
       const [updated] = await this.db
         .update(assetRequests)
         .set({ status: 'approved' })
@@ -157,39 +137,37 @@ export class AssetsRequestService {
         .execute();
 
       if (step) {
-        await this.db.insert(assetApprovals).values({
-          assetRequestId,
-          stepId: step.id,
-          actorId: user.id,
-          action: 'approved',
-          remarks: 'Auto-approved',
-          createdAt: new Date(),
-        });
+        await this.db
+          .insert(assetApprovals)
+          .values({
+            assetRequestId,
+            stepId: step.id,
+            actorId: user.id,
+            action: 'approved',
+            remarks: 'Auto-approved',
+            createdAt: new Date(),
+          })
+          .execute();
       }
 
+      // notify user about the approval workflow
       await this.pusher.createEmployeeNotification(
         user.companyId,
         updated.employeeId,
         `Your asset request has been auto-approved.`,
         'asset',
       );
+
       await this.pusher.createNotification(
         user.companyId,
         `Your asset request has been auto-approved.`,
         'asset',
       );
-
-      // 🔥 burst caches
-      await this.invalidateAfterChange({
-        companyId: user.companyId,
-        requestId: assetRequestId,
-        employeeId: updated.employeeId,
-      });
     }
   }
 
-  // ---------- create ----------
   async create(dto: CreateAssetsRequestDto, user: User) {
+    // Check if user has existing request for same asset type
     const [existRequest] = await this.db
       .select()
       .from(assetRequests)
@@ -208,6 +186,7 @@ export class AssetsRequestService {
       );
     }
 
+    // Insert asset request
     const [newRequest] = await this.db
       .insert(assetRequests)
       .values({
@@ -225,8 +204,10 @@ export class AssetsRequestService {
       'asset',
     );
 
+    // Handle approval workflow for asset request
     await this.handleAssetApprovalFlow(newRequest.id, user);
 
+    // Log audit action
     await this.auditService.logAction({
       action: 'create',
       entity: 'asset_request',
@@ -241,18 +222,11 @@ export class AssetsRequestService {
       },
     });
 
-    // 🔥 burst caches
-    await this.invalidateAfterChange({
-      companyId: user.companyId,
-      requestId: newRequest.id,
-      employeeId: newRequest.employeeId,
-    });
-
     return newRequest;
   }
 
-  // ---------- reads (cached) ----------
   findAll(companyId: string) {
+    // Use a raw SQL CASE expression for ordering urgency
     const urgencyOrder = sql`
       CASE
         WHEN ${assetRequests.urgency} = 'Critical' THEN 1
@@ -262,85 +236,76 @@ export class AssetsRequestService {
       END
     `;
 
-    return this.cache.getOrSetCache(
-      this.listKey(companyId),
-      async () => {
-        return this.db
-          .select({
-            id: assetRequests.id,
-            employeeId: assetRequests.employeeId,
-            assetType: assetRequests.assetType,
-            purpose: assetRequests.purpose,
-            urgency: assetRequests.urgency,
-            status: assetRequests.status,
-            requestDate: assetRequests.requestDate,
-            createdAt: assetRequests.createdAt,
-            employeeName: sql`${employees.firstName} || ' ' || ${employees.lastName}`,
-            employeeEmail: employees.email,
-          })
-          .from(assetRequests)
-          .innerJoin(employees, eq(employees.id, assetRequests.employeeId))
-          .where(eq(assetRequests.companyId, companyId))
-          .orderBy(urgencyOrder, desc(assetRequests.createdAt))
-          .execute();
-      },
-      // { ttl: 60 }
-    );
+    return this.db
+      .select({
+        id: assetRequests.id,
+        employeeId: assetRequests.employeeId,
+        assetType: assetRequests.assetType,
+        purpose: assetRequests.purpose,
+        urgency: assetRequests.urgency,
+        status: assetRequests.status,
+        requestDate: assetRequests.requestDate,
+        createdAt: assetRequests.createdAt,
+        employeeName: sql`${employees.firstName} || ' ' || ${employees.lastName}`,
+        employeeEmail: employees.email,
+      })
+      .from(assetRequests)
+      .innerJoin(employees, eq(employees.id, assetRequests.employeeId))
+      .where(eq(assetRequests.companyId, companyId))
+      .orderBy(urgencyOrder, desc(assetRequests.createdAt))
+      .execute();
   }
 
   async findOne(id: string) {
-    return this.cache.getOrSetCache(
-      this.oneKey(id),
-      async () => {
-        const [request] = await this.db
-          .select()
-          .from(assetRequests)
-          .where(eq(assetRequests.id, id))
-          .execute();
+    const [request] = await this.db
+      .select()
+      .from(assetRequests)
+      .where(eq(assetRequests.id, id))
+      .execute();
 
-        if (!request)
-          throw new BadRequestException(
-            `Asset request with ID ${id} not found`,
-          );
-        return request;
-      },
-      // { ttl: 120 }
-    );
+    if (!request) {
+      throw new BadRequestException(`Asset request with ID ${id} not found`);
+    }
+
+    return request;
   }
 
   async findByEmployeeId(employeeId: string) {
-    return this.cache.getOrSetCache(
-      this.byEmployeeKey(employeeId),
-      async () => {
-        const requests = await this.db
-          .select()
-          .from(assetRequests)
-          .where(eq(assetRequests.employeeId, employeeId))
-          .orderBy(desc(assetRequests.createdAt))
-          .execute();
+    const requests = await this.db
+      .select()
+      .from(assetRequests)
+      .where(eq(assetRequests.employeeId, employeeId))
+      .orderBy(desc(assetRequests.createdAt))
+      .execute();
 
-        // Return empty array instead of throwing to keep cache semantics simple
-        return requests;
-      },
-      // { ttl: 60 }
-    );
+    if (requests.length === 0) {
+      throw new BadRequestException(
+        `No asset requests found for employee ID ${employeeId}`,
+      );
+    }
+
+    return requests;
   }
 
-  // ---------- update ----------
   async update(
     id: string,
     updateAssetsRequestDto: UpdateAssetsRequestDto,
     user: User,
   ) {
+    // Find the existing request
     await this.findOne(id);
 
+    // Update the request
     const [updatedRequest] = await this.db
       .update(assetRequests)
-      .set({ ...updateAssetsRequestDto })
+      .set({
+        ...updateAssetsRequestDto,
+      })
       .where(eq(assetRequests.id, id))
       .returning()
       .execute();
 
+    // Log the action
     await this.auditService.logAction({
       action: 'update',
       entity: 'asset_request',
@@ -354,19 +319,11 @@ export class AssetsRequestService {
         notes: updatedRequest.notes,
       },
     });
-
-    // 🔥 burst caches
-    await this.invalidateAfterChange({
-      companyId: user.companyId,
-      requestId: updatedRequest.id,
-      employeeId: updatedRequest.employeeId,
-    });
-
     return updatedRequest;
   }
 
-  // ---------- status check (no cache: user-specific eligibility) ----------
   async checkApprovalStatus(assetRequestId: string, user?: User) {
+    // 1. Fetch asset request and its workflow
     const [request] = await this.db
       .select({
         id: assetRequests.id,
@@ -386,10 +343,15 @@ export class AssetsRequestService {
       .where(eq(assetRequests.id, assetRequestId))
       .execute();
 
-    if (!request) throw new NotFoundException(`Asset request not found`);
-    if (!request.workflowId)
-      throw new BadRequestException(`Approval workflow not initialized.`);
+    if (!request) {
+      throw new NotFoundException(`Asset request not found`);
+    }
 
+    if (!request.workflowId) {
+      throw new BadRequestException(`Approval workflow not initialized.`);
+    }
+
+    // 2. Fetch approval steps
     const steps = await this.db
       .select({
         id: approvalSteps.id,
@@ -405,11 +367,13 @@ export class AssetsRequestService {
       .orderBy(approvalSteps.sequence)
       .execute();
 
+    // 3. Load fallback roles from company settings
     const assetSettings = await this.assetsSettingsService.getAssetSettings(
       request.companyId,
     );
     const fallbackRoles = assetSettings.fallbackRoles || [];
 
+    // 4. Enrich steps with eligibility
     const enrichedSteps = steps.map((step) => {
       const isFallback = fallbackRoles.includes(user?.role || '');
       const isPrimary = user?.role === step.role;
@@ -428,7 +392,6 @@ export class AssetsRequestService {
     };
   }
 
-  // ---------- approval action ----------
   async handleAssetApprovalAction(
     assetRequestId: string,
     user: User,
@@ -441,7 +404,6 @@ export class AssetsRequestService {
         workflowId: approvalWorkflows.id,
         approvalStatus: assetRequests.status,
         employeeId: assetRequests.employeeId,
-        companyId: assetRequests.companyId,
       })
       .from(assetRequests)
       .leftJoin(
@@ -455,7 +417,10 @@ export class AssetsRequestService {
       .limit(1)
       .execute();
 
-    if (!request) throw new NotFoundException(`Asset request not found`);
+    if (!request) {
+      throw new NotFoundException(`Asset request not found`);
+    }
+
     if (
       request.approvalStatus === 'approved' ||
       request.approvalStatus === 'rejected'
@@ -464,8 +429,10 @@ export class AssetsRequestService {
         `This request has already been ${request.approvalStatus}.`,
       );
     }
-    if (!request.workflowId)
+
+    if (!request.workflowId) {
       throw new BadRequestException(`Approval workflow not initialized.`);
+    }
 
     const steps = await this.db
       .select({
@@ -480,8 +447,9 @@ export class AssetsRequestService {
       .execute();
 
     const currentStep = steps.find((s) => s.status === 'pending');
-    if (!currentStep)
+    if (!currentStep) {
       throw new BadRequestException(`No pending steps left to act on.`);
+    }
 
     const settings = await this.assetsSettingsService.getAssetSettings(
       user.companyId,
@@ -529,23 +497,17 @@ export class AssetsRequestService {
         `Your asset request has been ${action}`,
         'asset',
       );
+
       await this.pusher.createNotification(
         user.companyId,
         `Your asset request has been ${action}`,
         'asset',
       );
 
-      // 🔥 burst caches
-      await this.invalidateAfterChange({
-        companyId: request.companyId,
-        requestId: assetRequestId,
-        employeeId: request.employeeId,
-      });
-
       return `Asset request rejected successfully`;
     }
 
-    // fallback bulk approval
+    // ✅ Handle fallback bulk approval
     if (isFallback) {
       const remainingSteps = steps.filter((s) => s.status === 'pending');
 
@@ -568,7 +530,10 @@ export class AssetsRequestService {
 
       await this.db
         .update(assetRequests)
-        .set({ status: 'approved', updatedAt: new Date() })
+        .set({
+          status: 'approved',
+          updatedAt: new Date(),
+        })
         .where(eq(assetRequests.id, assetRequestId))
         .execute();
 
@@ -578,23 +543,17 @@ export class AssetsRequestService {
         `Your asset request has been ${action}`,
         'asset',
       );
+
       await this.pusher.createNotification(
         user.companyId,
         `Your asset request has been ${action}`,
         'asset',
       );
 
-      // 🔥 burst caches
-      await this.invalidateAfterChange({
-        companyId: request.companyId,
-        requestId: assetRequestId,
-        employeeId: request.employeeId,
-      });
-
       return `Asset request fully approved via fallback`;
     }
 
-    // regular actor: approve only current step
+    // ✅ Regular actor: Approve only current step
     await this.db
       .update(approvalSteps)
       .set({ status: 'approved' })
@@ -613,10 +572,14 @@ export class AssetsRequestService {
     const allApproved = steps.every(
       (s) => s.id === currentStep.id || s.status === 'approved',
     );
+
     if (allApproved) {
       await this.db
         .update(assetRequests)
-        .set({ status: 'approved', updatedAt: new Date() })
+        .set({
+          status: 'approved',
+          updatedAt: new Date(),
+        })
         .where(eq(assetRequests.id, assetRequestId))
         .execute();
     }
@@ -627,18 +590,12 @@ export class AssetsRequestService {
       `Your asset request has been ${action}`,
       'asset',
     );
+
     await this.pusher.createNotification(
       user.companyId,
       `Your asset request has been ${action}`,
       'asset',
     );
-
-    // 🔥 burst caches
-    await this.invalidateAfterChange({
-      companyId: request.companyId,
-      requestId: assetRequestId,
-      employeeId: request.employeeId,
-    });
 
     return `Asset request ${action} successfully`;
   }

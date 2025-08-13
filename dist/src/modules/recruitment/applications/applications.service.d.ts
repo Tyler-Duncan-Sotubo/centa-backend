@@ -7,22 +7,14 @@ import { ChangeApplicationStatusDto } from './dto/chnage-app-status.dto';
 import { User } from 'src/common/types/user.type';
 import { ResumeScoringService } from './resume-scoring.service';
 import { Queue } from 'bullmq';
-import { PinoLogger } from 'nestjs-pino';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class ApplicationsService {
     private readonly db;
     private readonly queue;
     private readonly awsService;
     private readonly auditService;
     private readonly resumeScoring;
-    private readonly logger;
-    private readonly cache;
-    constructor(db: db, queue: Queue, awsService: AwsService, auditService: AuditService, resumeScoring: ResumeScoringService, logger: PinoLogger, cache: CacheService);
-    private appDetailKey;
-    private kanbanKey;
-    private appHistoryKey;
-    private burst;
-    submitApplication(dto: CreateApplicationDto, user: User): Promise<{
+    constructor(db: db, queue: Queue, awsService: AwsService, auditService: AuditService, resumeScoring: ResumeScoringService);
+    submitApplication(dto: CreateApplicationDto): Promise<{
         success: boolean;
         applicationId: string;
     }>;
@@ -67,7 +59,6 @@ export declare class ApplicationsService {
                 id: string;
                 name: string;
                 email: string;
-                scorecard?: any;
             }[];
             id: string;
             applicationId: string;

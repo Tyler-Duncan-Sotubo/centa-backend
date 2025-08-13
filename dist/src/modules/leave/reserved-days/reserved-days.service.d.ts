@@ -3,29 +3,19 @@ import { UpdateReservedDayDto } from './dto/update-reserved-day.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
-import { PinoLogger } from 'nestjs-pino';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class ReservedDaysService {
     private db;
     private readonly auditService;
-    private readonly logger;
-    private readonly cache;
-    constructor(db: db, auditService: AuditService, logger: PinoLogger, cache: CacheService);
-    private oneKey;
-    private listKey;
-    private byEmployeeKey;
-    private datesKey;
-    private burst;
-    private overlaps;
+    constructor(db: db, auditService: AuditService);
     create(dto: CreateReservedDayDto, user: User): Promise<{
         id: string;
         createdAt: Date | null;
         companyId: string | null;
+        createdBy: string;
         startDate: string;
         employeeId: string | null;
-        createdBy: string;
-        reason: string | null;
         endDate: string;
+        reason: string | null;
         leaveTypeId: string;
     }>;
     getReservedDates(companyId: string, employeeId: string): Promise<string[]>;
@@ -38,7 +28,6 @@ export declare class ReservedDaysService {
         leaveType: string;
         createdBy: string;
         reason: string | null;
-        employeeId: string | null;
     } | {
         id: string;
         startDate: string;
@@ -48,9 +37,8 @@ export declare class ReservedDaysService {
         leaveType: string;
         createdBy: string;
         reason: string | null;
-        employeeId: string | null;
     })[]>;
-    findByEmployee(companyId: string, employeeId: string): Promise<{
+    findByEmployee(employeeId: string): Promise<{
         id: string;
         employeeId: string | null;
         companyId: string | null;
@@ -61,7 +49,7 @@ export declare class ReservedDaysService {
         reason: string | null;
         createdAt: Date | null;
     }[]>;
-    findOne(id: string, user: User): Promise<{
+    findOne(id: string): Promise<{
         id: string;
         employeeId: string | null;
         companyId: string | null;
@@ -82,8 +70,6 @@ export declare class ReservedDaysService {
         endDate: string;
         reason: string | null;
         createdAt: Date | null;
-    }>;
-    remove(id: string, user: User): Promise<{
-        message: string;
-    }>;
+    }[]>;
+    remove(id: string): Promise<any>;
 }

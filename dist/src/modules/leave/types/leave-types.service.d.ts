@@ -3,18 +3,10 @@ import { db } from 'src/drizzle/types/drizzle';
 import { User } from 'src/common/types/user.type';
 import { CreateLeaveTypeDto } from './dto/create-leave-type.dto';
 import { UpdateLeaveTypeDto } from './dto/update-leave-type.dto';
-import { PinoLogger } from 'nestjs-pino';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class LeaveTypesService {
     private readonly auditService;
     private readonly db;
-    private readonly logger;
-    private readonly cache;
-    constructor(auditService: AuditService, db: db, logger: PinoLogger, cache: CacheService);
-    private oneKey;
-    private listKey;
-    private nameKey;
-    private burst;
+    constructor(auditService: AuditService, db: db);
     bulkCreateLeaveTypes(companyId: string, rows: any[]): Promise<{
         id: string;
         name: string;
@@ -57,7 +49,7 @@ export declare class LeaveTypesService {
         createdAt: Date | null;
         updatedAt: Date | null;
     }>;
-    remove(leaveTypeId: string, user: User, ip: string): Promise<{
+    remove(companyId: string, leaveTypeId: string): Promise<{
         success: boolean;
         message: string;
     }>;

@@ -4,18 +4,23 @@ import { User } from 'src/common/types/user.type';
 import { CreateAppraisalDto } from './dto/create-appraisal.dto';
 import { UpdateAppraisalDto } from './dto/update-appraisal.dto';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class AppraisalsService {
     private readonly db;
     private readonly auditService;
     private readonly companySettingsService;
-    constructor(db: db, auditService: AuditService, companySettingsService: CompanySettingsService);
+    private readonly cache;
+    private readonly ttlSeconds;
+    constructor(db: db, auditService: AuditService, companySettingsService: CompanySettingsService, cache: CacheService);
+    private tags;
+    private invalidate;
     create(createDto: CreateAppraisalDto, companyId: string, userId?: string): Promise<{
         id: string;
         createdAt: Date | null;
         companyId: string | null;
-        managerId: string;
-        employeeId: string;
         cycleId: string;
+        employeeId: string;
+        managerId: string;
         submittedByEmployee: boolean | null;
         submittedByManager: boolean | null;
         finalized: boolean | null;
@@ -50,7 +55,7 @@ export declare class AppraisalsService {
             name: string;
             startDate: string;
             endDate: string;
-            status: "active" | "upcoming" | "closed";
+            status: "upcoming" | "active" | "closed";
         } | null;
         currentCycleAppraisal: {
             id: string;

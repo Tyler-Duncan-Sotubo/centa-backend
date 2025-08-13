@@ -8,30 +8,16 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { benefitGroups } from '../schema/benefit-groups.schema';
 import { benefitPlans } from '../schema/benefit-plan.schema';
-import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class BenefitGroupsService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
-    private readonly cache: CacheService,
   ) {}
 
-  // ---- cache keys
-  private listKey(companyId: string) {
-    return `company:${companyId}:benefit-groups:list`;
-  }
-  private oneKey(id: string) {
-    return `benefit-group:${id}:detail`;
-  }
-  private async invalidate(companyId: string, id?: string) {
-    const jobs = [this.cache.del(this.listKey(companyId))];
-    if (id) jobs.push(this.cache.del(this.oneKey(id)));
-    await Promise.allSettled(jobs);
-  }
-
   async create(dto: CreateBenefitGroupDto, user: User) {
+    // check if the group name already exists
     const [existingGroup] = await this.db
       .select()
       .from(benefitGroups)
@@ -42,17 +28,22 @@ export class BenefitGroupsService {
         ),
       )
       .execute();
-    if (existingGroup)
+    if (existingGroup) {
       throw new BadRequestException(
         'A benefit group with this name already exists.',
       );
+    }
 
+    // create the new benefit group
     const [newGroup] = await this.db
       .insert(benefitGroups)
-      .values({ ...dto, companyId: user.companyId })
-      .returning()
-      .execute();
+      .values({
+        ...dto,
+        companyId: user.companyId,
+      })
+      .returning();
 
+    // log the creation of the new benefit group
     await this.auditService.logAction({
       action: 'create',
       entity: 'benefitGroup',
@@ -66,52 +57,47 @@ export class BenefitGroupsService {
         createdAt: newGroup.createdAt,
       },
     });
-
-    await this.invalidate(user.companyId, newGroup.id);
     return newGroup;
   }
 
   async findAll(companyId: string) {
-    return this.cache.getOrSetCache(
-      this.listKey(companyId),
-      async () => {
-        return this.db
-          .select()
-          .from(benefitGroups)
-          .where(eq(benefitGroups.companyId, companyId))
-          .execute();
-      },
-      // { ttl: 300 }
-    );
+    const allGroups = await this.db
+      .select()
+      .from(benefitGroups)
+      .where(eq(benefitGroups.companyId, companyId))
+      .execute();
+
+    return allGroups;
   }
 
-  async findOne(id: string) {
-    return this.cache.getOrSetCache(
-      this.oneKey(id),
-      async () => {
-        const [group] = await this.db
-          .select()
-          .from(benefitGroups)
-          .where(eq(benefitGroups.id, id))
-          .execute();
-        if (!group) throw new BadRequestException('Benefit group not found');
-        return group;
-      },
-      // { ttl: 600 }
-    );
+  findOne(id: string) {
+    const group = this.db
+      .select()
+      .from(benefitGroups)
+      .where(eq(benefitGroups.id, id))
+      .execute();
+
+    if (!group) {
+      throw new BadRequestException('Benefit group not found');
+    }
+    return group;
   }
 
   async update(id: string, dto: UpdateBenefitGroupDto, user: User) {
-    // ensure exists (and warm cache)
+    // check if the group name already exists
     await this.findOne(id);
 
     const [updatedGroup] = await this.db
       .update(benefitGroups)
-      .set({ ...dto, companyId: user.companyId })
+      .set({
+        ...dto,
+        companyId: user.companyId,
+      })
       .where(eq(benefitGroups.id, id))
       .returning()
       .execute();
 
+    // log the update of the benefit group
     await this.auditService.logAction({
       action: 'update',
       entity: 'benefitGroup',
@@ -126,19 +112,18 @@ export class BenefitGroupsService {
       },
     });
 
-    await this.invalidate(user.companyId, updatedGroup.id);
     return updatedGroup;
   }
 
   async remove(id: string, user: User) {
-    // ensure exists
-    const group = await this.findOne(id);
+    await this.findOne(id);
 
     const existingPlans = await this.db
       .select()
       .from(benefitPlans)
       .where(eq(benefitPlans.benefitGroupId, id))
       .execute();
+
     if (existingPlans.length > 0) {
       throw new BadRequestException(
         'Cannot delete benefit group with existing benefit plans.',
@@ -156,6 +141,7 @@ export class BenefitGroupsService {
       .returning()
       .execute();
 
+    // log the deletion of the benefit group
     await this.auditService.logAction({
       action: 'delete',
       entity: 'benefitGroup',
@@ -169,8 +155,5 @@ export class BenefitGroupsService {
         createdAt: deletedGroup.createdAt,
       },
     });
-
-    await this.invalidate(user.companyId, group.id);
-    return { success: true };
   }
 }

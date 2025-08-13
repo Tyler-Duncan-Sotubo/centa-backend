@@ -26,7 +26,6 @@ import { EmployeeShiftsService } from 'src/modules/time/employee-shifts/employee
 import { PayslipService } from 'src/modules/payroll/payslip/payslip.service';
 import { EmployeeProfileDto } from './dto/update-employee-details.dto';
 import { OnboardingService } from 'src/modules/lifecycle/onboarding/onboarding.service';
-import { PinoLogger } from 'nestjs-pino';
 export declare class EmployeesService {
     private db;
     private audit;
@@ -50,11 +49,8 @@ export declare class EmployeesService {
     private readonly employeeShiftsService;
     private readonly payslipService;
     private readonly onboardingService;
-    private readonly logger;
     protected table: any;
-    constructor(db: db, audit: AuditService, profileService: ProfileService, historyService: HistoryService, dependentsService: DependentsService, certificationsService: CertificationsService, compensationService: CompensationService, financeService: FinanceService, deptSvc: DepartmentService, roleSvc: JobRolesService, ccSvc: CostCentersService, groupsService: GroupsService, config: ConfigService, employeeInvitationService: EmployeeInvitationService, cacheService: CacheService, companySettingsService: CompanySettingsService, permissionService: PermissionsService, leaveBalanceService: LeaveBalanceService, attendanceSettingsService: AttendanceSettingsService, employeeShiftsService: EmployeeShiftsService, payslipService: PayslipService, onboardingService: OnboardingService, logger: PinoLogger);
-    private keys;
-    private invalidateCacheKeys;
+    constructor(db: db, audit: AuditService, profileService: ProfileService, historyService: HistoryService, dependentsService: DependentsService, certificationsService: CertificationsService, compensationService: CompensationService, financeService: FinanceService, deptSvc: DepartmentService, roleSvc: JobRolesService, ccSvc: CostCentersService, groupsService: GroupsService, config: ConfigService, employeeInvitationService: EmployeeInvitationService, cacheService: CacheService, companySettingsService: CompanySettingsService, permissionService: PermissionsService, leaveBalanceService: LeaveBalanceService, attendanceSettingsService: AttendanceSettingsService, employeeShiftsService: EmployeeShiftsService, payslipService: PayslipService, onboardingService: OnboardingService);
     private generateToken;
     createEmployeeNumber(companyId: string): Promise<string>;
     create(dto: CreateEmployeeCoreDto, currentUser: User): Promise<{
@@ -476,7 +472,7 @@ export declare class EmployeesService {
         lastName: any;
         employeeNumber: any;
     })[]>;
-    findOneByUserId(user: User): Promise<{
+    findOneByUserId(userId: string): Promise<{
         [x: string]: any;
     }>;
     findOne(employeeId: string, companyId: string): Promise<{
@@ -605,6 +601,30 @@ export declare class EmployeesService {
         confirmed: any;
     }>;
     findEmployeeSummaryByUserId(employeeId: string): Promise<{
+        id: any;
+        confirmed: any;
+        gender: string | null;
+        level: string | null;
+        country: string | null;
+        department: any;
+        userId: any;
+    } | {
+        id: any;
+        confirmed: any;
+        gender: string | null;
+        level: string | null;
+        country: string | null;
+        department: any;
+        userId: any;
+    } | {
+        id: any;
+        confirmed: any;
+        gender: string | null;
+        level: string | null;
+        country: string | null;
+        department: any;
+        userId: any;
+    } | {
         id: any;
         confirmed: any;
         gender: string | null;

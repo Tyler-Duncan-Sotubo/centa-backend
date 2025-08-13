@@ -8,42 +8,25 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-var ExpensesSettingsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ExpensesSettingsService = void 0;
 const common_1 = require("@nestjs/common");
-const nestjs_pino_1 = require("nestjs-pino");
-const company_settings_service_1 = require("../../../company-settings/company-settings.service");
 const cache_service_1 = require("../../../common/cache/cache.service");
-let ExpensesSettingsService = ExpensesSettingsService_1 = class ExpensesSettingsService {
-    constructor(companySettingsService, cache, logger) {
+const company_settings_service_1 = require("../../../company-settings/company-settings.service");
+let ExpensesSettingsService = class ExpensesSettingsService {
+    constructor(companySettingsService, cache) {
         this.companySettingsService = companySettingsService;
         this.cache = cache;
-        this.logger = logger;
-        this.logger.setContext(ExpensesSettingsService_1.name);
+        this.ttlSeconds = 60 * 60;
     }
-    allKey(companyId) {
-        return `company:${companyId}:expense:settings:all`;
-    }
-    oneKey(companyId) {
-        return `company:${companyId}:expense:settings:normalized`;
-    }
-    safeJson(v, fallback) {
-        if (Array.isArray(v))
-            return v;
-        if (typeof v !== 'string')
-            return fallback;
-        try {
-            const parsed = JSON.parse(v);
-            return Array.isArray(parsed) ? parsed : fallback;
-        }
-        catch {
-            return fallback;
-        }
+    tags(companyId) {
+        return [
+            `company:${companyId}:settings`,
+            `company:${companyId}:settings:group:expense`,
+        ];
     }
     async getAllExpenseSettings(companyId) {
-        return this.cache.getOrSetCache(this.allKey(companyId), async () => {
-            this.logger.debug({ companyId }, 'getAllExpenseSettings:miss');
+        return this.cache.getOrSetVersioned(companyId, ['expenses', 'all'], async () => {
             const settings = await this.companySettingsService.getAllSettings(companyId);
             const expenseSettings = {};
             for (const setting of settings) {
@@ -53,39 +36,46 @@ let ExpensesSettingsService = ExpensesSettingsService_1 = class ExpensesSettings
                 }
             }
             return expenseSettings;
-        });
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async getExpenseSettings(companyId) {
-        return this.cache.getOrSetCache(this.oneKey(companyId), async () => {
-            this.logger.debug({ companyId }, 'getExpenseSettings:miss');
+        return this.cache.getOrSetVersioned(companyId, ['expenses', 'config'], async () => {
             const keys = [
                 'expense.multi_level_approval',
                 'expense.approver_chain',
                 'expense.approval_fallback',
             ];
             const rows = await this.companySettingsService.fetchSettings(companyId, keys);
-            const multiLevelApproval = Boolean(rows['expense.multi_level_approval']);
-            const approverChain = this.safeJson(rows['expense.approver_chain'], []);
-            const fallbackRoles = this.safeJson(rows['expense.approval_fallback'], []);
-            return { multiLevelApproval, approverChain, fallbackRoles };
-        });
+            const parseMaybeJsonArray = (val) => {
+                if (Array.isArray(val))
+                    return val;
+                if (typeof val === 'string' && val.trim().length) {
+                    try {
+                        const parsed = JSON.parse(val);
+                        return Array.isArray(parsed) ? parsed : [];
+                    }
+                    catch {
+                        return [];
+                    }
+                }
+                return [];
+            };
+            return {
+                multiLevelApproval: Boolean(rows['expense.multi_level_approval']),
+                approverChain: parseMaybeJsonArray(rows['expense.approver_chain']),
+                fallbackRoles: parseMaybeJsonArray(rows['expense.approval_fallback']),
+            };
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async updateExpenseSetting(companyId, key, value) {
         const settingKey = `expense.${key}`;
         await this.companySettingsService.setSetting(companyId, settingKey, value);
-        const jobs = [
-            this.cache.del(this.allKey(companyId)),
-            this.cache.del(this.oneKey(companyId)),
-        ];
-        await Promise.allSettled(jobs);
-        this.logger.debug({ companyId, key, burst: ['all', 'normalized'] }, 'updateExpenseSetting:cache-busted');
     }
 };
 exports.ExpensesSettingsService = ExpensesSettingsService;
-exports.ExpensesSettingsService = ExpensesSettingsService = ExpensesSettingsService_1 = __decorate([
+exports.ExpensesSettingsService = ExpensesSettingsService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [company_settings_service_1.CompanySettingsService,
-        cache_service_1.CacheService,
-        nestjs_pino_1.PinoLogger])
+        cache_service_1.CacheService])
 ], ExpensesSettingsService);
 //# sourceMappingURL=expense-settings.service.js.map

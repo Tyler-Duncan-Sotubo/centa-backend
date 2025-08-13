@@ -26,8 +26,8 @@ let LeavePolicyController = class LeavePolicyController extends base_controller_
         super();
         this.leavePolicy = leavePolicy;
     }
-    createLeavePolicy(dto, user, ip) {
-        return this.leavePolicy.create(dto, user, ip);
+    createLeavePolicy(leaveTypeId, dto, user, ip) {
+        return this.leavePolicy.create(leaveTypeId, dto, user, ip);
     }
     async bulkCreateLeavePolicies(rows, user) {
         return this.leavePolicy.bulkCreateLeavePolicies(user.companyId, rows);
@@ -47,14 +47,15 @@ let LeavePolicyController = class LeavePolicyController extends base_controller_
 };
 exports.LeavePolicyController = LeavePolicyController;
 __decorate([
-    (0, common_1.Post)(''),
+    (0, common_1.Post)(':leaveTypeId'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('permissions', ['leave.policy.manage']),
-    __param(0, (0, common_1.Body)()),
-    __param(1, (0, current_user_decorator_1.CurrentUser)()),
-    __param(2, (0, common_1.Ip)()),
+    __param(0, (0, common_1.Param)('leaveTypeId')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
+    __param(3, (0, common_1.Ip)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_leave_policy_dto_1.CreateLeavePolicyDto, Object, String]),
+    __metadata("design:paramtypes", [String, create_leave_policy_dto_1.CreateLeavePolicyDto, Object, String]),
     __metadata("design:returntype", void 0)
 ], LeavePolicyController.prototype, "createLeavePolicy", null);
 __decorate([

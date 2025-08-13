@@ -9,7 +9,7 @@ import {
   timestamp,
   index,
 } from 'drizzle-orm/pg-core';
-import { employees } from './employee.schema';
+import { employees } from '../schema/employee.schema';
 
 export const employeeDependents = pgTable(
   'employee_dependents',

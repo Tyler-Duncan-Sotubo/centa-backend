@@ -19,7 +19,7 @@ export declare class ReportController extends BaseController {
             name: string;
             startDate: string;
             endDate: string;
-            status: "active" | "upcoming" | "closed";
+            status: "active" | "closed" | "upcoming";
         };
         cycleHealth: {
             totalAppraisals: number;
@@ -137,57 +137,109 @@ export declare class ReportController extends BaseController {
         submittedAt: Date | null;
     })[]>;
     getGoalReport(user: User, filter?: GetGoalReportDto): Promise<({
-        goalId: string;
+        goalId: any;
         employeeId: any;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
-        title: string;
-        description: string | null;
-        type: string | null;
-        status: string | null;
-        weight: number | null;
-        startDate: string;
-        dueDate: string;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
     } | {
-        goalId: string;
+        goalId: any;
         employeeId: any;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
-        title: string;
-        description: string | null;
-        type: string | null;
-        status: string | null;
-        weight: number | null;
-        startDate: string;
-        dueDate: string;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
     } | {
-        goalId: string;
+        goalId: any;
         employeeId: any;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
-        title: string;
-        description: string | null;
-        type: string | null;
-        status: string | null;
-        weight: number | null;
-        startDate: string;
-        dueDate: string;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
     } | {
-        goalId: string;
+        goalId: any;
         employeeId: any;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
-        title: string;
-        description: string | null;
-        type: string | null;
-        status: string | null;
-        weight: number | null;
-        startDate: string;
-        dueDate: string;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
+    } | {
+        goalId: any;
+        employeeId: any;
+        employeeName: string;
+        jobRoleName: string | null;
+        departmentName: any;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
+    } | {
+        goalId: any;
+        employeeId: any;
+        employeeName: string;
+        jobRoleName: string | null;
+        departmentName: any;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
+    } | {
+        goalId: any;
+        employeeId: any;
+        employeeName: string;
+        jobRoleName: string | null;
+        departmentName: any;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
+    } | {
+        goalId: any;
+        employeeId: any;
+        employeeName: string;
+        jobRoleName: string | null;
+        departmentName: any;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
     })[]>;
     getFeedbackReport(user: User, filter: GetFeedbackReportDto): Promise<({
         senderName: string | undefined;
@@ -219,8 +271,8 @@ export declare class ReportController extends BaseController {
     getAssessmentReport(user: User, filter?: GetAssessmentReportDto): Promise<({
         id: string;
         employeeId: string;
-        type: "self" | "manager" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        type: "manager" | "self" | "peer";
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -233,8 +285,8 @@ export declare class ReportController extends BaseController {
     } | {
         id: string;
         employeeId: string;
-        type: "self" | "manager" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        type: "manager" | "self" | "peer";
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -247,8 +299,8 @@ export declare class ReportController extends BaseController {
     } | {
         id: string;
         employeeId: string;
-        type: "self" | "manager" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        type: "manager" | "self" | "peer";
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;

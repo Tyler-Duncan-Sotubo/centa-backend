@@ -3,10 +3,19 @@ import { User } from 'src/common/types/user.type';
 import { CreateRoleExpectationDto } from './dto/create-role-expectation.dto';
 import { UpdateRoleExpectationDto } from './dto/update-role-expectation.dto';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class RoleCompetencyExpectationService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly cache;
+    private readonly ttlSeconds;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private ns;
+    private tags;
+    private bump;
+    private assertRoleInCompany;
+    private assertCompetencyAllowed;
+    private assertLevelExists;
     create(companyId: string, dto: CreateRoleExpectationDto, user: User): Promise<{
         id: string;
         companyId: string | null;
@@ -15,7 +24,11 @@ export declare class RoleCompetencyExpectationService {
         expectedLevelId: string;
     }>;
     update(id: string, dto: UpdateRoleExpectationDto, user: User): Promise<{
-        message: string;
+        id: string;
+        companyId: string | null;
+        roleId: string;
+        competencyId: string;
+        expectedLevelId: string;
     }>;
     delete(id: string, user: User): Promise<{
         message: string;

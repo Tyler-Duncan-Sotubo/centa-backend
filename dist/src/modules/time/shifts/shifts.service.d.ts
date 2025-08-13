@@ -4,35 +4,19 @@ import { UpdateShiftDto } from './dto/update-shift.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { User } from 'src/common/types/user.type';
 import { CacheService } from 'src/common/cache/cache.service';
-import { PinoLogger } from 'nestjs-pino';
 export declare class ShiftsService {
     private readonly auditService;
     private readonly db;
     private readonly cache;
-    private readonly logger;
-    constructor(auditService: AuditService, db: db, cache: CacheService, logger: PinoLogger);
-    private listKey;
-    private oneKey;
-    private invalidateAfterChange;
-    private readonly VALID_DAYS;
-    private parseTime;
-    private normalizeDays;
-    private validateTimes;
-    private ensureUniqueName;
-    private ensureLocationBelongs;
+    constructor(auditService: AuditService, db: db, cache: CacheService);
+    private ttlSeconds;
+    private tags;
     bulkCreate(companyId: string, rows: any[]): Promise<{
-        insertedCount: number;
-        inserted: {
-            id: string;
-            name: string;
-            startTime: string;
-            endTime: string;
-        }[];
-        errors: {
-            rowName: string;
-            error: string;
-        }[];
-    }>;
+        id: string;
+        name: string;
+        startTime: string;
+        endTime: string;
+    }[]>;
     create(dto: CreateShiftDto, user: User, ip: string): Promise<{
         id: string;
         name: string;
@@ -40,8 +24,6 @@ export declare class ShiftsService {
         updatedAt: Date | null;
         companyId: string;
         locationId: string | null;
-        isDeleted: boolean | null;
-        notes: string | null;
         startTime: string;
         endTime: string;
         workingDays: unknown;
@@ -50,11 +32,10 @@ export declare class ShiftsService {
         earlyClockInMinutes: number | null;
         allowLateClockOut: boolean | null;
         lateClockOutMinutes: number | null;
+        notes: string | null;
+        isDeleted: boolean | null;
     }>;
-    findAll(companyId: string, opts?: {
-        limit?: number;
-        offset?: number;
-    }): Promise<{
+    findAll(companyId: string): Promise<{
         id: string;
         name: string;
         startTime: string;
@@ -104,7 +85,7 @@ export declare class ShiftsService {
         createdAt: Date | null;
         updatedAt: Date | null;
     }>;
-    remove(id: string, user: User): Promise<{
+    remove(id: string, companyId: string): Promise<{
         success: boolean;
     }>;
 }

@@ -6,18 +6,21 @@ import { AddGoalCommentDto } from './dto/add-goal-comment.dto';
 import { S3StorageService } from 'src/common/aws/s3-storage.service';
 import { UploadGoalAttachmentDto } from './dto/upload-goal-attachment.dto';
 import { UpdateGoalAttachmentDto } from './dto/update-goal-attachment.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class GoalActivityService {
     private readonly db;
     private readonly auditService;
     private readonly s3Service;
-    constructor(db: db, auditService: AuditService, s3Service: S3StorageService);
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, s3Service: S3StorageService, cache: CacheService);
+    private invalidateGoals;
     addProgressUpdate(goalId: string, dto: AddGoalProgressDto, user: User): Promise<{
         id: string;
         createdAt: Date | null;
-        createdBy: string;
         goalId: string;
         progress: number;
         note: string | null;
+        createdBy: string;
     }>;
     updateNote(goalId: string, note: string, user: User): Promise<{
         [x: string]: any;
@@ -42,10 +45,10 @@ export declare class GoalActivityService {
         createdAt: Date | null;
         updatedAt: Date | null;
         goalId: string;
-        fileName: string;
-        fileUrl: string;
         comment: string;
         uploadedById: string;
+        fileUrl: string;
+        fileName: string;
     }>;
     updateAttachment(attachmentId: string, user: User, dto: UpdateGoalAttachmentDto): Promise<{
         id: string;

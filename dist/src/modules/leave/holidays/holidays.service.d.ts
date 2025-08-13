@@ -4,23 +4,13 @@ import { CreateHolidayDto } from './dto/create-holiday.dto';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { UpdateHolidayDto } from './dto/update-holiday.dto';
-import { PinoLogger } from 'nestjs-pino';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class HolidaysService {
     private readonly configService;
     private readonly auditService;
     private db;
-    private readonly logger;
-    private readonly cache;
-    constructor(configService: ConfigService, auditService: AuditService, db: db, logger: PinoLogger, cache: CacheService);
-    private oneKey;
-    private listKey;
-    private upcomingKey;
-    private rangeKey;
-    private pubApiKey;
-    private burst;
-    private removeDuplicateDates;
+    constructor(configService: ConfigService, auditService: AuditService, db: db);
     private getPublicHolidaysForYear;
+    private removeDuplicateDates;
     private getNonWorkingDaysForYear;
     insertHolidaysForCurrentYear(countryCode: string): Promise<string>;
     getUpcomingPublicHolidays(countryCode: string, companyId: string): Promise<{
@@ -46,9 +36,9 @@ export declare class HolidaysService {
         date: string;
         id: string;
         name: string;
-        country: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
+        country: string | null;
         companyId: string | null;
         type: string;
         source: string | null;
@@ -60,9 +50,9 @@ export declare class HolidaysService {
         date: string;
         id: string;
         name: string;
-        country: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
+        country: string | null;
         companyId: string | null;
         type: string;
         source: string | null;
@@ -70,20 +60,7 @@ export declare class HolidaysService {
         countryCode: string | null;
         isWorkingDayOverride: boolean | null;
     }>;
-    findOne(id: string, user: User): Promise<{
-        id: string;
-        companyId: string | null;
-        name: string;
-        date: string;
-        year: string;
-        type: string;
-        country: string | null;
-        countryCode: string | null;
-        isWorkingDayOverride: boolean | null;
-        source: string | null;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-    }>;
+    findOne(id: string, user: User): Promise<void>;
     findAll(companyId: string): Promise<{
         id: string;
         companyId: string | null;
@@ -111,7 +88,7 @@ export declare class HolidaysService {
         source: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-    }>;
+    }[]>;
     delete(id: string, user: User): Promise<{
         message: string;
     }>;

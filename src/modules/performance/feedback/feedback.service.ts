@@ -18,18 +18,30 @@ import {
   users,
 } from 'src/drizzle/schema';
 import { feedbackQuestions } from './schema/performance-feedback-questions.schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class FeedbackService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
+
+  private ttlSeconds = 5 * 60; // 5 minutes
+  private tags(companyId: string) {
+    return [`company:${companyId}:feedback`];
+  }
+  private async invalidate(companyId: string) {
+    await this.cache.bumpCompanyVersion(companyId);
+    // Or, if you wire native Redis tagging:
+    // await this.cache.invalidateTags(this.tags(companyId));
+  }
 
   async create(dto: CreateFeedbackDto, user: User) {
     const { companyId, id: userId } = user;
 
-    // Create feedback entry
+    // Create feedback
     const [newFeedback] = await this.db
       .insert(performanceFeedback)
       .values({
@@ -39,32 +51,41 @@ export class FeedbackService {
         isAnonymous: dto.isAnonymous ?? false,
         companyId,
       })
-      .returning();
+      .returning()
+      .execute();
 
     // Insert responses
-    await this.db.insert(feedbackResponses).values(
-      dto.responses.map((r) => ({
-        feedbackId: newFeedback.id,
-        question: r.questionId,
-        answer: r.answer,
-      })),
-    );
+    if (dto.responses?.length) {
+      await this.db
+        .insert(feedbackResponses)
+        .values(
+          dto.responses.map((r) => ({
+            feedbackId: newFeedback.id,
+            question: r.questionId, // schema uses "question" column (id)
+            answer: r.answer,
+          })),
+        )
+        .execute();
+    }
 
-    // Resolve viewer IDs based on shareScope
+    // Resolve viewer IDs and insert viewers
     const viewerIds = await this.resolveViewerIds(
-      dto.shareScope as 'private' | 'managers' | 'person_managers' | 'team',
+      (dto.shareScope as 'private' | 'managers' | 'person_managers' | 'team') ??
+        'private',
       dto.recipientId,
     );
+    if (viewerIds.length) {
+      await this.db
+        .insert(feedbackViewers)
+        .values(
+          viewerIds.map((viewerId) => ({
+            feedbackId: newFeedback.id,
+            userId: viewerId,
+          })),
+        )
+        .execute();
+    }
 
-    // Insert viewers
-    const viewerPayload = viewerIds.map((viewerId) => ({
-      feedbackId: newFeedback.id,
-      userId: viewerId,
-    }));
-
-    await this.db.insert(feedbackViewers).values(viewerPayload);
-
-    // Log audit
     await this.auditService.logAction({
       action: 'create',
       entity: 'feedback',
@@ -75,9 +96,11 @@ export class FeedbackService {
         feedbackId: newFeedback.id,
         recipientId: dto.recipientId,
         type: dto.type,
-        isAnonymous: dto.isAnonymous,
+        isAnonymous: dto.isAnonymous ?? false,
       },
     });
+
+    await this.invalidate(companyId);
 
     return newFeedback;
   }
@@ -91,7 +114,6 @@ export class FeedbackService {
       .from(employees)
       .where(eq(employees.id, recipientId))
       .execute();
-
     if (!recipient) return [];
 
     const getManagerUserId = async () => {
@@ -103,12 +125,8 @@ export class FeedbackService {
           .execute();
         if (manager?.userId) return manager.userId;
       }
-
-      // Fallback: get super_admin from the same company
       const [superAdmin] = await this.db
-        .select({
-          id: users.id,
-        })
+        .select({ id: users.id })
         .from(users)
         .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
         .where(
@@ -119,19 +137,16 @@ export class FeedbackService {
         )
         .limit(1)
         .execute();
-
-      return superAdmin.id ?? null;
+      return superAdmin?.id ?? null;
     };
 
     switch (scope) {
       case 'private':
         return recipient.userId ? [recipient.userId] : [];
-
       case 'managers': {
         const managerUserId = await getManagerUserId();
         return managerUserId ? [managerUserId] : [];
       }
-
       case 'person_managers': {
         const ids: string[] = [];
         if (recipient.userId) ids.push(recipient.userId);
@@ -139,36 +154,28 @@ export class FeedbackService {
         if (managerUserId) ids.push(managerUserId);
         return ids;
       }
-
       case 'team': {
         if (!recipient.departmentId) return [];
-
         const teammates = await this.db.query.employees.findMany({
           where: (e, { eq }) => eq(e.departmentId, recipient.departmentId),
         });
-
         return teammates
           .map((t) => t.userId)
           .filter((id): id is string => !!id);
       }
-
-      default:
-        return [];
     }
   }
 
-  // 2. Get Feedback Visible to a Recipient
+  // Visible feedback for a recipient to a given viewer
   async getFeedbackForRecipient(recipientId: string, viewer: User) {
-    // Get all feedbacks sent to the recipient
     const feedbacks = await this.db
       .select()
       .from(performanceFeedback)
-      .where(eq(performanceFeedback.recipientId, recipientId));
+      .where(eq(performanceFeedback.recipientId, recipientId))
+      .execute();
 
     const visibleFeedback: any[] = [];
-
     for (const fb of feedbacks) {
-      // Check if the viewer is allowed to see it (shared with them)
       const [viewerAccess] = await this.db
         .select()
         .from(feedbackViewers)
@@ -177,210 +184,232 @@ export class FeedbackService {
             eq(feedbackViewers.feedbackId, fb.id),
             eq(feedbackViewers.userId, viewer.id),
           ),
-        );
-
+        )
+        .execute();
       if (!viewerAccess) continue;
 
       const responses = await this.db
         .select()
         .from(feedbackResponses)
-        .where(eq(feedbackResponses.feedbackId, fb.id));
+        .where(eq(feedbackResponses.feedbackId, fb.id))
+        .execute();
 
       visibleFeedback.push({ ...fb, responses });
     }
-
-    return visibleFeedback; // returns empty array if none are visible
+    return visibleFeedback;
   }
 
   async getFeedbackBySender(senderId: string) {
-    const feedbacks = await this.db
+    return this.db
       .select()
       .from(performanceFeedback)
-      .where(eq(performanceFeedback.senderId, senderId));
-
-    return feedbacks;
+      .where(eq(performanceFeedback.senderId, senderId))
+      .execute();
   }
 
   async getResponsesForFeedback(feedbackIds: string[]) {
-    return await this.db
+    if (!feedbackIds.length) return [];
+    return this.db
       .select({
         feedbackId: feedbackResponses.feedbackId,
         questionId: feedbackResponses.question,
       })
       .from(feedbackResponses)
-      .where(inArray(feedbackResponses.feedbackId, feedbackIds));
+      .where(inArray(feedbackResponses.feedbackId, feedbackIds))
+      .execute();
   }
 
   async findAll(
     companyId: string,
     filters?: { type?: string; departmentId?: string },
   ) {
-    const conditions = [
-      eq(performanceFeedback.companyId, companyId),
-      // Exclude archived by default
-      filters?.type === 'archived'
-        ? eq(performanceFeedback.isArchived, true)
-        : eq(performanceFeedback.isArchived, false),
-    ];
+    return this.cache.getOrSetVersioned(
+      companyId,
+      [
+        'feedback',
+        'list',
+        filters?.type ?? 'all',
+        filters?.departmentId ?? 'any',
+      ],
+      async () => {
+        const conditions = [
+          eq(performanceFeedback.companyId, companyId),
+          filters?.type === 'archived'
+            ? eq(performanceFeedback.isArchived, true)
+            : eq(performanceFeedback.isArchived, false),
+        ];
 
-    if (
-      filters?.type &&
-      filters.type !== 'all' &&
-      filters.type !== 'archived'
-    ) {
-      conditions.push(eq(performanceFeedback.type, filters.type));
-    }
+        if (
+          filters?.type &&
+          filters.type !== 'all' &&
+          filters.type !== 'archived'
+        ) {
+          conditions.push(eq(performanceFeedback.type, filters.type));
+        }
+        if (filters?.departmentId) {
+          conditions.push(eq(departments.id, filters.departmentId));
+        }
 
-    if (filters?.departmentId) {
-      conditions.push(eq(departments.id, filters.departmentId));
-    }
+        const feedbacks = await this.db
+          .select({
+            id: performanceFeedback.id,
+            type: performanceFeedback.type,
+            createdAt: performanceFeedback.createdAt,
+            isAnonymous: performanceFeedback.isAnonymous,
+            isArchived: performanceFeedback.isArchived,
+            employeeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+            senderFirstName: users.firstName,
+            senderLastName: users.lastName,
+            departmentName: departments.name,
+            departmentId: departments.id,
+            jobRoleName: jobRoles.title,
+          })
+          .from(performanceFeedback)
+          .where(and(...conditions))
+          .leftJoin(
+            employees,
+            eq(employees.id, performanceFeedback.recipientId),
+          )
+          .leftJoin(departments, eq(departments.id, employees.departmentId))
+          .leftJoin(jobRoles, eq(jobRoles.id, employees.jobRoleId))
+          .leftJoin(users, eq(users.id, performanceFeedback.senderId))
+          .execute();
 
-    const feedbacks = await this.db
-      .select({
-        id: performanceFeedback.id,
-        type: performanceFeedback.type,
-        createdAt: performanceFeedback.createdAt,
-        isAnonymous: performanceFeedback.isAnonymous,
-        isArchived: performanceFeedback.isArchived,
-        employeeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
-        senderFirstName: users.firstName,
-        senderLastName: users.lastName,
-        departmentName: departments.name,
-        departmentId: departments.id,
-        jobRoleName: jobRoles.title,
-      })
-      .from(performanceFeedback)
-      .where(and(...conditions))
-      .leftJoin(employees, eq(employees.id, performanceFeedback.recipientId))
-      .leftJoin(departments, eq(departments.id, employees.departmentId))
-      .leftJoin(jobRoles, eq(jobRoles.id, employees.jobRoleId))
-      .leftJoin(users, eq(users.id, performanceFeedback.senderId));
+        const feedbackIds = feedbacks.map((f) => f.id);
+        const responses = await this.getResponsesForFeedback(feedbackIds);
 
-    const feedbackIds = feedbacks.map((f) => f.id);
-    const responses = await this.getResponsesForFeedback(feedbackIds);
-
-    return feedbacks.map((f) => ({
-      id: f.id,
-      type: f.type,
-      createdAt: f.createdAt,
-      employeeName: f.employeeName,
-      senderName: f.isAnonymous
-        ? 'Anonymous'
-        : `${f.senderFirstName ?? ''} ${f.senderLastName ?? ''}`.trim(),
-      questionsCount: responses.filter((r) => r.feedbackId === f.id).length,
-      departmentName: f.departmentName,
-      jobRoleName: f.jobRoleName,
-      departmentId: f.departmentId,
-    }));
+        return feedbacks.map((f) => ({
+          id: f.id,
+          type: f.type,
+          createdAt: f.createdAt,
+          employeeName: f.employeeName,
+          senderName: f.isAnonymous
+            ? 'Anonymous'
+            : `${f.senderFirstName ?? ''} ${f.senderLastName ?? ''}`.trim(),
+          questionsCount: responses.filter((r) => r.feedbackId === f.id).length,
+          departmentName: f.departmentName,
+          jobRoleName: f.jobRoleName,
+          departmentId: f.departmentId,
+          isArchived: f.isArchived,
+        }));
+      },
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+    );
   }
 
-  /**
-   * Find all performance feedback for a given employee in a company.
-   * Optionally filter by type (including archived/all).
-   */
   async findAllByEmployeeId(
     companyId: string,
     employeeId: string,
     filters?: { type?: string },
   ) {
-    if (!employeeId) return []; // Early exit for invalid employee
-    // Ensure employee exists in the company
-    const [employee] = await this.db
-      .select()
-      .from(employees)
-      .where(
-        and(eq(employees.id, employeeId), eq(employees.companyId, companyId)),
-      );
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['feedback', 'by-employee', employeeId, filters?.type ?? 'all'],
+      async () => {
+        if (!employeeId) return [];
 
-    console.log('Employee:', employee);
+        const [employee] = await this.db
+          .select()
+          .from(employees)
+          .where(
+            and(
+              eq(employees.id, employeeId),
+              eq(employees.companyId, companyId),
+            ),
+          )
+          .execute();
+        if (!employee) return [];
 
-    // Base conditions: company and employee recipient
-    const baseCondition = and(
-      eq(performanceFeedback.companyId, companyId),
-      or(
-        eq(performanceFeedback.senderId, employee.userId),
-        eq(performanceFeedback.recipientId, employeeId),
-      ),
-      filters?.type === 'archived'
-        ? eq(performanceFeedback.isArchived, true)
-        : eq(performanceFeedback.isArchived, false),
+        const baseCondition = and(
+          eq(performanceFeedback.companyId, companyId),
+          or(
+            eq(performanceFeedback.senderId, employee.userId),
+            eq(performanceFeedback.recipientId, employeeId),
+          ),
+          filters?.type === 'archived'
+            ? eq(performanceFeedback.isArchived, true)
+            : eq(performanceFeedback.isArchived, false),
+        );
+
+        const conditions = [baseCondition];
+        if (
+          filters?.type &&
+          filters.type !== 'all' &&
+          filters.type !== 'archived'
+        ) {
+          conditions.push(eq(performanceFeedback.type, filters.type));
+        }
+
+        const feedbacks = await this.db
+          .select({
+            id: performanceFeedback.id,
+            type: performanceFeedback.type,
+            createdAt: performanceFeedback.createdAt,
+            isAnonymous: performanceFeedback.isAnonymous,
+            isArchived: performanceFeedback.isArchived,
+            employeeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+            senderFirstName: users.firstName,
+            senderLastName: users.lastName,
+            departmentName: departments.name,
+            departmentId: departments.id,
+            jobRoleName: jobRoles.title,
+          })
+          .from(performanceFeedback)
+          .where(and(...conditions))
+          .leftJoin(
+            employees,
+            eq(employees.id, performanceFeedback.recipientId),
+          )
+          .leftJoin(departments, eq(departments.id, employees.departmentId))
+          .leftJoin(jobRoles, eq(jobRoles.id, employees.jobRoleId))
+          .leftJoin(users, eq(users.id, performanceFeedback.senderId))
+          .execute();
+
+        const feedbackIds = feedbacks.map((f) => f.id);
+        const responses = await this.getResponsesForFeedback(feedbackIds);
+
+        return feedbacks.map((f) => ({
+          id: f.id,
+          type: f.type,
+          createdAt: f.createdAt,
+          employeeName: f.employeeName,
+          senderName: f.isAnonymous
+            ? 'Anonymous'
+            : `${f.senderFirstName ?? ''} ${f.senderLastName ?? ''}`.trim(),
+          questionsCount: responses.filter((r) => r.feedbackId === f.id).length,
+          departmentName: f.departmentName,
+          jobRoleName: f.jobRoleName,
+          departmentId: f.departmentId,
+          isArchived: f.isArchived,
+        }));
+      },
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
-
-    // If you want additional type filtering
-    const conditions = [baseCondition];
-
-    // Further filter by feedback type if specified and not 'all' or 'archived'
-    if (
-      filters?.type &&
-      filters.type !== 'all' &&
-      filters.type !== 'archived'
-    ) {
-      conditions.push(eq(performanceFeedback.type, filters.type));
-    }
-
-    // Query feedbacks with joins to employee, department, jobRole, and sender
-    const feedbacks = await this.db
-      .select({
-        id: performanceFeedback.id,
-        type: performanceFeedback.type,
-        createdAt: performanceFeedback.createdAt,
-        isAnonymous: performanceFeedback.isAnonymous,
-        isArchived: performanceFeedback.isArchived,
-        employeeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
-        senderFirstName: users.firstName,
-        senderLastName: users.lastName,
-        departmentName: departments.name,
-        departmentId: departments.id,
-        jobRoleName: jobRoles.title,
-      })
-      .from(performanceFeedback)
-      .where(and(...conditions))
-      .leftJoin(employees, eq(employees.id, performanceFeedback.recipientId))
-      .leftJoin(departments, eq(departments.id, employees.departmentId))
-      .leftJoin(jobRoles, eq(jobRoles.id, employees.jobRoleId))
-      .leftJoin(users, eq(users.id, performanceFeedback.senderId));
-
-    // Fetch response counts for each feedback
-    const feedbackIds = feedbacks.map((f) => f.id);
-    const responses = await this.getResponsesForFeedback(feedbackIds);
-
-    // Format results for ESS
-    return feedbacks.map((f) => ({
-      id: f.id,
-      type: f.type,
-      createdAt: f.createdAt,
-      employeeName: f.employeeName,
-      senderName: f.isAnonymous
-        ? 'Anonymous'
-        : `${f.senderFirstName ?? ''} ${f.senderLastName ?? ''}`.trim(),
-      questionsCount: responses.filter((r) => r.feedbackId === f.id).length,
-      departmentName: f.departmentName,
-      jobRoleName: f.jobRoleName,
-      departmentId: f.departmentId,
-      isArchived: f.isArchived,
-    }));
   }
 
   async findOne(id: string, user: User) {
+    // ✅ Permission check first (not cached)
     const [item] = await this.db
       .select({
         id: performanceFeedback.id,
+        companyId: performanceFeedback.companyId,
         type: performanceFeedback.type,
         createdAt: performanceFeedback.createdAt,
         isAnonymous: performanceFeedback.isAnonymous,
         employeeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
-        senderName: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
+        senderFirstName: users.firstName,
+        senderLastName: users.lastName,
       })
       .from(performanceFeedback)
       .where(eq(performanceFeedback.id, id))
       .leftJoin(employees, eq(employees.id, performanceFeedback.recipientId))
-      .leftJoin(users, eq(users.id, performanceFeedback.senderId));
+      .leftJoin(users, eq(users.id, performanceFeedback.senderId))
+      .execute();
 
     if (!item) {
       throw new NotFoundException('Feedback not found');
     }
 
-    // Check if user is allowed to view this feedback
     const [viewerAccess] = await this.db
       .select()
       .from(feedbackViewers)
@@ -389,70 +418,96 @@ export class FeedbackService {
           eq(feedbackViewers.feedbackId, id),
           eq(feedbackViewers.userId, user.id),
         ),
-      );
+      )
+      .execute();
 
     const allowedRoles = ['admin', 'super_admin'];
-
-    const isPrivileged = allowedRoles.includes(user.role);
+    const isPrivileged = allowedRoles.includes((user as any).role);
 
     if (!viewerAccess && !isPrivileged) {
-      // 👇 Return a message if the user is neither a viewer nor an admin
+      // preserve your current behaviour; alternatively throw ForbiddenException
       return 'You do not have permission to view this feedback';
     }
 
-    const responses = await this.db
-      .select({
-        answer: feedbackResponses.answer,
-        questionText: feedbackQuestions.question,
-        inputType: feedbackQuestions.inputType,
-      })
-      .from(feedbackResponses)
-      .where(eq(feedbackResponses.feedbackId, item.id))
-      .leftJoin(
-        feedbackQuestions,
-        eq(feedbackResponses.question, feedbackQuestions.id),
-      );
+    // 🔒 After permission passes, cache the heavy data block by feedback id.
+    const payload = await this.cache.getOrSetVersioned(
+      item.companyId,
+      ['feedback', 'one', id],
+      async () => {
+        const responses = await this.db
+          .select({
+            answer: feedbackResponses.answer,
+            questionText: feedbackQuestions.question,
+            inputType: feedbackQuestions.inputType,
+          })
+          .from(feedbackResponses)
+          .where(eq(feedbackResponses.feedbackId, id))
+          .leftJoin(
+            feedbackQuestions,
+            eq(feedbackResponses.question, feedbackQuestions.id),
+          )
+          .execute();
 
-    return {
-      ...item,
-      responses,
-    };
+        const senderName = item.isAnonymous
+          ? 'Anonymous'
+          : `${item.senderFirstName ?? ''} ${item.senderLastName ?? ''}`.trim();
+
+        return {
+          id: item.id,
+          type: item.type,
+          createdAt: item.createdAt,
+          isAnonymous: item.isAnonymous,
+          employeeName: item.employeeName,
+          senderName,
+          responses,
+        };
+      },
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(item.companyId) },
+    );
+
+    return payload;
   }
 
   async update(id: string, updateFeedbackDto: UpdateFeedbackDto, user: User) {
-    await this.findOne(id, user);
+    const current = await this.findOne(id, user); // permission check
+    if (!current || typeof current === 'string') {
+      // not allowed or not found (string means permission denied string per above)
+      return current;
+    }
 
-    const [updatedFeedback] = await this.db
+    const [updated] = await this.db
       .update(performanceFeedback)
       .set(updateFeedbackDto)
       .where(eq(performanceFeedback.id, id))
-      .returning();
+      .returning()
+      .execute();
 
-    // Log the update of feedback for auditing purposes
     await this.auditService.logAction({
       action: 'update',
       entity: 'feedback',
-      entityId: updatedFeedback.id,
+      entityId: updated.id,
       userId: user.id,
       details: 'Feedback updated',
-      changes: {
-        ...updateFeedbackDto,
-      },
+      changes: { ...updateFeedbackDto },
     });
 
-    return updatedFeedback[0];
+    await this.invalidate(updated.companyId);
+    return updated;
   }
 
   async remove(id: string, user: User) {
-    await this.findOne(id, user);
+    const current = await this.findOne(id, user); // permission check
+    if (!current || typeof current === 'string') {
+      return current;
+    }
 
-    const deletedFeedback = await this.db
+    const [deleted] = await this.db
       .update(performanceFeedback)
       .set({ isArchived: true })
       .where(eq(performanceFeedback.id, id))
-      .returning();
+      .returning()
+      .execute();
 
-    // Log the deletion of feedback for auditing purposes
     await this.auditService.logAction({
       action: 'delete',
       entity: 'feedback',
@@ -461,6 +516,7 @@ export class FeedbackService {
       details: 'Feedback deleted',
     });
 
-    return deletedFeedback[0];
+    await this.invalidate(deleted.companyId);
+    return deleted;
   }
 }

@@ -20,28 +20,35 @@ const drizzle_orm_1 = require("drizzle-orm");
 const performance_assessment_conclusions_schema_1 = require("../schema/performance-assessment-conclusions.schema");
 const performance_assessments_schema_1 = require("../schema/performance-assessments.schema");
 const schema_1 = require("../../../../drizzle/schema");
+const cache_service_1 = require("../../../../common/cache/cache.service");
 let AssessmentConclusionsService = class AssessmentConclusionsService {
-    constructor(db) {
+    constructor(db, cache) {
         this.db = db;
+        this.cache = cache;
+        this.ttlSeconds = 10 * 60;
+    }
+    tags(companyId) {
+        return [`company:${companyId}:assessments`];
+    }
+    async invalidate(companyId) {
+        await this.cache.bumpCompanyVersion(companyId);
     }
     async createConclusion(assessmentId, dto, authorId) {
         const [assessment] = await this.db
             .select()
             .from(performance_assessments_schema_1.performanceAssessments)
             .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.id, assessmentId));
-        if (!assessment) {
+        if (!assessment)
             throw new common_1.NotFoundException('Assessment not found');
-        }
-        if (assessment.reviewerId !== authorId && !this.isHR(authorId)) {
+        if (assessment.reviewerId !== authorId && !(await this.isHR(authorId))) {
             throw new common_1.ForbiddenException('Not authorized to submit this conclusion');
         }
         const [existing] = await this.db
             .select()
             .from(performance_assessment_conclusions_schema_1.assessmentConclusions)
             .where((0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, assessmentId));
-        if (existing) {
+        if (existing)
             throw new common_1.BadRequestException('Conclusion already exists');
-        }
         const [created] = await this.db
             .insert(performance_assessment_conclusions_schema_1.assessmentConclusions)
             .values({
@@ -53,8 +60,9 @@ let AssessmentConclusionsService = class AssessmentConclusionsService {
         if (created) {
             await this.db
                 .update(performance_assessments_schema_1.performanceAssessments)
-                .set({ status: 'submitted' })
+                .set({ status: 'submitted', submittedAt: new Date() })
                 .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.id, assessmentId));
+            await this.invalidate(assessment.companyId);
         }
         return created;
     }
@@ -63,14 +71,13 @@ let AssessmentConclusionsService = class AssessmentConclusionsService {
             .select()
             .from(performance_assessment_conclusions_schema_1.assessmentConclusions)
             .where((0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, assessmentId));
-        if (!conclusion) {
+        if (!conclusion)
             throw new common_1.NotFoundException('Conclusion not found');
-        }
         const [assessment] = await this.db
             .select()
             .from(performance_assessments_schema_1.performanceAssessments)
             .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.id, assessmentId));
-        if (assessment?.reviewerId !== authorId && !this.isHR(authorId)) {
+        if (assessment?.reviewerId !== authorId && !(await this.isHR(authorId))) {
             throw new common_1.ForbiddenException('Not authorized to update this conclusion');
         }
         const [updated] = await this.db
@@ -78,33 +85,44 @@ let AssessmentConclusionsService = class AssessmentConclusionsService {
             .set({ ...dto, updatedAt: new Date() })
             .where((0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, assessmentId))
             .returning();
+        await this.invalidate(assessment.companyId);
         return updated;
     }
     async getConclusionByAssessment(assessmentId) {
-        const [conclusion] = await this.db
-            .select()
-            .from(performance_assessment_conclusions_schema_1.assessmentConclusions)
-            .where((0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, assessmentId));
-        if (!conclusion) {
-            throw new common_1.NotFoundException('Conclusion not found');
-        }
-        return conclusion;
+        const [assessment] = await this.db
+            .select({
+            companyId: performance_assessments_schema_1.performanceAssessments.companyId,
+        })
+            .from(performance_assessments_schema_1.performanceAssessments)
+            .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.id, assessmentId))
+            .limit(1);
+        if (!assessment)
+            throw new common_1.NotFoundException('Assessment not found');
+        return this.cache.getOrSetVersioned(assessment.companyId, ['assessments', 'conclusion', assessmentId], async () => {
+            const [conclusion] = await this.db
+                .select()
+                .from(performance_assessment_conclusions_schema_1.assessmentConclusions)
+                .where((0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, assessmentId));
+            if (!conclusion)
+                throw new common_1.NotFoundException('Conclusion not found');
+            return conclusion;
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(assessment.companyId) });
     }
     async isHR(userId) {
-        const [userRole] = await this.db
-            .select()
-            .from(schema_1.companyRoles)
-            .innerJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.users.companyId, schema_1.companyRoles.companyId))
-            .where((0, drizzle_orm_1.eq)(schema_1.companyRoles.companyId, userId));
-        return (userRole?.company_roles?.name === 'hr_manager' ||
-            userRole?.company_roles?.name === 'admin' ||
-            userRole?.company_roles?.name === 'super_admin');
+        const [row] = await this.db
+            .select({ roleName: schema_1.companyRoles.name })
+            .from(schema_1.users)
+            .leftJoin(schema_1.companyRoles, (0, drizzle_orm_1.eq)(schema_1.companyRoles.id, schema_1.users.companyRoleId))
+            .where((0, drizzle_orm_1.eq)(schema_1.users.id, userId))
+            .limit(1);
+        const role = row?.roleName ?? '';
+        return role === 'hr_manager' || role === 'admin' || role === 'super_admin';
     }
 };
 exports.AssessmentConclusionsService = AssessmentConclusionsService;
 exports.AssessmentConclusionsService = AssessmentConclusionsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_2.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object])
+    __metadata("design:paramtypes", [Object, cache_service_1.CacheService])
 ], AssessmentConclusionsService);
 //# sourceMappingURL=conclusions.service.js.map

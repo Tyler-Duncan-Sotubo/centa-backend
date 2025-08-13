@@ -1,4 +1,3 @@
-import { PinoLogger } from 'nestjs-pino';
 import { CreateJobRoleDto } from './dto/create-job-role.dto';
 import { UpdateJobRoleDto } from './dto/update-job-role.dto';
 import { BaseCrudService } from 'src/common/services/base-crud.service';
@@ -14,7 +13,6 @@ export declare class JobRolesService extends BaseCrudService<{
 }, typeof jobRoles> {
     private readonly companySettings;
     private readonly cache;
-    private readonly logger;
     protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "job_roles";
         schema: undefined;
@@ -145,9 +143,9 @@ export declare class JobRolesService extends BaseCrudService<{
         };
         dialect: "pg";
     }>;
-    constructor(db: db, audit: AuditService, companySettings: CompanySettingsService, cache: CacheService, logger: PinoLogger);
-    private keys;
-    private invalidate;
+    constructor(db: db, audit: AuditService, companySettings: CompanySettingsService, cache: CacheService);
+    private ttlSeconds;
+    private tags;
     create(companyId: string, dto: CreateJobRoleDto): Promise<{
         id: string;
     }>;
@@ -155,10 +153,6 @@ export declare class JobRolesService extends BaseCrudService<{
         id: string;
         title: string;
     }[]>;
-    update(companyId: string, id: string, dto: UpdateJobRoleDto, userId: string, ip: string): Promise<{
-        id: any;
-    }>;
-    remove(companyId: string, id: string): Promise<any>;
     findAll(companyId: string): Promise<{
         id: string;
         title: string;
@@ -176,5 +170,11 @@ export declare class JobRolesService extends BaseCrudService<{
         companyId: string;
         createdAt: Date;
         updatedAt: Date;
+    }>;
+    update(companyId: string, id: string, dto: UpdateJobRoleDto, userId: string, ip: string): Promise<{
+        id: any;
+    }>;
+    remove(companyId: string, id: string): Promise<{
+        id: string;
     }>;
 }

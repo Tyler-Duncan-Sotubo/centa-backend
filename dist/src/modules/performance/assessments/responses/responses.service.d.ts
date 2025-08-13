@@ -3,10 +3,15 @@ import { SaveResponseDto } from './dto/save-response.dto';
 import { BulkSaveResponsesDto } from './dto/bulk-save-responses.dto';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class AssessmentResponsesService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly cache;
+    private readonly ttlSeconds;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private tags;
+    private invalidate;
     getResponsesForAssessment(assessmentId: string): Promise<{
         questionId: string;
         question: string;

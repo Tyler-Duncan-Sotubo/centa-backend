@@ -24,6 +24,11 @@ export class FeedbackQuestionsController extends BaseController {
     super();
   }
 
+  @Post('seed')
+  seedFeedbackQuestions(@CurrentUser() user: User) {
+    return this.questionService.seedFeedbackQuestions(user.companyId);
+  }
+
   @Post()
   @SetMetadata('permissions', ['performance.cycles.manage'])
   create(@Body() dto: CreateFeedbackQuestionDto, @CurrentUser() user: User) {
@@ -32,32 +37,36 @@ export class FeedbackQuestionsController extends BaseController {
 
   @Get()
   @SetMetadata('permissions', ['performance.reviews.read'])
-  findAll() {
-    return this.questionService.findAll();
+  findAll(@CurrentUser() user: User) {
+    return this.questionService.findAll(user.companyId);
   }
 
   @Get('type/:type')
   @SetMetadata('permissions', ['performance.reviews.read'])
-  findByType(@Param('type') type: string) {
-    return this.questionService.findByType(type);
+  findByType(@Param('type') type: string, @CurrentUser() user: User) {
+    return this.questionService.findByType(user.companyId, type);
   }
 
   @Get(':id')
   @SetMetadata('permissions', ['performance.reviews.read'])
-  findOne(@Param('id') id: string) {
-    return this.questionService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.questionService.findOne(user.companyId, id);
   }
 
   @Patch(':id')
   @SetMetadata('permissions', ['performance.cycles.manage'])
-  update(@Param('id') id: string, @Body() dto: UpdateFeedbackQuestionDto) {
-    return this.questionService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateFeedbackQuestionDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.questionService.update(user.companyId, id, dto);
   }
 
   @Delete(':id')
   @SetMetadata('permissions', ['performance.cycles.manage'])
-  remove(@Param('id') id: string) {
-    return this.questionService.delete(id);
+  remove(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.questionService.delete(user.companyId, id);
   }
 
   @Patch('reorder/:type')
@@ -65,8 +74,10 @@ export class FeedbackQuestionsController extends BaseController {
   reorder(
     @Param('type') type: string,
     @Body() payload: { questions: { id: string; order: number }[] },
+    @CurrentUser() user: User,
   ) {
     return this.questionService.reorderQuestionsByType(
+      user.companyId,
       type as any,
       payload.questions,
     );

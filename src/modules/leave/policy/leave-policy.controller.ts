@@ -27,15 +27,16 @@ export class LeavePolicyController extends BaseController {
   }
 
   // Leave Policy Endpoints
-  @Post('')
+  @Post(':leaveTypeId')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['leave.policy.manage'])
   createLeavePolicy(
+    @Param('leaveTypeId') leaveTypeId: string,
     @Body() dto: CreateLeavePolicyDto,
     @CurrentUser() user: User,
     @Ip() ip: string,
   ) {
-    return this.leavePolicy.create(dto, user, ip);
+    return this.leavePolicy.create(leaveTypeId, dto, user, ip);
   }
 
   @Post('bulk')

@@ -4,14 +4,10 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { db } from 'src/drizzle/types/drizzle';
 import { User } from 'src/common/types/user.type';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
-import { PinoLogger } from 'nestjs-pino';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class CompanyTaxService {
     private readonly db;
     private readonly audit;
     private readonly companySettings;
-    private readonly logger;
-    private readonly cache;
     protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "company_tax_details";
         schema: undefined;
@@ -155,19 +151,8 @@ export declare class CompanyTaxService {
         };
         dialect: "pg";
     }>;
-    constructor(db: db, audit: AuditService, companySettings: CompanySettingsService, logger: PinoLogger, cache: CacheService);
-    private oneKey;
-    private burst;
-    create(dto: CreateCompanyTaxDto, user: User): Promise<{
-        id: string;
-        createdAt: Date;
-        updatedAt: Date | null;
-        companyId: string;
-        tin: string;
-        vatNumber: string | null;
-        nhfCode: string | null;
-        pensionCode: string | null;
-    }>;
+    constructor(db: db, audit: AuditService, companySettings: CompanySettingsService);
+    create(dto: CreateCompanyTaxDto, user: User): Promise<void>;
     findOne(companyId: string): Promise<{
         id: string;
         companyId: string;

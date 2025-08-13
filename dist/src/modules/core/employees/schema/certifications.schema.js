@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.employeeCertifications = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
-const employee_schema_1 = require("./employee.schema");
+const employee_schema_1 = require("../schema/employee.schema");
 exports.employeeCertifications = (0, pg_core_1.pgTable)('employee_certifications', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
     employeeId: (0, pg_core_1.uuid)('employee_id')

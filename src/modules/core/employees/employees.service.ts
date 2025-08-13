@@ -75,7 +75,6 @@ import { leaveRequests } from 'src/modules/leave/schema/leave-requests.schema';
 import { leaveTypes } from 'src/modules/leave/schema/leave-types.schema';
 import { EmployeeProfileDto } from './dto/update-employee-details.dto';
 import { OnboardingService } from 'src/modules/lifecycle/onboarding/onboarding.service';
-import { PinoLogger } from 'nestjs-pino';
 
 @Injectable()
 export class EmployeesService {
@@ -103,69 +102,7 @@ export class EmployeesService {
     private readonly employeeShiftsService: EmployeeShiftsService,
     private readonly payslipService: PayslipService,
     private readonly onboardingService: OnboardingService,
-    private readonly logger: PinoLogger, // 👈 add this
-  ) {
-    this.logger.setContext(EmployeesService.name); // 👈 set pino context
-  }
-
-  // ------------------------
-  // Cache key helpers (scoped like DepartmentService)
-  // ------------------------
-  private keys(companyId: string) {
-    return {
-      listActive: `employees:list:active:${companyId}`,
-      listSummary: `employees:list:summary:${companyId}`,
-      managersList: `employees:managers:list:${companyId}`,
-      byUser: (userId: string) => `employees:byUser:${companyId}:${userId}`,
-      one: (employeeId: string) => `employees:one:${companyId}:${employeeId}`,
-      profile: (employeeId: string) =>
-        `employees:profile:${companyId}:${employeeId}`,
-      attendanceMonth: (employeeId: string, ym: string) =>
-        `employees:attendance:month:${companyId}:${employeeId}:${ym}`,
-      attendanceDate: (employeeId: string, date: string) =>
-        `employees:attendance:date:${companyId}:${employeeId}:${date}`,
-      leaveList: (employeeId: string) =>
-        `employees:leave:list:${companyId}:${employeeId}`,
-      employeeSummary: (employeeId: string) =>
-        `employees:summary:${companyId}:${employeeId}`,
-      managerUserId: (employeeId: string) =>
-        `employees:managerUserId:${companyId}:${employeeId}`,
-      hrRepUserId: `employees:hrRepUserId:${companyId}`,
-      superAdminUserId: `employees:superAdminUserId:${companyId}`,
-    };
-  }
-
-  private async invalidateCacheKeys(
-    companyId: string,
-    opts?: { employeeId?: string; userId?: string; touchList?: boolean },
-  ) {
-    const keys = [
-      // existing list clears
-      opts?.touchList ? this.keys(companyId).listActive : null,
-      opts?.touchList ? this.keys(companyId).listSummary : null,
-      opts?.touchList ? this.keys(companyId).managersList : null,
-      // per-employee clears
-      opts?.employeeId ? this.keys(companyId).one(opts.employeeId) : null,
-      opts?.employeeId ? this.keys(companyId).profile(opts.employeeId) : null,
-      opts?.employeeId
-        ? this.keys(companyId).employeeSummary(opts.employeeId)
-        : null,
-      opts?.employeeId
-        ? this.keys(companyId).managerUserId(opts.employeeId)
-        : null,
-      // user-scoped
-      opts?.userId ? this.keys(companyId).byUser(opts.userId) : null,
-      // role-based lookups
-      opts?.touchList ? this.keys(companyId).hrRepUserId : null,
-      opts?.touchList ? this.keys(companyId).superAdminUserId : null,
-    ].filter(Boolean) as string[];
-
-    this.logger.debug({ companyId, keys }, 'employees:cache:invalidate:start');
-    await Promise.all(keys.map((key) => this.cacheService.del?.(key)));
-    this.logger.debug({ companyId }, 'employees:cache:invalidate:done');
-  }
-
-  // inside EmployeesService
+  ) {}
 
   private generateToken(payload: any): string {
     const jwtSecret = this.config.get('JWT_SECRET') || 'defaultSecret';
@@ -175,8 +112,7 @@ export class EmployeesService {
   }
 
   async createEmployeeNumber(companyId: string) {
-    this.logger.info({ companyId }, 'employees:createEmployeeNumber:start');
-
+    // --- 1) Sequence logic for employeeNumber (as before) ---
     const [seqRow] = await this.db
       .select({ next: employeeSequences.nextNumber })
       .from(employeeSequences)
@@ -198,23 +134,15 @@ export class EmployeesService {
         .execute();
     }
 
-    const empNum = `HR${String(seq).padStart(2, '0')}`;
-    this.logger.info(
-      { companyId, employeeNumber: empNum },
-      'employees:createEmployeeNumber:done',
-    );
+    const empNum = `HR${String(seq).padStart(2, '0')}`; // e.g. HR01
     return empNum;
   }
 
   async create(dto: CreateEmployeeCoreDto, currentUser: User) {
-    const { companyId, id: actorUserId } = currentUser;
-    this.logger.info(
-      { companyId, dtoEmail: dto.email },
-      'employees:create:start',
-    );
+    const { companyId, id } = currentUser;
 
-    const result = await this.db.transaction(async (trx) => {
-      // sequence
+    return this.db.transaction(async (trx) => {
+      // --- 1) Sequence logic for employeeNumber (as before) ---
       const [seqRow] = await trx
         .select({ next: employeeSequences.nextNumber })
         .from(employeeSequences)
@@ -235,25 +163,24 @@ export class EmployeesService {
           .where(eq(employeeSequences.companyId, companyId))
           .execute();
       }
-      const empNum = dto.employeeNumber ?? `HR${String(seq).padStart(2, '0')}`;
 
-      // user dup check
+      const empNum = dto.employeeNumber ?? `HR${String(seq).padStart(2, '0')}`; // e.g. HR01
+
+      // --- 2) Create credentials user ---
       const existing = await trx
         .select()
         .from(users)
         .where(eq(users.email, dto.email.toLowerCase()))
         .execute();
+
       if (existing.length) {
-        this.logger.warn(
-          { companyId, email: dto.email },
-          'employees:create:duplicate-email',
-        );
         throw new BadRequestException('Email already in use');
       }
 
       const token = this.generateToken({ email: dto.email });
-      const expires_at = new Date(Date.now() + 60 * 60 * 1000);
+      const expires_at = new Date(Date.now() + 1 * 60 * 60 * 1000);
 
+      // Create user with jwt token
       const [authUser] = await trx
         .insert(users)
         .values({
@@ -267,6 +194,7 @@ export class EmployeesService {
         .returning({ id: users.id })
         .execute();
 
+      // --- 3) Insert core employees row ---
       const [emp] = await trx
         .insert(employees)
         .values({
@@ -295,15 +223,22 @@ export class EmployeesService {
 
       await trx
         .insert(PasswordResetToken)
-        .values({ user_id: authUser.id, token, expires_at, is_used: false })
+        .values({
+          user_id: authUser.id,
+          token,
+          expires_at,
+          is_used: false,
+        })
         .execute();
 
+      // Get Company Name
       const [company] = await trx
         .select({ name: companies.name, id: companies.id })
         .from(companies)
         .where(eq(companies.id, companyId))
         .execute();
 
+      // Start Employee Onboarding
       if (dto.onboardingTemplateId) {
         await this.onboardingService.assignOnboardingTemplate(
           emp.id,
@@ -321,13 +256,17 @@ export class EmployeesService {
             currency: 'NGN',
             effectiveDate: dto.employmentStartDate,
           } as CreateCompensationDto,
-          actorUserId,
+          id,
           'system',
           trx,
         );
       }
 
-      const inviteLink = `${this.config.get('EMPLOYEE_PORTAL_URL')}/auth/reset-password/${token}`;
+      // Send password reset email
+      const inviteLink = `${this.config.get(
+        'EMPLOYEE_PORTAL_URL',
+      )}/auth/reset-password/${token}`;
+
       await this.employeeInvitationService.sendInvitationEmail(
         emp.email,
         emp.firstName,
@@ -336,26 +275,15 @@ export class EmployeesService {
         inviteLink,
       );
 
+      // make onboarding step complete
       await this.companySettingsService.setSetting(
         companyId,
         'onboarding_upload_employees',
         true,
       );
 
-      return { emp, authUserId: authUser.id };
+      return emp;
     });
-
-    await this.invalidateCacheKeys(companyId, {
-      employeeId: result.emp.id,
-      userId: result.authUserId,
-      touchList: true,
-    });
-
-    this.logger.info(
-      { companyId, employeeId: result.emp.id },
-      'employees:create:done',
-    );
-    return result.emp;
   }
 
   async createEmployee(
@@ -363,12 +291,6 @@ export class EmployeesService {
     user: User,
     employee_id?: string,
   ) {
-    const { companyId } = user;
-    this.logger.info(
-      { companyId, hasExistingId: !!employee_id, email: dto.email },
-      'employees:createEmployee:start',
-    );
-
     let employeeId: string;
     if (employee_id) {
       employeeId = employee_id;
@@ -378,6 +300,7 @@ export class EmployeesService {
     }
 
     await this.db.transaction(async (tx) => {
+      // Step 2: Insert profile if data exists
       const hasProfileData =
         !!dto.dateOfBirth ||
         !!dto.gender ||
@@ -402,8 +325,10 @@ export class EmployeesService {
         });
       }
 
+      // Step 3: Insert compensation if exists
       const hasCompensationData =
         dto.grossSalary !== undefined || dto.currency !== undefined;
+
       if (hasCompensationData) {
         await tx.insert(employeeCompensations).values({
           employeeId,
@@ -420,6 +345,7 @@ export class EmployeesService {
         dto.tin !== undefined ||
         dto.pensionPin !== undefined;
 
+      // Step 3: Insert finance if exists
       if (hasFinanceData) {
         await tx.insert(employeeFinancials).values({
           employeeId,
@@ -434,8 +360,10 @@ export class EmployeesService {
         });
       }
 
+      // Step 4: Insert dependent if exists
       const hasDependentData =
         !!dto.name || !!dto.relationship || !!dto.dependentDob;
+
       if (hasDependentData) {
         await tx.insert(employeeDependents).values({
           employeeId,
@@ -447,11 +375,6 @@ export class EmployeesService {
       }
     });
 
-    await this.invalidateCacheKeys(companyId, { employeeId, touchList: true });
-    this.logger.info(
-      { companyId, employeeId },
-      'employees:createEmployee:done',
-    );
     return employeeId;
   }
 
@@ -512,114 +435,94 @@ export class EmployeesService {
   }
 
   async getEmployeeByUserId(user_id: string) {
-    // Load companyId to scope key
-    const [rowCompany] = await this.db
-      .select({ companyId: employees.companyId })
+    const result = await this.db
+      .select({
+        first_name: employees.firstName,
+        last_name: employees.lastName,
+        avatar: users.avatar,
+        userId: employees.userId,
+        email: employees.email,
+        group_id: employees.payGroupId,
+        companyId: companies.id,
+        id: employees.id,
+        company_name: companies.name,
+        start_date: employees.employmentStartDate,
+        department_name: departments.name,
+        job_role: jobRoles.title,
+        employee_number: employees.employeeNumber,
+        managerId: employees.managerId,
+        location: companyLocations.name,
+      })
       .from(employees)
+      .innerJoin(companies, eq(companies.id, employees.companyId))
+      .innerJoin(users, eq(users.id, employees.userId))
+      .leftJoin(companyLocations, eq(companyLocations.id, employees.locationId))
+      .leftJoin(departments, eq(departments.id, employees.departmentId))
+      .leftJoin(jobRoles, eq(jobRoles.id, employees.jobRoleId))
       .where(eq(employees.userId, user_id))
-      .limit(1)
       .execute();
-    const companyId = rowCompany?.companyId ?? 'unknown';
 
-    const cacheKey = this.keys(companyId).byUser(user_id);
-    this.logger.debug(
-      { user_id, companyId, cacheKey },
-      'employees:getEmployeeByUserId:start',
-    );
+    if (result.length === 0) {
+      throw new BadRequestException(
+        'Employee not found, please provide a valid email',
+      );
+    }
 
-    const result = await this.cacheService.getOrSetCache(cacheKey, async () => {
-      const rows = await this.db
-        .select({
-          first_name: employees.firstName,
-          last_name: employees.lastName,
-          avatar: users.avatar,
-          userId: employees.userId,
-          email: employees.email,
-          group_id: employees.payGroupId,
-          companyId: companies.id,
-          id: employees.id,
-          company_name: companies.name,
-          start_date: employees.employmentStartDate,
-          department_name: departments.name,
-          job_role: jobRoles.title,
-          employee_number: employees.employeeNumber,
-          managerId: employees.managerId,
-          location: companyLocations.name,
-        })
-        .from(employees)
-        .innerJoin(companies, eq(companies.id, employees.companyId))
-        .innerJoin(users, eq(users.id, employees.userId))
-        .leftJoin(
-          companyLocations,
-          eq(companyLocations.id, employees.locationId),
-        )
-        .leftJoin(departments, eq(departments.id, employees.departmentId))
-        .leftJoin(jobRoles, eq(jobRoles.id, employees.jobRoleId))
-        .where(eq(employees.userId, user_id))
-        .execute();
+    let employeeManager = {
+      id: '',
+      name: '',
+      email: '',
+    };
 
-      if (rows.length === 0) {
-        this.logger.warn(
-          { user_id },
-          'employees:getEmployeeByUserId:not-found',
+    // Get Manager Details
+    if (result[0]) {
+      const managerId = result[0].managerId;
+      if (managerId) {
+        const [manager] = await this.db
+          .select({
+            id: employees.id,
+            name: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+            email: employees.email,
+          })
+          .from(employees)
+          .innerJoin(users, eq(employees.userId, users.id))
+          .where(eq(employees.id, managerId))
+          .execute();
+
+        if (manager) {
+          employeeManager = {
+            id: manager.id,
+            email: manager.email,
+            name: manager.name || '',
+          };
+        }
+      } else {
+        // If no managerId, fallback to Super Admin
+        const superAdminUserId = await this.findSuperAdminUser(
+          result[0].companyId,
         );
-        throw new BadRequestException(
-          'Employee not found, please provide a valid email',
-        );
-      }
-      return rows[0];
-    });
+        const [superAdmin] = await this.db
+          .select({
+            id: users.id,
+            name: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+            email: users.email,
+          })
+          .from(users)
+          .where(eq(users.id, superAdminUserId))
+          .execute();
 
-    // Manager resolution (no caching for freshness)
-    let employeeManager = { id: '', name: '', email: '' };
-
-    if (result.managerId) {
-      const [manager] = await this.db
-        .select({
-          id: employees.id,
-          name: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
-          email: employees.email,
-        })
-        .from(employees)
-        .innerJoin(users, eq(employees.userId, users.id))
-        .where(eq(employees.id, result.managerId))
-        .execute();
-
-      if (manager) {
-        employeeManager = {
-          id: manager.id,
-          email: manager.email,
-          name: manager.name || '',
-        };
-      }
-    } else {
-      const superAdminUserId = await this.findSuperAdminUser(result.companyId);
-      const [superAdmin] = await this.db
-        .select({
-          id: users.id,
-          name: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
-          email: users.email,
-        })
-        .from(users)
-        .where(eq(users.id, superAdminUserId))
-        .execute();
-
-      if (superAdmin) {
-        employeeManager = {
-          id: superAdmin.id,
-          name: superAdmin.name || '',
-          email: superAdmin.email,
-        };
+        if (superAdmin) {
+          employeeManager = {
+            id: superAdmin.id,
+            name: superAdmin.name || '',
+            email: superAdmin.email,
+          };
+        }
       }
     }
 
-    this.logger.debug(
-      { user_id, employeeId: result.id, companyId },
-      'employees:getEmployeeByUserId:done',
-    );
-
     return {
-      ...result,
+      ...result[0],
       employeeManager,
     };
   }
@@ -641,13 +544,8 @@ export class EmployeesService {
   }
 
   async findAllEmployees(companyId: string) {
-    const cacheKey = this.keys(companyId).listActive;
-    this.logger.debug(
-      { companyId, cacheKey },
-      'employees:findAllEmployees:start',
-    );
-
-    const data = await this.cacheService.getOrSetCache(cacheKey, async () => {
+    const cacheKey = `employees:${companyId}`;
+    return this.cacheService.getOrSetCache(cacheKey, async () => {
       const allEmployees = await this.db
         .select({
           id: employees.id,
@@ -690,21 +588,10 @@ export class EmployeesService {
 
       return allEmployees;
     });
-
-    this.logger.debug(
-      { companyId, count: data.length },
-      'employees:findAllEmployees:done',
-    );
-    return data;
   }
 
   async findAllCompanyEmployeesSummary(companyId: string, search?: string) {
-    const cacheKey = this.keys(companyId).listSummary;
-    this.logger.debug(
-      { companyId, cacheKey, hasSearch: !!search },
-      'employees:findAllCompanyEmployeesSummary:start',
-    );
-
+    const cacheKey = `employees:${companyId}:summary`;
     const allEmployees = await this.cacheService.getOrSetCache(
       cacheKey,
       async () => {
@@ -727,129 +614,77 @@ export class EmployeesService {
     );
 
     if (!search) {
-      this.logger.debug(
-        { companyId, count: allEmployees.length },
-        'employees:findAllCompanyEmployeesSummary:done',
-      );
       return allEmployees;
     }
 
     const q = search.toLowerCase();
-    const filtered = allEmployees.filter((e) =>
+    return allEmployees.filter((e) =>
       [e.firstName, e.lastName, e.employeeNumber].some((field) =>
         field.toLowerCase().includes(q),
       ),
     );
-
-    this.logger.debug(
-      { companyId, count: filtered.length, search },
-      'employees:findAllCompanyEmployeesSummary:filtered',
-    );
-    return filtered;
   }
 
-  async findOneByUserId(user: User) {
-    const { id: userId, companyId } = user;
-    const cacheKey = this.keys(companyId).byUser(userId);
-    this.logger.debug(
-      { userId, companyId, cacheKey },
-      'employees:findOneByUserId:start',
-    );
+  async findOneByUserId(userId: string) {
+    const cacheKey = `employee:${userId}`;
+    return this.cacheService.getOrSetCache(cacheKey, async () => {
+      const [employee] = await this.db
+        .select()
+        .from(this.table)
+        .where(eq(this.table.userId, userId))
+        .execute();
 
-    const employee = await this.cacheService.getOrSetCache(
-      cacheKey,
-      async () => {
-        const [emp] = await this.db
-          .select()
-          .from(this.table)
-          .where(eq(this.table.userId, userId))
-          .execute();
+      if (!employee) {
+        throw new NotFoundException('Employee not found');
+      }
 
-        if (!emp) {
-          this.logger.warn({ userId }, 'employees:findOneByUserId:not-found');
-          throw new NotFoundException('Employee not found');
-        }
-        return emp;
-      },
-    );
-
-    this.logger.debug(
-      { userId, companyId, employeeId: employee.id },
-      'employees:findOneByUserId:done',
-    );
-    return employee;
+      return employee;
+    });
   }
 
   async findOne(employeeId: string, companyId: string) {
-    const cacheKey = this.keys(companyId).one(employeeId);
-    this.logger.debug(
-      { companyId, employeeId, cacheKey },
-      'employees:findOne:start',
-    );
+    const [employee] = await this.db
+      .select({
+        id: this.table.id,
+        firstName: this.table.firstName,
+        lastName: this.table.lastName,
+        employeeNumber: this.table.employeeNumber,
+        email: this.table.email,
+        employmentStatus: this.table.employmentStatus,
+        probationEndDate: this.table.probationEndDate,
+        departmentId: this.table.departmentId,
+        department: departments.name,
+        jobRoleId: this.table.jobRoleId,
+        jobRole: jobRoles.title,
+        costCenter: costCenters.name,
+        costCenterId: this.table.costCenterId,
+        location: companyLocations.name,
+        payGroupId: this.table.payGroupId,
+        locationId: this.table.locationId,
+        payGroup: payGroups.name,
+        managerId: this.table.managerId,
+        avatarUrl: users.avatar,
+        effectiveDate: this.table.employmentStartDate,
+        companyRoleId: users.companyRoleId,
+        role: companyRoles.name,
+        confirmed: this.table.confirmed,
+      })
+      .from(this.table)
+      .innerJoin(users, eq(this.table.userId, users.id))
+      .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
+      .leftJoin(departments, eq(this.table.departmentId, departments.id))
+      .leftJoin(jobRoles, eq(this.table.jobRoleId, jobRoles.id))
+      .leftJoin(costCenters, eq(this.table.costCenterId, costCenters.id))
+      .leftJoin(
+        companyLocations,
+        eq(this.table.locationId, companyLocations.id),
+      )
+      .leftJoin(payGroups, eq(this.table.payGroupId, payGroups.id))
+      .where(
+        and(eq(this.table.id, employeeId), eq(this.table.companyId, companyId)),
+      )
+      .execute();
 
-    const employee = await this.cacheService.getOrSetCache(
-      cacheKey,
-      async () => {
-        const [row] = await this.db
-          .select({
-            id: this.table.id,
-            firstName: this.table.firstName,
-            lastName: this.table.lastName,
-            employeeNumber: this.table.employeeNumber,
-            email: this.table.email,
-            employmentStatus: this.table.employmentStatus,
-            probationEndDate: this.table.probationEndDate,
-            departmentId: this.table.departmentId,
-            department: departments.name,
-            jobRoleId: this.table.jobRoleId,
-            jobRole: jobRoles.title,
-            costCenter: costCenters.name,
-            costCenterId: this.table.costCenterId,
-            location: companyLocations.name,
-            payGroupId: this.table.payGroupId,
-            locationId: this.table.locationId,
-            payGroup: payGroups.name,
-            managerId: this.table.managerId,
-            avatarUrl: users.avatar,
-            effectiveDate: this.table.employmentStartDate,
-            companyRoleId: users.companyRoleId,
-            role: companyRoles.name,
-            confirmed: this.table.confirmed,
-          })
-          .from(this.table)
-          .innerJoin(users, eq(this.table.userId, users.id))
-          .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
-          .leftJoin(departments, eq(this.table.departmentId, departments.id))
-          .leftJoin(jobRoles, eq(this.table.jobRoleId, jobRoles.id))
-          .leftJoin(costCenters, eq(this.table.costCenterId, costCenters.id))
-          .leftJoin(
-            companyLocations,
-            eq(this.table.locationId, companyLocations.id),
-          )
-          .leftJoin(payGroups, eq(this.table.payGroupId, payGroups.id))
-          .where(
-            and(
-              eq(this.table.id, employeeId),
-              eq(this.table.companyId, companyId),
-            ),
-          )
-          .execute();
-
-        if (!row) {
-          this.logger.warn(
-            { companyId, employeeId },
-            'employees:findOne:not-found',
-          );
-          throw new BadRequestException('Employee not found');
-        }
-        return row;
-      },
-    );
-
-    // Manager resolution is dynamic; you can either:
-    //  A) keep it dynamic (no caching of manager block), or
-    //  B) include it in cached object (slightly stale risk)
-    // We’ll keep A) for accuracy.
     let employeeManager = {
       id: '',
       firstName: '',
@@ -858,55 +693,62 @@ export class EmployeesService {
       avatarUrl: '',
     };
 
-    if (employee.managerId) {
-      const [manager] = await this.db
-        .select({
-          id: employees.id,
-          firstName: employees.firstName,
-          lastName: employees.lastName,
-          email: employees.email,
-          avatarUrl: users.avatar,
-        })
-        .from(employees)
-        .innerJoin(users, eq(employees.userId, users.id))
-        .where(eq(employees.id, employee.managerId))
-        .execute();
+    // Get Manager Details
+    if (employee) {
+      const managerId = employee.managerId;
+      if (managerId) {
+        const [manager] = await this.db
+          .select({
+            id: employees.id,
+            firstName: employees.firstName,
+            lastName: employees.lastName,
+            email: employees.email,
+            avatarUrl: users.avatar,
+          })
+          .from(employees)
+          .innerJoin(users, eq(employees.userId, users.id))
+          .where(eq(employees.id, managerId))
+          .execute();
 
-      if (manager) {
-        employeeManager = {
-          id: manager.id,
-          firstName: manager.firstName,
-          lastName: manager.lastName,
-          email: manager.email,
-          avatarUrl: manager.avatarUrl || '',
-        };
-      }
-    } else {
-      const superAdminUserId = await this.findSuperAdminUser(companyId);
-      const [superAdmin] = await this.db
-        .select({
-          id: users.id,
-          firstName: users.firstName,
-          lastName: users.lastName,
-          email: users.email,
-          avatarUrl: users.avatar,
-        })
-        .from(users)
-        .where(eq(users.id, superAdminUserId))
-        .execute();
+        if (manager) {
+          employeeManager = {
+            id: manager.id,
+            firstName: manager.firstName,
+            lastName: manager.lastName,
+            email: manager.email,
+            avatarUrl: manager.avatarUrl || '',
+          };
+        }
+      } else {
+        // If no managerId, fallback to Super Admin
+        const superAdminUserId = await this.findSuperAdminUser(companyId);
+        const [superAdmin] = await this.db
+          .select({
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            email: users.email,
+            avatarUrl: users.avatar,
+          })
+          .from(users)
+          .where(eq(users.id, superAdminUserId))
+          .execute();
 
-      if (superAdmin) {
-        employeeManager = {
-          id: superAdmin.id,
-          firstName: superAdmin.firstName ?? '',
-          lastName: superAdmin.lastName ?? '',
-          email: superAdmin.email,
-          avatarUrl: superAdmin.avatarUrl || '',
-        };
+        if (superAdmin) {
+          employeeManager = {
+            id: superAdmin.id,
+            firstName: superAdmin.firstName ?? '',
+            lastName: superAdmin.lastName ?? '',
+            email: superAdmin.email,
+            avatarUrl: superAdmin.avatarUrl || '',
+          };
+        }
       }
     }
 
-    this.logger.debug({ companyId, employeeId }, 'employees:findOne:done');
+    if (!employee) {
+      throw new BadRequestException('Employee not found');
+    }
 
     return {
       ...employee,
@@ -915,60 +757,27 @@ export class EmployeesService {
   }
 
   async findEmployeeSummaryByUserId(employeeId: string) {
-    // we need companyId to scope the cache key safely
-    const [rowCompany] = await this.db
-      .select({ companyId: employees.companyId })
+    const [employee] = await this.db
+      .select({
+        id: employees.id,
+        confirmed: employees.confirmed,
+        gender: employeeProfiles.gender,
+        level: jobRoles.level,
+        country: employeeProfiles.country,
+        department: departments.name,
+        userId: employees.userId,
+      })
       .from(employees)
+      .innerJoin(departments, eq(employees.departmentId, departments.id))
+      .innerJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
+      .leftJoin(employeeProfiles, eq(employees.id, employeeProfiles.employeeId))
       .where(eq(employees.id, employeeId))
-      .limit(1)
       .execute();
-    const companyId = rowCompany?.companyId ?? 'unknown';
-
-    const cacheKey = this.keys(companyId).employeeSummary(employeeId);
-    this.logger.debug(
-      { companyId, employeeId, cacheKey },
-      'employees:summary:start',
-    );
-
-    const employee = await this.cacheService.getOrSetCache(
-      cacheKey,
-      async () => {
-        const [e] = await this.db
-          .select({
-            id: employees.id,
-            confirmed: employees.confirmed,
-            gender: employeeProfiles.gender,
-            level: jobRoles.level,
-            country: employeeProfiles.country,
-            department: departments.name,
-            userId: employees.userId,
-          })
-          .from(employees)
-          .innerJoin(departments, eq(employees.departmentId, departments.id))
-          .innerJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
-          .leftJoin(
-            employeeProfiles,
-            eq(employees.id, employeeProfiles.employeeId),
-          )
-          .where(eq(employees.id, employeeId))
-          .execute();
-
-        if (!e) {
-          return null;
-        }
-        return e;
-      },
-    );
 
     if (!employee) {
-      this.logger.warn(
-        { companyId, employeeId },
-        'employees:summary:not-found',
-      );
       throw new NotFoundException('Employee not found.');
     }
 
-    this.logger.debug({ companyId, employeeId }, 'employees:summary:done');
     return employee;
   }
 
@@ -976,110 +785,76 @@ export class EmployeesService {
     employeeId: string,
     companyId: string,
   ): Promise<string> {
-    const cacheKey = this.keys(companyId).managerUserId(employeeId);
-    this.logger.debug(
-      { companyId, employeeId, cacheKey },
-      'employees:managerUserId:start',
-    );
+    // Try to get the managerId from employee record
+    const [employee] = await this.db
+      .select({ managerId: employees.managerId })
+      .from(employees)
+      .where(eq(employees.id, employeeId))
+      .execute();
 
-    const loader = async () => {
-      // get managerId from employee
-      const [employee] = await this.db
-        .select({ managerId: employees.managerId })
+    if (employee?.managerId) {
+      // Manager assigned, fetch the manager's userId
+      const [manager] = await this.db
+        .select({ userId: employees.userId })
         .from(employees)
-        .where(eq(employees.id, employeeId))
+        .where(eq(employees.id, employee.managerId))
         .execute();
 
-      if (employee?.managerId) {
-        // resolve manager's userId
-        const [manager] = await this.db
-          .select({ userId: employees.userId })
-          .from(employees)
-          .where(eq(employees.id, employee.managerId))
-          .execute();
-
-        if (manager?.userId) {
-          return manager.userId;
-        }
-
-        this.logger.warn(
-          { companyId, employeeId, managerId: employee.managerId },
-          'employees:managerUserId:manager-record-missing',
-        );
+      if (manager?.userId) {
+        return manager.userId;
       }
 
-      // fallback to super admin
-      const superAdmin = await this.findSuperAdminUser(companyId);
-      return superAdmin;
-    };
+      // Manager assigned but somehow not found in employee table
+      console.warn(
+        'ManagerId exists but user record not found, fallback to super admin.',
+      );
+    }
 
-    const userId = await this.cacheService.getOrSetCache(cacheKey, loader);
-
-    this.logger.debug(
-      { companyId, employeeId, userId },
-      'employees:managerUserId:done',
-    );
-    return userId;
+    // No manager assigned → fallback to Super Admin
+    return await this.findSuperAdminUser(companyId);
   }
 
   async findHrRepresentative(companyId: string): Promise<string> {
-    const cacheKey = this.keys(companyId).hrRepUserId;
-    this.logger.debug({ companyId, cacheKey }, 'employees:hrRep:start');
+    const [hr] = await this.db
+      .select({ userId: users.id })
+      .from(employees)
+      .innerJoin(users, eq(employees.userId, users.id))
+      .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
+      .where(
+        and(
+          eq(employees.companyId, companyId),
+          eq(companyRoles.name, 'hr_manager'),
+        ),
+      )
+      .limit(1)
+      .execute();
 
-    const userId = await this.cacheService.getOrSetCache(cacheKey, async () => {
-      const [hr] = await this.db
-        .select({ userId: users.id })
-        .from(employees)
-        .innerJoin(users, eq(employees.userId, users.id))
-        .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
-        .where(
-          and(
-            eq(employees.companyId, companyId),
-            eq(companyRoles.name, 'hr_manager'),
-          ),
-        )
-        .limit(1)
-        .execute();
-
-      return hr?.userId ?? null;
-    });
-
-    if (!userId) {
-      this.logger.warn({ companyId }, 'employees:hrRep:not-found');
+    if (!hr?.userId) {
       throw new NotFoundException('HR representative not found.');
     }
 
-    this.logger.debug({ companyId, userId }, 'employees:hrRep:done');
-    return userId;
+    return hr.userId;
   }
 
   async findSuperAdminUser(companyId: string): Promise<string> {
-    const cacheKey = this.keys(companyId).superAdminUserId;
-    this.logger.debug({ companyId, cacheKey }, 'employees:superAdmin:start');
+    const [ceo] = await this.db
+      .select({
+        id: users.id,
+      })
+      .from(users)
+      .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
+      .where(
+        and(
+          eq(users.companyId, companyId),
+          eq(companyRoles.name, 'super_admin'),
+        ),
+      )
+      .execute();
 
-    const id = await this.cacheService.getOrSetCache(cacheKey, async () => {
-      const [ceo] = await this.db
-        .select({ id: users.id })
-        .from(users)
-        .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
-        .where(
-          and(
-            eq(users.companyId, companyId),
-            eq(companyRoles.name, 'super_admin'),
-          ),
-        )
-        .execute();
-
-      return ceo?.id ?? null;
-    });
-
-    if (!id) {
-      this.logger.warn({ companyId }, 'employees:superAdmin:not-found');
+    if (!ceo) {
       throw new NotFoundException('CEO user not found.');
     }
-
-    this.logger.debug({ companyId, userId: id }, 'employees:superAdmin:done');
-    return id;
+    return ceo.id;
   }
 
   async update(
@@ -1088,8 +863,6 @@ export class EmployeesService {
     userId: string,
     ip: string,
   ) {
-    this.logger.info({ employeeId, userId, ip }, 'employees:update:start');
-
     // Check if Employee exists
     const [employee] = await this.db
       .select()
@@ -1143,22 +916,11 @@ export class EmployeesService {
         });
       }
 
-      this.logger.info({ employeeId }, 'employees:update:done');
-
       return updated;
     }
   }
 
   async remove(employeeId: string) {
-    this.logger.info({ employeeId }, 'employees:remove:start');
-
-    // fetch company + user id for cache keys before deletion
-    const [empRow] = await this.db
-      .select({ companyId: employees.companyId, userId: employees.userId })
-      .from(employees)
-      .where(eq(employees.id, employeeId))
-      .execute();
-
     const result = await this.db
       .delete(this.table)
       .where(eq(this.table.id, employeeId))
@@ -1166,19 +928,9 @@ export class EmployeesService {
       .execute();
 
     if (!result.length) {
-      this.logger.warn({ employeeId }, 'employees:remove:not-found');
       throw new NotFoundException(`employee ${employeeId} not found`);
     }
 
-    if (empRow?.companyId) {
-      await this.invalidateCacheKeys(empRow.companyId, {
-        employeeId,
-        userId: empRow.userId,
-        touchList: true,
-      });
-    }
-
-    this.logger.info({ employeeId }, 'employees:remove:done');
     return { deleted: true, id: result[0].id };
   }
 
@@ -1276,10 +1028,6 @@ export class EmployeesService {
 
   async bulkCreate(user: User, rows: any[]) {
     const { companyId } = user;
-    this.logger.info(
-      { companyId, rows: rows?.length ?? 0 },
-      'employees:bulkCreate:start',
-    );
 
     const roleNameMap = new Map<string, string>([
       ['HR Manager', 'hr_manager'],
@@ -1620,16 +1368,6 @@ export class EmployeesService {
         )
         .execute();
 
-      // Invalidate cache for the company
-      await this.invalidateCacheKeys(companyId, {
-        touchList: true,
-      });
-
-      this.logger.info(
-        { companyId, count: createdEmps.length },
-        'employees:bulkCreate:done',
-      );
-
       return createdEmps;
     });
 
@@ -1649,54 +1387,34 @@ export class EmployeesService {
   }
 
   async getManagers(companyId: string) {
-    const cacheKey = this.keys(companyId).managersList;
-    this.logger.debug({ companyId, cacheKey }, 'employees:getManagers:start');
+    const managers = await this.db
+      .select({
+        id: employees.id,
+        name: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+      })
+      .from(employees)
+      .innerJoin(users, eq(employees.userId, users.id))
+      .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
+      .where(
+        and(
+          eq(employees.companyId, companyId),
+          eq(companyRoles.name, 'manager'), // Assuming 'manager' is the role name
+        ),
+      )
+      .execute();
 
-    const managers = await this.cacheService.getOrSetCache(
-      cacheKey,
-      async () => {
-        const rows = await this.db
-          .select({
-            id: employees.id,
-            name: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
-          })
-          .from(employees)
-          .innerJoin(users, eq(employees.userId, users.id))
-          .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
-          .where(
-            and(
-              eq(employees.companyId, companyId),
-              eq(companyRoles.name, 'manager'), // Assuming 'manager' is the role key
-            ),
-          )
-          .execute();
-
-        return rows;
-      },
-    );
-
-    this.logger.debug(
-      { companyId, count: managers.length },
-      'employees:getManagers:done',
-    );
     return managers;
   }
 
   // assign Manager to Employee
   async assignManager(employeeId: string, managerId: string) {
-    this.logger.info(
-      { employeeId, managerId },
-      'employees:assignManager:start',
-    );
-
     const [employee] = await this.db
-      .select({ id: this.table.id, companyId: this.table.companyId })
+      .select()
       .from(this.table)
       .where(eq(this.table.id, employeeId))
       .execute();
 
     if (!employee) {
-      this.logger.warn({ employeeId }, 'employees:assignManager:not-found');
       throw new NotFoundException('Employee not found');
     }
 
@@ -1707,35 +1425,25 @@ export class EmployeesService {
       .returning()
       .execute();
 
-    await this.invalidateCacheKeys(employee.companyId, { employeeId });
-    this.logger.info({ employeeId, managerId }, 'employees:assignManager:done');
     return updated;
   }
 
   // remove Manager from Employee
   async removeManager(employeeId: string) {
-    this.logger.info({ employeeId }, 'employees:removeManager:start');
-
     const [employee] = await this.db
-      .select({ id: this.table.id, companyId: this.table.companyId })
+      .select()
       .from(this.table)
       .where(eq(this.table.id, employeeId))
       .execute();
-
     if (!employee) {
-      this.logger.warn({ employeeId }, 'employees:removeManager:not-found');
       throw new NotFoundException('Employee not found');
     }
-
     const [updated] = await this.db
       .update(this.table)
       .set({ managerId: null })
       .where(eq(this.table.id, employeeId))
       .returning()
       .execute();
-
-    await this.invalidateCacheKeys(employee.companyId, { employeeId });
-    this.logger.info({ employeeId }, 'employees:removeManager:done');
     return updated;
   }
 
@@ -1762,15 +1470,10 @@ export class EmployeesService {
   }
 
   async resolveFallbackManager(companyId: string): Promise<string | null> {
-    this.logger.debug({ companyId }, 'employees:resolveFallbackManager:start');
-
     const fallback =
       await this.companySettingsService.getDefaultManager(companyId);
+
     if (fallback?.defaultManager) {
-      this.logger.debug(
-        { companyId, userId: fallback.defaultManager },
-        'employees:resolveFallbackManager:default',
-      );
       return fallback.defaultManager;
     }
 
@@ -1787,14 +1490,16 @@ export class EmployeesService {
       .limit(1)
       .execute();
 
-    const id = superAdmin?.id ?? null;
-    this.logger.debug(
-      { companyId, userId: id },
-      'employees:resolveFallbackManager:done',
-    );
-    return id;
+    return superAdmin?.id ?? null;
   }
 
+  /**
+   * Search employees by:
+   *  - free-text on first OR last name
+   *  - departmentId
+   *  - jobRoleId
+   *  - costCenterId
+   */
   async search(dto: SearchEmployeesDto) {
     const {
       search,
@@ -1854,79 +1559,62 @@ export class EmployeesService {
       status: 'absent' | 'present' | 'late';
     }>;
   }> {
-    const cacheKey = this.keys(companyId).attendanceMonth(
-      employeeId,
-      yearMonth,
+    // compute month range
+    const [y, m] = yearMonth.split('-').map(Number);
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m - 1, new Date(y, m, 0).getDate());
+
+    const startOfMonth = new Date(start);
+    startOfMonth.setHours(0, 0, 0, 0);
+    const endOfMonth = new Date(end);
+    endOfMonth.setHours(23, 59, 59, 999);
+
+    // fetch all this employee's records for the month
+    const recs = await this.db
+      .select()
+      .from(attendanceRecords)
+      .where(
+        and(
+          eq(attendanceRecords.employeeId, employeeId),
+          eq(attendanceRecords.companyId, companyId),
+          gte(attendanceRecords.clockIn, startOfMonth),
+          lte(attendanceRecords.clockIn, endOfMonth),
+        ),
+      )
+      .execute();
+
+    // map by dayKey "YYYY-MM-DD"
+    const map = new Map<string, (typeof recs)[0]>();
+    for (const r of recs) {
+      const day = r.clockIn.toISOString().split('T')[0];
+      map.set(day, r);
+    }
+
+    // 1) build all days in the month
+    const allDays = eachDayOfInterval({ start, end }).map((d) =>
+      format(d, 'yyyy-MM-dd'),
     );
-    this.logger.debug(
-      { companyId, employeeId, yearMonth, cacheKey },
-      'employees:attendanceByMonth:start',
+
+    // 2) filter out any future dates
+    const todayStr = new Date().toISOString().split('T')[0];
+    const days = allDays.filter((dateKey) => dateKey <= todayStr);
+    const summaryList = await Promise.all(
+      days.map(async (dateKey) => {
+        const day = await this.getEmployeeAttendanceByDate(
+          employeeId,
+          companyId,
+          dateKey,
+        );
+        return {
+          date: dateKey,
+          checkInTime: day.checkInTime,
+          checkOutTime: day.checkOutTime,
+          status: day.status,
+        };
+      }),
     );
 
-    const loader = async () => {
-      const [y, m] = yearMonth.split('-').map(Number);
-      const start = new Date(y, m - 1, 1);
-      const end = new Date(y, m - 1, new Date(y, m, 0).getDate());
-
-      const startOfMonth = new Date(start);
-      startOfMonth.setHours(0, 0, 0, 0);
-      const endOfMonth = new Date(end);
-      endOfMonth.setHours(23, 59, 59, 999);
-
-      // prefetch raw attendance rows for the month (fast path)
-      const recs = await this.db
-        .select()
-        .from(attendanceRecords)
-        .where(
-          and(
-            eq(attendanceRecords.employeeId, employeeId),
-            eq(attendanceRecords.companyId, companyId),
-            gte(attendanceRecords.clockIn, startOfMonth),
-            lte(attendanceRecords.clockIn, endOfMonth),
-          ),
-        )
-        .execute();
-
-      const map = new Map<string, (typeof recs)[0]>();
-      for (const r of recs) {
-        const day = r.clockIn.toISOString().split('T')[0];
-        map.set(day, r);
-      }
-
-      const allDays = eachDayOfInterval({ start, end }).map((d) =>
-        format(d, 'yyyy-MM-dd'),
-      );
-
-      const todayStr = new Date().toISOString().split('T')[0];
-      const days = allDays.filter((dateKey) => dateKey <= todayStr);
-
-      // Use the per-day method (which itself handles caching & "today" freshness)
-      const summaryList = await Promise.all(
-        days.map(async (dateKey) => {
-          const day = await this.getEmployeeAttendanceByDate(
-            employeeId,
-            companyId,
-            dateKey,
-          );
-          return {
-            date: dateKey,
-            checkInTime: day.checkInTime,
-            checkOutTime: day.checkOutTime,
-            status: day.status,
-          };
-        }),
-      );
-
-      return { summaryList };
-    };
-
-    const result = await this.cacheService.getOrSetCache(cacheKey, loader);
-
-    this.logger.debug(
-      { companyId, employeeId, yearMonth, days: result.summaryList.length },
-      'employees:attendanceByMonth:done',
-    );
-    return result;
+    return { summaryList };
   }
 
   async getEmployeeAttendanceByDate(
@@ -1944,169 +1632,113 @@ export class EmployeesService {
     isEarlyDeparture: boolean;
   }> {
     const target = new Date(date).toISOString().split('T')[0];
-    const isToday = target === new Date().toISOString().split('T')[0];
-    const cacheKey = this.keys(companyId).attendanceDate(employeeId, target);
+    // compute day bounds
+    const startOfDay = new Date(`${target}T00:00:00.000Z`);
+    const endOfDay = new Date(`${target}T23:59:59.999Z`);
 
-    this.logger.debug(
-      { companyId, employeeId, target, cacheKey, isToday },
-      'employees:attendanceByDate:start',
-    );
+    // load settings
+    const s =
+      await this.attendanceSettingsService.getAllAttendanceSettings(companyId);
+    const useShifts = s['use_shifts'] ?? false;
+    const defaultStartTimeStr = s['default_start_time'] ?? '09:00';
+    const lateToleranceMins = Number(s['late_tolerance_minutes'] ?? 10);
 
-    const compute = async () => {
-      // compute day bounds
-      const startOfDay = new Date(`${target}T00:00:00.000Z`);
-      const endOfDay = new Date(`${target}T23:59:59.999Z`);
+    // fetch this employee’s attendance record for that date
+    const recs = await this.db
+      .select()
+      .from(attendanceRecords)
+      .where(
+        and(
+          eq(attendanceRecords.employeeId, employeeId),
+          eq(attendanceRecords.companyId, companyId),
+          gte(attendanceRecords.clockIn, startOfDay),
+          lte(attendanceRecords.clockIn, endOfDay),
+        ),
+      )
+      .execute();
 
-      // load settings
-      const s =
-        await this.attendanceSettingsService.getAllAttendanceSettings(
-          companyId,
-        );
-      const useShifts = s['use_shifts'] ?? false;
-      const defaultStartTimeStr = s['default_start_time'] ?? '09:00';
-      const defaultEndTimeStr = s['default_end_time'] ?? '17:00';
-      const lateToleranceMins = Number(s['late_tolerance_minutes'] ?? 10);
-
-      // fetch attendance record for the date
-      const recs = await this.db
-        .select()
-        .from(attendanceRecords)
-        .where(
-          and(
-            eq(attendanceRecords.employeeId, employeeId),
-            eq(attendanceRecords.companyId, companyId),
-            gte(attendanceRecords.clockIn, startOfDay),
-            lte(attendanceRecords.clockIn, endOfDay),
-          ),
-        )
-        .execute();
-
-      const rec = recs[0] ?? null;
-      if (!rec) {
-        return {
-          date: target,
-          checkInTime: null,
-          checkOutTime: null,
-          status: 'absent' as 'absent' | 'present' | 'late',
-          workDurationMinutes: null,
-          overtimeMinutes: 0,
-          isLateArrival: false,
-          isEarlyDeparture: false,
-        };
-      }
-
-      // determine schedule (fetch shift once if needed)
-      let startTimeStr = defaultStartTimeStr;
-      let endTimeStr = defaultEndTimeStr;
-      let tolerance = lateToleranceMins;
-
-      if (useShifts) {
-        const shift =
-          await this.employeeShiftsService.getActiveShiftForEmployee(
-            employeeId,
-            companyId,
-            target,
-          );
-        if (shift) {
-          startTimeStr = shift.startTime ?? startTimeStr;
-          endTimeStr = (shift as any).endTime ?? endTimeStr; // align with your shift DTO
-          tolerance = shift.lateToleranceMinutes ?? tolerance;
-        }
-      }
-
-      const shiftStart = parseISO(`${target}T${startTimeStr}:00`);
-      const shiftEnd = parseISO(`${target}T${endTimeStr}:00`);
-
-      const checkIn = new Date(rec.clockIn);
-      const checkOut = rec.clockOut ? new Date(rec.clockOut) : null;
-      const diffLate = (checkIn.getTime() - shiftStart.getTime()) / 60000;
-
-      const isLateArrival = diffLate > tolerance;
-      const isEarlyDeparture = checkOut
-        ? checkOut.getTime() < shiftEnd.getTime()
-        : false;
-
-      const workDurationMinutes = rec.workDurationMinutes;
-      const overtimeMinutes = rec.overtimeMinutes ?? 0;
-
-      const status: 'late' | 'present' | 'absent' = checkIn
-        ? isLateArrival
-          ? 'late'
-          : 'present'
-        : 'absent';
-
-      const payload = {
+    const rec = recs[0] ?? null;
+    if (!rec) {
+      return {
         date: target,
-        checkInTime: checkIn.toTimeString().slice(0, 8),
-        checkOutTime: checkOut?.toTimeString().slice(0, 8) ?? null,
-        status,
-        workDurationMinutes,
-        overtimeMinutes,
-        isLateArrival,
-        isEarlyDeparture,
+        checkInTime: null,
+        checkOutTime: null,
+        status: 'absent',
+        workDurationMinutes: null,
+        overtimeMinutes: 0,
+        isLateArrival: false,
+        isEarlyDeparture: false,
       };
+    }
 
-      return payload;
+    // determine scheduled start for lateness check
+    let startTimeStr = defaultStartTimeStr;
+    let tolerance = lateToleranceMins;
+    if (useShifts) {
+      const shift = await this.employeeShiftsService.getActiveShiftForEmployee(
+        employeeId,
+        companyId,
+        target,
+      );
+      if (shift) {
+        startTimeStr = shift.startTime;
+        tolerance = shift.lateToleranceMinutes ?? lateToleranceMins;
+      }
+    }
+
+    const shiftStart = parseISO(`${target}T${startTimeStr}:00`);
+    const checkIn = new Date(rec.clockIn);
+    const checkOut = rec.clockOut ? new Date(rec.clockOut) : null;
+    const diffLate = (checkIn.getTime() - shiftStart.getTime()) / 60000;
+
+    const isLateArrival = diffLate > tolerance;
+    const isEarlyDeparture = checkOut
+      ? checkOut.getTime() <
+        parseISO(
+          `${target}T${(useShifts && (await this.employeeShiftsService.getActiveShiftForEmployee(employeeId, companyId, target)))?.end_time ?? s['default_end_time'] ?? '17:00'}:00`,
+        ).getTime()
+      : false;
+
+    const workDurationMinutes = rec.workDurationMinutes;
+    const overtimeMinutes = rec.overtimeMinutes;
+
+    return {
+      date: target,
+      checkInTime: checkIn.toTimeString().slice(0, 8),
+      checkOutTime: checkOut?.toTimeString().slice(0, 8) ?? null,
+      status: checkIn ? (isLateArrival ? 'late' : 'present') : 'absent',
+      workDurationMinutes,
+      overtimeMinutes: overtimeMinutes ?? 0,
+      isLateArrival,
+      isEarlyDeparture,
     };
-
-    // do NOT cache "today" to avoid stale data while people are still clocking
-    const result = isToday
-      ? await compute()
-      : await this.cacheService.getOrSetCache(cacheKey, compute);
-
-    this.logger.debug(
-      { companyId, employeeId, target, status: result.status },
-      'employees:attendanceByDate:done',
-    );
-    return result;
   }
 
   async findAllLeaveRequestByEmployeeId(employeeId: string, companyId: string) {
-    const cacheKey = this.keys(companyId).leaveList(employeeId);
-    this.logger.debug(
-      { companyId, employeeId, cacheKey },
-      'employees:leaveRequests:start',
-    );
+    const leaveRequestsData = await this.db
+      .select({
+        requestId: leaveRequests.id,
+        employeeId: leaveRequests.employeeId,
+        leaveType: leaveTypes.name,
+        startDate: leaveRequests.startDate,
+        endDate: leaveRequests.endDate,
+        status: leaveRequests.status,
+        reason: leaveRequests.reason,
+      })
+      .from(leaveRequests)
+      .innerJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
+      .where(
+        and(
+          eq(leaveRequests.employeeId, employeeId),
+          eq(leaveRequests.companyId, companyId),
+        ),
+      )
+      .execute();
 
-    const leaveRequestsData = await this.cacheService.getOrSetCache(
-      cacheKey,
-      async () => {
-        const data = await this.db
-          .select({
-            requestId: leaveRequests.id,
-            employeeId: leaveRequests.employeeId,
-            leaveType: leaveTypes.name,
-            startDate: leaveRequests.startDate,
-            endDate: leaveRequests.endDate,
-            status: leaveRequests.status,
-            reason: leaveRequests.reason,
-          })
-          .from(leaveRequests)
-          .innerJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
-          .where(
-            and(
-              eq(leaveRequests.employeeId, employeeId),
-              eq(leaveRequests.companyId, companyId),
-            ),
-          )
-          .execute();
-
-        return data;
-      },
-    );
-
-    if (!leaveRequestsData || leaveRequestsData.length === 0) {
-      this.logger.warn(
-        { companyId, employeeId },
-        'employees:leaveRequests:not-found',
-      );
+    if (!leaveRequestsData) {
       throw new NotFoundException('Leave requests not found');
     }
 
-    this.logger.debug(
-      { companyId, employeeId, count: leaveRequestsData.length },
-      'employees:leaveRequests:done',
-    );
     return leaveRequestsData;
   }
 }

@@ -5,22 +5,28 @@ import { ClockInOutService } from 'src/modules/time/clock-in-out/clock-in-out.se
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { GetDashboardAssessmentsDto } from './dto/get-dashboard-assessments.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class AssessmentsService {
     private readonly db;
     private readonly clockInOutService;
     private readonly auditService;
-    constructor(db: db, clockInOutService: ClockInOutService, auditService: AuditService);
+    private readonly cache;
+    private readonly ttlSeconds;
+    constructor(db: db, clockInOutService: ClockInOutService, auditService: AuditService, cache: CacheService);
+    private tags;
+    private invalidate;
+    private serializeFilters;
     createAssessment(dto: CreateAssessmentDto, user: User): Promise<{
         id: string;
         createdAt: Date | null;
         companyId: string;
         status: "not_started" | "in_progress" | "submitted" | null;
-        type: "self" | "manager" | "peer";
         cycleId: string;
-        submittedAt: Date | null;
         templateId: string;
         reviewerId: string;
         revieweeId: string;
+        type: "self" | "manager" | "peer";
+        submittedAt: Date | null;
     }>;
     startAssessment(assessmentId: string, userId: string): Promise<void>;
     saveSectionComments(assessmentId: string, userId: string, dto: SubmitAssessmentDto): Promise<{

@@ -34,14 +34,45 @@ import { User } from 'src/common/types/user.type';
 import { GetDashboardAssessmentsDto } from './dto/get-dashboard-assessments.dto';
 import { feedbackResponses } from '../feedback/schema/performance-feedback-responses.schema';
 import { assessmentConclusions } from './schema/performance-assessment-conclusions.schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class AssessmentsService {
+  private readonly ttlSeconds = 10 * 60; // 10 minutes
+
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly clockInOutService: ClockInOutService,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
+
+  // ---------------------
+  // Cache helpers
+  // ---------------------
+  private tags(companyId: string) {
+    return [`company:${companyId}:assessments`];
+  }
+  private async invalidate(companyId: string) {
+    await this.cache.bumpCompanyVersion(companyId);
+    // Optional if Redis sets available:
+    // await this.cache.invalidateTags(this.tags(companyId));
+  }
+  private serializeFilters(filters?: GetDashboardAssessmentsDto) {
+    const obj = {
+      status: filters?.status ?? 'all',
+      type: filters?.type ?? 'all',
+      cycleId: filters?.cycleId ?? 'all',
+      reviewerId: filters?.reviewerId ?? 'all',
+      departmentId: filters?.departmentId ?? 'all',
+      search: (filters?.search ?? '').trim().toLowerCase(),
+    };
+    return JSON.stringify(obj);
+  }
+
+  // ---------------------
+  // Commands (writes)
+  // ---------------------
 
   async createAssessment(dto: CreateAssessmentDto, user: User) {
     let reviewerId = user.id;
@@ -49,14 +80,12 @@ export class AssessmentsService {
 
     if (dto.type === 'self') {
       if (user.role === 'super_admin' || user.role === 'admin') {
-        // Admin is creating a self-review for someone else
         if (!dto.revieweeId) {
           throw new BadRequestException(
             'revieweeId must be provided for self reviews by admins.',
           );
         }
       } else {
-        // Regular user is creating a self-review for themselves
         const employee = await this.db.query.employees.findFirst({
           where: eq(employees.userId, user.id),
         });
@@ -66,11 +95,9 @@ export class AssessmentsService {
             'No employee record found for current user.',
           );
         }
-
         revieweeId = employee.id;
       }
-
-      reviewerId = user.id; // Always the current user as the reviewer
+      reviewerId = user.id;
     }
 
     const [assessment] = await this.db
@@ -87,7 +114,6 @@ export class AssessmentsService {
       })
       .returning();
 
-    // Audit log for assessment creation
     await this.auditService.logAction({
       action: 'create',
       entity: 'assessment',
@@ -102,6 +128,7 @@ export class AssessmentsService {
       },
     });
 
+    await this.invalidate(user.companyId);
     return assessment;
   }
 
@@ -110,14 +137,12 @@ export class AssessmentsService {
     if (assessment.reviewerId !== userId) {
       throw new ForbiddenException('Not authorized to start this assessment');
     }
-
     if (assessment.status !== 'not_started') {
       throw new BadRequestException(
         'Assessment is already in progress or submitted',
       );
     }
 
-    // Audit log for starting assessment
     await this.auditService.logAction({
       action: 'start',
       entity: 'assessment',
@@ -135,8 +160,9 @@ export class AssessmentsService {
     await this.db
       .update(performanceAssessments)
       .set({ status: 'in_progress' })
-      .where(eq(performanceAssessments.id, assessmentId))
-      .execute();
+      .where(eq(performanceAssessments.id, assessmentId));
+
+    await this.invalidate(assessment.companyId);
   }
 
   async saveSectionComments(
@@ -152,7 +178,6 @@ export class AssessmentsService {
     if (assessment.reviewerId !== userId) {
       throw new ForbiddenException('Not authorized to edit this assessment');
     }
-
     if (assessment.status === 'submitted') {
       throw new BadRequestException('Assessment is already finalized');
     }
@@ -169,7 +194,6 @@ export class AssessmentsService {
     for (const { key, section } of sections) {
       const comment = dto[key];
       if (comment && comment.trim() !== '') {
-        // Upsert logic: delete existing + insert new
         await this.db
           .delete(assessmentSectionComments)
           .where(
@@ -188,7 +212,6 @@ export class AssessmentsService {
       }
     }
 
-    // Audit log for saving section comments
     await this.auditService.logAction({
       action: 'save_section_comments',
       entity: 'assessment',
@@ -210,325 +233,366 @@ export class AssessmentsService {
       },
     });
 
+    await this.invalidate(assessment.companyId);
     return { success: true };
   }
+
+  // ---------------------
+  // Queries (reads) — cached & versioned
+  // ---------------------
 
   async getAssessmentsForDashboard(
     companyId: string,
     filters?: GetDashboardAssessmentsDto,
   ) {
-    const whereClauses = [eq(performanceAssessments.companyId, companyId)];
+    const cacheKeyParts = [
+      'assessments',
+      'dashboard',
+      this.serializeFilters(filters),
+    ];
 
-    if (filters?.status && filters.status !== 'all') {
-      whereClauses.push(
-        eq(
-          performanceAssessments.status,
-          filters.status as 'not_started' | 'in_progress' | 'submitted',
-        ),
-      );
-    }
+    return this.cache.getOrSetVersioned(
+      companyId,
+      cacheKeyParts,
+      async () => {
+        const whereClauses = [eq(performanceAssessments.companyId, companyId)];
 
-    if (filters?.type && filters.type !== 'all') {
-      whereClauses.push(
-        eq(
-          performanceAssessments.type,
-          filters.type as 'self' | 'manager' | 'peer',
-        ),
-      );
-    }
+        if (filters?.status && filters.status !== 'all') {
+          whereClauses.push(
+            eq(
+              performanceAssessments.status,
+              filters.status as 'not_started' | 'in_progress' | 'submitted',
+            ),
+          );
+        }
+        if (filters?.type && filters.type !== 'all') {
+          whereClauses.push(
+            eq(
+              performanceAssessments.type,
+              filters.type as 'self' | 'manager' | 'peer',
+            ),
+          );
+        }
+        if (filters?.cycleId && filters.cycleId !== 'all') {
+          whereClauses.push(
+            eq(performanceAssessments.cycleId, filters.cycleId),
+          );
+        }
+        if (filters?.reviewerId && filters.reviewerId !== 'all') {
+          whereClauses.push(
+            eq(performanceAssessments.reviewerId, filters.reviewerId),
+          );
+        }
+        if (filters?.departmentId && filters.departmentId !== 'all') {
+          whereClauses.push(eq(departments.id, filters.departmentId));
+        }
 
-    if (filters?.cycleId && filters.cycleId !== 'all') {
-      whereClauses.push(eq(performanceAssessments.cycleId, filters.cycleId));
-    }
+        const assessments = await this.db
+          .select({
+            id: performanceAssessments.id,
+            type: performanceAssessments.type,
+            status: performanceAssessments.status,
+            createdAt: performanceAssessments.createdAt,
+            submittedAt: performanceAssessments.submittedAt,
+            cycleId: performanceAssessments.cycleId,
+            dueDate: performanceCycles.endDate,
+            templateId: performanceAssessments.templateId,
+            revieweeId: performanceAssessments.revieweeId,
+            revieweeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+            departmentId: employees.departmentId,
+            departmentName: departments.name,
+            jobRoleName: jobRoles.title,
+            score: assessmentConclusions.finalScore,
+            reviewerId: performanceAssessments.reviewerId,
+            reviewerName: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
+          })
+          .from(performanceAssessments)
+          .leftJoin(
+            performanceCycles,
+            eq(performanceCycles.id, performanceAssessments.cycleId),
+          )
+          .leftJoin(
+            assessmentConclusions,
+            eq(assessmentConclusions.assessmentId, performanceAssessments.id),
+          )
+          .leftJoin(
+            employees,
+            eq(employees.id, performanceAssessments.revieweeId),
+          )
+          .leftJoin(users, eq(users.id, performanceAssessments.reviewerId))
+          .leftJoin(departments, eq(departments.id, employees.departmentId))
+          .leftJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
+          .where(and(...whereClauses));
 
-    if (filters?.reviewerId && filters.reviewerId !== 'all') {
-      whereClauses.push(
-        eq(performanceAssessments.reviewerId, filters.reviewerId),
-      );
-    }
+        // Optional fuzzy search (employee name)
+        let filtered = assessments;
+        if (filters?.search?.trim()) {
+          const keyword = filters.search.toLowerCase();
+          filtered = assessments.filter((a) =>
+            a.revieweeName?.toLowerCase().includes(keyword),
+          );
+        }
 
-    if (filters?.departmentId && filters.departmentId !== 'all') {
-      whereClauses.push(eq(departments.id, filters.departmentId));
-    }
-
-    const assessments = await this.db
-      .select({
-        id: performanceAssessments.id,
-        type: performanceAssessments.type,
-        status: performanceAssessments.status,
-        createdAt: performanceAssessments.createdAt,
-        submittedAt: performanceAssessments.submittedAt,
-        cycleId: performanceAssessments.cycleId,
-        dueDate: performanceCycles.endDate,
-        templateId: performanceAssessments.templateId,
-        revieweeId: performanceAssessments.revieweeId,
-        revieweeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
-        departmentId: employees.departmentId,
-        departmentName: departments.name,
-        jobRoleName: jobRoles.title,
-        score: assessmentConclusions.finalScore,
-        reviewerId: performanceAssessments.reviewerId,
-        reviewerName: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
-      })
-      .from(performanceAssessments)
-      .leftJoin(
-        performanceCycles,
-        eq(performanceCycles.id, performanceAssessments.cycleId),
-      )
-      .leftJoin(
-        assessmentConclusions,
-        eq(assessmentConclusions.assessmentId, performanceAssessments.id),
-      )
-      .leftJoin(employees, eq(employees.id, performanceAssessments.revieweeId))
-      .leftJoin(users, eq(users.id, performanceAssessments.reviewerId))
-      .leftJoin(departments, eq(departments.id, employees.departmentId))
-      .leftJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
-      .where(and(...whereClauses));
-
-    // Optional fuzzy search (employee name)
-    let filtered = assessments;
-    if (filters?.search?.trim()) {
-      const keyword = filters.search.toLowerCase();
-      filtered = assessments.filter((a) =>
-        a.revieweeName?.toLowerCase().includes(keyword),
-      );
-    }
-
-    return filtered.map((a) => ({
-      id: a.id,
-      type: a.type,
-      status: a.status,
-      reviewer: a.reviewerName,
-      employee: a.revieweeName,
-      departmentName: a.departmentName,
-      jobRoleName: a.jobRoleName,
-      createdAt: a.createdAt,
-      submittedAt: a.submittedAt,
-      progress: this.calculateProgress(a.status ?? ''),
-      dueDate: a.dueDate,
-      score: a.score ?? null,
-    }));
+        return filtered.map((a) => ({
+          id: a.id,
+          type: a.type,
+          status: a.status,
+          reviewer: a.reviewerName,
+          employee: a.revieweeName,
+          departmentName: a.departmentName,
+          jobRoleName: a.jobRoleName,
+          createdAt: a.createdAt,
+          submittedAt: a.submittedAt,
+          progress: this.calculateProgress(a.status ?? ''),
+          dueDate: a.dueDate,
+          score: a.score ?? null,
+        }));
+      },
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+    );
   }
 
   async getAssessmentById(assessmentId: string) {
-    const [assessment] = await this.db
-      .select({
-        id: performanceAssessments.id,
-        type: performanceAssessments.type,
-        status: performanceAssessments.status,
-        createdAt: performanceAssessments.createdAt,
-        submittedAt: performanceAssessments.submittedAt,
-        cycleId: performanceAssessments.cycleId,
-        dueDate: performanceCycles.endDate,
-        templateId: performanceAssessments.templateId,
-        companyId: performanceAssessments.companyId,
-        revieweeId: performanceAssessments.revieweeId,
-        revieweeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
-        departmentName: departments.name,
-        reviewerId: performanceAssessments.reviewerId,
-        reviewerName: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
-      })
+    // Get company scope first for versioned caching
+    const [meta] = await this.db
+      .select({ companyId: performanceAssessments.companyId })
       .from(performanceAssessments)
-      .leftJoin(
-        performanceCycles,
-        eq(performanceCycles.id, performanceAssessments.cycleId),
-      )
-      .leftJoin(employees, eq(employees.id, performanceAssessments.revieweeId))
-      .leftJoin(users, eq(users.id, performanceAssessments.reviewerId))
-      .leftJoin(departments, eq(departments.id, employees.departmentId))
       .where(eq(performanceAssessments.id, assessmentId));
 
-    if (!assessment) {
+    if (!meta) {
       throw new NotFoundException('Assessment not found');
     }
 
-    const [template] = await this.db
-      .select()
-      .from(performanceReviewTemplates)
-      .where(eq(performanceReviewTemplates.id, assessment.templateId));
+    return this.cache.getOrSetVersioned(
+      meta.companyId,
+      ['assessments', 'one', assessmentId],
+      async () => {
+        const [assessment] = await this.db
+          .select({
+            id: performanceAssessments.id,
+            type: performanceAssessments.type,
+            status: performanceAssessments.status,
+            createdAt: performanceAssessments.createdAt,
+            submittedAt: performanceAssessments.submittedAt,
+            cycleId: performanceAssessments.cycleId,
+            dueDate: performanceCycles.endDate,
+            templateId: performanceAssessments.templateId,
+            companyId: performanceAssessments.companyId,
+            revieweeId: performanceAssessments.revieweeId,
+            revieweeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+            departmentName: departments.name,
+            reviewerId: performanceAssessments.reviewerId,
+            reviewerName: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
+          })
+          .from(performanceAssessments)
+          .leftJoin(
+            performanceCycles,
+            eq(performanceCycles.id, performanceAssessments.cycleId),
+          )
+          .leftJoin(
+            employees,
+            eq(employees.id, performanceAssessments.revieweeId),
+          )
+          .leftJoin(users, eq(users.id, performanceAssessments.reviewerId))
+          .leftJoin(departments, eq(departments.id, employees.departmentId))
+          .where(eq(performanceAssessments.id, assessmentId));
 
-    const [cycle] = await this.db
-      .select()
-      .from(performanceCycles)
-      .where(eq(performanceCycles.id, assessment.cycleId));
-
-    if (!template || !cycle) {
-      throw new NotFoundException('Template or cycle not found');
-    }
-
-    const result: any = {
-      ...assessment,
-      templateName: template.name,
-    };
-
-    // Section Comments
-    const sectionComments = await this.db
-      .select({
-        section: assessmentSectionComments.section,
-        comment: assessmentSectionComments.comment,
-      })
-      .from(assessmentSectionComments)
-      .where(eq(assessmentSectionComments.assessmentId, assessment.id));
-    result.sectionComments = sectionComments;
-
-    // Questionnaire
-    if (template.includeQuestionnaire) {
-      const questions = await this.db
-        .select({
-          questionId: performanceReviewQuestions.id,
-          question: performanceReviewQuestions.question,
-          type: performanceReviewQuestions.type,
-          isGlobal: performanceReviewQuestions.isGlobal,
-          response: assessmentResponses.response,
-          order: performanceTemplateQuestions.order,
-          isMandatory: performanceTemplateQuestions.isMandatory,
-          competency: performanceCompetencies.name, // <-- JOIN and SELECT the competency
-        })
-        .from(performanceTemplateQuestions)
-        .innerJoin(
-          performanceReviewQuestions,
-          eq(
-            performanceTemplateQuestions.questionId,
-            performanceReviewQuestions.id,
-          ),
-        )
-        .leftJoin(
-          assessmentResponses,
-          and(
-            eq(assessmentResponses.assessmentId, assessment.id),
-            eq(assessmentResponses.questionId, performanceReviewQuestions.id),
-          ),
-        )
-        .leftJoin(
-          performanceCompetencies,
-          eq(
-            performanceCompetencies.id,
-            performanceReviewQuestions.competencyId,
-          ), // <-- JOIN on competencyId
-        )
-        .where(eq(performanceTemplateQuestions.templateId, template.id))
-        .orderBy(performanceTemplateQuestions.order);
-
-      const groupedQuestions = questions.reduce(
-        (acc, q) => {
-          const key = q.competency || 'Uncategorized';
-          if (!acc[key]) acc[key] = [];
-          acc[key].push(q);
-          return acc;
-        },
-        {} as Record<string, typeof questions>,
-      );
-
-      result.questions = groupedQuestions;
-    }
-
-    // Goals
-    if (template.includeGoals) {
-      const goals = await this.db
-        .select({
-          id: performanceGoals.id,
-          title: performanceGoals.title,
-          dueDate: performanceGoals.dueDate,
-          weight: performanceGoals.weight,
-          status: performanceGoals.status,
-          employee: sql<string>`CONCAT(${employees.firstName}, ' ', ${employees.lastName})`,
-          employeeId: employees.id,
-          departmentName: departments.name,
-          departmentId: departments.id,
-        })
-        .from(performanceGoals)
-        .innerJoin(employees, eq(employees.id, performanceGoals.employeeId))
-        .leftJoin(departments, eq(departments.id, employees.departmentId))
-        .where(and(eq(performanceGoals.employeeId, assessment.revieweeId)))
-        .orderBy(desc(performanceGoals.assignedAt))
-        .execute();
-
-      const latestProgress = await this.db
-        .select({
-          goalId: performanceGoalUpdates.goalId,
-          progress: performanceGoalUpdates.progress,
-        })
-        .from(performanceGoalUpdates)
-        .where(
-          inArray(
-            performanceGoalUpdates.goalId,
-            goals.map((g) => g.id),
-          ),
-        )
-        .orderBy(desc(performanceGoalUpdates.createdAt))
-        .execute();
-
-      // Reduce to map of goalId => progress
-      const progressMap = new Map<string, number>();
-      for (const update of latestProgress) {
-        if (!progressMap.has(update.goalId)) {
-          progressMap.set(update.goalId, update.progress);
+        if (!assessment) {
+          throw new NotFoundException('Assessment not found');
         }
-      }
 
-      const enrichedGoals = goals.map((goal) => ({
-        ...goal,
-        progress: progressMap.get(goal.id) ?? 0,
-      }));
+        const [template] = await this.db
+          .select()
+          .from(performanceReviewTemplates)
+          .where(eq(performanceReviewTemplates.id, assessment.templateId));
 
-      result.goals = enrichedGoals;
-    }
+        const [cycle] = await this.db
+          .select()
+          .from(performanceCycles)
+          .where(eq(performanceCycles.id, assessment.cycleId));
 
-    // Feedback
-    if (template.includeFeedback) {
-      const feedbacks = await this.db
-        .select({
-          id: performanceFeedback.id,
-          type: performanceFeedback.type,
-          createdAt: performanceFeedback.createdAt,
-          isAnonymous: performanceFeedback.isAnonymous,
-          isArchived: performanceFeedback.isArchived,
-          employeeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
-          senderFirstName: users.firstName,
-          senderLastName: users.lastName,
-          departmentName: departments.name,
-          departmentId: departments.id,
-        })
-        .from(performanceFeedback)
-        .where(eq(performanceFeedback.recipientId, assessment.revieweeId))
-        .leftJoin(employees, eq(employees.id, performanceFeedback.recipientId))
-        .leftJoin(departments, eq(departments.id, employees.departmentId))
-        .leftJoin(users, eq(users.id, performanceFeedback.senderId));
+        if (!template || !cycle) {
+          throw new NotFoundException('Template or cycle not found');
+        }
 
-      const feedbackIds = feedbacks.map((f) => f.id);
-      const responses = await this.getResponsesForFeedback(feedbackIds);
+        const result: any = { ...assessment, templateName: template.name };
 
-      const feedback = feedbacks.map((f) => ({
-        id: f.id,
-        type: f.type,
-        createdAt: f.createdAt,
-        employeeName: f.employeeName,
-        senderName: f.isAnonymous
-          ? 'Anonymous'
-          : `${f.senderFirstName ?? ''} ${f.senderLastName ?? ''}`.trim(),
-        questionsCount: responses.filter((r) => r.feedbackId === f.id).length,
-        departmentName: f.departmentName,
-        departmentId: f.departmentId,
-      }));
+        // Section Comments
+        const sectionComments = await this.db
+          .select({
+            section: assessmentSectionComments.section,
+            comment: assessmentSectionComments.comment,
+          })
+          .from(assessmentSectionComments)
+          .where(eq(assessmentSectionComments.assessmentId, assessment.id));
+        result.sectionComments = sectionComments;
 
-      result.feedback = feedback;
-    }
+        // Questionnaire
+        if (template.includeQuestionnaire) {
+          const questions = await this.db
+            .select({
+              questionId: performanceReviewQuestions.id,
+              question: performanceReviewQuestions.question,
+              type: performanceReviewQuestions.type,
+              isGlobal: performanceReviewQuestions.isGlobal,
+              response: assessmentResponses.response,
+              order: performanceTemplateQuestions.order,
+              isMandatory: performanceTemplateQuestions.isMandatory,
+              competency: performanceCompetencies.name,
+            })
+            .from(performanceTemplateQuestions)
+            .innerJoin(
+              performanceReviewQuestions,
+              eq(
+                performanceTemplateQuestions.questionId,
+                performanceReviewQuestions.id,
+              ),
+            )
+            .leftJoin(
+              assessmentResponses,
+              and(
+                eq(assessmentResponses.assessmentId, assessment.id),
+                eq(
+                  assessmentResponses.questionId,
+                  performanceReviewQuestions.id,
+                ),
+              ),
+            )
+            .leftJoin(
+              performanceCompetencies,
+              eq(
+                performanceCompetencies.id,
+                performanceReviewQuestions.competencyId,
+              ),
+            )
+            .where(eq(performanceTemplateQuestions.templateId, template.id))
+            .orderBy(performanceTemplateQuestions.order);
 
-    // Attendance
-    if (template.includeAttendance) {
-      const attendance = await this.getAttendanceSummaryForCycle(
-        assessment.revieweeId,
-        assessment.companyId,
-        {
-          startDate: cycle.startDate,
-          endDate: cycle.endDate,
-        },
-      );
-      result.attendance = attendance;
-    }
+          const groupedQuestions = questions.reduce(
+            (acc, q) => {
+              const key = q.competency || 'Uncategorized';
+              if (!acc[key]) acc[key] = [];
+              acc[key].push(q);
+              return acc;
+            },
+            {} as Record<string, typeof questions>,
+          );
 
-    return result;
+          result.questions = groupedQuestions;
+        }
+
+        // Goals
+        if (template.includeGoals) {
+          const goals = await this.db
+            .select({
+              id: performanceGoals.id,
+              title: performanceGoals.title,
+              dueDate: performanceGoals.dueDate,
+              weight: performanceGoals.weight,
+              status: performanceGoals.status,
+              employee: sql<string>`CONCAT(${employees.firstName}, ' ', ${employees.lastName})`,
+              employeeId: employees.id,
+              departmentName: departments.name,
+              departmentId: departments.id,
+            })
+            .from(performanceGoals)
+            .innerJoin(employees, eq(employees.id, performanceGoals.employeeId))
+            .leftJoin(departments, eq(departments.id, employees.departmentId))
+            .where(and(eq(performanceGoals.employeeId, assessment.revieweeId)))
+            .orderBy(desc(performanceGoals.assignedAt));
+
+          const latestProgress = await this.db
+            .select({
+              goalId: performanceGoalUpdates.goalId,
+              progress: performanceGoalUpdates.progress,
+            })
+            .from(performanceGoalUpdates)
+            .where(
+              inArray(
+                performanceGoalUpdates.goalId,
+                goals.map((g) => g.id),
+              ),
+            )
+            .orderBy(desc(performanceGoalUpdates.createdAt));
+
+          const progressMap = new Map<string, number>();
+          for (const update of latestProgress) {
+            if (!progressMap.has(update.goalId)) {
+              progressMap.set(update.goalId, update.progress);
+            }
+          }
+
+          const enrichedGoals = goals.map((goal) => ({
+            ...goal,
+            progress: progressMap.get(goal.id) ?? 0,
+          }));
+
+          result.goals = enrichedGoals;
+        }
+
+        // Feedback
+        if (template.includeFeedback) {
+          const feedbacks = await this.db
+            .select({
+              id: performanceFeedback.id,
+              type: performanceFeedback.type,
+              createdAt: performanceFeedback.createdAt,
+              isAnonymous: performanceFeedback.isAnonymous,
+              isArchived: performanceFeedback.isArchived,
+              employeeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+              senderFirstName: users.firstName,
+              senderLastName: users.lastName,
+              departmentName: departments.name,
+              departmentId: departments.id,
+            })
+            .from(performanceFeedback)
+            .where(eq(performanceFeedback.recipientId, assessment.revieweeId))
+            .leftJoin(
+              employees,
+              eq(employees.id, performanceFeedback.recipientId),
+            )
+            .leftJoin(departments, eq(departments.id, employees.departmentId))
+            .leftJoin(users, eq(users.id, performanceFeedback.senderId));
+
+          const feedbackIds = feedbacks.map((f) => f.id);
+          const responses = await this.getResponsesForFeedback(feedbackIds);
+
+          result.feedback = feedbacks.map((f) => ({
+            id: f.id,
+            type: f.type,
+            createdAt: f.createdAt,
+            employeeName: f.employeeName,
+            senderName: f.isAnonymous
+              ? 'Anonymous'
+              : `${f.senderFirstName ?? ''} ${f.senderLastName ?? ''}`.trim(),
+            questionsCount: responses.filter((r) => r.feedbackId === f.id)
+              .length,
+            departmentName: f.departmentName,
+            departmentId: f.departmentId,
+          }));
+        }
+
+        // Attendance
+        if (template.includeAttendance) {
+          const attendance = await this.getAttendanceSummaryForCycle(
+            assessment.revieweeId,
+            assessment.companyId,
+            {
+              startDate: cycle.startDate,
+              endDate: cycle.endDate,
+            },
+          );
+          result.attendance = attendance;
+        }
+
+        return result;
+      },
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(meta.companyId) },
+    );
   }
+
+  // (left uncached: getAssessmentsForUser, getTeamAssessments, getReviewSummary)
+  // They don't carry companyId in signature; caching would require extra lookups.
 
   async getAssessmentsForUser(userId: string) {
     return this.db
@@ -538,7 +602,6 @@ export class AssessmentsService {
   }
 
   async getTeamAssessments(managerId: string, cycleId: string) {
-    // Assuming 'users.managerId' points to the manager
     const team = await this.db
       .select({
         id: users.id,
@@ -562,7 +625,7 @@ export class AssessmentsService {
   }
 
   async getReviewSummary(revieweeId: string, cycleId: string) {
-    const reviews = await this.db
+    return this.db
       .select()
       .from(performanceAssessments)
       .where(
@@ -571,9 +634,11 @@ export class AssessmentsService {
           eq(performanceAssessments.revieweeId, revieweeId),
         ),
       );
-
-    return reviews;
   }
+
+  // ---------------------
+  // Internals
+  // ---------------------
 
   private async getAttendanceSummaryForCycle(
     userId: string,
@@ -585,34 +650,47 @@ export class AssessmentsService {
       end: cycle.endDate,
     }).map((d) => format(d, 'yyyy-MM'));
 
-    const attendancePromises = months.map((month) =>
-      this.clockInOutService.getEmployeeAttendanceByMonth(
+    // Cache this computed summary as well
+    return this.cache.getOrSetVersioned(
+      companyId,
+      [
+        'assessments',
+        'attendance-summary',
         userId,
-        companyId,
-        month,
-      ),
+        cycle.startDate,
+        cycle.endDate,
+      ],
+      async () => {
+        const attendancePromises = months.map((month) =>
+          this.clockInOutService.getEmployeeAttendanceByMonth(
+            userId,
+            companyId,
+            month,
+          ),
+        );
+
+        const monthlyResults = await Promise.all(attendancePromises);
+
+        const summary = {
+          totalDays: 0,
+          present: 0,
+          absent: 0,
+          late: 0,
+        };
+
+        for (const { summaryList } of monthlyResults) {
+          for (const record of summaryList) {
+            summary.totalDays++;
+            if (record.status === 'present') summary.present++;
+            if (record.status === 'absent') summary.absent++;
+            if (record.status === 'late') summary.late++;
+          }
+        }
+
+        return summary;
+      },
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
-
-    const monthlyResults = await Promise.all(attendancePromises);
-    console.log('Monthly Attendance Results:', monthlyResults);
-
-    const summary = {
-      totalDays: 0,
-      present: 0,
-      absent: 0,
-      late: 0,
-    };
-
-    for (const { summaryList } of monthlyResults) {
-      for (const record of summaryList) {
-        summary.totalDays++;
-        if (record.status === 'present') summary.present++;
-        if (record.status === 'absent') summary.absent++;
-        if (record.status === 'late') summary.late++;
-      }
-    }
-
-    return summary;
   }
 
   private calculateProgress(status: string): number {

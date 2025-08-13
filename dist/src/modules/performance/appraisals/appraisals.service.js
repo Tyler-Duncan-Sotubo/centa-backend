@@ -24,18 +24,26 @@ const uuid_1 = require("uuid");
 const pg_core_1 = require("drizzle-orm/pg-core");
 const performance_appraisals_entries_schema_1 = require("./schema/performance-appraisals-entries.schema");
 const performance_appraisal_cycle_schema_1 = require("./schema/performance-appraisal-cycle.schema");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let AppraisalsService = class AppraisalsService {
-    constructor(db, auditService, companySettingsService) {
+    constructor(db, auditService, companySettingsService, cache) {
         this.db = db;
         this.auditService = auditService;
         this.companySettingsService = companySettingsService;
+        this.cache = cache;
+        this.ttlSeconds = 10 * 60;
+    }
+    tags(companyId) {
+        return [`company:${companyId}:appraisals`];
+    }
+    async invalidate(companyId) {
+        await this.cache.bumpCompanyVersion(companyId);
     }
     async create(createDto, companyId, userId) {
         const [employee] = await this.db
             .select({ managerId: schema_1.employees.managerId })
             .from(schema_1.employees)
-            .where((0, drizzle_orm_1.eq)(schema_1.employees.id, createDto.employeeId))
-            .execute();
+            .where((0, drizzle_orm_1.eq)(schema_1.employees.id, createDto.employeeId));
         if (!employee) {
             throw new common_1.NotFoundException(`Employee with ID ${createDto.employeeId} not found`);
         }
@@ -53,8 +61,7 @@ let AppraisalsService = class AppraisalsService {
         const existing = await this.db
             .select()
             .from(performance_appraisals_schema_1.appraisals)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, createDto.employeeId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.cycleId, createDto.cycleId)))
-            .execute();
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, createDto.employeeId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.cycleId, createDto.cycleId)));
         if (existing.length > 0) {
             throw new common_1.BadRequestException('An appraisal already exists for this employee in the cycle');
         }
@@ -79,149 +86,156 @@ let AppraisalsService = class AppraisalsService {
                 },
             });
         }
+        await this.invalidate(companyId);
         return created;
     }
     async findAll(companyId, cycleId) {
-        const emp = (0, pg_core_1.alias)(schema_1.employees, 'emp');
-        const mgr = (0, pg_core_1.alias)(schema_1.employees, 'mgr');
-        return await this.db
-            .select({
-            id: performance_appraisals_schema_1.appraisals.id,
-            employeeName: (0, drizzle_orm_1.sql) `CONCAT(${emp.firstName}, ' ', ${emp.lastName})`,
-            managerName: (0, drizzle_orm_1.sql) `CONCAT(${mgr.firstName}, ' ', ${mgr.lastName})`,
-            submittedByEmployee: performance_appraisals_schema_1.appraisals.submittedByEmployee,
-            submittedByManager: performance_appraisals_schema_1.appraisals.submittedByManager,
-            finalized: performance_appraisals_schema_1.appraisals.finalized,
-            finalScore: performance_appraisals_schema_1.appraisals.finalScore,
-            departmentName: schema_1.departments.name,
-            jobRoleName: schema_1.jobRoles.title,
-        })
-            .from(performance_appraisals_schema_1.appraisals)
-            .leftJoin(emp, (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, emp.id))
-            .leftJoin(mgr, (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.managerId, mgr.id))
-            .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(emp.departmentId, schema_1.departments.id))
-            .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(emp.jobRoleId, schema_1.jobRoles.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.cycleId, cycleId)))
-            .orderBy((0, drizzle_orm_1.desc)(performance_appraisals_schema_1.appraisals.createdAt))
-            .execute();
-    }
-    async findDashboardForEmployee(companyId, employeeId) {
-        const [activeCycle] = await this.db
-            .select({
-            id: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.id,
-            name: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.name,
-            startDate: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate,
-            endDate: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.endDate,
-            status: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.status,
-        })
-            .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.status, 'active')))
-            .limit(1);
-        const emp = (0, pg_core_1.alias)(schema_1.employees, 'emp');
-        const mgr = (0, pg_core_1.alias)(schema_1.employees, 'mgr');
-        const rows = await this.db
-            .select({
-            id: performance_appraisals_schema_1.appraisals.id,
-            cycleId: performance_appraisals_schema_1.appraisals.cycleId,
-            cycleName: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.name,
-            createdAt: performance_appraisals_schema_1.appraisals.createdAt,
-            submittedByEmployee: performance_appraisals_schema_1.appraisals.submittedByEmployee,
-            submittedByManager: performance_appraisals_schema_1.appraisals.submittedByManager,
-            finalized: performance_appraisals_schema_1.appraisals.finalized,
-            finalScore: performance_appraisals_schema_1.appraisals.finalScore,
-            employeeName: (0, drizzle_orm_1.sql) `concat(${emp.firstName}, ' ', ${emp.lastName})`,
-            managerName: (0, drizzle_orm_1.sql) `concat(${mgr.firstName}, ' ', ${mgr.lastName})`,
-            departmentName: schema_1.departments.name,
-            jobRoleName: schema_1.jobRoles.title,
-        })
-            .from(performance_appraisals_schema_1.appraisals)
-            .leftJoin(performance_appraisal_cycle_schema_1.performanceAppraisalCycles, (0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.id, performance_appraisals_schema_1.appraisals.cycleId))
-            .leftJoin(emp, (0, drizzle_orm_1.eq)(emp.id, performance_appraisals_schema_1.appraisals.employeeId))
-            .leftJoin(mgr, (0, drizzle_orm_1.eq)(mgr.id, performance_appraisals_schema_1.appraisals.managerId))
-            .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.departments.id, emp.departmentId))
-            .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.jobRoles.id, emp.jobRoleId))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, employeeId)))
-            .orderBy((0, drizzle_orm_1.desc)(performance_appraisals_schema_1.appraisals.createdAt));
-        let currentCycleAppraisal = null;
-        if (activeCycle) {
-            const [curr] = await this.db
+        const cacheKey = ['appraisals', 'list', cycleId];
+        return this.cache.getOrSetVersioned(companyId, cacheKey, async () => {
+            const emp = (0, pg_core_1.alias)(schema_1.employees, 'emp');
+            const mgr = (0, pg_core_1.alias)(schema_1.employees, 'mgr');
+            return this.db
                 .select({
                 id: performance_appraisals_schema_1.appraisals.id,
+                employeeName: (0, drizzle_orm_1.sql) `CONCAT(${emp.firstName}, ' ', ${emp.lastName})`,
+                managerName: (0, drizzle_orm_1.sql) `CONCAT(${mgr.firstName}, ' ', ${mgr.lastName})`,
                 submittedByEmployee: performance_appraisals_schema_1.appraisals.submittedByEmployee,
                 submittedByManager: performance_appraisals_schema_1.appraisals.submittedByManager,
                 finalized: performance_appraisals_schema_1.appraisals.finalized,
                 finalScore: performance_appraisals_schema_1.appraisals.finalScore,
+                departmentName: schema_1.departments.name,
+                jobRoleName: schema_1.jobRoles.title,
             })
                 .from(performance_appraisals_schema_1.appraisals)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, employeeId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.cycleId, activeCycle.id)))
+                .leftJoin(emp, (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, emp.id))
+                .leftJoin(mgr, (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.managerId, mgr.id))
+                .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(emp.departmentId, schema_1.departments.id))
+                .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(emp.jobRoleId, schema_1.jobRoles.id))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.cycleId, cycleId)))
+                .orderBy((0, drizzle_orm_1.desc)(performance_appraisals_schema_1.appraisals.createdAt));
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+    }
+    async findDashboardForEmployee(companyId, employeeId) {
+        const cacheKey = ['appraisals', 'dashboard', employeeId];
+        return this.cache.getOrSetVersioned(companyId, cacheKey, async () => {
+            const [activeCycle] = await this.db
+                .select({
+                id: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.id,
+                name: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.name,
+                startDate: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate,
+                endDate: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.endDate,
+                status: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.status,
+            })
+                .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.status, 'active')))
                 .limit(1);
-            currentCycleAppraisal = curr ?? null;
-        }
-        return {
-            currentCycle: activeCycle
-                ? {
-                    id: activeCycle.id,
-                    name: activeCycle.name,
-                    startDate: activeCycle.startDate,
-                    endDate: activeCycle.endDate,
-                    status: activeCycle.status,
-                }
-                : null,
-            currentCycleAppraisal,
-            history: rows.map((r) => ({
-                id: r.id,
-                cycleId: r.cycleId,
-                cycleName: r.cycleName ?? null,
-                createdAt: r.createdAt,
-                submittedByEmployee: r.submittedByEmployee,
-                submittedByManager: r.submittedByManager,
-                finalized: r.finalized,
-                finalScore: r.finalScore,
-                employeeName: r.employeeName,
-                managerName: r.managerName ?? null,
-                departmentName: r.departmentName ?? null,
-                jobRoleName: r.jobRoleName ?? null,
-            })),
-        };
+            const emp = (0, pg_core_1.alias)(schema_1.employees, 'emp');
+            const mgr = (0, pg_core_1.alias)(schema_1.employees, 'mgr');
+            const rows = await this.db
+                .select({
+                id: performance_appraisals_schema_1.appraisals.id,
+                cycleId: performance_appraisals_schema_1.appraisals.cycleId,
+                cycleName: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.name,
+                createdAt: performance_appraisals_schema_1.appraisals.createdAt,
+                submittedByEmployee: performance_appraisals_schema_1.appraisals.submittedByEmployee,
+                submittedByManager: performance_appraisals_schema_1.appraisals.submittedByManager,
+                finalized: performance_appraisals_schema_1.appraisals.finalized,
+                finalScore: performance_appraisals_schema_1.appraisals.finalScore,
+                employeeName: (0, drizzle_orm_1.sql) `concat(${emp.firstName}, ' ', ${emp.lastName})`,
+                managerName: (0, drizzle_orm_1.sql) `concat(${mgr.firstName}, ' ', ${mgr.lastName})`,
+                departmentName: schema_1.departments.name,
+                jobRoleName: schema_1.jobRoles.title,
+            })
+                .from(performance_appraisals_schema_1.appraisals)
+                .leftJoin(performance_appraisal_cycle_schema_1.performanceAppraisalCycles, (0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.id, performance_appraisals_schema_1.appraisals.cycleId))
+                .leftJoin(emp, (0, drizzle_orm_1.eq)(emp.id, performance_appraisals_schema_1.appraisals.employeeId))
+                .leftJoin(mgr, (0, drizzle_orm_1.eq)(mgr.id, performance_appraisals_schema_1.appraisals.managerId))
+                .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.departments.id, emp.departmentId))
+                .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.jobRoles.id, emp.jobRoleId))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, employeeId)))
+                .orderBy((0, drizzle_orm_1.desc)(performance_appraisals_schema_1.appraisals.createdAt));
+            let currentCycleAppraisal = null;
+            if (activeCycle) {
+                const [curr] = await this.db
+                    .select({
+                    id: performance_appraisals_schema_1.appraisals.id,
+                    submittedByEmployee: performance_appraisals_schema_1.appraisals.submittedByEmployee,
+                    submittedByManager: performance_appraisals_schema_1.appraisals.submittedByManager,
+                    finalized: performance_appraisals_schema_1.appraisals.finalized,
+                    finalScore: performance_appraisals_schema_1.appraisals.finalScore,
+                })
+                    .from(performance_appraisals_schema_1.appraisals)
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, employeeId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.cycleId, activeCycle.id)))
+                    .limit(1);
+                currentCycleAppraisal = curr ?? null;
+            }
+            return {
+                currentCycle: activeCycle
+                    ? {
+                        id: activeCycle.id,
+                        name: activeCycle.name,
+                        startDate: activeCycle.startDate,
+                        endDate: activeCycle.endDate,
+                        status: activeCycle.status,
+                    }
+                    : null,
+                currentCycleAppraisal,
+                history: rows.map((r) => ({
+                    id: r.id,
+                    cycleId: r.cycleId,
+                    cycleName: r.cycleName ?? null,
+                    createdAt: r.createdAt,
+                    submittedByEmployee: r.submittedByEmployee,
+                    submittedByManager: r.submittedByManager,
+                    finalized: r.finalized,
+                    finalScore: r.finalScore,
+                    employeeName: r.employeeName,
+                    managerName: r.managerName ?? null,
+                    departmentName: r.departmentName ?? null,
+                    jobRoleName: r.jobRoleName ?? null,
+                })),
+            };
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async findOne(id, companyId) {
-        const emp = (0, pg_core_1.alias)(schema_1.employees, 'emp');
-        const mgr = (0, pg_core_1.alias)(schema_1.employees, 'mgr');
-        const [record] = await this.db
-            .select({
-            id: performance_appraisals_schema_1.appraisals.id,
-            cycleId: performance_appraisals_schema_1.appraisals.cycleId,
-            employeeName: (0, drizzle_orm_1.sql) `CONCAT(${emp.firstName}, ' ', ${emp.lastName})`,
-            managerName: (0, drizzle_orm_1.sql) `CONCAT(${mgr.firstName}, ' ', ${mgr.lastName})`,
-            submittedByEmployee: performance_appraisals_schema_1.appraisals.submittedByEmployee,
-            submittedByManager: performance_appraisals_schema_1.appraisals.submittedByManager,
-            finalized: performance_appraisals_schema_1.appraisals.finalized,
-            recommendation: performance_appraisals_schema_1.appraisals.promotionRecommendation,
-            finalNote: performance_appraisals_schema_1.appraisals.finalNote,
-            finalScore: performance_appraisals_schema_1.appraisals.finalScore,
-            departmentName: schema_1.departments.name,
-            jobRoleName: schema_1.jobRoles.title,
-        })
-            .from(performance_appraisals_schema_1.appraisals)
-            .leftJoin(emp, (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, emp.id))
-            .leftJoin(mgr, (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.managerId, mgr.id))
-            .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(emp.departmentId, schema_1.departments.id))
-            .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(emp.jobRoleId, schema_1.jobRoles.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.id, id)))
-            .orderBy((0, drizzle_orm_1.desc)(performance_appraisals_schema_1.appraisals.createdAt))
-            .execute();
-        if (!record) {
-            throw new common_1.NotFoundException(`Appraisal with ID ${id} not found`);
-        }
-        return record;
+        const cacheKey = ['appraisals', 'one', id];
+        return this.cache.getOrSetVersioned(companyId, cacheKey, async () => {
+            const emp = (0, pg_core_1.alias)(schema_1.employees, 'emp');
+            const mgr = (0, pg_core_1.alias)(schema_1.employees, 'mgr');
+            const [record] = await this.db
+                .select({
+                id: performance_appraisals_schema_1.appraisals.id,
+                cycleId: performance_appraisals_schema_1.appraisals.cycleId,
+                employeeName: (0, drizzle_orm_1.sql) `CONCAT(${emp.firstName}, ' ', ${emp.lastName})`,
+                managerName: (0, drizzle_orm_1.sql) `CONCAT(${mgr.firstName}, ' ', ${mgr.lastName})`,
+                submittedByEmployee: performance_appraisals_schema_1.appraisals.submittedByEmployee,
+                submittedByManager: performance_appraisals_schema_1.appraisals.submittedByManager,
+                finalized: performance_appraisals_schema_1.appraisals.finalized,
+                recommendation: performance_appraisals_schema_1.appraisals.promotionRecommendation,
+                finalNote: performance_appraisals_schema_1.appraisals.finalNote,
+                finalScore: performance_appraisals_schema_1.appraisals.finalScore,
+                departmentName: schema_1.departments.name,
+                jobRoleName: schema_1.jobRoles.title,
+            })
+                .from(performance_appraisals_schema_1.appraisals)
+                .leftJoin(emp, (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, emp.id))
+                .leftJoin(mgr, (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.managerId, mgr.id))
+                .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(emp.departmentId, schema_1.departments.id))
+                .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(emp.jobRoleId, schema_1.jobRoles.id))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.id, id)))
+                .orderBy((0, drizzle_orm_1.desc)(performance_appraisals_schema_1.appraisals.createdAt));
+            if (!record) {
+                throw new common_1.NotFoundException(`Appraisal with ID ${id} not found`);
+            }
+            return record;
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async updateManager(appraisalId, newManagerId, user) {
         const { id: userId, companyId } = user;
         const [appraisal] = await this.db
             .select()
             .from(performance_appraisals_schema_1.appraisals)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.id, appraisalId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, companyId)))
-            .execute();
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.id, appraisalId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, companyId)));
         if (!appraisal) {
             throw new common_1.NotFoundException(`Appraisal with ID ${appraisalId} not found`);
         }
@@ -243,6 +257,7 @@ let AppraisalsService = class AppraisalsService {
                 },
             });
         }
+        await this.invalidate(companyId);
         return updated;
     }
     async update(id, updateDto, user) {
@@ -263,6 +278,7 @@ let AppraisalsService = class AppraisalsService {
                 updatedAt: new Date().toISOString(),
             },
         });
+        await this.invalidate(user.companyId);
         return updated;
     }
     async remove(id, user) {
@@ -275,27 +291,24 @@ let AppraisalsService = class AppraisalsService {
         }
         await this.db
             .delete(performance_appraisals_schema_1.appraisals)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.id, id), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, user.companyId)))
-            .execute();
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.id, id), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, user.companyId)));
         await this.auditService.logAction({
             action: 'delete',
             entity: 'performance_appraisal',
             entityId: id,
             userId: user.id,
             details: `Deleted not-started appraisal ${id}`,
-            changes: {
-                deletedAt: new Date().toISOString(),
-            },
+            changes: { deletedAt: new Date().toISOString() },
         });
+        await this.invalidate(user.companyId);
         return { message: 'Appraisal deleted successfully' };
     }
     async restartAppraisal(appraisalId, user) {
         const existing = await this.db
-            .select()
+            .select({ id: performance_appraisals_schema_1.appraisals.id, companyId: performance_appraisals_schema_1.appraisals.companyId })
             .from(performance_appraisals_schema_1.appraisals)
-            .where((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.id, appraisalId))
-            .execute();
-        if (!existing) {
+            .where((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.id, appraisalId));
+        if (existing.length === 0) {
             throw new common_1.NotFoundException('Appraisal not found');
         }
         await this.db
@@ -316,10 +329,9 @@ let AppraisalsService = class AppraisalsService {
             entity: 'performance_appraisal',
             userId: user.id,
             details: `Restarted appraisal ${appraisalId}`,
-            changes: {
-                resetAt: new Date().toISOString(),
-            },
+            changes: { resetAt: new Date().toISOString() },
         });
+        await this.invalidate(user.companyId);
         return { message: 'Appraisal restarted successfully' };
     }
 };
@@ -328,6 +340,7 @@ exports.AppraisalsService = AppraisalsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
-        company_settings_service_1.CompanySettingsService])
+        company_settings_service_1.CompanySettingsService,
+        cache_service_1.CacheService])
 ], AppraisalsService);
 //# sourceMappingURL=appraisals.service.js.map

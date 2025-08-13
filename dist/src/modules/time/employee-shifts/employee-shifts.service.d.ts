@@ -1,9 +1,7 @@
-import { PinoLogger } from 'nestjs-pino';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { db } from 'src/drizzle/types/drizzle';
 import { CreateEmployeeShiftDto } from './dto/create-employee-shift.dto';
 import { User } from 'src/common/types/user.type';
-import { BulkCreateEmployeeShiftDto } from './dto/bulk-assign-employee-shifts.dto';
 import { UpdateEmployeeShiftDto } from './dto/update-employee-shift.dto';
 import { CacheService } from 'src/common/cache/cache.service';
 type CalendarEvent = {
@@ -21,22 +19,10 @@ type CalendarEvent = {
 export declare class EmployeeShiftsService {
     private readonly auditService;
     private readonly db;
-    private readonly logger;
     private readonly cache;
-    constructor(auditService: AuditService, db: db, logger: PinoLogger, cache: CacheService);
-    private listAllKey;
-    private listAllPagedKey;
-    private getOneKey;
-    private byEmployeeKey;
-    private byShiftKey;
-    private activeForDayKey;
-    private calendarKey;
-    private delPrefix;
-    private burstAll;
-    private calendarVerKey;
-    private bumpCalendarVersion;
-    private getCalendarVersion;
-    private baseEmployeeShiftQuery;
+    constructor(auditService: AuditService, db: db, cache: CacheService);
+    private ttlSeconds;
+    private tags;
     private assertNoOverlap;
     assignShift(employeeId: string, dto: CreateEmployeeShiftDto, user: User, ip: string): Promise<{
         id: string;
@@ -48,7 +34,6 @@ export declare class EmployeeShiftsService {
         shiftDate: string;
     }>;
     updateShift(employeeShiftId: string, dto: UpdateEmployeeShiftDto, user: User, ip: string): Promise<{
-        _calendarVersion: string;
         id: string;
         companyId: string;
         employeeId: string;
@@ -57,7 +42,11 @@ export declare class EmployeeShiftsService {
         isDeleted: boolean | null;
         createdAt: Date | null;
     }>;
-    bulkAssignMany(companyId: string, dtos: BulkCreateEmployeeShiftDto[], user: User, ip: string): Promise<{
+    bulkAssignMany(companyId: string, dtos: Array<{
+        employeeId: string;
+        shiftId: string;
+        shiftDate: string;
+    }>, user: User, ip: string): Promise<{
         id: string;
         createdAt: Date | null;
         companyId: string;
@@ -73,6 +62,7 @@ export declare class EmployeeShiftsService {
         success: boolean;
         removedCount: number;
     }>;
+    private baseEmployeeShiftQuery;
     listAll(companyId: string): Promise<({
         id: string;
         employeeId: string;

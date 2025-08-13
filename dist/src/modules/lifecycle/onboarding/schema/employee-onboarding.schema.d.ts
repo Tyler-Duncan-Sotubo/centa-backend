@@ -76,7 +76,7 @@ export declare const employeeOnboarding: import("drizzle-orm/pg-core").PgTableWi
             tableName: "employee_onboarding";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "in_progress" | "completed" | "pending";
+            data: "pending" | "in_progress" | "completed";
             driverParam: string;
             notNull: false;
             hasDefault: true;

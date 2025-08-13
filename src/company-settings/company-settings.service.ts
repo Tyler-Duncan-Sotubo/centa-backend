@@ -1,3 +1,4 @@
+// src/company-settings/company-settings.service.ts
 import { Inject, Injectable } from '@nestjs/common';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
@@ -9,10 +10,14 @@ import { payroll } from './settings/payroll';
 import { expenses } from './settings/expense';
 import { performance } from './settings/performance';
 import { onboarding } from './settings/onboarding';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class CompanySettingsService {
-  constructor(@Inject(DRIZZLE) private db: db) {}
+  constructor(
+    @Inject(DRIZZLE) private db: db,
+    private readonly cache: CacheService,
+  ) {}
 
   private settings = [
     ...attendance,
@@ -21,63 +26,86 @@ export class CompanySettingsService {
     ...expenses,
     ...performance,
     ...onboarding,
-    {
-      key: 'default_currency',
-      value: 'USD', // Default currency
-    },
-    {
-      key: 'default_timezone',
-      value: 'UTC', // Default timezone
-    },
-    {
-      key: 'default_language',
-      value: 'en', // Default language
-    },
-    {
-      key: 'default_manager_id',
-      value: 'UUID-of-super-admin-or-lead',
-    },
-    {
-      key: 'two_factor_auth',
-      value: true,
-    },
+    { key: 'default_currency', value: 'USD' },
+    { key: 'default_timezone', value: 'UTC' },
+    { key: 'default_language', value: 'en' },
+    { key: 'default_manager_id', value: 'UUID-of-super-admin-or-lead' },
+    { key: 'two_factor_auth', value: true },
   ];
 
+  // -----------------------------
+  // Helpers for cache key/tagging
+  // -----------------------------
+  private tagCompany(companyId: string) {
+    return [`company:${companyId}:settings`];
+  }
+  private tagGroup(companyId: string, group: string) {
+    return [`company:${companyId}:settings:group:${group}`];
+  }
+  private ttlSeconds = 60 * 60; // 1h cache for reads (tune as needed)
+
+  // ---------------------------------
+  // Single setting (read w/ cache)
+  // ---------------------------------
   async getSetting(companyId: string, key: string): Promise<any | null> {
-    const setting = await this.db
-      .select()
-      .from(companySettings)
-      .where(
-        and(
-          eq(companySettings.companyId, companyId),
-          eq(companySettings.key, key),
-        ),
-      );
-
-    return setting[0] ? setting[0].value : null;
+    return this.cache.getOrSetVersioned<any>(
+      companyId,
+      ['settings', 'get', key],
+      async () => {
+        const setting = await this.db
+          .select()
+          .from(companySettings)
+          .where(
+            and(
+              eq(companySettings.companyId, companyId),
+              eq(companySettings.key, key),
+            ),
+          );
+        return setting[0] ? setting[0].value : null;
+      },
+      {
+        ttlSeconds: this.ttlSeconds,
+        tags: [
+          ...this.tagCompany(companyId),
+          ...this.tagGroup(companyId, key.split('.')[0] ?? 'root'),
+        ],
+      },
+    );
   }
 
+  // ---------------------------------
+  // All settings (read w/ cache)
+  // ---------------------------------
   async getAllSettings(companyId: string) {
-    return this.db
-      .select()
-      .from(companySettings)
-      .where(eq(companySettings.companyId, companyId))
-      .execute();
+    return this.cache.getOrSetVersioned<any[]>(
+      companyId,
+      ['settings', 'all'],
+      async () => {
+        return this.db
+          .select()
+          .from(companySettings)
+          .where(eq(companySettings.companyId, companyId))
+          .execute();
+      },
+      { ttlSeconds: this.ttlSeconds, tags: this.tagCompany(companyId) },
+    );
   }
 
+  // ---------------------------------
+  // Read w/ default (cached via getSetting)
+  // ---------------------------------
   async getSettingsOrDefaults(
     companyId: string,
     key: string,
     defaultValue: any,
   ): Promise<any> {
-    const setting = await this.getSetting(companyId, key);
-
-    if (setting === null || setting === undefined) {
-      return defaultValue;
-    }
-    return setting;
+    const value = await this.getSetting(companyId, key);
+    return value === null || value === undefined ? defaultValue : value;
   }
 
+  // ---------------------------------
+  // Write operations -> bump version
+  // ---------------------------------
   async setSetting(companyId: string, key: string, value: any): Promise<void> {
     const existing = await this.db
       .select({ id: companySettings.id })
@@ -109,29 +137,44 @@ export class CompanySettingsService {
         value,
       });
     }
+
+    // Invalidate by version bump (atomic when Redis native client is present)
+    await this.cache.bumpCompanyVersion(companyId);
   }
 
   // Get all settings that belong to a certain group (e.g., leave.*)
   async getSettingsByGroup(companyId: string, prefix: string): Promise<any[]> {
-    const rows = await this.db
-      .select()
-      .from(companySettings)
-      .where(
-        and(
-          eq(companySettings.companyId, companyId),
-          like(companySettings.key, `${prefix}.%`),
-        ),
-      );
+    return this.cache.getOrSetVersioned<any[]>(
+      companyId,
+      ['settings', 'group', prefix],
+      async () => {
+        const rows = await this.db
+          .select()
+          .from(companySettings)
+          .where(
+            and(
+              eq(companySettings.companyId, companyId),
+              like(companySettings.key, `${prefix}.%`),
+            ),
+          );
 
-    const settings: { key: string; value: unknown }[] = [];
-    for (const row of rows) {
-      settings.push({
-        key: row.key.replace(`${prefix}.`, ''),
-        value: row.value,
-      });
-    }
-
-    return settings;
+        const settings: { key: string; value: unknown }[] = [];
+        for (const row of rows) {
+          settings.push({
+            key: row.key.replace(`${prefix}.`, ''),
+            value: row.value,
+          });
+        }
+        return settings;
+      },
+      {
+        ttlSeconds: this.ttlSeconds,
+        tags: [
+          ...this.tagCompany(companyId),
+          ...this.tagGroup(companyId, prefix),
+        ],
+      },
+    );
   }
 
   async setSettings(companyId: string): Promise<void> {
@@ -147,11 +190,11 @@ export class CompanySettingsService {
         })),
       )
       .onConflictDoUpdate({
-        target: [companySettings.companyId, companySettings.key], // composite unique key
-        set: {
-          value: sql`EXCLUDED.value`, // update value if conflict
-        },
+        target: [companySettings.companyId, companySettings.key],
+        set: { value: sql`EXCLUDED.value` },
       });
+
+    await this.cache.bumpCompanyVersion(companyId);
   }
 
   // Delete a setting
@@ -164,29 +207,17 @@ export class CompanySettingsService {
           eq(companySettings.key, key),
         ),
       );
+
+    await this.cache.bumpCompanyVersion(companyId);
   }
 
-  // Flags
-
+  // -------------------------
+  // Flags & grouped configs
+  // -------------------------
   async getDefaultManager(companyId: string) {
     const keys = ['default_manager_id'];
 
-    const rows = await this.db
-      .select({ key: companySettings.key, value: companySettings.value })
-      .from(companySettings)
-      .where(
-        and(
-          eq(companySettings.companyId, companyId),
-          inArray(companySettings.key, keys),
-        ),
-      )
-      .execute();
-
-    const map = rows.reduce<Record<string, any>>((acc, { key, value }) => {
-      acc[key] = value;
-      return acc;
-    }, {});
-
+    const map = await this.fetchSettings(companyId, keys);
     return {
       defaultManager: (map['default_manager_id'] as string) || '',
     };
@@ -205,25 +236,7 @@ export class CompanySettingsService {
       'payroll.allowance_others',
     ];
 
-    // 1) one query to get all the settings
-    const rows = await this.db
-      .select({ key: companySettings.key, value: companySettings.value })
-      .from(companySettings)
-      .where(
-        and(
-          eq(companySettings.companyId, companyId),
-          inArray(companySettings.key, keys),
-        ),
-      )
-      .execute();
-
-    // 2) map them to an object
-    const map = rows.reduce<Record<string, any>>((acc, { key, value }) => {
-      acc[key] = value;
-      return acc;
-    }, {});
-
-    // 3) return a typed config object
+    const map = await this.fetchSettings(companyId, keys);
     return {
       applyPaye: Boolean(map['payroll.apply_paye']),
       applyNhf: Boolean(map['payroll.apply_nhf']),
@@ -241,25 +254,7 @@ export class CompanySettingsService {
       'payroll.allowance_others',
     ];
 
-    // 1) one query to get all the settings
-    const rows = await this.db
-      .select({ key: companySettings.key, value: companySettings.value })
-      .from(companySettings)
-      .where(
-        and(
-          eq(companySettings.companyId, companyId),
-          inArray(companySettings.key, keys),
-        ),
-      )
-      .execute();
-
-    // 2) map them to an object
-    const map = rows.reduce<Record<string, any>>((acc, { key, value }) => {
-      acc[key] = value;
-      return acc;
-    }, {});
-
-    // 3) return a typed config object
+    const map = await this.fetchSettings(companyId, keys);
     return {
       basicPercent: Number(map['payroll.basic_percent'] ?? 0),
       housingPercent: Number(map['payroll.housing_percent'] ?? 0),
@@ -282,22 +277,7 @@ export class CompanySettingsService {
       'payroll.enable_proration',
     ];
 
-    const rows = await this.db
-      .select({ key: companySettings.key, value: companySettings.value })
-      .from(companySettings)
-      .where(
-        and(
-          eq(companySettings.companyId, companyId),
-          inArray(companySettings.key, keys),
-        ),
-      )
-      .execute();
-
-    const map = rows.reduce<Record<string, any>>((acc, { key, value }) => {
-      acc[key] = value;
-      return acc;
-    }, {});
-
+    const map = await this.fetchSettings(companyId, keys);
     return {
       multiLevelApproval: Boolean(map['payroll.multi_level_approval']),
       approverChain: (map['payroll.approver_chain'] as string[]) || [],
@@ -316,22 +296,7 @@ export class CompanySettingsService {
       'payroll.13th_month_payment_percentage',
     ];
 
-    const rows = await this.db
-      .select({ key: companySettings.key, value: companySettings.value })
-      .from(companySettings)
-      .where(
-        and(
-          eq(companySettings.companyId, companyId),
-          inArray(companySettings.key, keys),
-        ),
-      )
-      .execute();
-
-    const map = rows.reduce<Record<string, any>>((acc, { key, value }) => {
-      acc[key] = value;
-      return acc;
-    }, {});
-
+    const map = await this.fetchSettings(companyId, keys);
     return {
       enable13thMonth: Boolean(map['payroll.enable_13th_month']),
       paymentDate: map['payroll.13th_month_payment_date'],
@@ -351,22 +316,7 @@ export class CompanySettingsService {
       'payroll.loan_max_amount',
     ];
 
-    const rows = await this.db
-      .select({ key: companySettings.key, value: companySettings.value })
-      .from(companySettings)
-      .where(
-        and(
-          eq(companySettings.companyId, companyId),
-          inArray(companySettings.key, keys),
-        ),
-      )
-      .execute();
-
-    const map = rows.reduce<Record<string, any>>((acc, { key, value }) => {
-      acc[key] = value;
-      return acc;
-    }, {});
-
+    const map = await this.fetchSettings(companyId, keys);
     return {
       useLoan: Boolean(map['payroll.use_loan']),
       maxPercentOfSalary: Number(map['payroll.loan_max_percent'] ?? 1),
@@ -375,46 +325,47 @@ export class CompanySettingsService {
     };
   }
 
+  /**
+   * Fetch a subset of keys in one go, cached under a stable composite key.
+   */
   async fetchSettings(companyId: string, keys: string[]) {
-    const rows = await this.db
-      .select({ key: companySettings.key, value: companySettings.value })
-      .from(companySettings)
-      .where(
-        and(
-          eq(companySettings.companyId, companyId),
-          inArray(companySettings.key, keys),
-        ),
-      )
-      .execute();
+    const sorted = [...keys].sort(); // ensure key is order-independent
+    return this.cache.getOrSetVersioned<Record<string, any>>(
+      companyId,
+      ['settings', 'subset', sorted.join('|')],
+      async () => {
+        const rows = await this.db
+          .select({ key: companySettings.key, value: companySettings.value })
+          .from(companySettings)
+          .where(
+            and(
+              eq(companySettings.companyId, companyId),
+              inArray(companySettings.key, keys),
+            ),
+          )
+          .execute();
 
-    return rows.reduce<Record<string, any>>((acc, { key, value }) => {
-      acc[key] = value;
-      return acc;
-    }, {});
+        return rows.reduce<Record<string, any>>((acc, { key, value }) => {
+          acc[key] = value;
+          return acc;
+        }, {});
+      },
+      {
+        ttlSeconds: this.ttlSeconds,
+        // tag each group represented in the subset so tag invalidation remains targeted
+        tags: [
+          ...this.tagCompany(companyId),
+          ...Array.from(
+            new Set(sorted.map((k) => k.split('.')[0] ?? 'root')),
+          ).map((g) => `company:${companyId}:settings:group:${g}`),
+        ],
+      },
+    );
   }
 
   async getTwoFactorAuthSetting(companyId: string) {
-    const keys = ['two_factor_auth'];
-
-    const rows = await this.db
-      .select({ key: companySettings.key, value: companySettings.value })
-      .from(companySettings)
-      .where(
-        and(
-          eq(companySettings.companyId, companyId),
-          inArray(companySettings.key, keys),
-        ),
-      )
-      .execute();
-
-    const map = rows.reduce<Record<string, any>>((acc, { key, value }) => {
-      acc[key] = value;
-      return acc;
-    }, {});
-
-    return {
-      twoFactorAuth: Boolean(map['two_factor_auth']),
-    };
+    const map = await this.fetchSettings(companyId, ['two_factor_auth']);
+    return { twoFactorAuth: Boolean(map['two_factor_auth']) };
   }
 
   async getOnboardingSettings(companyId: string) {
@@ -429,24 +380,8 @@ export class CompanySettingsService {
       'onboarding_upload_employees',
     ];
 
-    const rows = await this.db
-      .select({ key: companySettings.key, value: companySettings.value })
-      .from(companySettings)
-      .where(
-        and(
-          eq(companySettings.companyId, companyId),
-          inArray(companySettings.key, keys),
-        ),
-      )
-      .execute();
+    const map = await this.fetchSettings(companyId, keys);
 
-    // Map keys to object
-    const map = rows.reduce<Record<string, any>>((acc, { key, value }) => {
-      acc[key] = value;
-      return acc;
-    }, {});
-
-    // Build response object (safe defaults if missing)
     return {
       payFrequency: Boolean(map['onboarding_pay_frequency']),
       payGroup: Boolean(map['onboarding_pay_group']),

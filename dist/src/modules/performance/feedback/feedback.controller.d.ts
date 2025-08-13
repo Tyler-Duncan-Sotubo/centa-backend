@@ -10,12 +10,12 @@ export declare class FeedbackController extends BaseController {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        type: string;
-        submittedAt: Date | null;
-        isArchived: boolean | null;
         senderId: string;
         recipientId: string;
+        type: string;
         isAnonymous: boolean | null;
+        submittedAt: Date | null;
+        isArchived: boolean | null;
     }>;
     findAll(user: User, type?: string, departmentId?: string): Promise<{
         id: string;
@@ -27,6 +27,7 @@ export declare class FeedbackController extends BaseController {
         departmentName: any;
         jobRoleName: string | null;
         departmentId: any;
+        isArchived: boolean | null;
     }[]>;
     getForEmployee(employeeId: string, user: User, type?: string): Promise<{
         id: string;
@@ -42,20 +43,30 @@ export declare class FeedbackController extends BaseController {
     }[]>;
     getForRecipient(recipientId: string, user: User): Promise<any[]>;
     findOne(id: string, user: User): Promise<"You do not have permission to view this feedback" | {
-        responses: {
-            answer: string;
-            questionText: string | null;
-            inputType: string | null;
-        }[];
         id: string;
         type: string;
         createdAt: Date | null;
         isAnonymous: boolean | null;
         employeeName: string;
         senderName: string;
+        responses: {
+            answer: string;
+            questionText: string | null;
+            inputType: string | null;
+        }[];
     }>;
-    update(id: string, dto: UpdateFeedbackDto, user: User): Promise<any>;
-    remove(id: string, user: User): Promise<{
+    update(id: string, dto: UpdateFeedbackDto, user: User): Promise<"You do not have permission to view this feedback" | {
+        id: string;
+        companyId: string;
+        senderId: string;
+        recipientId: string;
+        type: string;
+        isAnonymous: boolean | null;
+        submittedAt: Date | null;
+        createdAt: Date | null;
+        isArchived: boolean | null;
+    }>;
+    remove(id: string, user: User): Promise<"You do not have permission to view this feedback" | {
         id: string;
         companyId: string;
         senderId: string;

@@ -43,8 +43,8 @@ let LeaveTypesController = class LeaveTypesController extends base_controller_1.
     update(id, dto, user, ip) {
         return this.leaveType.update(id, dto, user, ip);
     }
-    remove(id, user, ip) {
-        return this.leaveType.remove(id, user, ip);
+    remove(id, user) {
+        return this.leaveType.remove(user.companyId, id);
     }
 };
 exports.LeaveTypesController = LeaveTypesController;
@@ -113,9 +113,8 @@ __decorate([
     }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
-    __param(2, (0, common_1.Ip)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object, String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], LeaveTypesController.prototype, "remove", null);
 exports.LeaveTypesController = LeaveTypesController = __decorate([

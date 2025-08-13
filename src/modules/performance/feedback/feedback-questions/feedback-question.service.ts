@@ -4,17 +4,33 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Inject } from '@nestjs/common';
-import { eq, inArray, count as drizzleCount } from 'drizzle-orm';
+import { eq, inArray, asc, count as drizzleCount } from 'drizzle-orm';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
 import { User } from 'src/common/types/user.type';
 import { CreateFeedbackQuestionDto } from '../dto/create-feedback-question.dto';
 import { feedbackQuestions } from '../schema/performance-feedback-questions.schema';
 import { UpdateFeedbackQuestionDto } from '../dto/update-feedback-question.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class FeedbackQuestionService {
-  constructor(@Inject(DRIZZLE) private readonly db: db) {}
+  private readonly ttlSeconds = 10 * 60; // 10 minutes
+
+  constructor(
+    @Inject(DRIZZLE) private readonly db: db,
+    private readonly cache: CacheService,
+  ) {}
+
+  private tags(companyId: string) {
+    return [`company:${companyId}:feedback-questions`];
+  }
+  private async invalidate(companyId: string) {
+    // Version-bump is enough even if Redis tags aren’t available
+    await this.cache.bumpCompanyVersion(companyId);
+    // If you wire native Redis tagging, you can also:
+    // await this.cache.invalidateTags(this.tags(companyId));
+  }
 
   async create(dto: CreateFeedbackQuestionDto, user: User) {
     const [question] = await this.db
@@ -26,83 +42,145 @@ export class FeedbackQuestionService {
         order: dto.order,
         inputType: dto.inputType,
       })
-      .returning();
+      .returning()
+      .execute();
 
+    await this.invalidate(user.companyId);
     return question;
   }
 
-  async findAll() {
-    return this.db.select().from(feedbackQuestions);
+  /** Get all questions for a company (cached) */
+  async findAll(companyId: string) {
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['feedback-questions', 'all'],
+      async () =>
+        this.db
+          .select()
+          .from(feedbackQuestions)
+          .where(eq(feedbackQuestions.companyId, companyId))
+          .orderBy(asc(feedbackQuestions.type), asc(feedbackQuestions.order))
+          .execute(),
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+    );
   }
 
-  async findByType(type: string) {
-    return this.db
-      .select()
-      .from(feedbackQuestions)
-      .where(eq(feedbackQuestions.type, type));
+  /** Get questions by type for a company (cached) */
+  async findByType(companyId: string, type: string) {
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['feedback-questions', 'type', type],
+      async () =>
+        this.db
+          .select()
+          .from(feedbackQuestions)
+          .where(
+            eq(feedbackQuestions.companyId, companyId) &&
+              eq(feedbackQuestions.type, type),
+          )
+          .orderBy(asc(feedbackQuestions.order))
+          .execute(),
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+    );
   }
 
-  async findOne(id: string) {
-    const [question] = await this.db
-      .select()
-      .from(feedbackQuestions)
-      .where(eq(feedbackQuestions.id, id));
+  /** Get one question by id (cached) */
+  async findOne(companyId: string, id: string) {
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['feedback-questions', 'one', id],
+      async () => {
+        const [question] = await this.db
+          .select()
+          .from(feedbackQuestions)
+          .where(
+            eq(feedbackQuestions.id, id) &&
+              eq(feedbackQuestions.companyId, companyId),
+          )
+          .execute();
 
-    if (!question) {
-      throw new NotFoundException('Question not found');
-    }
-
-    return question;
+        if (!question) {
+          throw new NotFoundException('Question not found');
+        }
+        return question;
+      },
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+    );
   }
 
-  async update(id: string, dto: UpdateFeedbackQuestionDto) {
+  async update(companyId: string, id: string, dto: UpdateFeedbackQuestionDto) {
+    // Ensure it exists & belongs to company
+    await this.findOne(companyId, id);
+
     const [updated] = await this.db
       .update(feedbackQuestions)
       .set(dto)
-      .where(eq(feedbackQuestions.id, id))
-      .returning();
+      .where(
+        eq(feedbackQuestions.id, id) &&
+          eq(feedbackQuestions.companyId, companyId),
+      )
+      .returning()
+      .execute();
 
     if (!updated) {
       throw new NotFoundException('Question not found');
     }
 
+    await this.invalidate(companyId);
     return updated;
   }
 
-  async delete(id: string) {
-    // 1. Check if the question exists
+  async delete(companyId: string, id: string) {
+    // 1) Check it exists and belongs to the company
     const [existing] = await this.db
       .select()
       .from(feedbackQuestions)
-      .where(eq(feedbackQuestions.id, id));
+      .where(
+        eq(feedbackQuestions.id, id) &&
+          eq(feedbackQuestions.companyId, companyId),
+      )
+      .execute();
 
     if (!existing) {
       throw new NotFoundException('Question not found');
     }
 
-    // 2. Count how many questions remain for this type
+    // 2) Count how many questions remain for this type (in this company)
     const countRes = await this.db
       .select({ count: drizzleCount() })
       .from(feedbackQuestions)
-      .where(eq(feedbackQuestions.type, existing.type));
+      .where(
+        eq(feedbackQuestions.companyId, companyId) &&
+          eq(feedbackQuestions.type, existing.type),
+      )
+      .execute();
 
     const remainingCount = Number(countRes[0]?.count ?? 0);
-
     if (remainingCount <= 1) {
       throw new BadRequestException(
         `Cannot delete the last question of type "${existing.type}"`,
       );
     }
 
-    // 3. Delete the question
-    await this.db.delete(feedbackQuestions).where(eq(feedbackQuestions.id, id));
+    // 3) Delete the question
+    await this.db
+      .delete(feedbackQuestions)
+      .where(
+        eq(feedbackQuestions.id, id) &&
+          eq(feedbackQuestions.companyId, companyId),
+      )
+      .execute();
 
-    // 4. Reorder remaining questions of the same type
+    // 4) Reorder remaining questions of the same type within the company
     const remaining = await this.db
       .select()
       .from(feedbackQuestions)
-      .where(eq(feedbackQuestions.type, existing.type))
-      .orderBy(feedbackQuestions.order);
+      .where(
+        eq(feedbackQuestions.companyId, companyId) &&
+          eq(feedbackQuestions.type, existing.type),
+      )
+      .orderBy(asc(feedbackQuestions.order))
+      .execute();
 
     for (let i = 0; i < remaining.length; i++) {
       const q = remaining[i];
@@ -110,24 +188,32 @@ export class FeedbackQuestionService {
         await this.db
           .update(feedbackQuestions)
           .set({ order: i })
-          .where(eq(feedbackQuestions.id, q.id));
+          .where(eq(feedbackQuestions.id, q.id))
+          .execute();
       }
     }
 
+    await this.invalidate(companyId);
     return { message: 'Question deleted and reordered' };
   }
 
   async reorderQuestionsByType(
+    companyId: string,
     type: 'self' | 'peer' | 'manager_to_employee' | 'employee_to_manager',
     newOrder: { id: string; order: number }[],
   ) {
     const ids = newOrder.map((q) => q.id);
 
-    // Validate all IDs exist and belong to the same type
+    // Validate all IDs exist, belong to the company, and match the type
     const existing = await this.db
       .select({ id: feedbackQuestions.id })
       .from(feedbackQuestions)
-      .where(inArray(feedbackQuestions.id, ids));
+      .where(
+        inArray(feedbackQuestions.id, ids) &&
+          eq(feedbackQuestions.companyId, companyId) &&
+          eq(feedbackQuestions.type, type),
+      )
+      .execute();
 
     const existingIds = new Set(existing.map((e) => e.id));
     const invalidIds = ids.filter((id) => !existingIds.has(id));
@@ -142,15 +228,19 @@ export class FeedbackQuestionService {
       await this.db
         .update(feedbackQuestions)
         .set({ order })
-        .where(eq(feedbackQuestions.id, id));
+        .where(
+          eq(feedbackQuestions.id, id) &&
+            eq(feedbackQuestions.companyId, companyId),
+        )
+        .execute();
     }
 
+    await this.invalidate(companyId);
     return { message: `Order updated for ${newOrder.length} questions.` };
   }
 
   async seedFeedbackQuestions(companyId: string) {
     const defaults = [
-      // Self Feedback
       {
         type: 'self',
         questions: [
@@ -159,7 +249,6 @@ export class FeedbackQuestionService {
           'How well does the company recognize my values?',
         ],
       },
-      // Peer Feedback
       {
         type: 'peer',
         questions: [
@@ -168,7 +257,6 @@ export class FeedbackQuestionService {
           'Do you have additional feedback?',
         ],
       },
-      // Manager to Employee
       {
         type: 'manager_to_employee',
         questions: [
@@ -177,7 +265,6 @@ export class FeedbackQuestionService {
           'Is the employee meeting expectations?',
         ],
       },
-      // Employee to Manager
       {
         type: 'employee_to_manager',
         questions: [
@@ -186,7 +273,7 @@ export class FeedbackQuestionService {
           'Do you feel heard and supported?',
         ],
       },
-    ];
+    ] as const;
 
     const insertData = defaults.flatMap(({ type, questions }) =>
       questions.map((question, index) => ({
@@ -198,6 +285,7 @@ export class FeedbackQuestionService {
       })),
     );
 
-    await this.db.insert(feedbackQuestions).values(insertData);
+    await this.db.insert(feedbackQuestions).values(insertData).execute();
+    await this.invalidate(companyId);
   }
 }

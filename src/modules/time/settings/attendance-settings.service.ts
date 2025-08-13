@@ -1,6 +1,6 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
-import { CompanySettingsService } from 'src/company-settings/company-settings.service';
+import { Injectable } from '@nestjs/common';
 import { CacheService } from 'src/common/cache/cache.service';
+import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 
 @Injectable()
 export class AttendanceSettingsService {
@@ -9,25 +9,24 @@ export class AttendanceSettingsService {
     private readonly cache: CacheService,
   ) {}
 
-  // ---------- cache keys
-  private allKey(companyId: string) {
-    return `company:${companyId}:attendance:settings:all`;
-  }
-  private normalizedKey(companyId: string) {
-    return `company:${companyId}:attendance:settings:normalized`;
-  }
-  private async invalidate(companyId: string) {
-    await Promise.allSettled([
-      this.cache.del(this.allKey(companyId)),
-      this.cache.del(this.normalizedKey(companyId)),
-    ]);
+  private ttlSeconds = 60 * 60; // 1 hour cache
+  private tags(companyId: string) {
+    return [
+      `company:${companyId}:settings`,
+      `company:${companyId}:settings:group:attendance`,
+    ];
   }
 
+  /**
+   * Get all attendance.* settings as a flat object (prefix stripped).
+   * Cached under company:{id}:v{ver}:attendance:all
+   */
   async getAllAttendanceSettings(
     companyId: string,
   ): Promise<Record<string, any>> {
-    return this.cache.getOrSetCache(
-      this.allKey(companyId),
+    return this.cache.getOrSetVersioned<Record<string, any>>(
+      companyId,
+      ['attendance', 'all'],
       async () => {
         const settings =
           await this.companySettingsService.getAllSettings(companyId);
@@ -40,13 +39,18 @@ export class AttendanceSettingsService {
         }
         return attendanceSettings;
       },
-      // { ttl: 300 }
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 
+  /**
+   * Structured attendance configuration.
+   * Cached under company:{id}:v{ver}:attendance:config
+   */
   async getAttendanceSettings(companyId: string) {
-    return this.cache.getOrSetCache(
-      this.normalizedKey(companyId),
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['attendance', 'config'],
       async () => {
         const keys = [
           'attendance.use_shifts',
@@ -67,54 +71,37 @@ export class AttendanceSettingsService {
           keys,
         );
 
-        // Helpers to coerce values safely (rows may store strings)
-        const toBool = (v: any) => {
-          if (typeof v === 'boolean') return v;
-          if (v === 'true' || v === '1' || v === 1) return true;
-          if (v === 'false' || v === '0' || v === 0) return false;
-          return Boolean(v); // fallback
-        };
-        const toNum = (v: any, dflt: number) => {
-          const n = Number(v);
-          return Number.isFinite(n) ? n : dflt;
-        };
-
         return {
-          useShifts: toBool(rows['attendance.use_shifts']),
+          useShifts: Boolean(rows['attendance.use_shifts']),
           defaultStartTime: rows['attendance.default_start_time'] ?? '09:00',
           defaultEndTime: rows['attendance.default_end_time'] ?? '17:00',
-          defaultWorkingDays: toNum(rows['attendance.default_working_days'], 5),
-          lateToleranceMinutes: toNum(
-            rows['attendance.late_tolerance_minutes'],
-            10,
-          ),
-          earlyClockInWindowMinutes: toNum(
-            rows['attendance.early_clock_in_window_minutes'],
-            15,
-          ),
-          blockOnHoliday: toBool(rows['attendance.block_on_holiday']),
-          allowOvertime: toBool(rows['attendance.allow_overtime']),
-          overtimeRate: toNum(rows['attendance.overtime_rate'], 1.5),
-          allowHalfDay: toBool(rows['attendance.allow_half_day']),
-          halfDayDuration: toNum(rows['attendance.half_day_duration'], 4),
+          defaultWorkingDays:
+            Number(rows['attendance.default_working_days']) || 5,
+          lateToleranceMinutes:
+            Number(rows['attendance.late_tolerance_minutes']) || 10,
+          earlyClockInWindowMinutes:
+            Number(rows['attendance.early_clock_in_window_minutes']) || 15,
+          blockOnHoliday: Boolean(rows['attendance.block_on_holiday']),
+          allowOvertime: Boolean(rows['attendance.allow_overtime']),
+          overtimeRate: Number(rows['attendance.overtime_rate']) || 1.5,
+          allowHalfDay: Boolean(rows['attendance.allow_half_day']),
+          halfDayDuration: Number(rows['attendance.half_day_duration']) || 4,
         };
       },
-      // { ttl: 120 }
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 
+  /**
+   * Update a single attendance.* setting.
+   * Version bump happens in CompanySettingsService.setSetting -> cached reads auto-invalidate.
+   */
   async updateAttendanceSetting(
     companyId: string,
     key: string,
     value: any,
   ): Promise<void> {
-    if (!key?.trim()) {
-      throw new BadRequestException('Key is required');
-    }
     const settingKey = `attendance.${key}`;
     await this.companySettingsService.setSetting(companyId, settingKey, value);
-
-    // 🔥 burst both caches
-    await this.invalidate(companyId);
   }
 }

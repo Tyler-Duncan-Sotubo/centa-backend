@@ -43,15 +43,15 @@ export class ReservedDaysController extends BaseController {
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['reserved_days.read'])
-  findOne(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.reservedDaysService.findOne(id, user);
+  findOne(@Param('id') id: string) {
+    return this.reservedDaysService.findOne(id);
   }
 
   @Get('employee/:id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['reserved_days.manage'])
-  findByEmployee(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.reservedDaysService.findByEmployee(id, user.companyId);
+  findByEmployee(@Param('id') id: string) {
+    return this.reservedDaysService.findByEmployee(id);
   }
 
   @Patch(':id')
@@ -68,7 +68,7 @@ export class ReservedDaysController extends BaseController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['reserved_days.manage'])
-  remove(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.reservedDaysService.remove(id, user);
+  remove(@Param('id') id: string) {
+    return this.reservedDaysService.remove(id);
   }
 }

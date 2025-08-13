@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { PinoLogger } from 'nestjs-pino';
 import { CreateClockInOutDto } from './dto/create-clock-in-out.dto';
+// import { UpdateClockInOutDto } from './dto/update-clock-in-out.dto';
 import {
   attendanceAdjustments,
   attendanceRecords,
@@ -17,7 +17,6 @@ import { User } from 'src/common/types/user.type';
 import { ReportService } from '../report/report.service';
 import { eachDayOfInterval, format, parseISO } from 'date-fns';
 import { AdjustAttendanceDto } from './dto/adjust-attendance.dto';
-import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class ClockInOutService {
@@ -28,72 +27,15 @@ export class ClockInOutService {
     private readonly attendanceSettingsService: AttendanceSettingsService,
     private readonly employeeShiftsService: EmployeeShiftsService,
     private readonly reportService: ReportService,
-    private readonly cache: CacheService,
-    private readonly logger: PinoLogger,
-  ) {
-    this.logger.setContext(ClockInOutService.name);
-  }
+  ) {}
 
-  // ---------- cache keys & version bump helpers ----------
-  private statusKey(companyId: string, employeeId: string, date: string) {
-    return `company:${companyId}:attendance:status:${employeeId}:${date}`;
-  }
-  private monthKey(companyId: string, employeeId: string, ym: string) {
-    return `company:${companyId}:attendance:month:${employeeId}:${ym}`;
-  }
-  private todayISO() {
-    return new Date().toISOString().slice(0, 10);
-  }
-  private async bumpAttendanceVersion(companyId: string) {
-    try {
-      await this.cache.set(
-        `attendance:ver:${companyId}`,
-        Date.now().toString(),
-      );
-      this.logger.debug({ companyId }, 'attendance:version-bumped');
-    } catch (e) {
-      this.logger.warn(
-        { companyId, err: (e as Error)?.message },
-        'attendance:version-bump-failed',
-      );
-    }
-  }
-  private async burstEmployeeDayCache(
-    companyId: string,
-    employeeId: string,
-    date: string,
-  ) {
-    const key = this.statusKey(companyId, employeeId, date);
-    await this.cache.del(key);
-    this.logger.debug({ key }, 'cache:del:status');
-  }
-  private async burstEmployeeMonthCache(
-    companyId: string,
-    employeeId: string,
-    yearMonth: string,
-  ) {
-    const key = this.monthKey(companyId, employeeId, yearMonth);
-    await this.cache.del(key);
-    this.logger.debug({ key }, 'cache:del:month');
-  }
-
-  // ---------- location helper ----------
   async checkLocation(latitude: string, longitude: string, employee: any) {
-    this.logger.debug(
-      {
-        employeeId: employee?.id,
-        lat: latitude,
-        lon: longitude,
-        hasLocation: !!employee?.locationId,
-      },
-      'checkLocation:start',
-    );
-
     if (!employee) {
       throw new BadRequestException('Employee not found');
     }
 
     if (employee.locationId) {
+      // Employee assigned to specific location — fetch that
       const [officeLocation] = await this.db
         .select()
         .from(companyLocations)
@@ -112,17 +54,13 @@ export class ClockInOutService {
         0.1, // ~100 meters
       );
 
-      this.logger.debug(
-        { officeLocationId: officeLocation.id, isInside },
-        'checkLocation:assigned-result',
-      );
-
       if (!isInside) {
         throw new BadRequestException(
           'You are not at your assigned office location.',
         );
       }
     } else {
+      // No assigned location — check against any company location
       const officeLocations = await this.db
         .select()
         .from(companyLocations)
@@ -135,13 +73,8 @@ export class ClockInOutService {
           Number(longitude),
           Number(loc.latitude),
           Number(loc.longitude),
-          0.1,
+          0.1, // ~100 meters
         ),
-      );
-
-      this.logger.debug(
-        { locations: officeLocations.length, isInsideAny },
-        'checkLocation:any-result',
       );
 
       if (!isInsideAny) {
@@ -153,18 +86,19 @@ export class ClockInOutService {
   }
 
   /**
-   * Haversine distance
+   * Helper to calculate distance between two lat/lon points
+   * using the Haversine formula
    */
   private isWithinRadius(
     lat1: number,
     lon1: number,
     lat2: number,
     lon2: number,
-    radiusInKm = 0.1,
+    radiusInKm = 0.1, // 100 meters
   ) {
     const toRad = (value: number) => (value * Math.PI) / 180;
 
-    const R = 6371;
+    const R = 6371; // Radius of Earth in kilometers
     const dLat = toRad(lat2 - lat1);
     const dLon = toRad(lon2 - lon1);
     const a =
@@ -174,24 +108,20 @@ export class ClockInOutService {
         Math.sin(dLon / 2) *
         Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c;
+    const distance = R * c; // Distance in km
+
     return distance <= radiusInKm;
   }
 
-  // ---------- clock in ----------
   async clockIn(user: User, dto: CreateClockInOutDto) {
-    this.logger.info(
-      { userId: user.id, companyId: user.companyId },
-      'clockIn:start',
-    );
-
-    const employee = await this.employeesService.findOneByUserId(user);
-    const currentDate = this.todayISO();
+    const employee = await this.employeesService.findOneByUserId(user.id);
+    const currentDate = new Date().toISOString().split('T')[0];
     const now = new Date();
     const startOfDay = new Date(`${currentDate}T00:00:00.000Z`);
     const endOfDay = new Date(`${currentDate}T23:59:59.999Z`);
     const forceClockIn = dto.forceClockIn ?? false;
 
+    // 1. Check already clocked in
     const existingAttendance = await this.db
       .select()
       .from(attendanceRecords)
@@ -206,15 +136,13 @@ export class ClockInOutService {
       .execute();
 
     if (existingAttendance.length > 0) {
-      this.logger.warn(
-        { employeeId: employee.id },
-        'clockIn:already-clocked-in',
-      );
       throw new BadRequestException('You have already clocked in today.');
     }
 
+    // 2. Validate location
     await this.checkLocation(dto.latitude, dto.longitude, employee);
 
+    // 3. Load attendance settings once
     const attendanceSettings =
       await this.attendanceSettingsService.getAllAttendanceSettings(
         user.companyId,
@@ -224,6 +152,7 @@ export class ClockInOutService {
       attendanceSettings['early_clockIn_window_minutes'] ?? '15',
     );
 
+    // 4. If shifts are enabled, validate earliest clock-in
     if (useShifts) {
       const assignedShift =
         await this.employeeShiftsService.getActiveShiftForEmployee(
@@ -232,28 +161,24 @@ export class ClockInOutService {
           currentDate,
         );
 
-      if (!assignedShift && !forceClockIn) {
-        this.logger.warn(
-          { employeeId: employee.id, currentDate },
-          'clockIn:no-active-shift',
-        );
-        throw new BadRequestException(
-          'You do not have an active shift assigned today.',
-        );
+      if (!assignedShift) {
+        if (!forceClockIn) {
+          throw new BadRequestException(
+            'You do not have an active shift assigned today.',
+          );
+        }
       }
 
       if (assignedShift && !assignedShift.allowEarlyClockIn) {
         const shiftStartTime = new Date(
           `${currentDate}T${assignedShift.startTime}`,
         );
-        if (now < shiftStartTime && !forceClockIn) {
-          this.logger.warn(
-            { employeeId: employee.id, shiftStart: assignedShift.startTime },
-            'clockIn:too-early-no-earlyClockIn',
-          );
-          throw new BadRequestException(
-            'You cannot clock in before your shift start time.',
-          );
+        if (now < shiftStartTime) {
+          if (!forceClockIn) {
+            throw new BadRequestException(
+              'You cannot clock in before your shift start time.',
+            );
+          }
         }
       } else if (assignedShift && assignedShift.allowEarlyClockIn) {
         const shiftStartTime = new Date(
@@ -264,35 +189,31 @@ export class ClockInOutService {
             (assignedShift.earlyClockInMinutes ?? 0) * 60000,
         );
 
-        if (now < earliestAllowedClockIn && !forceClockIn) {
-          this.logger.warn(
-            {
-              employeeId: employee.id,
-              earliest: earliestAllowedClockIn.toISOString(),
-            },
-            'clockIn:too-early-with-earlyClockIn',
-          );
-          throw new BadRequestException(
-            'You are clocking in too early according to your shift rules.',
-          );
+        if (now < earliestAllowedClockIn) {
+          if (!forceClockIn) {
+            throw new BadRequestException(
+              'You are clocking in too early according to your shift rules.',
+            );
+          }
+          // forceClockIn true, allow to continue
         }
       }
     } else {
+      // fallback to default
       const startTime = attendanceSettings['default_start_time'] ?? '09:00';
       const earliestAllowed = new Date(`${currentDate}T${startTime}:00`);
       earliestAllowed.setMinutes(
         earliestAllowed.getMinutes() - earlyClockInMinutes,
       );
 
-      if (now < earliestAllowed && !forceClockIn) {
-        this.logger.warn(
-          { employeeId: employee.id, earliest: earliestAllowed.toISOString() },
-          'clockIn:too-early-default',
-        );
-        throw new BadRequestException('You are clocking in too early.');
+      if (now < earliestAllowed) {
+        if (!forceClockIn) {
+          throw new BadRequestException('You are clocking in too early.');
+        }
       }
     }
 
+    // 5. Save clock-in record
     await this.db
       .insert(attendanceRecords)
       .values({
@@ -304,38 +225,18 @@ export class ClockInOutService {
       })
       .execute();
 
-    // cache: burst per-employee/day & bump global version
-    await Promise.all([
-      this.burstEmployeeDayCache(user.companyId, employee.id, currentDate),
-      this.burstEmployeeMonthCache(
-        user.companyId,
-        employee.id,
-        currentDate.slice(0, 7),
-      ),
-      this.bumpAttendanceVersion(user.companyId),
-    ]);
-
-    this.logger.info(
-      { employeeId: employee.id, clockIn: now.toISOString() },
-      'clockIn:done',
-    );
     return 'Clocked in successfully.';
   }
 
-  // ---------- clock out ----------
   async clockOut(user: User, latitude: string, longitude: string) {
-    this.logger.info(
-      { userId: user.id, companyId: user.companyId },
-      'clockOut:start',
-    );
-
-    const employee = await this.employeesService.findOneByUserId(user);
-    const currentDate = this.todayISO();
+    const employee = await this.employeesService.findOneByUserId(user.id);
+    const currentDate = new Date().toISOString().split('T')[0];
     const now = new Date();
 
     const startOfDay = new Date(`${currentDate}T00:00:00.000Z`);
     const endOfDay = new Date(`${currentDate}T23:59:59.999Z`);
 
+    // 1. Fetch clock-in record
     const [attendance] = await this.db
       .select()
       .from(attendanceRecords)
@@ -350,27 +251,21 @@ export class ClockInOutService {
       .execute();
 
     if (!attendance) {
-      this.logger.warn(
-        { employeeId: employee.id },
-        'clockOut:no-attendance-today',
-      );
       throw new BadRequestException('You have not clocked in today.');
     }
 
     if (attendance.clockOut) {
-      this.logger.warn(
-        { employeeId: employee.id },
-        'clockOut:already-clocked-out',
-      );
       throw new BadRequestException('You have already clocked out.');
     }
 
+    // 2. Validate location
     await this.checkLocation(latitude, longitude, employee);
 
     const checkInTime = new Date(attendance.clockIn);
     const workedMilliseconds = now.getTime() - checkInTime.getTime();
     const workDurationMinutes = Math.floor(workedMilliseconds / 60000);
 
+    // 3. Load attendance settings once
     const attendanceSettings =
       await this.attendanceSettingsService.getAllAttendanceSettings(
         user.companyId,
@@ -414,6 +309,7 @@ export class ClockInOutService {
         }
       }
     } else {
+      // fallback to default rules
       const startTime = attendanceSettings['default_start_time'] ?? '09:00';
       const endTime = attendanceSettings['default_end_time'] ?? '17:00';
       const lateTolerance = parseInt(
@@ -441,6 +337,7 @@ export class ClockInOutService {
       }
     }
 
+    // 4. Update attendance record
     await this.db
       .update(attendanceRecords)
       .set({
@@ -454,46 +351,15 @@ export class ClockInOutService {
       .where(eq(attendanceRecords.id, attendance.id))
       .execute();
 
-    // cache: burst & bump version
-    await Promise.all([
-      this.burstEmployeeDayCache(user.companyId, employee.id, currentDate),
-      this.burstEmployeeMonthCache(
-        user.companyId,
-        employee.id,
-        currentDate.slice(0, 7),
-      ),
-      this.bumpAttendanceVersion(user.companyId),
-    ]);
-
-    this.logger.info(
-      {
-        employeeId: employee.id,
-        clockOut: now.toISOString(),
-        workDurationMinutes,
-        overtimeMinutes,
-        isLateArrival,
-        isEarlyDeparture,
-      },
-      'clockOut:done',
-    );
     return 'Clocked out successfully.';
   }
 
-  // ---------- status (cached) ----------
   async getAttendanceStatus(employeeId: string, companyId: string) {
-    const today = this.todayISO();
-    const key = this.statusKey(companyId, employeeId, today);
-
-    const cached = await this.cache.get(key);
-    if (cached) {
-      this.logger.debug({ key }, 'getAttendanceStatus:cache:hit');
-      return cached;
-    }
-    this.logger.debug({ key }, 'getAttendanceStatus:cache:miss');
-
+    const today = new Date().toISOString().split('T')[0];
     const startOfDay = new Date(`${today}T00:00:00.000Z`);
     const endOfDay = new Date(`${today}T23:59:59.999Z`);
 
+    // Fetch today's attendance record
     const [attendance] = await this.db
       .select()
       .from(attendanceRecords)
@@ -507,24 +373,21 @@ export class ClockInOutService {
       )
       .execute();
 
-    let payload: any;
     if (!attendance) {
-      payload = { status: 'absent' };
-    } else {
-      const checkInTime = attendance.clockIn;
-      const checkOutTime = attendance.clockOut;
-      payload = checkOutTime
-        ? { status: 'present', checkInTime, checkOutTime }
-        : { status: 'present', checkInTime, checkOutTime: null };
+      return { status: 'absent' };
     }
 
-    await this.cache.set(key, payload);
-    return payload;
+    const checkInTime = attendance.clockIn;
+    const checkOutTime = attendance.clockOut;
+
+    if (checkOutTime) {
+      return { status: 'present', checkInTime, checkOutTime };
+    } else {
+      return { status: 'present', checkInTime, checkOutTime: null };
+    }
   }
 
-  // ---------- dashboard (delegates to ReportService, which caches) ----------
   async getDailyDashboardStats(companyId: string) {
-    this.logger.debug({ companyId }, 'getDailyDashboardStats:start');
     const summary =
       await this.reportService.getDailyAttendanceSummary(companyId);
     const { details, summaryList, metrics, dashboard } = summary;
@@ -537,7 +400,6 @@ export class ClockInOutService {
   }
 
   async getDailyDashboardStatsByDate(companyId: string, date: string) {
-    this.logger.debug({ companyId, date }, 'getDailyDashboardStatsByDate');
     const summary = await this.reportService.getDailySummaryList(
       companyId,
       date,
@@ -549,7 +411,6 @@ export class ClockInOutService {
   }
 
   async getMonthlyDashboardStats(companyId: string, yearMonth: string) {
-    this.logger.debug({ companyId, yearMonth }, 'getMonthlyDashboardStats');
     const detailed = await this.reportService.getMonthlyAttendanceSummary(
       companyId,
       yearMonth,
@@ -589,7 +450,7 @@ export class ClockInOutService {
     };
   }
 
-  // ---------- ESS: one day (cached per employee/day) ----------
+  /** ESS: fetch one employee’s attendance on a specific date */
   async getEmployeeAttendanceByDate(
     employeeId: string,
     companyId: string,
@@ -605,24 +466,18 @@ export class ClockInOutService {
     isEarlyDeparture: boolean;
   }> {
     const target = new Date(date).toISOString().split('T')[0];
-    const cacheKey = this.statusKey(companyId, employeeId, target);
-
-    const cached = await this.cache.get(cacheKey);
-    if (cached) {
-      this.logger.debug({ cacheKey }, 'getEmployeeAttendanceByDate:cache:hit');
-      return cached;
-    }
-    this.logger.debug({ cacheKey }, 'getEmployeeAttendanceByDate:cache:miss');
-
+    // compute day bounds
     const startOfDay = new Date(`${target}T00:00:00.000Z`);
     const endOfDay = new Date(`${target}T23:59:59.999Z`);
 
+    // load settings
     const s =
       await this.attendanceSettingsService.getAllAttendanceSettings(companyId);
     const useShifts = s['use_shifts'] ?? false;
     const defaultStartTimeStr = s['default_start_time'] ?? '09:00';
     const lateToleranceMins = Number(s['late_tolerance_minutes'] ?? 10);
 
+    // fetch this employee’s attendance record for that date
     const recs = await this.db
       .select()
       .from(attendanceRecords)
@@ -638,20 +493,19 @@ export class ClockInOutService {
 
     const rec = recs[0] ?? null;
     if (!rec) {
-      const payload = {
+      return {
         date: target,
         checkInTime: null,
         checkOutTime: null,
-        status: 'absent' as const,
+        status: 'absent',
         workDurationMinutes: null,
         overtimeMinutes: 0,
         isLateArrival: false,
         isEarlyDeparture: false,
       };
-      await this.cache.set(cacheKey, payload);
-      return payload;
     }
 
+    // determine scheduled start for lateness check
     let startTimeStr = defaultStartTimeStr;
     let tolerance = lateToleranceMins;
     if (useShifts) {
@@ -672,42 +526,29 @@ export class ClockInOutService {
     const diffLate = (checkIn.getTime() - shiftStart.getTime()) / 60000;
 
     const isLateArrival = diffLate > tolerance;
-
-    // compute early departure vs end time (shift or default)
-    let endTimeStr = s['default_end_time'] ?? '17:00';
-    if (useShifts) {
-      const shift = await this.employeeShiftsService.getActiveShiftForEmployee(
-        employeeId,
-        companyId,
-        target,
-      );
-      if (shift?.endTime) endTimeStr = shift.endTime;
-    }
-    const endDateTime = parseISO(`${target}T${endTimeStr}:00`);
     const isEarlyDeparture = checkOut
-      ? checkOut.getTime() < endDateTime.getTime()
+      ? checkOut.getTime() <
+        parseISO(
+          `${target}T${(useShifts && (await this.employeeShiftsService.getActiveShiftForEmployee(employeeId, companyId, target)))?.end_time ?? s['default_end_time'] ?? '17:00'}:00`,
+        ).getTime()
       : false;
 
-    const payload = {
+    const workDurationMinutes = rec.workDurationMinutes;
+    const overtimeMinutes = rec.overtimeMinutes;
+
+    return {
       date: target,
       checkInTime: checkIn.toTimeString().slice(0, 8),
       checkOutTime: checkOut?.toTimeString().slice(0, 8) ?? null,
-      status: checkIn
-        ? isLateArrival
-          ? 'late'
-          : 'present'
-        : ('absent' as 'late' | 'present' | 'absent'),
-      workDurationMinutes: rec.workDurationMinutes,
-      overtimeMinutes: rec.overtimeMinutes ?? 0,
+      status: checkIn ? (isLateArrival ? 'late' : 'present') : 'absent',
+      workDurationMinutes,
+      overtimeMinutes: overtimeMinutes ?? 0,
       isLateArrival,
       isEarlyDeparture,
     };
-
-    await this.cache.set(cacheKey, payload);
-    return payload;
   }
 
-  // ---------- ESS: month view (cached per employee/month) ----------
+  /** ESS: fetch one employee’s attendance day-by-day for a month */
   async getEmployeeAttendanceByMonth(
     employeeId: string,
     companyId: string,
@@ -720,6 +561,7 @@ export class ClockInOutService {
       status: 'absent' | 'present' | 'late';
     }>;
   }> {
+    // compute month range
     const [y, m] = yearMonth.split('-').map(Number);
     const start = new Date(y, m - 1, 1);
     const end = new Date(y, m - 1, new Date(y, m, 0).getDate());
@@ -729,14 +571,7 @@ export class ClockInOutService {
     const endOfMonth = new Date(end);
     endOfMonth.setHours(23, 59, 59, 999);
 
-    const cacheKey = this.monthKey(companyId, employeeId, yearMonth);
-    const cached = await this.cache.get(cacheKey);
-    if (cached) {
-      this.logger.debug({ cacheKey }, 'getEmployeeAttendanceByMonth:cache:hit');
-      return cached;
-    }
-    this.logger.debug({ cacheKey }, 'getEmployeeAttendanceByMonth:cache:miss');
-
+    // fetch all this employee's records for the month
     const recs = await this.db
       .select()
       .from(attendanceRecords)
@@ -750,17 +585,20 @@ export class ClockInOutService {
       )
       .execute();
 
+    // map by dayKey "YYYY-MM-DD"
     const map = new Map<string, (typeof recs)[0]>();
     for (const r of recs) {
       const day = r.clockIn.toISOString().split('T')[0];
       map.set(day, r);
     }
 
+    // 1) build all days in the month
     const allDays = eachDayOfInterval({ start, end }).map((d) =>
       format(d, 'yyyy-MM-dd'),
     );
 
-    const todayStr = this.todayISO();
+    // 2) filter out any future dates
+    const todayStr = new Date().toISOString().split('T')[0];
     const days = allDays.filter((dateKey) => dateKey <= todayStr);
     const summaryList = await Promise.all(
       days.map(async (dateKey) => {
@@ -778,23 +616,16 @@ export class ClockInOutService {
       }),
     );
 
-    const payload = { summaryList: summaryList.reverse() };
-    await this.cache.set(cacheKey, payload);
-    return payload;
+    return { summaryList: summaryList.reverse() }; // reverse to show latest first
   }
 
-  // ---------- adjust ----------
   async adjustAttendanceRecord(
     dto: AdjustAttendanceDto,
     attendanceRecordId: string,
     user: User,
     ip: string,
   ) {
-    this.logger.info(
-      { attendanceRecordId, userId: user.id, companyId: user.companyId },
-      'adjustAttendance:start',
-    );
-
+    // 1. Insert into attendance_adjustments table
     await this.db
       .insert(attendanceAdjustments)
       .values({
@@ -811,6 +642,7 @@ export class ClockInOutService {
       })
       .execute();
 
+    // Fetch the original attendance record
     const [attendanceRecord] = await this.db
       .select()
       .from(attendanceRecords)
@@ -818,10 +650,10 @@ export class ClockInOutService {
       .execute();
 
     if (!attendanceRecord) {
-      this.logger.warn({ attendanceRecordId }, 'adjustAttendance:not-found');
       throw new BadRequestException('Attendance record not found.');
     }
 
+    // 2a. Update the main attendance record
     await this.db
       .update(attendanceRecords)
       .set({
@@ -835,6 +667,7 @@ export class ClockInOutService {
       .where(eq(attendanceRecords.id, attendanceRecordId))
       .execute();
 
+    // 3. Log the audit trail
     await this.auditService.logAction({
       action: 'update',
       entity: 'Attendance',
@@ -851,26 +684,7 @@ export class ClockInOutService {
       },
     });
 
-    // cache: burst (day & month) for the employee/date involved + bump version
-    const affectedDate =
-      (dto.adjustedClockIn ?? dto.adjustedClockOut ?? attendanceRecord.clockIn)
-        ?.toString()
-        ?.slice(0, 10) || attendanceRecord.clockIn.toISOString().slice(0, 10);
-    await Promise.all([
-      this.burstEmployeeDayCache(
-        user.companyId,
-        attendanceRecord.employeeId,
-        affectedDate,
-      ),
-      this.burstEmployeeMonthCache(
-        user.companyId,
-        attendanceRecord.employeeId,
-        affectedDate.slice(0, 7),
-      ),
-      this.bumpAttendanceVersion(user.companyId),
-    ]);
-
-    this.logger.info({ attendanceRecordId }, 'adjustAttendance:done');
+    // 4. Return the updated attendance record
     return 'Attendance record adjusted successfully.';
   }
 }

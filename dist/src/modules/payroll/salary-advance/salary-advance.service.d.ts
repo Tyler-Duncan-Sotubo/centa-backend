@@ -25,12 +25,12 @@ export declare class SalaryAdvanceService {
         companyId: string;
         employeeId: string;
         amount: string;
-        status: string;
         paymentStatus: string;
         loanNumber: string | null;
         totalPaid: string;
         tenureMonths: number;
         preferredMonthlyPayment: string | null;
+        status: string;
     }>;
     getAdvances(company_id: string): Promise<({
         name: string;

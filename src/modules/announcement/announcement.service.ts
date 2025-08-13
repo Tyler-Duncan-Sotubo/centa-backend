@@ -21,8 +21,6 @@ import {
   departments,
   users,
 } from 'src/drizzle/schema';
-import { CacheService } from 'src/common/cache/cache.service';
-import { AnnouncementCacheService } from 'src/common/cache/announcement-cache.service';
 
 @Injectable()
 export class AnnouncementService {
@@ -32,36 +30,9 @@ export class AnnouncementService {
     private readonly commentService: CommentService,
     private readonly reactionService: ReactionService,
     private readonly awsService: AwsService,
-    private readonly announcementCache: AnnouncementCacheService,
-    private readonly cache: CacheService,
   ) {}
-
-  // ---------- cache keys ----------
-  private listKey(companyId: string) {
-    return `company:${companyId}:announcements:list:full`;
-  }
-  private listTwoKey(companyId: string) {
-    return `company:${companyId}:announcements:list:2`;
-  }
-  private oneKey(id: string, userId: string) {
-    // includes userId because "likedByCurrentUser" and comments include user-specific flags
-    return `announcement:${id}:detail:user:${userId}`;
-  }
-  private createFormKey(companyId: string) {
-    return `company:${companyId}:announcements:create-elements`;
-  }
-
-  private async invalidateLists(companyId: string) {
-    await this.announcementCache.invalidateLists(companyId);
-  }
-  private async invalidateOne(id: string, companyId: string) {
-    await Promise.allSettled([
-      this.announcementCache.invalidateLists(companyId),
-    ]);
-  }
-
-  // ---------- create ----------
   create(dto: CreateAnnouncementDto, user: User) {
+    // check for duplicate announcements
     return this.db.transaction(async (tx) => {
       const [existingAnnouncement] = await tx
         .select()
@@ -78,8 +49,9 @@ export class AnnouncementService {
 
       let image = dto.image;
 
+      // Upload base64 receipt image if provided
       if (image?.startsWith('data:image')) {
-        const fileName = `receipt-${Date.now()}.jpg`;
+        const fileName = `receipt-${Date.now()}.jpg`; // or `.png` depending on contentType logic
         image = await this.awsService.uploadImageToS3(
           user.companyId,
           fileName,
@@ -106,6 +78,7 @@ export class AnnouncementService {
         .returning()
         .execute();
 
+      // Log the creation in the audit service
       await this.auditService.logAction({
         action: 'create',
         entity: 'announcement',
@@ -119,215 +92,211 @@ export class AnnouncementService {
         },
       });
 
-      // Invalidate list caches
-      await this.invalidateLists(user.companyId);
-
       return newAnnouncement;
     });
   }
 
-  // ---------- read: list (cached) ----------
   async findAll(companyId: string) {
-    return this.cache.getOrSetCache(this.listKey(companyId), async () => {
-      const allAnnouncements = await this.db
-        .select({
-          id: announcements.id,
-          title: announcements.title,
-          body: announcements.body,
-          publishedAt: announcements.publishedAt,
-          category: announcementCategories.name,
-          categoryId: announcements.categoryId,
-          createdBy:
-            sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`.as(
-              'createdBy',
-            ),
-          role: companyRoles.name,
-          avatarUrl: users.avatar,
-        })
-        .from(announcements)
-        .innerJoin(users, eq(announcements.createdBy, users.id))
-        .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
-        .leftJoin(
-          announcementCategories,
-          eq(announcements.categoryId, announcementCategories.id),
-        )
-        .where(eq(announcements.companyId, companyId))
-        .orderBy(desc(announcements.publishedAt))
-        .limit(20)
-        .execute();
+    // Fetch announcements joined with categories and users
+    const allAnnouncements = await this.db
+      .select({
+        id: announcements.id,
+        title: announcements.title,
+        body: announcements.body,
+        publishedAt: announcements.publishedAt,
+        category: announcementCategories.name,
+        categoryId: announcements.categoryId,
+        createdBy:
+          sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`.as(
+            'createdBy',
+          ),
+        role: companyRoles.name,
+        avatarUrl: users.avatar,
+      })
+      .from(announcements)
+      .innerJoin(users, eq(announcements.createdBy, users.id))
+      .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
+      .leftJoin(
+        announcementCategories,
+        eq(announcements.categoryId, announcementCategories.id),
+      )
+      .where(eq(announcements.companyId, companyId))
+      .orderBy(desc(announcements.publishedAt))
+      .limit(20)
+      .execute();
 
-      const ids = allAnnouncements.map((a) => a.id);
-      if (ids.length === 0) return [];
+    const announcementIds = allAnnouncements.map((a) => a.id);
 
-      const reactionCount = await this.db
-        .select({
-          announcementId: announcementReactions.announcementId,
-          reactionType: announcementReactions.reactionType,
-          count: sql<number>`COUNT(*)`.as('count'),
-        })
-        .from(announcementReactions)
-        .where(inArray(announcementReactions.announcementId, ids))
-        .groupBy(
-          announcementReactions.announcementId,
-          announcementReactions.reactionType,
-        )
-        .execute();
+    // Fetch reactions grouped by type
+    const reactionCount = await this.db
+      .select({
+        announcementId: announcementReactions.announcementId,
+        reactionType: announcementReactions.reactionType,
+        count: sql<number>`COUNT(*)`.as('count'),
+      })
+      .from(announcementReactions)
+      .where(inArray(announcementReactions.announcementId, announcementIds))
+      .groupBy(
+        announcementReactions.announcementId,
+        announcementReactions.reactionType,
+      )
+      .execute();
 
-      const reactionMap = new Map<string, Record<string, number>>();
-      for (const r of reactionCount) {
-        if (!reactionMap.has(r.announcementId)) {
-          reactionMap.set(r.announcementId, {});
-        }
-        reactionMap.get(r.announcementId)![r.reactionType] = r.count;
+    // Build reaction map
+    const reactionMap = new Map<string, Record<string, number>>();
+    reactionCount.forEach((r) => {
+      if (!reactionMap.has(r.announcementId)) {
+        reactionMap.set(r.announcementId, {});
       }
-
-      const commentCount = await this.db
-        .select({
-          announcementId: announcementComments.announcementId,
-          count: sql<number>`COUNT(*)`.as('count'),
-        })
-        .from(announcementComments)
-        .where(inArray(announcementComments.announcementId, ids))
-        .groupBy(announcementComments.announcementId)
-        .execute();
-
-      const commentCountMap = new Map<string, number>();
-      for (const c of commentCount)
-        commentCountMap.set(c.announcementId, c.count);
-
-      return allAnnouncements.map((a) => ({
-        id: a.id,
-        category: a.category,
-        categoryId: a.categoryId,
-        title: a.title,
-        body: a.body,
-        reactionCounts: reactionMap.get(a.id) || {},
-        commentCount: commentCountMap.get(a.id) || 0,
-        publishedAt: a.publishedAt,
-        createdBy: a.createdBy,
-        role: a.role,
-        avatarUrl: a.avatarUrl,
-      }));
+      reactionMap.get(r.announcementId)![r.reactionType] = r.count;
     });
+
+    // Fetch comment counts
+    const commentCount = await this.db
+      .select({
+        announcementId: announcementComments.announcementId,
+        count: sql<number>`COUNT(*)`.as('count'),
+      })
+      .from(announcementComments)
+      .where(inArray(announcementComments.announcementId, announcementIds))
+      .groupBy(announcementComments.announcementId)
+      .execute();
+
+    const commentCountMap = new Map<string, number>();
+    commentCount.forEach((c) => {
+      commentCountMap.set(c.announcementId, c.count);
+    });
+
+    // Return fully enriched object for frontend
+    return allAnnouncements.map((a) => ({
+      id: a.id,
+      category: a.category,
+      categoryId: a.categoryId,
+      title: a.title,
+      body: a.body,
+      reactionCounts: reactionMap.get(a.id) || {},
+      commentCount: commentCountMap.get(a.id) || 0,
+      publishedAt: a.publishedAt,
+      createdBy: a.createdBy,
+      role: a.role,
+      avatarUrl: a.avatarUrl,
+    }));
   }
 
   async findAllLimitTwo(companyId: string) {
-    return this.cache.getOrSetCache(
-      this.listTwoKey(companyId),
-      async () => {
-        const allAnnouncements = await this.db
-          .select({
-            id: announcements.id,
-            title: announcements.title,
-            body: announcements.body,
-            publishedAt: announcements.publishedAt,
-            category: announcementCategories.name,
-            categoryId: announcements.categoryId,
-            createdBy:
-              sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`.as(
-                'createdBy',
-              ),
-            role: companyRoles.name,
-            avatarUrl: users.avatar,
-          })
-          .from(announcements)
-          .innerJoin(users, eq(announcements.createdBy, users.id))
-          .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
-          .leftJoin(
-            announcementCategories,
-            eq(announcements.categoryId, announcementCategories.id),
-          )
-          .where(eq(announcements.companyId, companyId))
-          .orderBy(desc(announcements.publishedAt))
-          .limit(2)
-          .execute();
+    // Fetch announcements joined with categories and users
+    const allAnnouncements = await this.db
+      .select({
+        id: announcements.id,
+        title: announcements.title,
+        body: announcements.body,
+        publishedAt: announcements.publishedAt,
+        category: announcementCategories.name,
+        categoryId: announcements.categoryId,
+        createdBy:
+          sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`.as(
+            'createdBy',
+          ),
+        role: companyRoles.name,
+        avatarUrl: users.avatar,
+      })
+      .from(announcements)
+      .innerJoin(users, eq(announcements.createdBy, users.id))
+      .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
+      .leftJoin(
+        announcementCategories,
+        eq(announcements.categoryId, announcementCategories.id),
+      )
+      .where(eq(announcements.companyId, companyId))
+      .orderBy(desc(announcements.publishedAt))
+      .limit(2)
+      .execute();
 
-        const ids = allAnnouncements.map((a) => a.id);
-        if (ids.length === 0) return [];
+    const announcementIds = allAnnouncements.map((a) => a.id);
 
-        const reactionCount = await this.db
-          .select({
-            announcementId: announcementReactions.announcementId,
-            reactionType: announcementReactions.reactionType,
-            count: sql<number>`COUNT(*)`.as('count'),
-          })
-          .from(announcementReactions)
-          .where(inArray(announcementReactions.announcementId, ids))
-          .groupBy(
-            announcementReactions.announcementId,
-            announcementReactions.reactionType,
-          )
-          .execute();
+    // Fetch reactions grouped by type
+    const reactionCount = await this.db
+      .select({
+        announcementId: announcementReactions.announcementId,
+        reactionType: announcementReactions.reactionType,
+        count: sql<number>`COUNT(*)`.as('count'),
+      })
+      .from(announcementReactions)
+      .where(inArray(announcementReactions.announcementId, announcementIds))
+      .groupBy(
+        announcementReactions.announcementId,
+        announcementReactions.reactionType,
+      )
+      .execute();
 
-        const reactionMap = new Map<string, Record<string, number>>();
-        for (const r of reactionCount) {
-          if (!reactionMap.has(r.announcementId))
-            reactionMap.set(r.announcementId, {});
-          reactionMap.get(r.announcementId)![r.reactionType] = r.count;
-        }
-
-        const commentCount = await this.db
-          .select({
-            announcementId: announcementComments.announcementId,
-            count: sql<number>`COUNT(*)`.as('count'),
-          })
-          .from(announcementComments)
-          .where(inArray(announcementComments.announcementId, ids))
-          .groupBy(announcementComments.announcementId)
-          .execute();
-
-        const commentCountMap = new Map<string, number>();
-        for (const c of commentCount)
-          commentCountMap.set(c.announcementId, c.count);
-
-        return allAnnouncements.map((a) => ({
-          id: a.id,
-          title: a.title,
-          reactionCounts: reactionMap.get(a.id) || {},
-          commentCount: commentCountMap.get(a.id) || 0,
-          publishedAt: a.publishedAt,
-          createdBy: a.createdBy,
-          avatarUrl: a.avatarUrl,
-        }));
-      },
-      // { ttl: 30 }
-    );
-  }
-
-  // ---------- read: one (cached per user; short TTL) ----------
-  async findOne(id: string, userId: string) {
-    return this.cache.getOrSetCache(this.oneKey(id, userId), async () => {
-      const [announcement, likeCount, likedByCurrentUser, comments] =
-        await Promise.all([
-          this.db
-            .select()
-            .from(announcements)
-            .where(eq(announcements.id, id))
-            .execute()
-            .then(([res]) => {
-              if (!res)
-                throw new BadRequestException(
-                  `Announcement with id ${id} not found`,
-                );
-              return res;
-            }),
-          this.reactionService.countReactionsByType(id),
-          this.reactionService.hasUserReacted(id, userId),
-          this.commentService.getComments(id, userId),
-        ]);
-
-      return {
-        announcement,
-        likeCount,
-        likedByCurrentUser,
-        comments,
-      };
+    // Build reaction map
+    const reactionMap = new Map<string, Record<string, number>>();
+    reactionCount.forEach((r) => {
+      if (!reactionMap.has(r.announcementId)) {
+        reactionMap.set(r.announcementId, {});
+      }
+      reactionMap.get(r.announcementId)![r.reactionType] = r.count;
     });
+
+    // Fetch comment counts
+    const commentCount = await this.db
+      .select({
+        announcementId: announcementComments.announcementId,
+        count: sql<number>`COUNT(*)`.as('count'),
+      })
+      .from(announcementComments)
+      .where(inArray(announcementComments.announcementId, announcementIds))
+      .groupBy(announcementComments.announcementId)
+      .execute();
+
+    const commentCountMap = new Map<string, number>();
+    commentCount.forEach((c) => {
+      commentCountMap.set(c.announcementId, c.count);
+    });
+
+    // Return fully enriched object for frontend
+    return allAnnouncements.map((a) => ({
+      id: a.id,
+      title: a.title,
+      reactionCounts: reactionMap.get(a.id) || {},
+      commentCount: commentCountMap.get(a.id) || 0,
+      publishedAt: a.publishedAt,
+      createdBy: a.createdBy,
+      avatarUrl: a.avatarUrl,
+    }));
   }
 
-  // ---------- update (invalidate) ----------
+  async findOne(id: string, userId: string) {
+    const [announcement, likeCount, likedByCurrentUser, comments] =
+      await Promise.all([
+        this.db
+          .select()
+          .from(announcements)
+          .where(eq(announcements.id, id))
+          .execute()
+          .then(([res]) => {
+            if (!res)
+              throw new BadRequestException(
+                `Announcement with id ${id} not found`,
+              );
+            return res;
+          }),
+        this.reactionService.countReactionsByType(id),
+        this.reactionService.hasUserReacted(id, userId),
+        this.commentService.getComments(id, userId),
+      ]);
+
+    return {
+      announcement,
+      likeCount,
+      likedByCurrentUser,
+      comments,
+    };
+  }
+
   async update(id: string, dto: UpdateAnnouncementDto, user: User) {
     return this.db.transaction(async (tx) => {
+      // Ensure the announcement exists
       const [announcement] = await tx
         .select()
         .from(announcements)
@@ -354,6 +323,7 @@ export class AnnouncementService {
         .returning()
         .execute();
 
+      // Log the update in the audit service
       await this.auditService.logAction({
         action: 'update',
         entity: 'announcement',
@@ -367,14 +337,10 @@ export class AnnouncementService {
         },
       });
 
-      // Invalidate caches
-      await this.invalidateOne(id, announcement.companyId);
-
       return updatedAnnouncement;
     });
   }
 
-  // ---------- delete (invalidate) ----------
   remove(id: string, user: User) {
     return this.db.transaction(async (tx) => {
       const [announcement] = await tx
@@ -389,6 +355,7 @@ export class AnnouncementService {
 
       await tx.delete(announcements).where(eq(announcements.id, id)).execute();
 
+      // Log the deletion in the audit service
       await this.auditService.logAction({
         action: 'delete',
         entity: 'announcement',
@@ -397,50 +364,44 @@ export class AnnouncementService {
         details: `Deleted announcement with title: ${announcement.title}`,
       });
 
-      // Invalidate caches
-      await this.invalidateOne(id, announcement.companyId);
-
       return { message: 'Announcement deleted successfully' };
     });
   }
 
-  // ---------- create page elements (cached) ----------
   async getAllCreateElements(companyId: string) {
-    return this.cache.getOrSetCache(this.createFormKey(companyId), async () => {
-      const [categories, allDepartments, AllLocations] = await Promise.all([
-        this.db
-          .select({
-            id: announcementCategories.id,
-            name: announcementCategories.name,
-          })
-          .from(announcementCategories)
-          .where(eq(announcementCategories.companyId, companyId))
-          .execute(),
+    const [categories, allDepartments, AllLocations] = await Promise.all([
+      this.db
+        .select({
+          id: announcementCategories.id,
+          name: announcementCategories.name,
+        })
+        .from(announcementCategories)
+        .where(eq(announcementCategories.companyId, companyId))
+        .execute(),
 
-        this.db
-          .select({
-            id: departments.id,
-            name: departments.name,
-          })
-          .from(departments)
-          .where(eq(departments.companyId, companyId))
-          .execute(),
+      this.db
+        .select({
+          id: departments.id,
+          name: departments.name,
+        })
+        .from(departments)
+        .where(eq(departments.companyId, companyId))
+        .execute(),
 
-        this.db
-          .select({
-            id: companyLocations.id,
-            name: companyLocations.name,
-          })
-          .from(companyLocations)
-          .where(eq(companyLocations.companyId, companyId))
-          .execute(),
-      ]);
+      this.db
+        .select({
+          id: companyLocations.id,
+          name: companyLocations.name,
+        })
+        .from(companyLocations)
+        .where(eq(companyLocations.companyId, companyId))
+        .execute(),
+    ]);
 
-      return {
-        categories,
-        departments: allDepartments,
-        locations: AllLocations,
-      };
-    });
+    return {
+      categories,
+      departments: allDepartments,
+      locations: AllLocations,
+    };
   }
 }

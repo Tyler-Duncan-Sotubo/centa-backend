@@ -15,16 +15,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PerformanceTemplatesService = void 0;
 const common_1 = require("@nestjs/common");
 const drizzle_module_1 = require("../../../drizzle/drizzle.module");
-const common_2 = require("@nestjs/common");
 const drizzle_orm_1 = require("drizzle-orm");
 const audit_service_1 = require("../../audit/audit.service");
 const schema_1 = require("../schema");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let PerformanceTemplatesService = class PerformanceTemplatesService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
-        this.lookupQuestionIds = async (db, questions, companyId) => {
-            const rows = await db.query.performanceReviewQuestions.findMany({
+        this.cache = cache;
+        this.ttlSeconds = 60 * 5;
+        this.lookupQuestionIds = async (dbConn, questions, companyId) => {
+            const rows = await dbConn.query.performanceReviewQuestions.findMany({
                 where: (q, { and, eq, isNull }) => and(companyId ? eq(q.companyId, companyId) : isNull(q.companyId), eq(q.isGlobal, true)),
             });
             const matchedIds = [];
@@ -38,90 +40,142 @@ let PerformanceTemplatesService = class PerformanceTemplatesService {
             return matchedIds;
         };
     }
+    ns() {
+        return ['performance', 'templates'];
+    }
+    tags(companyId) {
+        return [`company:${companyId}`, 'performance', 'performance:templates'];
+    }
+    async bump(companyId) {
+        await this.cache.bumpCompanyVersion(companyId);
+        await this.cache.invalidateTags(this.tags(companyId));
+    }
     async create(user, dto) {
         const { companyId, id: userId } = user;
-        const [template] = await this.db
-            .insert(schema_1.performanceReviewTemplates)
-            .values({
-            companyId,
-            name: dto.name,
-            description: dto.description,
-            isDefault: dto.isDefault ?? false,
-            includeGoals: dto.includeGoals ?? false,
-            includeAttendance: dto.includeAttendance ?? false,
-            includeFeedback: dto.includeFeedback ?? false,
-            includeQuestionnaire: dto.includeQuestionnaire ?? false,
-            requireSignature: dto.requireSignature ?? false,
-            restrictVisibility: dto.restrictVisibility ?? false,
-            createdAt: new Date(),
-        })
-            .returning();
+        const [dup] = await this.db
+            .select({ id: schema_1.performanceReviewTemplates.id })
+            .from(schema_1.performanceReviewTemplates)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.companyId, companyId), (0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.name, dto.name)))
+            .execute();
+        if (dup)
+            throw new common_1.BadRequestException('A template with this name already exists');
+        const created = await this.db.transaction(async (trx) => {
+            if (dto.isDefault) {
+                await trx
+                    .update(schema_1.performanceReviewTemplates)
+                    .set({ isDefault: false })
+                    .where((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.companyId, companyId))
+                    .execute();
+            }
+            const [template] = await trx
+                .insert(schema_1.performanceReviewTemplates)
+                .values({
+                companyId,
+                name: dto.name,
+                description: dto.description,
+                isDefault: dto.isDefault ?? false,
+                includeGoals: dto.includeGoals ?? false,
+                includeAttendance: dto.includeAttendance ?? false,
+                includeFeedback: dto.includeFeedback ?? false,
+                includeQuestionnaire: dto.includeQuestionnaire ?? false,
+                requireSignature: dto.requireSignature ?? false,
+                restrictVisibility: dto.restrictVisibility ?? false,
+                createdAt: new Date(),
+            })
+                .returning()
+                .execute();
+            return template;
+        });
         await this.auditService.logAction({
             action: 'create',
             entity: 'performance_review_template',
-            entityId: template.id,
+            entityId: created.id,
             userId,
-            details: `Created performance review template: ${template.name}`,
+            details: `Created performance review template: ${created.name}`,
             changes: {
-                name: template.name,
-                description: template.description,
-                isDefault: template.isDefault,
-                includeGoals: template.includeGoals,
-                includeAttendance: template.includeAttendance,
-                includeFeedback: template.includeFeedback,
-                includeQuestionnaire: template.includeQuestionnaire,
-                requireSignature: template.requireSignature,
-                restrictVisibility: template.restrictVisibility,
+                name: created.name,
+                description: created.description,
+                isDefault: created.isDefault,
+                includeGoals: created.includeGoals,
+                includeAttendance: created.includeAttendance,
+                includeFeedback: created.includeFeedback,
+                includeQuestionnaire: created.includeQuestionnaire,
+                requireSignature: created.requireSignature,
+                restrictVisibility: created.restrictVisibility,
             },
         });
-        return template;
+        await this.bump(companyId);
+        return created;
     }
     findAll(companyId) {
-        return this.db
+        const key = [...this.ns(), 'all'];
+        return this.cache.getOrSetVersioned(companyId, [...key], async () => this.db
             .select()
             .from(schema_1.performanceReviewTemplates)
-            .where((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.companyId, companyId));
+            .where((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.companyId, companyId))
+            .orderBy((0, drizzle_orm_1.asc)(schema_1.performanceReviewTemplates.name))
+            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async findOne(id, companyId) {
-        const template = await this.db.query.performanceReviewTemplates.findFirst({
-            where: (tpl, { eq }) => eq(tpl.id, id),
-        });
-        if (!template)
+        const key = [...this.ns(), 'one', id];
+        const data = await this.cache.getOrSetVersioned(companyId, [...key], async () => {
+            const [template] = await this.db
+                .select()
+                .from(schema_1.performanceReviewTemplates)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.id, id), (0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.companyId, companyId)))
+                .execute();
+            if (!template)
+                return null;
+            const questions = await this.db
+                .select({
+                id: schema_1.performanceReviewQuestions.id,
+                question: schema_1.performanceReviewQuestions.question,
+                type: schema_1.performanceReviewQuestions.type,
+                isMandatory: schema_1.performanceTemplateQuestions.isMandatory,
+                order: schema_1.performanceTemplateQuestions.order,
+                competencyId: schema_1.performanceReviewQuestions.competencyId,
+                competencyName: schema_1.performanceCompetencies.name,
+            })
+                .from(schema_1.performanceTemplateQuestions)
+                .innerJoin(schema_1.performanceReviewQuestions, (0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.questionId, schema_1.performanceReviewQuestions.id))
+                .leftJoin(schema_1.performanceCompetencies, (0, drizzle_orm_1.eq)(schema_1.performanceReviewQuestions.competencyId, schema_1.performanceCompetencies.id))
+                .where((0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, id))
+                .orderBy(schema_1.performanceTemplateQuestions.order)
+                .execute();
+            return { template, questions };
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        if (!data)
             throw new common_1.NotFoundException('Template not found');
-        const questions = await this.db
-            .select({
-            id: schema_1.performanceReviewQuestions.id,
-            question: schema_1.performanceReviewQuestions.question,
-            type: schema_1.performanceReviewQuestions.type,
-            isMandatory: schema_1.performanceTemplateQuestions.isMandatory,
-            order: schema_1.performanceTemplateQuestions.order,
-            competencyId: schema_1.performanceReviewQuestions.competencyId,
-            competencyName: schema_1.performanceCompetencies.name,
-        })
-            .from(schema_1.performanceTemplateQuestions)
-            .innerJoin(schema_1.performanceReviewQuestions, (0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.questionId, schema_1.performanceReviewQuestions.id))
-            .innerJoin(schema_1.performanceReviewTemplates, (0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, schema_1.performanceReviewTemplates.id))
-            .leftJoin(schema_1.performanceCompetencies, (0, drizzle_orm_1.eq)(schema_1.performanceReviewQuestions.competencyId, schema_1.performanceCompetencies.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, id), (0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.companyId, companyId)))
-            .orderBy(schema_1.performanceTemplateQuestions.order);
-        return { ...template, questions };
+        return { ...data.template, questions: data.questions };
     }
     async getById(id, companyId) {
         const [template] = await this.db
             .select()
             .from(schema_1.performanceReviewTemplates)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.id, id), (0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.companyId, companyId)));
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.id, id), (0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.companyId, companyId)))
+            .execute();
         if (!template)
             throw new common_1.NotFoundException('Template not found');
         return template;
     }
     async update(id, updateTemplateDto, user) {
-        await this.getById(id, user.companyId);
-        const [updated] = await this.db
-            .update(schema_1.performanceReviewTemplates)
-            .set({ ...updateTemplateDto })
-            .where((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.id, id))
-            .returning();
+        const { companyId } = await this.getById(id, user.companyId);
+        const updated = await this.db.transaction(async (trx) => {
+            if (updateTemplateDto.isDefault === true) {
+                await trx
+                    .update(schema_1.performanceReviewTemplates)
+                    .set({ isDefault: false })
+                    .where((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.companyId, companyId))
+                    .execute();
+            }
+            const [row] = await trx
+                .update(schema_1.performanceReviewTemplates)
+                .set({ ...updateTemplateDto })
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.id, id), (0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.companyId, companyId)))
+                .returning()
+                .execute();
+            return row;
+        });
         await this.auditService.logAction({
             action: 'update',
             entity: 'performance_review_template',
@@ -140,13 +194,21 @@ let PerformanceTemplatesService = class PerformanceTemplatesService {
                 restrictVisibility: updated.restrictVisibility,
             },
         });
+        await this.bump(companyId);
         return updated;
     }
     async remove(id, user) {
         const template = await this.getById(id, user.companyId);
-        await this.db
-            .delete(schema_1.performanceReviewTemplates)
-            .where((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.id, id));
+        await this.db.transaction(async (trx) => {
+            await trx
+                .delete(schema_1.performanceTemplateQuestions)
+                .where((0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, id))
+                .execute();
+            await trx
+                .delete(schema_1.performanceReviewTemplates)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.id, id), (0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.companyId, user.companyId)))
+                .execute();
+        });
         await this.auditService.logAction({
             action: 'delete',
             entity: 'performance_review_template',
@@ -154,31 +216,78 @@ let PerformanceTemplatesService = class PerformanceTemplatesService {
             userId: user.id,
             details: `Deleted performance review template: ${template.name}`,
         });
+        await this.bump(user.companyId);
+        return { success: true };
     }
     async assignQuestions(templateId, questionIds, user) {
-        await this.db
-            .delete(schema_1.performanceTemplateQuestions)
-            .where((0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, templateId));
-        const payload = questionIds.map((qid, index) => ({
-            templateId,
-            questionId: qid,
-            order: index,
-            isMandatory: true,
-        }));
-        await this.db.insert(schema_1.performanceTemplateQuestions).values(payload);
+        const template = await this.getById(templateId, user.companyId);
+        const questions = await this.db
+            .select({
+            id: schema_1.performanceReviewQuestions.id,
+            companyId: schema_1.performanceReviewQuestions.companyId,
+            isGlobal: schema_1.performanceReviewQuestions.isGlobal,
+        })
+            .from(schema_1.performanceReviewQuestions)
+            .where((0, drizzle_orm_1.inArray)(schema_1.performanceReviewQuestions.id, questionIds))
+            .execute();
+        const unknown = questionIds.filter((id) => !questions.find((q) => q.id === id));
+        if (unknown.length)
+            throw new common_1.BadRequestException(`Unknown question IDs: ${unknown.join(', ')}`);
+        const invalid = questions.filter((q) => !(q.isGlobal || q.companyId === template.companyId));
+        if (invalid.length)
+            throw new common_1.BadRequestException('Some questions do not belong to this company');
+        await this.db.transaction(async (trx) => {
+            await trx
+                .delete(schema_1.performanceTemplateQuestions)
+                .where((0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, templateId))
+                .execute();
+            const payload = questionIds.map((qid, index) => ({
+                templateId,
+                questionId: qid,
+                order: index,
+                isMandatory: true,
+            }));
+            if (payload.length) {
+                await trx
+                    .insert(schema_1.performanceTemplateQuestions)
+                    .values(payload)
+                    .execute();
+            }
+        });
         await this.auditService.logAction({
             action: 'assign_questions',
             entity: 'performance_review_template',
             entityId: templateId,
             userId: user.id,
-            details: `Assigned ${payload.length} questions to template ${templateId}`,
+            details: `Assigned ${questionIds.length} questions to template ${templateId}`,
         });
-        return { success: true, count: payload.length };
+        await this.bump(user.companyId);
+        return { success: true, count: questionIds.length };
     }
     async removeQuestion(templateId, questionId, user) {
+        await this.getById(templateId, user.companyId);
         await this.db
             .delete(schema_1.performanceTemplateQuestions)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, templateId), (0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.questionId, questionId)));
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, templateId), (0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.questionId, questionId)))
+            .execute();
+        const remaining = await this.db
+            .select({
+            id: schema_1.performanceTemplateQuestions.questionId,
+            order: schema_1.performanceTemplateQuestions.order,
+        })
+            .from(schema_1.performanceTemplateQuestions)
+            .where((0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, templateId))
+            .orderBy(schema_1.performanceTemplateQuestions.order)
+            .execute();
+        for (let i = 0; i < remaining.length; i++) {
+            if (remaining[i].order !== i) {
+                await this.db
+                    .update(schema_1.performanceTemplateQuestions)
+                    .set({ order: i })
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, templateId), (0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.questionId, remaining[i].id)))
+                    .execute();
+            }
+        }
         await this.auditService.logAction({
             action: 'remove_question',
             entity: 'performance_review_template',
@@ -186,6 +295,7 @@ let PerformanceTemplatesService = class PerformanceTemplatesService {
             userId: user.id,
             details: `Removed question ${questionId} from template ${templateId}`,
         });
+        await this.bump(user.companyId);
         return { success: true };
     }
     async seedDefaultTemplate(companyId) {
@@ -204,7 +314,8 @@ let PerformanceTemplatesService = class PerformanceTemplatesService {
             restrictVisibility: false,
             createdAt: new Date(),
         })
-            .returning();
+            .returning()
+            .execute();
         if (!template)
             return;
         const questionTexts = [
@@ -218,19 +329,26 @@ let PerformanceTemplatesService = class PerformanceTemplatesService {
             'Rate the employee’s efficiency in completing tasks.',
         ];
         const questionIds = await this.lookupQuestionIds(this.db, questionTexts);
-        const payload = questionIds.map((qid, i) => ({
-            templateId: template.id,
-            questionId: qid,
-            order: i,
-            isMandatory: true,
-        }));
-        await this.db.insert(schema_1.performanceTemplateQuestions).values(payload);
+        if (questionIds.length) {
+            const payload = questionIds.map((qid, i) => ({
+                templateId: template.id,
+                questionId: qid,
+                order: i,
+                isMandatory: true,
+            }));
+            await this.db
+                .insert(schema_1.performanceTemplateQuestions)
+                .values(payload)
+                .execute();
+        }
+        await this.bump(companyId);
     }
 };
 exports.PerformanceTemplatesService = PerformanceTemplatesService;
 exports.PerformanceTemplatesService = PerformanceTemplatesService = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, common_2.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], PerformanceTemplatesService);
 //# sourceMappingURL=templates.service.js.map

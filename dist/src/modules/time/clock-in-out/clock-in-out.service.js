@@ -11,11 +11,9 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-var ClockInOutService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClockInOutService = void 0;
 const common_1 = require("@nestjs/common");
-const nestjs_pino_1 = require("nestjs-pino");
 const schema_1 = require("../../../drizzle/schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const drizzle_module_1 = require("../../../drizzle/drizzle.module");
@@ -25,54 +23,16 @@ const attendance_settings_service_1 = require("../settings/attendance-settings.s
 const employee_shifts_service_1 = require("../employee-shifts/employee-shifts.service");
 const report_service_1 = require("../report/report.service");
 const date_fns_1 = require("date-fns");
-const cache_service_1 = require("../../../common/cache/cache.service");
-let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
-    constructor(db, auditService, employeesService, attendanceSettingsService, employeeShiftsService, reportService, cache, logger) {
+let ClockInOutService = class ClockInOutService {
+    constructor(db, auditService, employeesService, attendanceSettingsService, employeeShiftsService, reportService) {
         this.db = db;
         this.auditService = auditService;
         this.employeesService = employeesService;
         this.attendanceSettingsService = attendanceSettingsService;
         this.employeeShiftsService = employeeShiftsService;
         this.reportService = reportService;
-        this.cache = cache;
-        this.logger = logger;
-        this.logger.setContext(ClockInOutService_1.name);
-    }
-    statusKey(companyId, employeeId, date) {
-        return `company:${companyId}:attendance:status:${employeeId}:${date}`;
-    }
-    monthKey(companyId, employeeId, ym) {
-        return `company:${companyId}:attendance:month:${employeeId}:${ym}`;
-    }
-    todayISO() {
-        return new Date().toISOString().slice(0, 10);
-    }
-    async bumpAttendanceVersion(companyId) {
-        try {
-            await this.cache.set(`attendance:ver:${companyId}`, Date.now().toString());
-            this.logger.debug({ companyId }, 'attendance:version-bumped');
-        }
-        catch (e) {
-            this.logger.warn({ companyId, err: e?.message }, 'attendance:version-bump-failed');
-        }
-    }
-    async burstEmployeeDayCache(companyId, employeeId, date) {
-        const key = this.statusKey(companyId, employeeId, date);
-        await this.cache.del(key);
-        this.logger.debug({ key }, 'cache:del:status');
-    }
-    async burstEmployeeMonthCache(companyId, employeeId, yearMonth) {
-        const key = this.monthKey(companyId, employeeId, yearMonth);
-        await this.cache.del(key);
-        this.logger.debug({ key }, 'cache:del:month');
     }
     async checkLocation(latitude, longitude, employee) {
-        this.logger.debug({
-            employeeId: employee?.id,
-            lat: latitude,
-            lon: longitude,
-            hasLocation: !!employee?.locationId,
-        }, 'checkLocation:start');
         if (!employee) {
             throw new common_1.BadRequestException('Employee not found');
         }
@@ -86,7 +46,6 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
                 throw new common_1.BadRequestException('Assigned office location not found');
             }
             const isInside = this.isWithinRadius(Number(latitude), Number(longitude), Number(officeLocation.latitude), Number(officeLocation.longitude), 0.1);
-            this.logger.debug({ officeLocationId: officeLocation.id, isInside }, 'checkLocation:assigned-result');
             if (!isInside) {
                 throw new common_1.BadRequestException('You are not at your assigned office location.');
             }
@@ -98,7 +57,6 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
                 .where((0, drizzle_orm_1.eq)(schema_1.companyLocations.companyId, employee.companyId))
                 .execute();
             const isInsideAny = officeLocations.some((loc) => this.isWithinRadius(Number(latitude), Number(longitude), Number(loc.latitude), Number(loc.longitude), 0.1));
-            this.logger.debug({ locations: officeLocations.length, isInsideAny }, 'checkLocation:any-result');
             if (!isInsideAny) {
                 throw new common_1.BadRequestException('You are not at a valid company location.');
             }
@@ -119,9 +77,8 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
         return distance <= radiusInKm;
     }
     async clockIn(user, dto) {
-        this.logger.info({ userId: user.id, companyId: user.companyId }, 'clockIn:start');
-        const employee = await this.employeesService.findOneByUserId(user);
-        const currentDate = this.todayISO();
+        const employee = await this.employeesService.findOneByUserId(user.id);
+        const currentDate = new Date().toISOString().split('T')[0];
         const now = new Date();
         const startOfDay = new Date(`${currentDate}T00:00:00.000Z`);
         const endOfDay = new Date(`${currentDate}T23:59:59.999Z`);
@@ -132,7 +89,6 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.employeeId, employee.id), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, user.companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, startOfDay), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, endOfDay)))
             .execute();
         if (existingAttendance.length > 0) {
-            this.logger.warn({ employeeId: employee.id }, 'clockIn:already-clocked-in');
             throw new common_1.BadRequestException('You have already clocked in today.');
         }
         await this.checkLocation(dto.latitude, dto.longitude, employee);
@@ -141,27 +97,27 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
         const earlyClockInMinutes = parseInt(attendanceSettings['early_clockIn_window_minutes'] ?? '15');
         if (useShifts) {
             const assignedShift = await this.employeeShiftsService.getActiveShiftForEmployee(employee.id, user.companyId, currentDate);
-            if (!assignedShift && !forceClockIn) {
-                this.logger.warn({ employeeId: employee.id, currentDate }, 'clockIn:no-active-shift');
-                throw new common_1.BadRequestException('You do not have an active shift assigned today.');
+            if (!assignedShift) {
+                if (!forceClockIn) {
+                    throw new common_1.BadRequestException('You do not have an active shift assigned today.');
+                }
             }
             if (assignedShift && !assignedShift.allowEarlyClockIn) {
                 const shiftStartTime = new Date(`${currentDate}T${assignedShift.startTime}`);
-                if (now < shiftStartTime && !forceClockIn) {
-                    this.logger.warn({ employeeId: employee.id, shiftStart: assignedShift.startTime }, 'clockIn:too-early-no-earlyClockIn');
-                    throw new common_1.BadRequestException('You cannot clock in before your shift start time.');
+                if (now < shiftStartTime) {
+                    if (!forceClockIn) {
+                        throw new common_1.BadRequestException('You cannot clock in before your shift start time.');
+                    }
                 }
             }
             else if (assignedShift && assignedShift.allowEarlyClockIn) {
                 const shiftStartTime = new Date(`${currentDate}T${assignedShift.startTime}`);
                 const earliestAllowedClockIn = new Date(shiftStartTime.getTime() -
                     (assignedShift.earlyClockInMinutes ?? 0) * 60000);
-                if (now < earliestAllowedClockIn && !forceClockIn) {
-                    this.logger.warn({
-                        employeeId: employee.id,
-                        earliest: earliestAllowedClockIn.toISOString(),
-                    }, 'clockIn:too-early-with-earlyClockIn');
-                    throw new common_1.BadRequestException('You are clocking in too early according to your shift rules.');
+                if (now < earliestAllowedClockIn) {
+                    if (!forceClockIn) {
+                        throw new common_1.BadRequestException('You are clocking in too early according to your shift rules.');
+                    }
                 }
             }
         }
@@ -169,9 +125,10 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
             const startTime = attendanceSettings['default_start_time'] ?? '09:00';
             const earliestAllowed = new Date(`${currentDate}T${startTime}:00`);
             earliestAllowed.setMinutes(earliestAllowed.getMinutes() - earlyClockInMinutes);
-            if (now < earliestAllowed && !forceClockIn) {
-                this.logger.warn({ employeeId: employee.id, earliest: earliestAllowed.toISOString() }, 'clockIn:too-early-default');
-                throw new common_1.BadRequestException('You are clocking in too early.');
+            if (now < earliestAllowed) {
+                if (!forceClockIn) {
+                    throw new common_1.BadRequestException('You are clocking in too early.');
+                }
             }
         }
         await this.db
@@ -184,18 +141,11 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
             updatedAt: now,
         })
             .execute();
-        await Promise.all([
-            this.burstEmployeeDayCache(user.companyId, employee.id, currentDate),
-            this.burstEmployeeMonthCache(user.companyId, employee.id, currentDate.slice(0, 7)),
-            this.bumpAttendanceVersion(user.companyId),
-        ]);
-        this.logger.info({ employeeId: employee.id, clockIn: now.toISOString() }, 'clockIn:done');
         return 'Clocked in successfully.';
     }
     async clockOut(user, latitude, longitude) {
-        this.logger.info({ userId: user.id, companyId: user.companyId }, 'clockOut:start');
-        const employee = await this.employeesService.findOneByUserId(user);
-        const currentDate = this.todayISO();
+        const employee = await this.employeesService.findOneByUserId(user.id);
+        const currentDate = new Date().toISOString().split('T')[0];
         const now = new Date();
         const startOfDay = new Date(`${currentDate}T00:00:00.000Z`);
         const endOfDay = new Date(`${currentDate}T23:59:59.999Z`);
@@ -205,11 +155,9 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.employeeId, employee.id), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, user.companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, startOfDay), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, endOfDay)))
             .execute();
         if (!attendance) {
-            this.logger.warn({ employeeId: employee.id }, 'clockOut:no-attendance-today');
             throw new common_1.BadRequestException('You have not clocked in today.');
         }
         if (attendance.clockOut) {
-            this.logger.warn({ employeeId: employee.id }, 'clockOut:already-clocked-out');
             throw new common_1.BadRequestException('You have already clocked out.');
         }
         await this.checkLocation(latitude, longitude, employee);
@@ -268,30 +216,10 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
         })
             .where((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.id, attendance.id))
             .execute();
-        await Promise.all([
-            this.burstEmployeeDayCache(user.companyId, employee.id, currentDate),
-            this.burstEmployeeMonthCache(user.companyId, employee.id, currentDate.slice(0, 7)),
-            this.bumpAttendanceVersion(user.companyId),
-        ]);
-        this.logger.info({
-            employeeId: employee.id,
-            clockOut: now.toISOString(),
-            workDurationMinutes,
-            overtimeMinutes,
-            isLateArrival,
-            isEarlyDeparture,
-        }, 'clockOut:done');
         return 'Clocked out successfully.';
     }
     async getAttendanceStatus(employeeId, companyId) {
-        const today = this.todayISO();
-        const key = this.statusKey(companyId, employeeId, today);
-        const cached = await this.cache.get(key);
-        if (cached) {
-            this.logger.debug({ key }, 'getAttendanceStatus:cache:hit');
-            return cached;
-        }
-        this.logger.debug({ key }, 'getAttendanceStatus:cache:miss');
+        const today = new Date().toISOString().split('T')[0];
         const startOfDay = new Date(`${today}T00:00:00.000Z`);
         const endOfDay = new Date(`${today}T23:59:59.999Z`);
         const [attendance] = await this.db
@@ -299,22 +227,19 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
             .from(schema_1.attendanceRecords)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, startOfDay), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, endOfDay)))
             .execute();
-        let payload;
         if (!attendance) {
-            payload = { status: 'absent' };
+            return { status: 'absent' };
+        }
+        const checkInTime = attendance.clockIn;
+        const checkOutTime = attendance.clockOut;
+        if (checkOutTime) {
+            return { status: 'present', checkInTime, checkOutTime };
         }
         else {
-            const checkInTime = attendance.clockIn;
-            const checkOutTime = attendance.clockOut;
-            payload = checkOutTime
-                ? { status: 'present', checkInTime, checkOutTime }
-                : { status: 'present', checkInTime, checkOutTime: null };
+            return { status: 'present', checkInTime, checkOutTime: null };
         }
-        await this.cache.set(key, payload);
-        return payload;
     }
     async getDailyDashboardStats(companyId) {
-        this.logger.debug({ companyId }, 'getDailyDashboardStats:start');
         const summary = await this.reportService.getDailyAttendanceSummary(companyId);
         const { details, summaryList, metrics, dashboard } = summary;
         return {
@@ -325,14 +250,12 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
         };
     }
     async getDailyDashboardStatsByDate(companyId, date) {
-        this.logger.debug({ companyId, date }, 'getDailyDashboardStatsByDate');
         const summary = await this.reportService.getDailySummaryList(companyId, date);
         return {
             summaryList: summary,
         };
     }
     async getMonthlyDashboardStats(companyId, yearMonth) {
-        this.logger.debug({ companyId, yearMonth }, 'getMonthlyDashboardStats');
         const detailed = await this.reportService.getMonthlyAttendanceSummary(companyId, yearMonth);
         const totalEmployees = detailed.length;
         const daysInMonth = yearMonth
@@ -357,13 +280,6 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
     }
     async getEmployeeAttendanceByDate(employeeId, companyId, date) {
         const target = new Date(date).toISOString().split('T')[0];
-        const cacheKey = this.statusKey(companyId, employeeId, target);
-        const cached = await this.cache.get(cacheKey);
-        if (cached) {
-            this.logger.debug({ cacheKey }, 'getEmployeeAttendanceByDate:cache:hit');
-            return cached;
-        }
-        this.logger.debug({ cacheKey }, 'getEmployeeAttendanceByDate:cache:miss');
         const startOfDay = new Date(`${target}T00:00:00.000Z`);
         const endOfDay = new Date(`${target}T23:59:59.999Z`);
         const s = await this.attendanceSettingsService.getAllAttendanceSettings(companyId);
@@ -377,7 +293,7 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
             .execute();
         const rec = recs[0] ?? null;
         if (!rec) {
-            const payload = {
+            return {
                 date: target,
                 checkInTime: null,
                 checkOutTime: null,
@@ -387,8 +303,6 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
                 isLateArrival: false,
                 isEarlyDeparture: false,
             };
-            await this.cache.set(cacheKey, payload);
-            return payload;
         }
         let startTimeStr = defaultStartTimeStr;
         let tolerance = lateToleranceMins;
@@ -404,32 +318,22 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
         const checkOut = rec.clockOut ? new Date(rec.clockOut) : null;
         const diffLate = (checkIn.getTime() - shiftStart.getTime()) / 60000;
         const isLateArrival = diffLate > tolerance;
-        let endTimeStr = s['default_end_time'] ?? '17:00';
-        if (useShifts) {
-            const shift = await this.employeeShiftsService.getActiveShiftForEmployee(employeeId, companyId, target);
-            if (shift?.endTime)
-                endTimeStr = shift.endTime;
-        }
-        const endDateTime = (0, date_fns_1.parseISO)(`${target}T${endTimeStr}:00`);
         const isEarlyDeparture = checkOut
-            ? checkOut.getTime() < endDateTime.getTime()
+            ? checkOut.getTime() <
+                (0, date_fns_1.parseISO)(`${target}T${(useShifts && (await this.employeeShiftsService.getActiveShiftForEmployee(employeeId, companyId, target)))?.end_time ?? s['default_end_time'] ?? '17:00'}:00`).getTime()
             : false;
-        const payload = {
+        const workDurationMinutes = rec.workDurationMinutes;
+        const overtimeMinutes = rec.overtimeMinutes;
+        return {
             date: target,
             checkInTime: checkIn.toTimeString().slice(0, 8),
             checkOutTime: checkOut?.toTimeString().slice(0, 8) ?? null,
-            status: checkIn
-                ? isLateArrival
-                    ? 'late'
-                    : 'present'
-                : 'absent',
-            workDurationMinutes: rec.workDurationMinutes,
-            overtimeMinutes: rec.overtimeMinutes ?? 0,
+            status: checkIn ? (isLateArrival ? 'late' : 'present') : 'absent',
+            workDurationMinutes,
+            overtimeMinutes: overtimeMinutes ?? 0,
             isLateArrival,
             isEarlyDeparture,
         };
-        await this.cache.set(cacheKey, payload);
-        return payload;
     }
     async getEmployeeAttendanceByMonth(employeeId, companyId, yearMonth) {
         const [y, m] = yearMonth.split('-').map(Number);
@@ -439,13 +343,6 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
         startOfMonth.setHours(0, 0, 0, 0);
         const endOfMonth = new Date(end);
         endOfMonth.setHours(23, 59, 59, 999);
-        const cacheKey = this.monthKey(companyId, employeeId, yearMonth);
-        const cached = await this.cache.get(cacheKey);
-        if (cached) {
-            this.logger.debug({ cacheKey }, 'getEmployeeAttendanceByMonth:cache:hit');
-            return cached;
-        }
-        this.logger.debug({ cacheKey }, 'getEmployeeAttendanceByMonth:cache:miss');
         const recs = await this.db
             .select()
             .from(schema_1.attendanceRecords)
@@ -457,7 +354,7 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
             map.set(day, r);
         }
         const allDays = (0, date_fns_1.eachDayOfInterval)({ start, end }).map((d) => (0, date_fns_1.format)(d, 'yyyy-MM-dd'));
-        const todayStr = this.todayISO();
+        const todayStr = new Date().toISOString().split('T')[0];
         const days = allDays.filter((dateKey) => dateKey <= todayStr);
         const summaryList = await Promise.all(days.map(async (dateKey) => {
             const day = await this.getEmployeeAttendanceByDate(employeeId, companyId, dateKey);
@@ -468,12 +365,9 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
                 status: day.status,
             };
         }));
-        const payload = { summaryList: summaryList.reverse() };
-        await this.cache.set(cacheKey, payload);
-        return payload;
+        return { summaryList: summaryList.reverse() };
     }
     async adjustAttendanceRecord(dto, attendanceRecordId, user, ip) {
-        this.logger.info({ attendanceRecordId, userId: user.id, companyId: user.companyId }, 'adjustAttendance:start');
         await this.db
             .insert(schema_1.attendanceAdjustments)
             .values({
@@ -495,7 +389,6 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
             .where((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.id, attendanceRecordId))
             .execute();
         if (!attendanceRecord) {
-            this.logger.warn({ attendanceRecordId }, 'adjustAttendance:not-found');
             throw new common_1.BadRequestException('Attendance record not found.');
         }
         await this.db
@@ -525,28 +418,17 @@ let ClockInOutService = ClockInOutService_1 = class ClockInOutService {
                 approvedBy: user.id,
             },
         });
-        const affectedDate = (dto.adjustedClockIn ?? dto.adjustedClockOut ?? attendanceRecord.clockIn)
-            ?.toString()
-            ?.slice(0, 10) || attendanceRecord.clockIn.toISOString().slice(0, 10);
-        await Promise.all([
-            this.burstEmployeeDayCache(user.companyId, attendanceRecord.employeeId, affectedDate),
-            this.burstEmployeeMonthCache(user.companyId, attendanceRecord.employeeId, affectedDate.slice(0, 7)),
-            this.bumpAttendanceVersion(user.companyId),
-        ]);
-        this.logger.info({ attendanceRecordId }, 'adjustAttendance:done');
         return 'Attendance record adjusted successfully.';
     }
 };
 exports.ClockInOutService = ClockInOutService;
-exports.ClockInOutService = ClockInOutService = ClockInOutService_1 = __decorate([
+exports.ClockInOutService = ClockInOutService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
         employees_service_1.EmployeesService,
         attendance_settings_service_1.AttendanceSettingsService,
         employee_shifts_service_1.EmployeeShiftsService,
-        report_service_1.ReportService,
-        cache_service_1.CacheService,
-        nestjs_pino_1.PinoLogger])
+        report_service_1.ReportService])
 ], ClockInOutService);
 //# sourceMappingURL=clock-in-out.service.js.map

@@ -2,19 +2,9 @@ import { db } from 'src/drizzle/types/drizzle';
 import { CreateFieldDto } from './dto/create-field.dto';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { User } from 'src/common/types/user.type';
-import { PinoLogger } from 'nestjs-pino';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class ApplicationFormService {
     private readonly db;
-    private readonly logger;
-    private readonly cache;
-    constructor(db: db, logger: PinoLogger, cache: CacheService);
-    private defaultDefsKey;
-    private formConfigKey;
-    private formPreviewKey;
-    private fieldsKey;
-    private questionsKey;
-    private burst;
+    constructor(db: db);
     seedDefaultFields(): Promise<void>;
     getDefaultFields(): Promise<{
         id: string;

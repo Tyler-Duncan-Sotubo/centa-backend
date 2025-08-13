@@ -1,14 +1,11 @@
-import { PinoLogger } from 'nestjs-pino';
-import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 import { CacheService } from 'src/common/cache/cache.service';
+import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 export declare class ExpensesSettingsService {
     private readonly companySettingsService;
     private readonly cache;
-    private readonly logger;
-    constructor(companySettingsService: CompanySettingsService, cache: CacheService, logger: PinoLogger);
-    private allKey;
-    private oneKey;
-    private safeJson;
+    constructor(companySettingsService: CompanySettingsService, cache: CacheService);
+    private ttlSeconds;
+    private tags;
     getAllExpenseSettings(companyId: string): Promise<Record<string, any>>;
     getExpenseSettings(companyId: string): Promise<{
         multiLevelApproval: boolean;

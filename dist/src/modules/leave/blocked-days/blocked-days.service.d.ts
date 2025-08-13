@@ -3,18 +3,10 @@ import { UpdateBlockedDayDto } from './dto/update-blocked-day.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
-import { PinoLogger } from 'nestjs-pino';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class BlockedDaysService {
     private db;
     private readonly auditService;
-    private readonly logger;
-    private readonly cache;
-    constructor(db: db, auditService: AuditService, logger: PinoLogger, cache: CacheService);
-    private listKey;
-    private datesKey;
-    private oneKey;
-    private burst;
+    constructor(db: db, auditService: AuditService);
     create(dto: CreateBlockedDayDto, user: User): Promise<{
         date: string;
         id: string;
@@ -23,7 +15,7 @@ export declare class BlockedDaysService {
         companyId: string | null;
         createdBy: string;
         reason: string | null;
-    }>;
+    }[]>;
     getBlockedDates(companyId: string): Promise<string[]>;
     findAll(companyId: string): Promise<{
         id: string;
@@ -50,8 +42,6 @@ export declare class BlockedDaysService {
         reason: string | null;
         createdBy: string;
         createdAt: Date | null;
-    }>;
-    remove(id: string, user?: User): Promise<{
-        success: boolean;
-    }>;
+    }[]>;
+    remove(id: string): Promise<any>;
 }

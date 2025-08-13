@@ -19,24 +19,10 @@ const drizzle_module_1 = require("../../../drizzle/drizzle.module");
 const audit_service_1 = require("../../audit/audit.service");
 const benefit_groups_schema_1 = require("../schema/benefit-groups.schema");
 const benefit_plan_schema_1 = require("../schema/benefit-plan.schema");
-const cache_service_1 = require("../../../common/cache/cache.service");
 let BenefitGroupsService = class BenefitGroupsService {
-    constructor(db, auditService, cache) {
+    constructor(db, auditService) {
         this.db = db;
         this.auditService = auditService;
-        this.cache = cache;
-    }
-    listKey(companyId) {
-        return `company:${companyId}:benefit-groups:list`;
-    }
-    oneKey(id) {
-        return `benefit-group:${id}:detail`;
-    }
-    async invalidate(companyId, id) {
-        const jobs = [this.cache.del(this.listKey(companyId))];
-        if (id)
-            jobs.push(this.cache.del(this.oneKey(id)));
-        await Promise.allSettled(jobs);
     }
     async create(dto, user) {
         const [existingGroup] = await this.db
@@ -44,13 +30,16 @@ let BenefitGroupsService = class BenefitGroupsService {
             .from(benefit_groups_schema_1.benefitGroups)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(benefit_groups_schema_1.benefitGroups.name, dto.name), (0, drizzle_orm_1.eq)(benefit_groups_schema_1.benefitGroups.companyId, user.companyId)))
             .execute();
-        if (existingGroup)
+        if (existingGroup) {
             throw new common_1.BadRequestException('A benefit group with this name already exists.');
+        }
         const [newGroup] = await this.db
             .insert(benefit_groups_schema_1.benefitGroups)
-            .values({ ...dto, companyId: user.companyId })
-            .returning()
-            .execute();
+            .values({
+            ...dto,
+            companyId: user.companyId,
+        })
+            .returning();
         await this.auditService.logAction({
             action: 'create',
             entity: 'benefitGroup',
@@ -64,35 +53,35 @@ let BenefitGroupsService = class BenefitGroupsService {
                 createdAt: newGroup.createdAt,
             },
         });
-        await this.invalidate(user.companyId, newGroup.id);
         return newGroup;
     }
     async findAll(companyId) {
-        return this.cache.getOrSetCache(this.listKey(companyId), async () => {
-            return this.db
-                .select()
-                .from(benefit_groups_schema_1.benefitGroups)
-                .where((0, drizzle_orm_1.eq)(benefit_groups_schema_1.benefitGroups.companyId, companyId))
-                .execute();
-        });
+        const allGroups = await this.db
+            .select()
+            .from(benefit_groups_schema_1.benefitGroups)
+            .where((0, drizzle_orm_1.eq)(benefit_groups_schema_1.benefitGroups.companyId, companyId))
+            .execute();
+        return allGroups;
     }
-    async findOne(id) {
-        return this.cache.getOrSetCache(this.oneKey(id), async () => {
-            const [group] = await this.db
-                .select()
-                .from(benefit_groups_schema_1.benefitGroups)
-                .where((0, drizzle_orm_1.eq)(benefit_groups_schema_1.benefitGroups.id, id))
-                .execute();
-            if (!group)
-                throw new common_1.BadRequestException('Benefit group not found');
-            return group;
-        });
+    findOne(id) {
+        const group = this.db
+            .select()
+            .from(benefit_groups_schema_1.benefitGroups)
+            .where((0, drizzle_orm_1.eq)(benefit_groups_schema_1.benefitGroups.id, id))
+            .execute();
+        if (!group) {
+            throw new common_1.BadRequestException('Benefit group not found');
+        }
+        return group;
     }
     async update(id, dto, user) {
         await this.findOne(id);
         const [updatedGroup] = await this.db
             .update(benefit_groups_schema_1.benefitGroups)
-            .set({ ...dto, companyId: user.companyId })
+            .set({
+            ...dto,
+            companyId: user.companyId,
+        })
             .where((0, drizzle_orm_1.eq)(benefit_groups_schema_1.benefitGroups.id, id))
             .returning()
             .execute();
@@ -109,11 +98,10 @@ let BenefitGroupsService = class BenefitGroupsService {
                 createdAt: updatedGroup.createdAt,
             },
         });
-        await this.invalidate(user.companyId, updatedGroup.id);
         return updatedGroup;
     }
     async remove(id, user) {
-        const group = await this.findOne(id);
+        await this.findOne(id);
         const existingPlans = await this.db
             .select()
             .from(benefit_plan_schema_1.benefitPlans)
@@ -140,15 +128,12 @@ let BenefitGroupsService = class BenefitGroupsService {
                 createdAt: deletedGroup.createdAt,
             },
         });
-        await this.invalidate(user.companyId, group.id);
-        return { success: true };
     }
 };
 exports.BenefitGroupsService = BenefitGroupsService;
 exports.BenefitGroupsService = BenefitGroupsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
-        cache_service_1.CacheService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
 ], BenefitGroupsService);
 //# sourceMappingURL=benefit-groups.service.js.map

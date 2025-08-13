@@ -6,8 +6,8 @@ export declare class AssetsSettingsController extends BaseController {
     constructor(assetsSettingsService: AssetsSettingsService);
     getAssetSettings(user: User): Promise<{
         multiLevelApproval: boolean;
-        approverChain: any;
-        fallbackRoles: any;
+        approverChain: string[];
+        fallbackRoles: string[];
     }>;
     updateAssetSetting(user: User, key: string, value: any): Promise<void>;
 }

@@ -8,7 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BaseController = void 0;
 const common_1 = require("@nestjs/common");
-const error_interceptor_1 = require("./error-interceptor");
+const error_interceptor_1 = require("../interceptor/error-interceptor");
 let BaseController = class BaseController {
 };
 exports.BaseController = BaseController;

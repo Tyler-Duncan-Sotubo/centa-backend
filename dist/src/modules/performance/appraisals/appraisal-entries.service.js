@@ -15,15 +15,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppraisalEntriesService = void 0;
 const common_1 = require("@nestjs/common");
 const common_2 = require("@nestjs/common");
-const drizzle_module_1 = require("../../../drizzle/drizzle.module");
 const drizzle_orm_1 = require("drizzle-orm");
+const drizzle_module_1 = require("../../../drizzle/drizzle.module");
 const performance_appraisals_schema_1 = require("./schema/performance-appraisals.schema");
 const schema_1 = require("../../../drizzle/schema");
 const performance_appraisals_entries_schema_1 = require("./schema/performance-appraisals-entries.schema");
-const performance_appraisal_cycle_schema_1 = require("./schema/performance-appraisal-cycle.schema");
+const audit_service_1 = require("../../audit/audit.service");
 let AppraisalEntriesService = class AppraisalEntriesService {
-    constructor(db) {
+    constructor(db, auditService) {
         this.db = db;
+        this.auditService = auditService;
     }
     async getAppraisalEntriesWithExpectations(appraisalId) {
         const [appraisal] = await this.db
@@ -65,23 +66,22 @@ let AppraisalEntriesService = class AppraisalEntriesService {
             .from(performance_appraisals_entries_schema_1.appraisalEntries)
             .where((0, drizzle_orm_1.eq)(performance_appraisals_entries_schema_1.appraisalEntries.appraisalId, appraisalId));
         const levelIds = new Set();
-        for (const entry of entries) {
-            if (entry.employeeLevelId)
-                levelIds.add(entry.employeeLevelId);
-            if (entry.managerLevelId)
-                levelIds.add(entry.managerLevelId);
+        for (const e of entries) {
+            if (e.employeeLevelId)
+                levelIds.add(e.employeeLevelId);
+            if (e.managerLevelId)
+                levelIds.add(e.managerLevelId);
         }
-        const levelList = await this.db
-            .select({
-            id: schema_1.competencyLevels.id,
-            name: schema_1.competencyLevels.name,
-        })
-            .from(schema_1.competencyLevels)
-            .where((0, drizzle_orm_1.inArray)(schema_1.competencyLevels.id, Array.from(levelIds)));
-        const levelMap = new Map(levelList.map((lvl) => [lvl.id, lvl.name]));
-        const entriesMap = new Map(entries.map((e) => [e.competencyId, e]));
+        const levelList = levelIds.size
+            ? await this.db
+                .select({ id: schema_1.competencyLevels.id, name: schema_1.competencyLevels.name })
+                .from(schema_1.competencyLevels)
+                .where((0, drizzle_orm_1.inArray)(schema_1.competencyLevels.id, Array.from(levelIds)))
+            : [];
+        const levelMap = new Map(levelList.map((l) => [l.id, l.name]));
+        const entryByComp = new Map(entries.map((e) => [e.competencyId, e]));
         return expectations.map((exp) => {
-            const entry = entriesMap.get(exp.competencyId);
+            const entry = entryByComp.get(exp.competencyId);
             const employeeLevelId = entry?.employeeLevelId ?? null;
             const managerLevelId = entry?.managerLevelId ?? null;
             return {
@@ -103,11 +103,11 @@ let AppraisalEntriesService = class AppraisalEntriesService {
     }
     async upsertEntry(dto, appraisalId, user) {
         const existing = await this.db
-            .select()
+            .select({ competencyId: performance_appraisals_entries_schema_1.appraisalEntries.competencyId })
             .from(performance_appraisals_entries_schema_1.appraisalEntries)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_entries_schema_1.appraisalEntries.appraisalId, appraisalId), (0, drizzle_orm_1.eq)(performance_appraisals_entries_schema_1.appraisalEntries.competencyId, dto.competencyId)))
             .execute();
-        if (existing.length > 0) {
+        if (existing.length) {
             const [updated] = await this.db
                 .update(performance_appraisals_entries_schema_1.appraisalEntries)
                 .set({
@@ -117,67 +117,179 @@ let AppraisalEntriesService = class AppraisalEntriesService {
             })
                 .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_entries_schema_1.appraisalEntries.appraisalId, appraisalId), (0, drizzle_orm_1.eq)(performance_appraisals_entries_schema_1.appraisalEntries.competencyId, dto.competencyId)))
                 .returning();
-            return { message: 'Entry updated', data: updated, user };
+            const status = await this.recalculateAppraisalStatus(appraisalId);
+            await this.auditService.logAction({
+                action: 'update',
+                entity: 'performance_appraisal_entry',
+                entityId: `${appraisalId}:${dto.competencyId}`,
+                userId: user.id,
+                details: `Updated appraisal entry`,
+                changes: {
+                    appraisalId,
+                    competencyId: dto.competencyId,
+                    employeeLevelId: dto.employeeLevelId ?? null,
+                    managerLevelId: dto.managerLevelId ?? null,
+                    notes: dto.notes ?? null,
+                    status,
+                },
+            });
+            return { message: 'Entry updated', data: updated, status };
         }
         const [created] = await this.db
             .insert(performance_appraisals_entries_schema_1.appraisalEntries)
             .values({
             appraisalId,
             competencyId: dto.competencyId,
-            expectedLevelId: dto.expectedLevelId,
+            expectedLevelId: dto.expectedLevelId ?? null,
             employeeLevelId: dto.employeeLevelId ?? null,
             managerLevelId: dto.managerLevelId ?? null,
             notes: dto.notes ?? null,
         })
             .returning();
-        await this.db
-            .update(performance_appraisals_schema_1.appraisals)
-            .set({
-            submittedByEmployee: dto.employeeLevelId ? true : false,
-            submittedByManager: dto.managerLevelId ? true : false,
-            finalized: dto.employeeLevelId && dto.managerLevelId ? true : false,
-        })
-            .where((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.id, appraisalId));
-        return { message: 'Entry created', data: created };
+        const status = await this.recalculateAppraisalStatus(appraisalId);
+        await this.auditService.logAction({
+            action: 'create',
+            entity: 'performance_appraisal_entry',
+            entityId: `${appraisalId}:${dto.competencyId}`,
+            userId: user.id,
+            details: `Created appraisal entry`,
+            changes: {
+                appraisalId,
+                competencyId: dto.competencyId,
+                expectedLevelId: dto.expectedLevelId ?? null,
+                employeeLevelId: dto.employeeLevelId ?? null,
+                managerLevelId: dto.managerLevelId ?? null,
+                notes: dto.notes ?? null,
+                status,
+            },
+        });
+        return { message: 'Entry created', data: created, status };
     }
     async upsertEntries(appraisalId, entries, user) {
-        const results = [];
-        for (const entry of entries) {
-            const result = await this.upsertEntry(entry, appraisalId, user);
-            results.push(result);
-        }
-        await this.recalculateAppraisalStatus(appraisalId);
-        return {
-            message: 'Batch upsert complete',
-            count: results.length,
-            results,
-        };
+        await this.db.transaction(async (trx) => {
+            for (const dto of entries) {
+                const existing = await trx
+                    .select({ competencyId: performance_appraisals_entries_schema_1.appraisalEntries.competencyId })
+                    .from(performance_appraisals_entries_schema_1.appraisalEntries)
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_entries_schema_1.appraisalEntries.appraisalId, appraisalId), (0, drizzle_orm_1.eq)(performance_appraisals_entries_schema_1.appraisalEntries.competencyId, dto.competencyId)));
+                if (existing.length) {
+                    await trx
+                        .update(performance_appraisals_entries_schema_1.appraisalEntries)
+                        .set({
+                        employeeLevelId: dto.employeeLevelId ?? null,
+                        managerLevelId: dto.managerLevelId ?? null,
+                        notes: dto.notes ?? null,
+                    })
+                        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_entries_schema_1.appraisalEntries.appraisalId, appraisalId), (0, drizzle_orm_1.eq)(performance_appraisals_entries_schema_1.appraisalEntries.competencyId, dto.competencyId)));
+                }
+                else {
+                    await trx.insert(performance_appraisals_entries_schema_1.appraisalEntries).values({
+                        appraisalId,
+                        competencyId: dto.competencyId,
+                        expectedLevelId: dto.expectedLevelId ?? null,
+                        employeeLevelId: dto.employeeLevelId ?? null,
+                        managerLevelId: dto.managerLevelId ?? null,
+                        notes: dto.notes ?? null,
+                    });
+                }
+            }
+        });
+        const status = await this.recalculateAppraisalStatus(appraisalId);
+        await this.auditService.logAction({
+            action: 'bulk_upsert',
+            entity: 'performance_appraisal_entry',
+            entityId: appraisalId,
+            userId: user.id,
+            details: `Bulk upsert appraisal entries`,
+            changes: {
+                appraisalId,
+                count: entries.length,
+                competencyIds: entries.map((e) => e.competencyId),
+                status,
+            },
+        });
+        return { message: 'Batch upsert complete', count: entries.length, status };
     }
     async recalculateAppraisalStatus(appraisalId) {
-        const entries = await this.db
+        const [appr] = await this.db
             .select({
+            employeeId: performance_appraisals_schema_1.appraisals.employeeId,
+        })
+            .from(performance_appraisals_schema_1.appraisals)
+            .where((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.id, appraisalId));
+        if (!appr)
+            throw new common_1.NotFoundException('Appraisal not found');
+        const [emp] = await this.db
+            .select({ roleId: schema_1.employees.jobRoleId })
+            .from(schema_1.employees)
+            .where((0, drizzle_orm_1.eq)(schema_1.employees.id, appr.employeeId))
+            .limit(1);
+        if (!emp?.roleId) {
+            await this.db
+                .update(performance_appraisals_schema_1.appraisals)
+                .set({
+                submittedByEmployee: false,
+                submittedByManager: false,
+                finalized: false,
+            })
+                .where((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.id, appraisalId));
+            return {
+                submittedByEmployee: false,
+                submittedByManager: false,
+                finalized: false,
+            };
+        }
+        const expectedComps = await this.db
+            .select({ competencyId: schema_1.roleCompetencyExpectations.competencyId })
+            .from(schema_1.roleCompetencyExpectations)
+            .where((0, drizzle_orm_1.eq)(schema_1.roleCompetencyExpectations.roleId, emp.roleId));
+        const expectedIds = expectedComps.map((c) => c.competencyId);
+        if (expectedIds.length === 0) {
+            await this.db
+                .update(performance_appraisals_schema_1.appraisals)
+                .set({
+                submittedByEmployee: false,
+                submittedByManager: false,
+                finalized: false,
+            })
+                .where((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.id, appraisalId));
+            return {
+                submittedByEmployee: false,
+                submittedByManager: false,
+                finalized: false,
+            };
+        }
+        const rows = await this.db
+            .select({
+            competencyId: performance_appraisals_entries_schema_1.appraisalEntries.competencyId,
             employeeLevelId: performance_appraisals_entries_schema_1.appraisalEntries.employeeLevelId,
             managerLevelId: performance_appraisals_entries_schema_1.appraisalEntries.managerLevelId,
         })
             .from(performance_appraisals_entries_schema_1.appraisalEntries)
-            .where((0, drizzle_orm_1.eq)(performance_appraisals_entries_schema_1.appraisalEntries.appraisalId, appraisalId));
-        const allEmployeeDone = entries.length > 0 && entries.every((e) => e.employeeLevelId);
-        const allManagerDone = entries.length > 0 && entries.every((e) => e.managerLevelId);
-        await this.db.update(performance_appraisal_cycle_schema_1.performanceAppraisalCycles).set({ status: 'active' });
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_entries_schema_1.appraisalEntries.appraisalId, appraisalId), (0, drizzle_orm_1.inArray)(performance_appraisals_entries_schema_1.appraisalEntries.competencyId, expectedIds)));
+        const entryByComp = new Map(rows.map((r) => [r.competencyId, r]));
+        const employeeDone = expectedIds.every((id) => !!entryByComp.get(id)?.employeeLevelId);
+        const managerDone = expectedIds.every((id) => !!entryByComp.get(id)?.managerLevelId);
+        const finalized = employeeDone && managerDone;
         await this.db
             .update(performance_appraisals_schema_1.appraisals)
             .set({
-            submittedByEmployee: allEmployeeDone,
-            submittedByManager: allManagerDone,
-            finalized: allEmployeeDone && allManagerDone,
+            submittedByEmployee: employeeDone,
+            submittedByManager: managerDone,
+            finalized,
         })
             .where((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.id, appraisalId));
+        return {
+            submittedByEmployee: employeeDone,
+            submittedByManager: managerDone,
+            finalized,
+        };
     }
 };
 exports.AppraisalEntriesService = AppraisalEntriesService;
 exports.AppraisalEntriesService = AppraisalEntriesService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_2.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
 ], AppraisalEntriesService);
 //# sourceMappingURL=appraisal-entries.service.js.map

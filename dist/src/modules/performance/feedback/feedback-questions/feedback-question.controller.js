@@ -25,29 +25,39 @@ let FeedbackQuestionsController = class FeedbackQuestionsController extends base
         super();
         this.questionService = questionService;
     }
+    seedFeedbackQuestions(user) {
+        return this.questionService.seedFeedbackQuestions(user.companyId);
+    }
     create(dto, user) {
         return this.questionService.create(dto, user);
     }
-    findAll() {
-        return this.questionService.findAll();
+    findAll(user) {
+        return this.questionService.findAll(user.companyId);
     }
-    findByType(type) {
-        return this.questionService.findByType(type);
+    findByType(type, user) {
+        return this.questionService.findByType(user.companyId, type);
     }
-    findOne(id) {
-        return this.questionService.findOne(id);
+    findOne(id, user) {
+        return this.questionService.findOne(user.companyId, id);
     }
-    update(id, dto) {
-        return this.questionService.update(id, dto);
+    update(id, dto, user) {
+        return this.questionService.update(user.companyId, id, dto);
     }
-    remove(id) {
-        return this.questionService.delete(id);
+    remove(id, user) {
+        return this.questionService.delete(user.companyId, id);
     }
-    reorder(type, payload) {
-        return this.questionService.reorderQuestionsByType(type, payload.questions);
+    reorder(type, payload, user) {
+        return this.questionService.reorderQuestionsByType(user.companyId, type, payload.questions);
     }
 };
 exports.FeedbackQuestionsController = FeedbackQuestionsController;
+__decorate([
+    (0, common_1.Post)('seed'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], FeedbackQuestionsController.prototype, "seedFeedbackQuestions", null);
 __decorate([
     (0, common_1.Post)(),
     (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
@@ -60,24 +70,27 @@ __decorate([
 __decorate([
     (0, common_1.Get)(),
     (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], FeedbackQuestionsController.prototype, "findAll", null);
 __decorate([
     (0, common_1.Get)('type/:type'),
     (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),
     __param(0, (0, common_1.Param)('type')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], FeedbackQuestionsController.prototype, "findByType", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], FeedbackQuestionsController.prototype, "findOne", null);
 __decorate([
@@ -85,16 +98,18 @@ __decorate([
     (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_feedback_question_dto_1.UpdateFeedbackQuestionDto]),
+    __metadata("design:paramtypes", [String, update_feedback_question_dto_1.UpdateFeedbackQuestionDto, Object]),
     __metadata("design:returntype", void 0)
 ], FeedbackQuestionsController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
     (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], FeedbackQuestionsController.prototype, "remove", null);
 __decorate([
@@ -102,8 +117,9 @@ __decorate([
     (0, common_1.SetMetadata)('permissions', ['performance.cycles.manage']),
     __param(0, (0, common_1.Param)('type')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", void 0)
 ], FeedbackQuestionsController.prototype, "reorder", null);
 exports.FeedbackQuestionsController = FeedbackQuestionsController = __decorate([

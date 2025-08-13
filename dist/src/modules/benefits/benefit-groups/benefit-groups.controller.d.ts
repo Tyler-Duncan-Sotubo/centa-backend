@@ -29,7 +29,7 @@ export declare class BenefitGroupsController extends BaseController {
         description: string | null;
         rules: unknown;
         createdAt: Date | null;
-    }>;
+    }[]>;
     update(id: string, dto: UpdateBenefitGroupDto, user: User): Promise<{
         id: string;
         companyId: string;
@@ -38,7 +38,5 @@ export declare class BenefitGroupsController extends BaseController {
         rules: unknown;
         createdAt: Date | null;
     }>;
-    remove(id: string, user: User): Promise<{
-        success: boolean;
-    }>;
+    remove(id: string, user: User): Promise<void>;
 }

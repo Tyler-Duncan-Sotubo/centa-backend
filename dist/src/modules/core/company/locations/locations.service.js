@@ -11,7 +11,6 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-var LocationsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LocationsService = void 0;
 const common_1 = require("@nestjs/common");
@@ -23,67 +22,41 @@ const company_schema_1 = require("../schema/company.schema");
 const location_managers_schema_1 = require("../schema/location-managers.schema");
 const schema_1 = require("../../schema");
 const company_settings_service_1 = require("../../../../company-settings/company-settings.service");
-const nestjs_pino_1 = require("nestjs-pino");
 const cache_service_1 = require("../../../../common/cache/cache.service");
-let LocationsService = LocationsService_1 = class LocationsService {
-    constructor(db, audit, companySettings, logger, cache) {
+let LocationsService = class LocationsService {
+    constructor(db, audit, companySettings, cache) {
         this.db = db;
         this.audit = audit;
         this.companySettings = companySettings;
-        this.logger = logger;
         this.cache = cache;
         this.table = company_location_schema_1.companyLocations;
-        this.logger.setContext(LocationsService_1.name);
+        this.ttlSeconds = 60 * 60;
     }
-    listKey(companyId) {
-        return `loc:${companyId}:list:active`;
-    }
-    oneKey(id) {
-        return `loc:one:${id}`;
-    }
-    mgrKey(locationId) {
-        return `loc:${locationId}:managers`;
-    }
-    async burst(opts) {
-        const jobs = [];
-        if (opts.companyId)
-            jobs.push(this.cache.del(this.listKey(opts.companyId)));
-        if (opts.locationId) {
-            jobs.push(this.cache.del(this.oneKey(opts.locationId)));
-            jobs.push(this.cache.del(this.mgrKey(opts.locationId)));
-        }
-        await Promise.allSettled(jobs);
-        this.logger.debug(opts, 'locations:cache:burst');
+    tags(companyId) {
+        return [`company:${companyId}:locations`];
     }
     async checkCompany(companyId) {
-        this.logger.debug({ companyId }, 'locations:checkCompany:start');
-        const company = await this.db
+        const rows = await this.db
             .select()
             .from(company_schema_1.companies)
             .where((0, drizzle_orm_1.eq)(company_schema_1.companies.id, companyId))
             .execute();
-        if (company.length === 0) {
-            this.logger.warn({ companyId }, 'locations:checkCompany:not-found');
+        if (rows.length === 0)
             throw new common_1.BadRequestException('Company not found');
-        }
-        if (!company[0].isActive) {
-            this.logger.warn({ companyId }, 'locations:checkCompany:inactive');
+        const company = rows[0];
+        if (!company.isActive)
             throw new common_1.BadRequestException('Company is inactive');
-        }
-        this.logger.debug({ companyId }, 'locations:checkCompany:ok');
-        return company[0];
+        return company;
     }
     async create(dto, user, ip) {
         const { companyId, id: userId } = user;
-        this.logger.info({ companyId, dto }, 'locations:create:start');
         await this.checkCompany(companyId);
-        const existing = await this.db
+        const exists = await this.db
             .select()
             .from(company_location_schema_1.companyLocations)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.companyId, companyId), (0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.name, dto.name), (0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.isActive, true)))
             .execute();
-        if (existing.length > 0) {
-            this.logger.warn({ companyId, name: dto.name }, 'locations:create:duplicate');
+        if (exists.length > 0) {
             throw new common_1.BadRequestException('Location already exists');
         }
         const [created] = await this.db
@@ -97,27 +70,45 @@ let LocationsService = LocationsService_1 = class LocationsService {
             userId,
             ipAddress: ip,
             details: 'New location created',
-            changes: { ...dto, before: null, after: created },
+            changes: { before: null, after: created },
         });
         await this.companySettings.setSetting(companyId, 'onboarding_company_locations', true);
-        await this.burst({ companyId, locationId: created.id });
-        this.logger.info({ id: created.id }, 'locations:create:done');
+        await this.cache.bumpCompanyVersion(companyId);
         return created;
     }
+    async findAll(companyId) {
+        return this.cache.getOrSetVersioned(companyId, ['locations', 'all'], () => this.db
+            .select()
+            .from(company_location_schema_1.companyLocations)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.companyId, companyId), (0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.isActive, true)))
+            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+    }
+    async findOne(id) {
+        const [row] = await this.db
+            .select()
+            .from(company_location_schema_1.companyLocations)
+            .where((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.id, id))
+            .execute();
+        if (!row)
+            throw new common_1.BadRequestException('CompanyLocation not found');
+        if (!row.isActive)
+            throw new common_1.BadRequestException('CompanyLocation is inactive');
+        return this.cache.getOrSetVersioned(row.companyId, ['locations', 'one', id], async () => row, { ttlSeconds: this.ttlSeconds, tags: this.tags(row.companyId) });
+    }
     async update(locationId, dto, user, ip) {
-        this.logger.info({ locationId, userId: user.id, dto }, 'locations:update:start');
-        const current = await this.db
+        const { id: userId } = user;
+        const currentRows = await this.db
             .select()
             .from(company_location_schema_1.companyLocations)
             .where((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.id, locationId))
             .execute();
-        if (current.length === 0) {
-            this.logger.warn({ locationId }, 'locations:update:not-found');
+        if (currentRows.length === 0) {
             throw new common_1.BadRequestException('CompanyLocation not found');
         }
+        const before = currentRows[0];
         const [updated] = await this.db
             .update(company_location_schema_1.companyLocations)
-            .set(dto)
+            .set({ ...dto })
             .where((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.id, locationId))
             .returning()
             .execute();
@@ -125,48 +116,30 @@ let LocationsService = LocationsService_1 = class LocationsService {
             entity: 'CompanyLocation',
             action: 'Update',
             details: 'Location updated',
-            userId: user.id,
+            userId,
             ipAddress: ip,
-            changes: { ...dto, before: current[0], after: updated },
+            changes: { before, after: updated },
         });
         await this.companySettings.setSetting(user.companyId, 'onboarding_company_locations', true);
-        await this.burst({ companyId: user.companyId, locationId });
-        this.logger.info({ locationId }, 'locations:update:done');
+        await this.cache.bumpCompanyVersion(before.companyId);
         return updated;
     }
-    async softDelete(id, user) {
-        this.logger.info({ id, userId: user?.id }, 'locations:softDelete:start');
-        const [loc] = await this.db
-            .select({
-            id: company_location_schema_1.companyLocations.id,
-            companyId: company_location_schema_1.companyLocations.companyId,
-            isActive: company_location_schema_1.companyLocations.isActive,
-        })
-            .from(company_location_schema_1.companyLocations)
-            .where(user?.companyId
-            ? (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.id, id), (0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.companyId, user.companyId))
-            : (0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.id, id))
-            .execute();
-        if (!loc) {
-            this.logger.warn({ id }, 'locations:softDelete:not-found');
-            throw new common_1.NotFoundException('Location not found');
-        }
-        if (!loc.isActive) {
-            this.logger.warn({ id }, 'locations:softDelete:already-inactive');
-            throw new common_1.BadRequestException('Location is already inactive');
-        }
-        const [{ empCount }] = await this.db
-            .select({
-            empCount: (0, drizzle_orm_1.sql) `CAST(COUNT(*) AS int)`,
-        })
+    async softDelete(id) {
+        const employeesInLocation = await this.db
+            .select()
             .from(schema_1.employees)
-            .where(user?.companyId
-            ? (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.locationId, id), (0, drizzle_orm_1.eq)(schema_1.employees.companyId, user.companyId))
-            : (0, drizzle_orm_1.eq)(schema_1.employees.locationId, id))
+            .where((0, drizzle_orm_1.eq)(schema_1.employees.locationId, id))
             .execute();
-        if (empCount > 0) {
-            this.logger.warn({ id, empCount }, 'locations:softDelete:has-employees');
-            throw new common_1.BadRequestException(`Cannot delete location with ${empCount} employee(s) assigned to it`);
+        if (employeesInLocation.length > 0) {
+            throw new common_1.BadRequestException('Cannot delete location with employees assigned to it');
+        }
+        const [existing] = await this.db
+            .select()
+            .from(company_location_schema_1.companyLocations)
+            .where((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.id, id))
+            .execute();
+        if (!existing) {
+            throw new common_1.NotFoundException('CompanyLocation not found');
         }
         const [deletedRecord] = await this.db
             .update(company_location_schema_1.companyLocations)
@@ -174,54 +147,18 @@ let LocationsService = LocationsService_1 = class LocationsService {
             .where((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.id, id))
             .returning()
             .execute();
-        await this.burst({ companyId: user?.companyId, locationId: id });
-        this.logger.info({ id }, 'locations:softDelete:done');
+        await this.cache.bumpCompanyVersion(existing.companyId);
         return deletedRecord;
     }
-    findAll(companyId) {
-        const key = this.listKey(companyId);
-        this.logger.debug({ companyId, key }, 'locations:findAll:cache:get');
-        return this.cache.getOrSetCache(key, async () => {
-            const rows = await this.db
-                .select()
-                .from(company_location_schema_1.companyLocations)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.companyId, companyId), (0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.isActive, true)))
-                .execute();
-            this.logger.debug({ companyId, count: rows.length }, 'locations:findAll:db:done');
-            return rows;
-        });
-    }
-    async findOne(id) {
-        const key = this.oneKey(id);
-        this.logger.debug({ id, key }, 'locations:findOne:cache:get');
-        return this.cache.getOrSetCache(key, async () => {
-            const rows = await this.db
-                .select()
-                .from(company_location_schema_1.companyLocations)
-                .where((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.id, id))
-                .execute();
-            if (rows.length === 0) {
-                this.logger.warn({ id }, 'locations:findOne:not-found');
-                throw new common_1.BadRequestException('CompanyLocation not found');
-            }
-            if (!rows[0].isActive) {
-                this.logger.warn({ id }, 'locations:findOne:inactive');
-                throw new common_1.BadRequestException('CompanyLocation is inactive');
-            }
-            return rows[0];
-        });
-    }
     async getLocationManagers(locationId) {
-        const key = this.mgrKey(locationId);
-        this.logger.debug({ locationId, key }, 'locations:getManagers:cache:get');
-        return this.cache.getOrSetCache(key, async () => {
-            const loc = await this.db
-                .select()
-                .from(company_location_schema_1.companyLocations)
-                .where((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.id, locationId))
-                .execute();
-            if (loc.length === 0)
-                return [];
+        const [loc] = await this.db
+            .select()
+            .from(company_location_schema_1.companyLocations)
+            .where((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.id, locationId))
+            .execute();
+        if (!loc)
+            return [];
+        return this.cache.getOrSetVersioned(loc.companyId, ['locations', 'managers', locationId], async () => {
             const managers = await this.db
                 .select({
                 locationId: company_location_schema_1.companyLocations.id,
@@ -234,68 +171,55 @@ let LocationsService = LocationsService_1 = class LocationsService {
                 .leftJoin(schema_1.employees, (0, drizzle_orm_1.eq)(location_managers_schema_1.locationManagers.managerId, schema_1.employees.id))
                 .where((0, drizzle_orm_1.eq)(location_managers_schema_1.locationManagers.locationId, locationId))
                 .execute();
-            this.logger.debug({ locationId, count: managers.length }, 'locations:getManagers:db:done');
             return managers;
-        });
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(loc.companyId) });
     }
-    async addLocationManager(locationId, managerId, user) {
-        this.logger.info({ locationId, managerId, userId: user?.id }, 'locations:addManager:start');
-        const loc = await this.db
+    async addLocationManager(locationId, managerId) {
+        const [loc] = await this.db
             .select()
             .from(company_location_schema_1.companyLocations)
             .where((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.id, locationId))
             .execute();
-        if (loc.length === 0)
+        if (!loc)
             return [];
-        const mgr = await this.db
+        const [mgr] = await this.db
             .select()
             .from(schema_1.employees)
             .where((0, drizzle_orm_1.eq)(schema_1.employees.id, managerId))
             .execute();
-        if (mgr.length === 0)
+        if (!mgr)
             return [];
-        const newManager = await this.db
+        const inserted = await this.db
             .insert(location_managers_schema_1.locationManagers)
             .values({ locationId, managerId })
             .returning()
             .execute();
-        await this.burst({ companyId: user?.companyId, locationId });
-        this.logger.info({ locationId, managerId }, 'locations:addManager:done');
-        return newManager;
+        await this.cache.bumpCompanyVersion(loc.companyId);
+        return inserted;
     }
-    async removeLocationManager(locationId, managerId, user) {
-        this.logger.info({ locationId, managerId, userId: user?.id }, 'locations:removeManager:start');
-        const loc = await this.db
+    async removeLocationManager(locationId, managerId) {
+        const [loc] = await this.db
             .select()
             .from(company_location_schema_1.companyLocations)
             .where((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.id, locationId))
             .execute();
-        if (loc.length === 0)
-            return [];
-        const mgr = await this.db
-            .select()
-            .from(schema_1.employees)
-            .where((0, drizzle_orm_1.eq)(schema_1.employees.id, managerId))
-            .execute();
-        if (mgr.length === 0)
+        if (!loc)
             return [];
         const removed = await this.db
             .delete(location_managers_schema_1.locationManagers)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(location_managers_schema_1.locationManagers.locationId, locationId), (0, drizzle_orm_1.eq)(location_managers_schema_1.locationManagers.managerId, managerId)))
             .returning()
             .execute();
-        await this.burst({ companyId: user?.companyId, locationId });
-        this.logger.info({ locationId, managerId }, 'locations:removeManager:done');
+        await this.cache.bumpCompanyVersion(loc.companyId);
         return removed;
     }
 };
 exports.LocationsService = LocationsService;
-exports.LocationsService = LocationsService = LocationsService_1 = __decorate([
+exports.LocationsService = LocationsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
         company_settings_service_1.CompanySettingsService,
-        nestjs_pino_1.PinoLogger,
         cache_service_1.CacheService])
 ], LocationsService);
 //# sourceMappingURL=locations.service.js.map

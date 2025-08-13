@@ -23,9 +23,11 @@ const payroll_1 = require("./settings/payroll");
 const expense_1 = require("./settings/expense");
 const performance_1 = require("./settings/performance");
 const onboarding_1 = require("./settings/onboarding");
+const cache_service_1 = require("../common/cache/cache.service");
 let CompanySettingsService = class CompanySettingsService {
-    constructor(db) {
+    constructor(db, cache) {
         this.db = db;
+        this.cache = cache;
         this.settings = [
             ...attendance_1.attendance,
             ...leave_1.leave,
@@ -33,48 +35,47 @@ let CompanySettingsService = class CompanySettingsService {
             ...expense_1.expenses,
             ...performance_1.performance,
             ...onboarding_1.onboarding,
-            {
-                key: 'default_currency',
-                value: 'USD',
-            },
-            {
-                key: 'default_timezone',
-                value: 'UTC',
-            },
-            {
-                key: 'default_language',
-                value: 'en',
-            },
-            {
-                key: 'default_manager_id',
-                value: 'UUID-of-super-admin-or-lead',
-            },
-            {
-                key: 'two_factor_auth',
-                value: true,
-            },
+            { key: 'default_currency', value: 'USD' },
+            { key: 'default_timezone', value: 'UTC' },
+            { key: 'default_language', value: 'en' },
+            { key: 'default_manager_id', value: 'UUID-of-super-admin-or-lead' },
+            { key: 'two_factor_auth', value: true },
         ];
+        this.ttlSeconds = 60 * 60;
+    }
+    tagCompany(companyId) {
+        return [`company:${companyId}:settings`];
+    }
+    tagGroup(companyId, group) {
+        return [`company:${companyId}:settings:group:${group}`];
     }
     async getSetting(companyId, key) {
-        const setting = await this.db
-            .select()
-            .from(index_schema_1.companySettings)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.eq)(index_schema_1.companySettings.key, key)));
-        return setting[0] ? setting[0].value : null;
+        return this.cache.getOrSetVersioned(companyId, ['settings', 'get', key], async () => {
+            const setting = await this.db
+                .select()
+                .from(index_schema_1.companySettings)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.eq)(index_schema_1.companySettings.key, key)));
+            return setting[0] ? setting[0].value : null;
+        }, {
+            ttlSeconds: this.ttlSeconds,
+            tags: [
+                ...this.tagCompany(companyId),
+                ...this.tagGroup(companyId, key.split('.')[0] ?? 'root'),
+            ],
+        });
     }
     async getAllSettings(companyId) {
-        return this.db
-            .select()
-            .from(index_schema_1.companySettings)
-            .where((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId))
-            .execute();
+        return this.cache.getOrSetVersioned(companyId, ['settings', 'all'], async () => {
+            return this.db
+                .select()
+                .from(index_schema_1.companySettings)
+                .where((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId))
+                .execute();
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tagCompany(companyId) });
     }
     async getSettingsOrDefaults(companyId, key, defaultValue) {
-        const setting = await this.getSetting(companyId, key);
-        if (setting === null || setting === undefined) {
-            return defaultValue;
-        }
-        return setting;
+        const value = await this.getSetting(companyId, key);
+        return value === null || value === undefined ? defaultValue : value;
     }
     async setSetting(companyId, key, value) {
         const existing = await this.db
@@ -96,20 +97,29 @@ let CompanySettingsService = class CompanySettingsService {
                 value,
             });
         }
+        await this.cache.bumpCompanyVersion(companyId);
     }
     async getSettingsByGroup(companyId, prefix) {
-        const rows = await this.db
-            .select()
-            .from(index_schema_1.companySettings)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.like)(index_schema_1.companySettings.key, `${prefix}.%`)));
-        const settings = [];
-        for (const row of rows) {
-            settings.push({
-                key: row.key.replace(`${prefix}.`, ''),
-                value: row.value,
-            });
-        }
-        return settings;
+        return this.cache.getOrSetVersioned(companyId, ['settings', 'group', prefix], async () => {
+            const rows = await this.db
+                .select()
+                .from(index_schema_1.companySettings)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.like)(index_schema_1.companySettings.key, `${prefix}.%`)));
+            const settings = [];
+            for (const row of rows) {
+                settings.push({
+                    key: row.key.replace(`${prefix}.`, ''),
+                    value: row.value,
+                });
+            }
+            return settings;
+        }, {
+            ttlSeconds: this.ttlSeconds,
+            tags: [
+                ...this.tagCompany(companyId),
+                ...this.tagGroup(companyId, prefix),
+            ],
+        });
     }
     async setSettings(companyId) {
         if (!this.settings.length)
@@ -123,27 +133,19 @@ let CompanySettingsService = class CompanySettingsService {
         })))
             .onConflictDoUpdate({
             target: [index_schema_1.companySettings.companyId, index_schema_1.companySettings.key],
-            set: {
-                value: (0, drizzle_orm_1.sql) `EXCLUDED.value`,
-            },
+            set: { value: (0, drizzle_orm_1.sql) `EXCLUDED.value` },
         });
+        await this.cache.bumpCompanyVersion(companyId);
     }
     async deleteSetting(companyId, key) {
         await this.db
             .delete(index_schema_1.companySettings)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.eq)(index_schema_1.companySettings.key, key)));
+        await this.cache.bumpCompanyVersion(companyId);
     }
     async getDefaultManager(companyId) {
         const keys = ['default_manager_id'];
-        const rows = await this.db
-            .select({ key: index_schema_1.companySettings.key, value: index_schema_1.companySettings.value })
-            .from(index_schema_1.companySettings)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.inArray)(index_schema_1.companySettings.key, keys)))
-            .execute();
-        const map = rows.reduce((acc, { key, value }) => {
-            acc[key] = value;
-            return acc;
-        }, {});
+        const map = await this.fetchSettings(companyId, keys);
         return {
             defaultManager: map['default_manager_id'] || '',
         };
@@ -160,15 +162,7 @@ let CompanySettingsService = class CompanySettingsService {
             'payroll.transport_percent',
             'payroll.allowance_others',
         ];
-        const rows = await this.db
-            .select({ key: index_schema_1.companySettings.key, value: index_schema_1.companySettings.value })
-            .from(index_schema_1.companySettings)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.inArray)(index_schema_1.companySettings.key, keys)))
-            .execute();
-        const map = rows.reduce((acc, { key, value }) => {
-            acc[key] = value;
-            return acc;
-        }, {});
+        const map = await this.fetchSettings(companyId, keys);
         return {
             applyPaye: Boolean(map['payroll.apply_paye']),
             applyNhf: Boolean(map['payroll.apply_nhf']),
@@ -184,15 +178,7 @@ let CompanySettingsService = class CompanySettingsService {
             'payroll.transport_percent',
             'payroll.allowance_others',
         ];
-        const rows = await this.db
-            .select({ key: index_schema_1.companySettings.key, value: index_schema_1.companySettings.value })
-            .from(index_schema_1.companySettings)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.inArray)(index_schema_1.companySettings.key, keys)))
-            .execute();
-        const map = rows.reduce((acc, { key, value }) => {
-            acc[key] = value;
-            return acc;
-        }, {});
+        const map = await this.fetchSettings(companyId, keys);
         return {
             basicPercent: Number(map['payroll.basic_percent'] ?? 0),
             housingPercent: Number(map['payroll.housing_percent'] ?? 0),
@@ -208,15 +194,7 @@ let CompanySettingsService = class CompanySettingsService {
             'payroll.approver',
             'payroll.enable_proration',
         ];
-        const rows = await this.db
-            .select({ key: index_schema_1.companySettings.key, value: index_schema_1.companySettings.value })
-            .from(index_schema_1.companySettings)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.inArray)(index_schema_1.companySettings.key, keys)))
-            .execute();
-        const map = rows.reduce((acc, { key, value }) => {
-            acc[key] = value;
-            return acc;
-        }, {});
+        const map = await this.fetchSettings(companyId, keys);
         return {
             multiLevelApproval: Boolean(map['payroll.multi_level_approval']),
             approverChain: map['payroll.approver_chain'] || [],
@@ -233,15 +211,7 @@ let CompanySettingsService = class CompanySettingsService {
             'payroll.13th_month_payment_type',
             'payroll.13th_month_payment_percentage',
         ];
-        const rows = await this.db
-            .select({ key: index_schema_1.companySettings.key, value: index_schema_1.companySettings.value })
-            .from(index_schema_1.companySettings)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.inArray)(index_schema_1.companySettings.key, keys)))
-            .execute();
-        const map = rows.reduce((acc, { key, value }) => {
-            acc[key] = value;
-            return acc;
-        }, {});
+        const map = await this.fetchSettings(companyId, keys);
         return {
             enable13thMonth: Boolean(map['payroll.enable_13th_month']),
             paymentDate: map['payroll.13th_month_payment_date'],
@@ -257,15 +227,7 @@ let CompanySettingsService = class CompanySettingsService {
             'payroll.loan_min_amount',
             'payroll.loan_max_amount',
         ];
-        const rows = await this.db
-            .select({ key: index_schema_1.companySettings.key, value: index_schema_1.companySettings.value })
-            .from(index_schema_1.companySettings)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.inArray)(index_schema_1.companySettings.key, keys)))
-            .execute();
-        const map = rows.reduce((acc, { key, value }) => {
-            acc[key] = value;
-            return acc;
-        }, {});
+        const map = await this.fetchSettings(companyId, keys);
         return {
             useLoan: Boolean(map['payroll.use_loan']),
             maxPercentOfSalary: Number(map['payroll.loan_max_percent'] ?? 1),
@@ -274,30 +236,28 @@ let CompanySettingsService = class CompanySettingsService {
         };
     }
     async fetchSettings(companyId, keys) {
-        const rows = await this.db
-            .select({ key: index_schema_1.companySettings.key, value: index_schema_1.companySettings.value })
-            .from(index_schema_1.companySettings)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.inArray)(index_schema_1.companySettings.key, keys)))
-            .execute();
-        return rows.reduce((acc, { key, value }) => {
-            acc[key] = value;
-            return acc;
-        }, {});
+        const sorted = [...keys].sort();
+        return this.cache.getOrSetVersioned(companyId, ['settings', 'subset', sorted.join('|')], async () => {
+            const rows = await this.db
+                .select({ key: index_schema_1.companySettings.key, value: index_schema_1.companySettings.value })
+                .from(index_schema_1.companySettings)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.inArray)(index_schema_1.companySettings.key, keys)))
+                .execute();
+            return rows.reduce((acc, { key, value }) => {
+                acc[key] = value;
+                return acc;
+            }, {});
+        }, {
+            ttlSeconds: this.ttlSeconds,
+            tags: [
+                ...this.tagCompany(companyId),
+                ...Array.from(new Set(sorted.map((k) => k.split('.')[0] ?? 'root'))).map((g) => `company:${companyId}:settings:group:${g}`),
+            ],
+        });
     }
     async getTwoFactorAuthSetting(companyId) {
-        const keys = ['two_factor_auth'];
-        const rows = await this.db
-            .select({ key: index_schema_1.companySettings.key, value: index_schema_1.companySettings.value })
-            .from(index_schema_1.companySettings)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.inArray)(index_schema_1.companySettings.key, keys)))
-            .execute();
-        const map = rows.reduce((acc, { key, value }) => {
-            acc[key] = value;
-            return acc;
-        }, {});
-        return {
-            twoFactorAuth: Boolean(map['two_factor_auth']),
-        };
+        const map = await this.fetchSettings(companyId, ['two_factor_auth']);
+        return { twoFactorAuth: Boolean(map['two_factor_auth']) };
     }
     async getOnboardingSettings(companyId) {
         const keys = [
@@ -310,15 +270,7 @@ let CompanySettingsService = class CompanySettingsService {
             'onboarding_cost_center',
             'onboarding_upload_employees',
         ];
-        const rows = await this.db
-            .select({ key: index_schema_1.companySettings.key, value: index_schema_1.companySettings.value })
-            .from(index_schema_1.companySettings)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.inArray)(index_schema_1.companySettings.key, keys)))
-            .execute();
-        const map = rows.reduce((acc, { key, value }) => {
-            acc[key] = value;
-            return acc;
-        }, {});
+        const map = await this.fetchSettings(companyId, keys);
         return {
             payFrequency: Boolean(map['onboarding_pay_frequency']),
             payGroup: Boolean(map['onboarding_pay_group']),
@@ -335,6 +287,6 @@ exports.CompanySettingsService = CompanySettingsService;
 exports.CompanySettingsService = CompanySettingsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object])
+    __metadata("design:paramtypes", [Object, cache_service_1.CacheService])
 ], CompanySettingsService);
 //# sourceMappingURL=company-settings.service.js.map

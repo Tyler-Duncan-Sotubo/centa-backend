@@ -11,7 +11,7 @@ export declare class DocumentsController extends BaseController {
     constructor(documentsService: DocumentsService, documentFolderService: DocumentsFolderService);
     create(user: User, createDocumentDto: CreateDocumentDto): Promise<{
         id: any;
-        name: string;
+        name: any;
         url: string;
     }>;
     remove(id: string, user: User): Promise<{
@@ -22,19 +22,19 @@ export declare class DocumentsController extends BaseController {
         name: string;
         createdAt: Date | null;
         companyId: string;
-        createdBy: string | null;
         permissionControlled: boolean | null;
+        createdBy: string | null;
         isSystem: boolean;
     }>;
     findAllFolders(user: User): Promise<{
         files: {
+            url: string;
             id: string;
             name: string;
             createdAt: Date | null;
             companyId: string;
-            type: string;
             folderId: string | null;
-            url: string;
+            type: string;
             category: string;
             uploadedBy: string | null;
         }[];

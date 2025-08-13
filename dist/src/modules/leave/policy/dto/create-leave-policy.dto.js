@@ -15,10 +15,6 @@ class CreateLeavePolicyDto {
 }
 exports.CreateLeavePolicyDto = CreateLeavePolicyDto;
 __decorate([
-    (0, class_validator_1.IsUUID)(),
-    __metadata("design:type", String)
-], CreateLeavePolicyDto.prototype, "leaveTypeId", void 0);
-__decorate([
     (0, class_validator_1.IsBoolean)(),
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", Boolean)

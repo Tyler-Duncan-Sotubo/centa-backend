@@ -18,19 +18,29 @@ const drizzle_module_1 = require("../../../drizzle/drizzle.module");
 const drizzle_orm_1 = require("drizzle-orm");
 const google_schema_1 = require("./schema/google.schema");
 const audit_service_1 = require("../../audit/audit.service");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let GoogleService = class GoogleService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
+        this.ttlSeconds = 60 * 60;
+    }
+    tags(companyId) {
+        return [
+            `company:${companyId}:integrations`,
+            `company:${companyId}:integrations:google`,
+        ];
     }
     async create(createGoogleDto, user) {
         const { id: userId, companyId } = user;
         const existing = await this.db
             .select()
             .from(google_schema_1.googleAccounts)
-            .where((0, drizzle_orm_1.eq)(google_schema_1.googleAccounts.companyId, companyId));
+            .where((0, drizzle_orm_1.eq)(google_schema_1.googleAccounts.companyId, companyId))
+            .execute();
         if (existing.length > 0) {
-            const updated = await this.db
+            const [updated] = await this.db
                 .update(google_schema_1.googleAccounts)
                 .set({
                 accessToken: createGoogleDto.accessToken,
@@ -43,7 +53,8 @@ let GoogleService = class GoogleService {
                 updatedAt: new Date(),
             })
                 .where((0, drizzle_orm_1.eq)(google_schema_1.googleAccounts.companyId, companyId))
-                .returning();
+                .returning()
+                .execute();
             await this.auditService.logAction({
                 action: 'update',
                 entity: 'google_integration',
@@ -55,20 +66,22 @@ let GoogleService = class GoogleService {
                     updatedAt: new Date(),
                 },
             });
-            return updated[0];
+            await this.cache.bumpCompanyVersion(companyId);
+            return updated;
         }
         else {
-            const inserted = await this.db
+            const [inserted] = await this.db
                 .insert(google_schema_1.googleAccounts)
                 .values({
                 ...createGoogleDto,
                 companyId,
             })
-                .returning();
+                .returning()
+                .execute();
             await this.auditService.logAction({
                 action: 'create',
                 entity: 'google_integration',
-                entityId: inserted[0].id,
+                entityId: inserted.id,
                 details: `Created Google integration for company #${companyId}`,
                 userId,
                 changes: {
@@ -77,38 +90,57 @@ let GoogleService = class GoogleService {
                     updatedAt: new Date(),
                 },
             });
-            return inserted[0];
+            await this.cache.bumpCompanyVersion(companyId);
+            return inserted;
         }
     }
     async findOne(companyId) {
-        const result = await this.db
-            .select()
-            .from(google_schema_1.googleAccounts)
-            .where((0, drizzle_orm_1.eq)(google_schema_1.googleAccounts.companyId, companyId));
-        if (!result.length) {
-            throw new common_1.NotFoundException(`Google integration for company #${companyId} not found`);
-        }
-        return result[0];
+        return this.cache.getOrSetVersioned(companyId, ['integrations', 'google', 'account'], async () => {
+            const result = await this.db
+                .select()
+                .from(google_schema_1.googleAccounts)
+                .where((0, drizzle_orm_1.eq)(google_schema_1.googleAccounts.companyId, companyId))
+                .execute();
+            if (!result.length) {
+                throw new common_1.NotFoundException(`Google integration for company #${companyId} not found`);
+            }
+            return result[0];
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
-    async update(companyId, updateGoogleDto) {
-        const result = await this.db
+    async update(user, updateGoogleDto) {
+        const { companyId, id: userId } = user;
+        const [updated] = await this.db
             .update(google_schema_1.googleAccounts)
             .set({
             ...updateGoogleDto,
             updatedAt: new Date(),
         })
             .where((0, drizzle_orm_1.eq)(google_schema_1.googleAccounts.companyId, companyId))
-            .returning();
-        if (!result.length) {
+            .returning()
+            .execute();
+        if (!updated) {
             throw new common_1.NotFoundException(`Google integration for company #${companyId} not found`);
         }
-        return result[0];
+        await this.auditService.logAction({
+            action: 'update',
+            entity: 'google_integration',
+            entityId: updated.id,
+            details: `Updated Google integration for company #${companyId}`,
+            userId: userId,
+            changes: {
+                ...updateGoogleDto,
+                updatedAt: new Date(),
+            },
+        });
+        await this.cache.bumpCompanyVersion(companyId);
+        return updated;
     }
 };
 exports.GoogleService = GoogleService;
 exports.GoogleService = GoogleService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], GoogleService);
 //# sourceMappingURL=google.service.js.map

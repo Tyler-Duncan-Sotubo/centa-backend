@@ -3,20 +3,25 @@ import { User } from 'src/common/types/user.type';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { UpdateFeedbackDto } from './dto/update-feedback.dto';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class FeedbackService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private ttlSeconds;
+    private tags;
+    private invalidate;
     create(dto: CreateFeedbackDto, user: User): Promise<{
         id: string;
         createdAt: Date | null;
         companyId: string;
-        type: string;
-        submittedAt: Date | null;
-        isArchived: boolean | null;
         senderId: string;
         recipientId: string;
+        type: string;
         isAnonymous: boolean | null;
+        submittedAt: Date | null;
+        isArchived: boolean | null;
     }>;
     private resolveViewerIds;
     getFeedbackForRecipient(recipientId: string, viewer: User): Promise<any[]>;
@@ -48,6 +53,7 @@ export declare class FeedbackService {
         departmentName: any;
         jobRoleName: string | null;
         departmentId: any;
+        isArchived: boolean | null;
     }[]>;
     findAllByEmployeeId(companyId: string, employeeId: string, filters?: {
         type?: string;
@@ -64,20 +70,30 @@ export declare class FeedbackService {
         isArchived: boolean | null;
     }[]>;
     findOne(id: string, user: User): Promise<"You do not have permission to view this feedback" | {
-        responses: {
-            answer: string;
-            questionText: string | null;
-            inputType: string | null;
-        }[];
         id: string;
         type: string;
         createdAt: Date | null;
         isAnonymous: boolean | null;
         employeeName: string;
         senderName: string;
+        responses: {
+            answer: string;
+            questionText: string | null;
+            inputType: string | null;
+        }[];
     }>;
-    update(id: string, updateFeedbackDto: UpdateFeedbackDto, user: User): Promise<any>;
-    remove(id: string, user: User): Promise<{
+    update(id: string, updateFeedbackDto: UpdateFeedbackDto, user: User): Promise<"You do not have permission to view this feedback" | {
+        id: string;
+        companyId: string;
+        senderId: string;
+        recipientId: string;
+        type: string;
+        isAnonymous: boolean | null;
+        submittedAt: Date | null;
+        createdAt: Date | null;
+        isArchived: boolean | null;
+    }>;
+    remove(id: string, user: User): Promise<"You do not have permission to view this feedback" | {
         id: string;
         companyId: string;
         senderId: string;

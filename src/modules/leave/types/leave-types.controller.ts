@@ -83,7 +83,7 @@ export class LeaveTypesController extends BaseController {
     entity: 'leave',
     getEntityId: (req) => req.params.id,
   })
-  remove(@Param('id') id: string, @CurrentUser() user: User, @Ip() ip: string) {
-    return this.leaveType.remove(id, user, ip);
+  remove(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.leaveType.remove(user.companyId, id);
   }
 }

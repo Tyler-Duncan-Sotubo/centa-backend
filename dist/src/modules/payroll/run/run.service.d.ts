@@ -32,12 +32,9 @@ export declare class RunService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
+        payrollRunId: string;
         userId: string | null;
         employeeId: string;
-        workflowId: string;
-        approvalStatus: string;
-        approvalDate: string | null;
-        payrollRunId: string;
         payrollDate: string;
         basic: string;
         housing: string;
@@ -59,14 +56,17 @@ export declare class RunService {
         paymentStatus: string | null;
         paymentDate: string | null;
         paymentReference: string | null;
+        approvalDate: string | null;
         approvalRemarks: string | null;
         isStarter: boolean | null;
         isLeaver: boolean | null;
         isOffCycle: boolean | null;
         requestedBy: string;
         requestedAt: Date;
+        approvalStatus: string;
         lastApprovalAt: Date | null;
         lastApprovedBy: string | null;
+        workflowId: string;
         currentStep: number;
     }>;
     calculatePayrollForCompany(user: User, payrollDate: string, groupId?: string): Promise<{
@@ -75,12 +75,9 @@ export declare class RunService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
+        payrollRunId: string;
         userId: string | null;
         employeeId: string;
-        workflowId: string;
-        approvalStatus: string;
-        approvalDate: string | null;
-        payrollRunId: string;
         payrollDate: string;
         basic: string;
         housing: string;
@@ -102,14 +99,17 @@ export declare class RunService {
         paymentStatus: string | null;
         paymentDate: string | null;
         paymentReference: string | null;
+        approvalDate: string | null;
         approvalRemarks: string | null;
         isStarter: boolean | null;
         isLeaver: boolean | null;
         isOffCycle: boolean | null;
         requestedBy: string;
         requestedAt: Date;
+        approvalStatus: string;
         lastApprovalAt: Date | null;
         lastApprovedBy: string | null;
+        workflowId: string;
         currentStep: number;
     }[]>;
     findOnePayRun(runId: string): Promise<{

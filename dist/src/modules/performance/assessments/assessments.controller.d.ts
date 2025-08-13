@@ -12,12 +12,12 @@ export declare class AssessmentsController extends BaseController {
         createdAt: Date | null;
         companyId: string;
         status: "not_started" | "in_progress" | "submitted" | null;
-        type: "self" | "manager" | "peer";
         cycleId: string;
-        submittedAt: Date | null;
         templateId: string;
         reviewerId: string;
         revieweeId: string;
+        type: "self" | "manager" | "peer";
+        submittedAt: Date | null;
     }>;
     start(id: string, user: User): Promise<void>;
     submit(id: string, dto: SubmitAssessmentDto, user: User): Promise<{

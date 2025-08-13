@@ -3,10 +3,15 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { UpdateFeedbackRuleDto } from '../dto/update-feedback-rule.dto';
 import { UpdateFeedbackSettingsDto } from '../dto/update-feedback-settings.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class FeedbackSettingsService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly cache;
+    private readonly ttlSeconds;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private tags;
+    private invalidate;
     create(companyId: string): Promise<{
         id: string;
         createdAt: Date | null;
@@ -34,7 +39,7 @@ export declare class FeedbackSettingsService {
         allowAnonymous: boolean | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-        rules: Record<"manager" | "employee", any[]>;
+        rules: Record<"employee" | "manager", any[]>;
     }>;
     update(companyId: string, dto: UpdateFeedbackSettingsDto, user: User): Promise<{
         id: string;

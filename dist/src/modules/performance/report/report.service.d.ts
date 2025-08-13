@@ -82,57 +82,109 @@ export declare class ReportService {
         submittedAt: Date | null;
     })[]>;
     getGoalReport(user: User, filters?: GetGoalReportDto): Promise<({
-        goalId: string;
+        goalId: any;
         employeeId: any;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
-        title: string;
-        description: string | null;
-        type: string | null;
-        status: string | null;
-        weight: number | null;
-        startDate: string;
-        dueDate: string;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
     } | {
-        goalId: string;
+        goalId: any;
         employeeId: any;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
-        title: string;
-        description: string | null;
-        type: string | null;
-        status: string | null;
-        weight: number | null;
-        startDate: string;
-        dueDate: string;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
     } | {
-        goalId: string;
+        goalId: any;
         employeeId: any;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
-        title: string;
-        description: string | null;
-        type: string | null;
-        status: string | null;
-        weight: number | null;
-        startDate: string;
-        dueDate: string;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
     } | {
-        goalId: string;
+        goalId: any;
         employeeId: any;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
-        title: string;
-        description: string | null;
-        type: string | null;
-        status: string | null;
-        weight: number | null;
-        startDate: string;
-        dueDate: string;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
+    } | {
+        goalId: any;
+        employeeId: any;
+        employeeName: string;
+        jobRoleName: string | null;
+        departmentName: any;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
+    } | {
+        goalId: any;
+        employeeId: any;
+        employeeName: string;
+        jobRoleName: string | null;
+        departmentName: any;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
+    } | {
+        goalId: any;
+        employeeId: any;
+        employeeName: string;
+        jobRoleName: string | null;
+        departmentName: any;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
+    } | {
+        goalId: any;
+        employeeId: any;
+        employeeName: string;
+        jobRoleName: string | null;
+        departmentName: any;
+        title: any;
+        description: any;
+        type: any;
+        status: any;
+        weight: any;
+        startDate: any;
+        dueDate: any;
     })[]>;
     getFeedbackReport(user: User, filters: GetFeedbackReportDto): Promise<({
         senderName: string | undefined;
@@ -164,8 +216,8 @@ export declare class ReportService {
     getAssessmentReportSummary(user: User, filters?: GetAssessmentReportDto): Promise<({
         id: string;
         employeeId: string;
-        type: "self" | "manager" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        type: "manager" | "self" | "peer";
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -178,8 +230,8 @@ export declare class ReportService {
     } | {
         id: string;
         employeeId: string;
-        type: "self" | "manager" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        type: "manager" | "self" | "peer";
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -192,8 +244,8 @@ export declare class ReportService {
     } | {
         id: string;
         employeeId: string;
-        type: "self" | "manager" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        type: "manager" | "self" | "peer";
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -286,7 +338,7 @@ export declare class ReportService {
             name: string;
             startDate: string;
             endDate: string;
-            status: "active" | "upcoming" | "closed";
+            status: "active" | "closed" | "upcoming";
         };
         cycleHealth: {
             totalAppraisals: number;

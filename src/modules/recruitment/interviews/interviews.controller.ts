@@ -35,11 +35,8 @@ export class InterviewsController extends BaseController {
   @Post('schedule')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['interviews.schedule'])
-  scheduleInterview(
-    @Body() dto: ScheduleInterviewDto,
-    @CurrentUser() user: User,
-  ) {
-    return this.interviewsService.scheduleInterview(dto, user);
+  scheduleInterview(@Body() dto: ScheduleInterviewDto) {
+    return this.interviewsService.scheduleInterview(dto);
   }
 
   // Reschedule an existing interview
@@ -49,9 +46,8 @@ export class InterviewsController extends BaseController {
   rescheduleInterview(
     @Param('interviewId') interviewId: string,
     @Body() dto: ScheduleInterviewDto,
-    @CurrentUser() user: User,
   ) {
-    return this.interviewsService.rescheduleInterview(interviewId, dto, user);
+    return this.interviewsService.rescheduleInterview(interviewId, dto);
   }
 
   // List all interviews for a company

@@ -24,14 +24,8 @@ export class ApplicationsController extends BaseController {
   }
 
   @Post('submit')
-  submitApplication(
-    @Body() createApplicationDto: CreateApplicationDto,
-    @CurrentUser() user: User,
-  ) {
-    return this.applicationsService.submitApplication(
-      createApplicationDto,
-      user,
-    );
+  submitApplication(@Body() createApplicationDto: CreateApplicationDto) {
+    return this.applicationsService.submitApplication(createApplicationDto);
   }
 
   @Get('list/:jobId')

@@ -1,5 +1,4 @@
 export declare class CreateLeavePolicyDto {
-    leaveTypeId: string;
     accrualEnabled?: boolean;
     accrualFrequency?: 'monthly' | 'quarterly' | 'annually';
     accrualAmount?: string;

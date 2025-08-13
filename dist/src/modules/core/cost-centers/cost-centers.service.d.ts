@@ -7,7 +7,6 @@ import { costCenters } from '../schema';
 import { User } from 'src/common/types/user.type';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 import { CacheService } from 'src/common/cache/cache.service';
-import { PinoLogger } from 'nestjs-pino';
 export declare class CostCentersService extends BaseCrudService<{
     code: string;
     name: string;
@@ -15,7 +14,6 @@ export declare class CostCentersService extends BaseCrudService<{
 }, typeof costCenters> {
     private readonly companySettings;
     private readonly cache;
-    private readonly logger;
     protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "cost_centers";
         schema: undefined;
@@ -146,10 +144,9 @@ export declare class CostCentersService extends BaseCrudService<{
         };
         dialect: "pg";
     }>;
-    constructor(db: db, audit: AuditService, companySettings: CompanySettingsService, cache: CacheService, logger: PinoLogger);
-    private listKey;
-    private oneKey;
-    private burst;
+    constructor(db: db, audit: AuditService, companySettings: CompanySettingsService, cache: CacheService);
+    private ttlSeconds;
+    private tags;
     create(companyId: string, dto: CreateCostCenterDto): Promise<{
         id: string;
     }>;
@@ -159,12 +156,6 @@ export declare class CostCentersService extends BaseCrudService<{
         name: string;
         budget: number;
     }[]>;
-    update(companyId: string, id: string, dto: UpdateCostCenterDto, userId: string, ip: string): Promise<{
-        id: any;
-    }>;
-    remove(user: User, id: string): Promise<{
-        id: string;
-    }>;
     findAll(companyId: string): Promise<{
         id: string;
         code: string;
@@ -176,5 +167,11 @@ export declare class CostCentersService extends BaseCrudService<{
         code: string;
         name: string;
         budget: number;
+    }>;
+    update(companyId: string, id: string, dto: UpdateCostCenterDto, userId: string, ip: string): Promise<{
+        id: any;
+    }>;
+    remove(user: User, id: string): Promise<{
+        id: string;
     }>;
 }

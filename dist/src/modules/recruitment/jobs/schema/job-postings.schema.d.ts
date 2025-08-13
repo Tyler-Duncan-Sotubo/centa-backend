@@ -443,7 +443,7 @@ export declare const job_postings: import("drizzle-orm/pg-core").PgTableWithColu
             tableName: "job_postings";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "draft" | "closed" | "archived" | "open";
+            data: "draft" | "open" | "closed" | "archived";
             driverParam: string;
             notNull: true;
             hasDefault: true;

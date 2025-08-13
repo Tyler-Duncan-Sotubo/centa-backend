@@ -1,17 +1,15 @@
 import { db } from 'src/drizzle/types/drizzle';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class CompanySettingsService {
     private db;
-    constructor(db: db);
+    private readonly cache;
+    constructor(db: db, cache: CacheService);
     private settings;
+    private tagCompany;
+    private tagGroup;
+    private ttlSeconds;
     getSetting(companyId: string, key: string): Promise<any | null>;
-    getAllSettings(companyId: string): Promise<{
-        id: string;
-        companyId: string;
-        key: string;
-        value: unknown;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-    }[]>;
+    getAllSettings(companyId: string): Promise<any[]>;
     getSettingsOrDefaults(companyId: string, key: string, defaultValue: any): Promise<any>;
     setSetting(companyId: string, key: string, value: any): Promise<void>;
     getSettingsByGroup(companyId: string, prefix: string): Promise<any[]>;

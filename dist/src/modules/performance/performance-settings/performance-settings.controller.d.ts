@@ -10,10 +10,10 @@ export declare class PerformanceSettingsController extends BaseController {
         enableSelfReview: boolean;
         requireReviewRating: boolean;
         reviewScoreScale: number;
-        notifyReviewOverdue: any;
-        notifyReviewUpcoming: any;
+        notifyReviewOverdue: any[];
+        notifyReviewUpcoming: any[];
         reviewReminderOffsetDays: number;
-        notifyGoalUpdatedByEmployee: any;
+        notifyGoalUpdatedByEmployee: any[];
         goalReminderFrequency: any;
         autoCreateAppraisals: boolean;
         appraisalFrequency: any;

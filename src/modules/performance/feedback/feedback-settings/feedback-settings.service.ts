@@ -11,13 +11,27 @@ import { feedbackRules } from '../schema/performance-feedback-rules.schema';
 import { UpdateFeedbackRuleDto } from '../dto/update-feedback-rule.dto';
 import { UpdateFeedbackSettingsDto } from '../dto/update-feedback-settings.dto';
 import { companies } from 'src/drizzle/schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class FeedbackSettingsService {
+  private readonly ttlSeconds = 10 * 60; // 10 minutes
+
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
+
+  private tags(companyId: string) {
+    return [`company:${companyId}:feedback-settings`];
+  }
+
+  private async invalidate(companyId: string) {
+    await this.cache.bumpCompanyVersion(companyId);
+    // If you wire native Redis tagging, you can also call:
+    // await this.cache.invalidateTags(this.tags(companyId));
+  }
 
   // Create default feedback settings
   async create(companyId: string) {
@@ -34,7 +48,8 @@ export class FeedbackSettingsService {
         createdAt: now,
         updatedAt: now,
       })
-      .returning();
+      .returning()
+      .execute();
 
     const defaultRules = [
       {
@@ -52,11 +67,7 @@ export class FeedbackSettingsService {
         group: 'employee',
         type: 'peer',
         enabled: true,
-        scope: {
-          officeOnly: true,
-          departments: [],
-          offices: [],
-        },
+        scope: { officeOnly: true, departments: [], offices: [] },
       },
       {
         group: 'employee',
@@ -69,18 +80,8 @@ export class FeedbackSettingsService {
           departments: [],
         },
       },
-      {
-        group: 'manager',
-        type: 'self',
-        enabled: true,
-        scope: {},
-      },
-      {
-        group: 'manager',
-        type: 'peer',
-        enabled: true,
-        scope: {},
-      },
+      { group: 'manager', type: 'self', enabled: true, scope: {} },
+      { group: 'manager', type: 'peer', enabled: true, scope: {} },
       {
         group: 'manager',
         type: 'employee_to_manager',
@@ -100,7 +101,7 @@ export class FeedbackSettingsService {
       },
     ] as const;
 
-    // 2. Insert into feedback_rules
+    // 2. Insert into feedback_rules (+ scopes)
     for (const rule of defaultRules) {
       const [insertedRule] = await this.db
         .insert(feedbackRules)
@@ -118,16 +119,16 @@ export class FeedbackSettingsService {
           createdAt: now,
           updatedAt: now,
         })
-        .returning();
+        .returning()
+        .execute();
 
-      // 3. If scope has offices or departments, insert into feedback_rule_scopes
-      const officeScopes =
+      const offices =
         rule.scope &&
         'offices' in rule.scope &&
         Array.isArray((rule.scope as any).offices)
           ? (rule.scope as any).offices
           : [];
-      const departmentScopes =
+      const departments =
         rule.scope &&
         'departments' in rule.scope &&
         Array.isArray((rule.scope as any).departments)
@@ -135,13 +136,13 @@ export class FeedbackSettingsService {
           : [];
 
       const scopeEntries = [
-        ...officeScopes.map((id) => ({
+        ...offices.map((id) => ({
           ruleId: insertedRule.id,
           type: 'office' as const,
           referenceId: id,
           createdAt: now,
         })),
-        ...departmentScopes.map((id) => ({
+        ...departments.map((id) => ({
           ruleId: insertedRule.id,
           type: 'department' as const,
           referenceId: id,
@@ -149,97 +150,104 @@ export class FeedbackSettingsService {
         })),
       ];
 
-      if (scopeEntries.length > 0) {
-        await this.db.insert(feedbackRuleScopes).values(scopeEntries);
+      if (scopeEntries.length) {
+        await this.db.insert(feedbackRuleScopes).values(scopeEntries).execute();
       }
     }
 
+    await this.invalidate(companyId);
     return settings;
   }
 
   async seedCompanies() {
     const allCompanies = await this.db
-      .select({
-        id: companies.id,
-      })
+      .select({ id: companies.id })
       .from(companies)
       .execute();
-
     for (const company of allCompanies) {
       await this.create(company.id);
     }
   }
 
-  // Retrieve feedback settings for a company
+  // Retrieve feedback settings for a company (CACHED)
   async findOne(companyId: string) {
-    const [settings] = await this.db
-      .select()
-      .from(feedbackSettings)
-      .where(eq(feedbackSettings.companyId, companyId));
-
-    if (!settings) {
-      return {};
-    }
-
-    const rules = await this.db
-      .select()
-      .from(feedbackRules)
-      .where(eq(feedbackRules.companyId, companyId));
-
-    const ruleIds = rules.map((r) => r.id);
-
-    const scopes = ruleIds.length
-      ? await this.db
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['feedback-settings', 'full'],
+      async () => {
+        const [settings] = await this.db
           .select()
-          .from(feedbackRuleScopes)
-          .where(inArray(feedbackRuleScopes.ruleId, ruleIds))
-      : [];
+          .from(feedbackSettings)
+          .where(eq(feedbackSettings.companyId, companyId))
+          .execute();
 
-    const feedbackRulesByGroup: Record<'employee' | 'manager', any[]> = {
-      employee: [],
-      manager: [],
-    };
+        if (!settings) {
+          return {};
+        }
 
-    for (const rule of rules) {
-      const ruleScopes = scopes.filter((s) => s.ruleId === rule.id);
+        const rules = await this.db
+          .select()
+          .from(feedbackRules)
+          .where(eq(feedbackRules.companyId, companyId))
+          .execute();
 
-      const offices = ruleScopes
-        .filter((s) => s.type === 'office')
-        .map((s) => s.referenceId);
+        const ruleIds = rules.map((r) => r.id);
 
-      const departments = ruleScopes
-        .filter((s) => s.type === 'department')
-        .map((s) => s.referenceId);
+        const scopes = ruleIds.length
+          ? await this.db
+              .select()
+              .from(feedbackRuleScopes)
+              .where(inArray(feedbackRuleScopes.ruleId, ruleIds))
+              .execute()
+          : [];
 
-      feedbackRulesByGroup[rule.group].push({
-        type: rule.type,
-        enabled: rule.enabled,
-        scope: {
-          officeOnly: rule.officeOnly,
-          departmentOnly: rule.departmentOnly,
-          offices,
-          departments,
-        },
-      });
-    }
+        const feedbackRulesByGroup: Record<'employee' | 'manager', any[]> = {
+          employee: [],
+          manager: [],
+        };
 
-    return {
-      id: settings.id,
-      companyId: settings.companyId,
-      enableEmployeeFeedback: settings.enableEmployeeFeedback,
-      enableManagerFeedback: settings.enableManagerFeedback,
-      allowAnonymous: settings.allowAnonymous,
-      createdAt: settings.createdAt,
-      updatedAt: settings.updatedAt,
-      rules: feedbackRulesByGroup,
-    };
+        for (const rule of rules) {
+          const ruleScopes = scopes.filter((s) => s.ruleId === rule.id);
+          const offices = ruleScopes
+            .filter((s) => s.type === 'office')
+            .map((s) => s.referenceId);
+          const departments = ruleScopes
+            .filter((s) => s.type === 'department')
+            .map((s) => s.referenceId);
+
+          feedbackRulesByGroup[rule.group].push({
+            type: rule.type,
+            enabled: rule.enabled,
+            scope: {
+              officeOnly: rule.officeOnly,
+              departmentOnly: rule.departmentOnly,
+              offices,
+              departments,
+            },
+          });
+        }
+
+        return {
+          id: settings.id,
+          companyId: settings.companyId,
+          enableEmployeeFeedback: settings.enableEmployeeFeedback,
+          enableManagerFeedback: settings.enableManagerFeedback,
+          allowAnonymous: settings.allowAnonymous,
+          createdAt: settings.createdAt,
+          updatedAt: settings.updatedAt,
+          rules: feedbackRulesByGroup,
+        };
+      },
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+    );
   }
 
   async update(companyId: string, dto: UpdateFeedbackSettingsDto, user: User) {
     const [existing] = await this.db
       .select()
       .from(feedbackSettings)
-      .where(eq(feedbackSettings.companyId, companyId));
+      .where(eq(feedbackSettings.companyId, companyId))
+      .execute();
 
     if (!existing) {
       throw new NotFoundException('Feedback settings not found');
@@ -247,12 +255,10 @@ export class FeedbackSettingsService {
 
     const [updated] = await this.db
       .update(feedbackSettings)
-      .set({
-        ...dto,
-        updatedAt: new Date(),
-      })
+      .set({ ...dto, updatedAt: new Date() })
       .where(eq(feedbackSettings.companyId, companyId))
-      .returning();
+      .returning()
+      .execute();
 
     await this.auditService.logAction({
       action: 'update',
@@ -263,6 +269,7 @@ export class FeedbackSettingsService {
       changes: dto,
     });
 
+    await this.invalidate(companyId);
     return updated;
   }
 
@@ -276,7 +283,8 @@ export class FeedbackSettingsService {
     const [existing] = await this.db
       .select()
       .from(feedbackSettings)
-      .where(eq(feedbackSettings.companyId, companyId));
+      .where(eq(feedbackSettings.companyId, companyId))
+      .execute();
 
     if (!existing) {
       throw new NotFoundException('Feedback settings not found');
@@ -294,7 +302,8 @@ export class FeedbackSettingsService {
           eq(feedbackRules.group, group),
           eq(feedbackRules.type, type),
         ),
-      );
+      )
+      .execute();
 
     let ruleId = rule?.id;
 
@@ -307,7 +316,8 @@ export class FeedbackSettingsService {
           departmentOnly: scope?.departmentOnly ?? false,
           updatedAt: now,
         })
-        .where(eq(feedbackRules.id, ruleId));
+        .where(eq(feedbackRules.id, ruleId))
+        .execute();
     } else {
       const [inserted] = await this.db
         .insert(feedbackRules)
@@ -321,31 +331,30 @@ export class FeedbackSettingsService {
           createdAt: now,
           updatedAt: now,
         })
-        .returning();
+        .returning()
+        .execute();
       ruleId = inserted.id;
     }
 
     // Replace scope records
     await this.db
       .delete(feedbackRuleScopes)
-      .where(eq(feedbackRuleScopes.ruleId, ruleId));
+      .where(eq(feedbackRuleScopes.ruleId, ruleId))
+      .execute();
 
-    const scopes: Array<{
+    const scopeRows: Array<{
       ruleId: string;
       type: 'office' | 'department';
       referenceId: string;
     }> = [];
-
     for (const officeId of scope?.offices || []) {
-      scopes.push({ ruleId, type: 'office', referenceId: officeId });
+      scopeRows.push({ ruleId, type: 'office', referenceId: officeId });
     }
-
     for (const deptId of scope?.departments || []) {
-      scopes.push({ ruleId, type: 'department', referenceId: deptId });
+      scopeRows.push({ ruleId, type: 'department', referenceId: deptId });
     }
-
-    if (scopes.length) {
-      await this.db.insert(feedbackRuleScopes).values(scopes);
+    if (scopeRows.length) {
+      await this.db.insert(feedbackRuleScopes).values(scopeRows).execute();
     }
 
     await this.auditService.logAction({
@@ -357,6 +366,7 @@ export class FeedbackSettingsService {
       changes: { enabled, scope },
     });
 
+    await this.invalidate(companyId);
     return { success: true };
   }
 }

@@ -99,7 +99,11 @@ export declare class SeedController extends BaseController {
         }[];
     }>;
     update(id: string, dto: UpdateRoleExpectationDto, user: User): Promise<{
-        message: string;
+        id: string;
+        companyId: string | null;
+        roleId: string;
+        competencyId: string;
+        expectedLevelId: string;
     }>;
     delete(id: string, user: User): Promise<{
         message: string;
@@ -109,9 +113,9 @@ export declare class SeedController extends BaseController {
         isActive: boolean | null;
         createdAt: Date | null;
         companyId: string | null;
-        type: string;
         isGlobal: boolean | null;
         competencyId: string | null;
+        type: string;
         question: string;
         isMandatory: boolean | null;
         allowNotes: boolean | null;

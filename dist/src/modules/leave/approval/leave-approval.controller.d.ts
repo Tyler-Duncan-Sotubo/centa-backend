@@ -25,7 +25,7 @@ export declare class LeaveApprovalController extends BaseController {
         partialDay: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-    }>;
+    }[]>;
     rejectLeaveRequest(leaveRequestId: string, dto: ApproveRejectLeaveDto, user: User, ip: string): Promise<{
         id: string;
         companyId: string;
@@ -46,5 +46,5 @@ export declare class LeaveApprovalController extends BaseController {
         partialDay: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-    }>;
+    }[]>;
 }

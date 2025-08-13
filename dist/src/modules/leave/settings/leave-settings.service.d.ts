@@ -1,19 +1,11 @@
 import { CacheService } from 'src/common/cache/cache.service';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
-import { PinoLogger } from 'nestjs-pino';
 export declare class LeaveSettingsService {
     private readonly companySettingsService;
     private readonly cache;
-    private readonly logger;
-    constructor(companySettingsService: CompanySettingsService, cache: CacheService, logger: PinoLogger);
-    private allKey;
-    private approvalKey;
-    private entitlementKey;
-    private eligibilityKey;
-    private notificationsKey;
-    private singleKey;
-    private burst;
-    private normalizeSettingKey;
+    constructor(companySettingsService: CompanySettingsService, cache: CacheService);
+    private ttlSeconds;
+    private tags;
     getAllLeaveSettings(companyId: string): Promise<Record<string, any>>;
     getSettingOrDefault<T = any>(companyId: string, key: string, defaultValue: T): Promise<T>;
     getApproverSetting(companyId: string): Promise<string>;
@@ -35,8 +27,6 @@ export declare class LeaveSettingsService {
         notificationCcRoles: string[];
         notificationChannels: string[];
     }>;
-    getMinNoticeDays(companyId: string): Promise<number>;
-    getMaxConsecutiveLeaveDays(companyId: string): Promise<number>;
     getLeaveApprovalSettings(companyId: string): Promise<{
         approver: any;
         multiLevelApproval: boolean;
@@ -61,5 +51,6 @@ export declare class LeaveSettingsService {
         notifications: any;
     }>;
     updateLeaveSetting(companyId: string, key: string, value: any): Promise<void>;
-    private getLeaveCacheKeyBySettingKey;
+    getMinNoticeDays(companyId: string): Promise<number>;
+    getMaxConsecutiveLeaveDays(companyId: string): Promise<number>;
 }

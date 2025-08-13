@@ -39,6 +39,6 @@ export class GoogleController extends BaseController {
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['jobs.manage'])
   update(@Body() updateGoogleDto: UpdateGoogleDto, @CurrentUser() user: User) {
-    return this.googleService.update(user.companyId, updateGoogleDto);
+    return this.googleService.update(user, updateGoogleDto);
   }
 }

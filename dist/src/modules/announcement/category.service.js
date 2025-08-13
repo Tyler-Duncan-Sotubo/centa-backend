@@ -18,28 +18,19 @@ const drizzle_module_1 = require("../../drizzle/drizzle.module");
 const announcements_schema_1 = require("./schema/announcements.schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const audit_service_1 = require("../audit/audit.service");
-const cache_service_1 = require("../../common/cache/cache.service");
 let CategoryService = class CategoryService {
-    constructor(db, auditService, cache) {
+    constructor(db, auditService) {
         this.db = db;
         this.auditService = auditService;
-        this.cache = cache;
-    }
-    categoriesKey(companyId) {
-        return `company:${companyId}:announcement-categories`;
-    }
-    async invalidateCategories(companyId) {
-        await this.cache.del(this.categoriesKey(companyId));
     }
     async createCategory(name, user) {
         const [existing] = await this.db
-            .select({ id: announcements_schema_1.announcementCategories.id })
+            .select()
             .from(announcements_schema_1.announcementCategories)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.name, name), (0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.companyId, user.companyId)))
-            .limit(1)
             .execute();
         if (existing) {
-            throw new common_1.BadRequestException('Category name already exists');
+            throw new common_1.BadRequestException('Category code already exists');
         }
         const [newCategory] = await this.db
             .insert(announcements_schema_1.announcementCategories)
@@ -60,35 +51,22 @@ let CategoryService = class CategoryService {
                 companyId: newCategory.companyId,
             },
         });
-        await this.invalidateCategories(user.companyId);
         return newCategory;
     }
     async updateCategory(id, name, user) {
         const [existing] = await this.db
-            .select({
-            id: announcements_schema_1.announcementCategories.id,
-            companyId: announcements_schema_1.announcementCategories.companyId,
-            name: announcements_schema_1.announcementCategories.name,
-        })
+            .select()
             .from(announcements_schema_1.announcementCategories)
             .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.id, id))
-            .limit(1)
             .execute();
-        if (!existing)
+        if (!existing) {
             throw new common_1.BadRequestException('Category not found');
-        if (name && name !== existing.name) {
-            const [dup] = await this.db
-                .select({ id: announcements_schema_1.announcementCategories.id })
-                .from(announcements_schema_1.announcementCategories)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.companyId, existing.companyId), (0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.name, name)))
-                .limit(1)
-                .execute();
-            if (dup)
-                throw new common_1.BadRequestException('Category name already exists');
         }
         const [updated] = await this.db
             .update(announcements_schema_1.announcementCategories)
-            .set({ name })
+            .set({
+            name,
+        })
             .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.id, id))
             .returning()
             .execute();
@@ -97,27 +75,23 @@ let CategoryService = class CategoryService {
             entity: 'announcement_category',
             entityId: updated.id,
             userId: user.id,
-            details: `Updated category ${id} to ${name} for company ${existing.companyId}`,
+            details: `Updated category ${id} to ${name} for company ${user.companyId}`,
             changes: {
                 name: updated.name,
                 companyId: updated.companyId,
             },
         });
-        await this.invalidateCategories(existing.companyId);
         return updated;
     }
     async deleteCategory(id, user) {
         const [existing] = await this.db
-            .select({
-            id: announcements_schema_1.announcementCategories.id,
-            companyId: announcements_schema_1.announcementCategories.companyId,
-        })
+            .select()
             .from(announcements_schema_1.announcementCategories)
             .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.id, id))
-            .limit(1)
             .execute();
-        if (!existing)
+        if (!existing) {
             throw new common_1.BadRequestException('Category not found');
+        }
         await this.db
             .delete(announcements_schema_1.announcementCategories)
             .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.id, id))
@@ -127,26 +101,22 @@ let CategoryService = class CategoryService {
             entity: 'announcement_category',
             entityId: id,
             userId: user.id,
-            details: `Deleted category ${id} for company ${existing.companyId}`,
+            details: `Deleted category ${id} for company ${user.companyId}`,
         });
-        await this.invalidateCategories(existing.companyId);
         return { success: true };
     }
     async listCategories(companyId) {
-        return this.cache.getOrSetCache(this.categoriesKey(companyId), async () => {
-            return this.db
-                .select()
-                .from(announcements_schema_1.announcementCategories)
-                .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.companyId, companyId))
-                .execute();
-        });
+        return await this.db
+            .select()
+            .from(announcements_schema_1.announcementCategories)
+            .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.companyId, companyId))
+            .execute();
     }
 };
 exports.CategoryService = CategoryService;
 exports.CategoryService = CategoryService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
-        cache_service_1.CacheService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
 ], CategoryService);
 //# sourceMappingURL=category.service.js.map

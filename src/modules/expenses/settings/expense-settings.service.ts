@@ -1,47 +1,34 @@
 import { Injectable } from '@nestjs/common';
-import { PinoLogger } from 'nestjs-pino';
-import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 import { CacheService } from 'src/common/cache/cache.service';
+import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 
 @Injectable()
 export class ExpensesSettingsService {
   constructor(
     private readonly companySettingsService: CompanySettingsService,
     private readonly cache: CacheService,
-    private readonly logger: PinoLogger,
-  ) {
-    this.logger.setContext(ExpensesSettingsService.name);
+  ) {}
+
+  private ttlSeconds = 60 * 60; // adjust as needed
+
+  private tags(companyId: string) {
+    return [
+      `company:${companyId}:settings`,
+      `company:${companyId}:settings:group:expense`,
+    ];
   }
 
-  // ---- cache keys ---------------------------------------------------
-  private allKey(companyId: string) {
-    return `company:${companyId}:expense:settings:all`;
-  }
-  private oneKey(companyId: string) {
-    return `company:${companyId}:expense:settings:normalized`;
-  }
-
-  // ---- helpers ------------------------------------------------------
-  private safeJson<T = any>(v: any, fallback: T): T {
-    if (Array.isArray(v)) return v as T;
-    if (typeof v !== 'string') return fallback;
-    try {
-      const parsed = JSON.parse(v);
-      return Array.isArray(parsed) ? (parsed as T) : fallback;
-    } catch {
-      return fallback;
-    }
-  }
-
-  // ---- READS (cached) ----------------------------------------------
+  /**
+   * Returns all expense.* settings as a flat object with the "expense." prefix stripped.
+   * Cached under company:{id}:v{ver}:expenses:all
+   */
   async getAllExpenseSettings(companyId: string): Promise<Record<string, any>> {
-    return this.cache.getOrSetCache(
-      this.allKey(companyId),
+    return this.cache.getOrSetVersioned<Record<string, any>>(
+      companyId,
+      ['expenses', 'all'],
       async () => {
-        this.logger.debug({ companyId }, 'getAllExpenseSettings:miss');
         const settings =
           await this.companySettingsService.getAllSettings(companyId);
-
         const expenseSettings: Record<string, any> = {};
         for (const setting of settings) {
           if (setting.key.startsWith('expense.')) {
@@ -50,16 +37,24 @@ export class ExpensesSettingsService {
           }
         }
         return expenseSettings;
-      } /* , { ttl: 300 } */,
+      },
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 
+  /**
+   * Returns the expense approval config.
+   * Cached under company:{id}:v{ver}:expenses:config
+   */
   async getExpenseSettings(companyId: string) {
-    return this.cache.getOrSetCache(
-      this.oneKey(companyId),
+    return this.cache.getOrSetVersioned<{
+      multiLevelApproval: boolean;
+      approverChain: string[];
+      fallbackRoles: string[];
+    }>(
+      companyId,
+      ['expenses', 'config'],
       async () => {
-        this.logger.debug({ companyId }, 'getExpenseSettings:miss');
-
         const keys = [
           'expense.multi_level_approval',
           'expense.approver_chain',
@@ -71,25 +66,33 @@ export class ExpensesSettingsService {
           keys,
         );
 
-        // Normalize / parse with fallbacks
-        const multiLevelApproval = Boolean(
-          rows['expense.multi_level_approval'],
-        );
-        const approverChain = this.safeJson(
-          rows['expense.approver_chain'],
-          [] as string[],
-        );
-        const fallbackRoles = this.safeJson(
-          rows['expense.approval_fallback'],
-          [] as string[],
-        );
+        const parseMaybeJsonArray = (val: unknown): string[] => {
+          if (Array.isArray(val)) return val as string[];
+          if (typeof val === 'string' && val.trim().length) {
+            try {
+              const parsed = JSON.parse(val);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch {
+              return [];
+            }
+          }
+          return [];
+        };
 
-        return { multiLevelApproval, approverChain, fallbackRoles };
-      } /* , { ttl: 300 } */,
+        return {
+          multiLevelApproval: Boolean(rows['expense.multi_level_approval']),
+          approverChain: parseMaybeJsonArray(rows['expense.approver_chain']),
+          fallbackRoles: parseMaybeJsonArray(rows['expense.approval_fallback']),
+        };
+      },
+      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 
-  // ---- WRITE (burst caches) ----------------------------------------
+  /**
+   * Update a single expense.* setting.
+   * Version bump handled inside CompanySettingsService.setSetting -> cache invalidated by version.
+   */
   async updateExpenseSetting(
     companyId: string,
     key: string,
@@ -97,17 +100,6 @@ export class ExpensesSettingsService {
   ): Promise<void> {
     const settingKey = `expense.${key}`;
     await this.companySettingsService.setSetting(companyId, settingKey, value);
-
-    // burst local caches for this company
-    const jobs = [
-      this.cache.del(this.allKey(companyId)),
-      this.cache.del(this.oneKey(companyId)),
-    ];
-    await Promise.allSettled(jobs);
-
-    this.logger.debug(
-      { companyId, key, burst: ['all', 'normalized'] },
-      'updateExpenseSetting:cache-busted',
-    );
+    // No manual cache clear needed; versioned keys make older entries irrelevant.
   }
 }

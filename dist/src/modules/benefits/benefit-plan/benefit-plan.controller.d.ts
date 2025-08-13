@@ -8,21 +8,7 @@ import { SingleEnrollBenefitDto } from './dto/single-employee-enroll.dto';
 export declare class BenefitPlanController extends BaseController {
     private readonly benefitPlanService;
     constructor(benefitPlanService: BenefitPlanService);
-    create(createBenefitPlanDto: CreateBenefitPlanDto, user: User): Promise<{
-        id: string;
-        name: string;
-        split: string;
-        createdAt: Date | null;
-        companyId: string;
-        description: string | null;
-        startDate: Date;
-        endDate: Date | null;
-        category: string;
-        benefitGroupId: string;
-        coverageOptions: unknown;
-        cost: unknown;
-        employerContribution: number | null;
-    }>;
+    create(createBenefitPlanDto: CreateBenefitPlanDto, user: User): Promise<void>;
     findAll(user: User): Promise<{
         id: string;
         companyId: string;

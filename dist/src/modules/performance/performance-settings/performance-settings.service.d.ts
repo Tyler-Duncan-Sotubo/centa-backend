@@ -1,7 +1,11 @@
+import { CacheService } from 'src/common/cache/cache.service';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 export declare class PerformanceSettingsService {
     private readonly companySettingsService;
-    constructor(companySettingsService: CompanySettingsService);
+    private readonly cache;
+    constructor(companySettingsService: CompanySettingsService, cache: CacheService);
+    private ttlSeconds;
+    private tags;
     getAllPerformanceSettings(companyId: string): Promise<Record<string, any>>;
     getPerformanceSettings(companyId: string): Promise<{
         autoCreateCycles: boolean;
@@ -9,10 +13,10 @@ export declare class PerformanceSettingsService {
         enableSelfReview: boolean;
         requireReviewRating: boolean;
         reviewScoreScale: number;
-        notifyReviewOverdue: any;
-        notifyReviewUpcoming: any;
+        notifyReviewOverdue: any[];
+        notifyReviewUpcoming: any[];
         reviewReminderOffsetDays: number;
-        notifyGoalUpdatedByEmployee: any;
+        notifyGoalUpdatedByEmployee: any[];
         goalReminderFrequency: any;
         autoCreateAppraisals: boolean;
         appraisalFrequency: any;

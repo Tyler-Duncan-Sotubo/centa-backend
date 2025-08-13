@@ -5,31 +5,25 @@ import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { AssetsSettingsService } from '../settings/assets-settings.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class AssetsRequestService {
     private readonly db;
     private readonly auditService;
     private readonly assetsSettingsService;
     private readonly pusher;
-    private readonly cache;
-    constructor(db: db, auditService: AuditService, assetsSettingsService: AssetsSettingsService, pusher: PusherService, cache: CacheService);
-    private listKey;
-    private oneKey;
-    private byEmployeeKey;
-    private invalidateAfterChange;
+    constructor(db: db, auditService: AuditService, assetsSettingsService: AssetsSettingsService, pusher: PusherService);
     handleAssetApprovalFlow(assetRequestId: string, user: User): Promise<void>;
     create(dto: CreateAssetsRequestDto, user: User): Promise<{
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        employeeId: string;
-        status: string | null;
-        notes: string | null;
         requestDate: string;
         assetType: string;
         purpose: string;
         urgency: string;
+        notes: string | null;
+        status: string | null;
+        employeeId: string;
         rejectionReason: string | null;
     }>;
     findAll(companyId: string): Promise<({
@@ -101,9 +95,9 @@ export declare class AssetsRequestService {
         requestDate: string;
         approvalStatus: string | null;
         steps: {
-            fallbackRoles: any;
-            isUserEligible: any;
-            isFallback: any;
+            fallbackRoles: string[];
+            isUserEligible: boolean;
+            isFallback: boolean;
             id: string;
             sequence: number;
             role: string;

@@ -7,7 +7,6 @@ import { BaseController } from 'src/common/interceptor/base.controller';
 import { CreateAnnouncementCommentDto } from './dto/create-announcement-comments.dto';
 import { ReactionService } from './reaction.service';
 import { CategoryService } from './category.service';
-import { ReactDto } from './dto/react.dto';
 export declare class AnnouncementController extends BaseController {
     private readonly announcementService;
     private readonly commentService;
@@ -16,14 +15,14 @@ export declare class AnnouncementController extends BaseController {
     constructor(announcementService: AnnouncementService, commentService: CommentService, reactionService: ReactionService, categoryService: CategoryService);
     create(createAnnouncementDto: CreateAnnouncementDto, user: User): Promise<{
         id: string;
-        link: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
+        link: string | null;
         companyId: string;
+        createdBy: string;
         departmentId: string | null;
         title: string;
         locationId: string | null;
-        createdBy: string;
         body: string;
         image: string | null;
         publishedAt: Date | null;
@@ -116,16 +115,16 @@ export declare class AnnouncementController extends BaseController {
         announcementId: string;
         comment: string;
     }>;
-    reactToComment(id: string, dto: ReactDto, user: User): Promise<{
+    reactToComment(id: string, reactionType: string, user: User): Promise<{
         reacted: boolean;
     }>;
-    likeAnnouncement(id: string, dto: ReactDto, user: User): Promise<{
+    likeAnnouncement(id: string, reactionType: string, user: User): Promise<{
         id: string;
-        announcementId: string;
-        createdBy: string;
-        reactionType: string;
         createdAt: Date | null;
-    }>;
+        createdBy: string;
+        announcementId: string;
+        reactionType: string;
+    } | undefined>;
     createCategory(name: string, user: User): Promise<{
         id: string;
         name: string;

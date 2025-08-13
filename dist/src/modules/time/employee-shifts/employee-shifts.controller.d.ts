@@ -16,7 +16,6 @@ export declare class EmployeeShiftsController extends BaseController {
         shiftDate: string;
     }>;
     update(assignmentId: string, dto: CreateEmployeeShiftDto, user: User, ip: string): Promise<{
-        _calendarVersion: string;
         id: string;
         companyId: string;
         employeeId: string;

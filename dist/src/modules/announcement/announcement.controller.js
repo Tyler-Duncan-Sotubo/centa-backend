@@ -25,7 +25,6 @@ const create_announcement_comments_dto_1 = require("./dto/create-announcement-co
 const reaction_service_1 = require("./reaction.service");
 const category_service_1 = require("./category.service");
 const permission_keys_1 = require("../auth/permissions/permission-keys");
-const react_dto_1 = require("./dto/react.dto");
 let AnnouncementController = class AnnouncementController extends base_controller_1.BaseController {
     constructor(announcementService, commentService, reactionService, categoryService) {
         super();
@@ -55,11 +54,11 @@ let AnnouncementController = class AnnouncementController extends base_controlle
     createComment(id, createCommentDto, user) {
         return this.commentService.createComment(createCommentDto, id, user);
     }
-    reactToComment(id, dto, user) {
-        return this.commentService.toggleCommentReaction(id, user, dto.reactionType);
+    reactToComment(id, reactionType, user) {
+        return this.commentService.toggleCommentReaction(id, user.id, reactionType);
     }
-    likeAnnouncement(id, dto, user) {
-        return this.reactionService.reactToAnnouncement(id, dto.reactionType, user);
+    likeAnnouncement(id, reactionType, user) {
+        return this.reactionService.reactToAnnouncement(id, reactionType, user);
     }
     createCategory(name, user) {
         return this.categoryService.createCategory(name, user);
@@ -153,10 +152,10 @@ __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('permissions', [permission_keys_1.Permission.AnnouncementsReact]),
     __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)()),
+    __param(1, (0, common_1.Body)('reactionType')),
     __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, react_dto_1.ReactDto, Object]),
+    __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", void 0)
 ], AnnouncementController.prototype, "reactToComment", null);
 __decorate([
@@ -164,10 +163,10 @@ __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('permissions', [permission_keys_1.Permission.AnnouncementsReact]),
     __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)()),
+    __param(1, (0, common_1.Body)('reactionType')),
     __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, react_dto_1.ReactDto, Object]),
+    __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", void 0)
 ], AnnouncementController.prototype, "likeAnnouncement", null);
 __decorate([

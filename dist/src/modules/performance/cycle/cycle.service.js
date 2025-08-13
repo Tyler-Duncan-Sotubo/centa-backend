@@ -18,10 +18,19 @@ const audit_service_1 = require("../../audit/audit.service");
 const drizzle_module_1 = require("../../../drizzle/drizzle.module");
 const drizzle_orm_1 = require("drizzle-orm");
 const performance_cycles_schema_1 = require("./schema/performance-cycles.schema");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let CycleService = class CycleService {
-    constructor(auditService, db) {
+    constructor(auditService, db, cache) {
         this.auditService = auditService;
         this.db = db;
+        this.cache = cache;
+        this.ttlSeconds = 10 * 60;
+    }
+    tags(companyId) {
+        return [`company:${companyId}:performance-cycles`];
+    }
+    async invalidate(companyId) {
+        await this.cache.bumpCompanyVersion(companyId);
     }
     async create(createCycleDto, companyId, userId) {
         const existingCycle = await this.db
@@ -49,45 +58,48 @@ let CycleService = class CycleService {
             status,
             companyId,
         })
-            .returning();
+            .returning()
+            .execute();
         if (userId) {
             await this.auditService.logAction({
                 action: 'create',
                 entity: 'performance_cycle',
                 entityId: newCycle.id,
-                userId: userId,
+                userId,
                 details: `Created performance cycle ${newCycle.name}`,
                 changes: {
                     name: newCycle.name,
-                    companyId: companyId,
+                    companyId,
                     startDate: newCycle.startDate,
                     endDate: newCycle.endDate,
                     status: newCycle.status,
                 },
             });
         }
+        await this.invalidate(companyId);
         return newCycle;
     }
     async findAll(companyId) {
-        const cycles = await this.db
+        return this.cache.getOrSetVersioned(companyId, ['performance-cycles', 'all'], async () => this.db
             .select()
             .from(performance_cycles_schema_1.performanceCycles)
             .where((0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.companyId, companyId))
             .orderBy((0, drizzle_orm_1.desc)(performance_cycles_schema_1.performanceCycles.startDate))
-            .execute();
-        return cycles;
+            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async findCurrent(companyId) {
         const today = new Date();
         const todayStr = today.toISOString().slice(0, 10);
-        const currentCycle = await this.db
-            .select()
-            .from(performance_cycles_schema_1.performanceCycles)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.companyId, companyId), (0, drizzle_orm_1.lte)(performance_cycles_schema_1.performanceCycles.startDate, todayStr), (0, drizzle_orm_1.gte)(performance_cycles_schema_1.performanceCycles.endDate, todayStr)))
-            .orderBy((0, drizzle_orm_1.desc)(performance_cycles_schema_1.performanceCycles.startDate))
-            .limit(1)
-            .execute();
-        return currentCycle[0] ?? null;
+        return this.cache.getOrSetVersioned(companyId, ['performance-cycles', 'current'], async () => {
+            const rows = await this.db
+                .select()
+                .from(performance_cycles_schema_1.performanceCycles)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.companyId, companyId), (0, drizzle_orm_1.lte)(performance_cycles_schema_1.performanceCycles.startDate, todayStr), (0, drizzle_orm_1.gte)(performance_cycles_schema_1.performanceCycles.endDate, todayStr)))
+                .orderBy((0, drizzle_orm_1.desc)(performance_cycles_schema_1.performanceCycles.startDate))
+                .limit(1)
+                .execute();
+            return rows[0] ?? null;
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async findOne(id) {
         const [cycle] = await this.db
@@ -100,24 +112,40 @@ let CycleService = class CycleService {
         }
         return cycle;
     }
+    async findOneScoped(companyId, id) {
+        return this.cache.getOrSetVersioned(companyId, ['performance-cycles', 'one', id], async () => {
+            const [cycle] = await this.db
+                .select()
+                .from(performance_cycles_schema_1.performanceCycles)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.id, id), (0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.companyId, companyId)))
+                .execute();
+            if (!cycle) {
+                throw new common_1.NotFoundException(`Performance cycle with ID ${id} not found.`);
+            }
+            return cycle;
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+    }
     async getLastCycle(companyId) {
-        const [lastCycle] = await this.db
-            .select()
-            .from(performance_cycles_schema_1.performanceCycles)
-            .where((0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.companyId, companyId))
-            .orderBy((0, drizzle_orm_1.desc)(performance_cycles_schema_1.performanceCycles.startDate))
-            .limit(1)
-            .execute();
-        return lastCycle ?? null;
+        return this.cache.getOrSetVersioned(companyId, ['performance-cycles', 'last'], async () => {
+            const [lastCycle] = await this.db
+                .select()
+                .from(performance_cycles_schema_1.performanceCycles)
+                .where((0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.companyId, companyId))
+                .orderBy((0, drizzle_orm_1.desc)(performance_cycles_schema_1.performanceCycles.startDate))
+                .limit(1)
+                .execute();
+            return lastCycle ?? null;
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
     async update(id, updateCycleDto, user) {
         const { id: userId, companyId } = user;
-        await this.findOne(id);
+        await this.findOneScoped(companyId, id);
         const [updatedCycle] = await this.db
             .update(performance_cycles_schema_1.performanceCycles)
             .set(updateCycleDto)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.id, id), (0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.companyId, companyId)))
-            .returning();
+            .returning()
+            .execute();
         await this.auditService.logAction({
             action: 'update',
             entity: 'performance_cycle',
@@ -135,11 +163,12 @@ let CycleService = class CycleService {
                 updatedBy: userId,
             },
         });
+        await this.invalidate(companyId);
         return updatedCycle;
     }
     async remove(id, user) {
         const { id: userId, companyId } = user;
-        await this.findOne(id);
+        await this.findOneScoped(companyId, id);
         await this.db
             .delete(performance_cycles_schema_1.performanceCycles)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.id, id), (0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.companyId, companyId)))
@@ -151,19 +180,20 @@ let CycleService = class CycleService {
             userId,
             details: `Deleted performance cycle with ID ${id}`,
             changes: {
-                id: id,
-                companyId: companyId,
+                id,
+                companyId,
                 status: 'deleted',
                 deletedAt: new Date().toISOString(),
                 deletedBy: userId,
             },
         });
+        await this.invalidate(companyId);
     }
 };
 exports.CycleService = CycleService;
 exports.CycleService = CycleService = __decorate([
     (0, common_1.Injectable)(),
     __param(1, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [audit_service_1.AuditService, Object])
+    __metadata("design:paramtypes", [audit_service_1.AuditService, Object, cache_service_1.CacheService])
 ], CycleService);
 //# sourceMappingURL=cycle.service.js.map

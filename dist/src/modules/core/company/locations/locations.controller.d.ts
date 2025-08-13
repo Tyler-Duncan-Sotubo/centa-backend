@@ -110,13 +110,13 @@ export declare class LocationsController extends BaseController {
     addLocationManager(id: string, employeeId: string): Promise<{
         id: string;
         createdAt: Date;
-        managerId: string;
         locationId: string;
+        managerId: string;
     }[]>;
     updateLocationManager(id: string, employeeId: string): Promise<{
         id: string;
         createdAt: Date;
-        managerId: string;
         locationId: string;
+        managerId: string;
     }[]>;
 }

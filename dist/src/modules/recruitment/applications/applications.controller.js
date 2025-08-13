@@ -26,8 +26,8 @@ let ApplicationsController = class ApplicationsController extends base_controlle
         super();
         this.applicationsService = applicationsService;
     }
-    submitApplication(createApplicationDto, user) {
-        return this.applicationsService.submitApplication(createApplicationDto, user);
+    submitApplication(createApplicationDto) {
+        return this.applicationsService.submitApplication(createApplicationDto);
     }
     listApplicationsByJobKanban(jobId) {
         return this.applicationsService.listApplicationsByJobKanban(jobId);
@@ -46,9 +46,8 @@ exports.ApplicationsController = ApplicationsController;
 __decorate([
     (0, common_1.Post)('submit'),
     __param(0, (0, common_1.Body)()),
-    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_application_dto_1.CreateApplicationDto, Object]),
+    __metadata("design:paramtypes", [create_application_dto_1.CreateApplicationDto]),
     __metadata("design:returntype", void 0)
 ], ApplicationsController.prototype, "submitApplication", null);
 __decorate([

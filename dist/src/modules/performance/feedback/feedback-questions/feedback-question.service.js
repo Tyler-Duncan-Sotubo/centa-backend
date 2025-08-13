@@ -18,9 +18,18 @@ const common_2 = require("@nestjs/common");
 const drizzle_orm_1 = require("drizzle-orm");
 const drizzle_module_1 = require("../../../../drizzle/drizzle.module");
 const performance_feedback_questions_schema_1 = require("../schema/performance-feedback-questions.schema");
+const cache_service_1 = require("../../../../common/cache/cache.service");
 let FeedbackQuestionService = class FeedbackQuestionService {
-    constructor(db) {
+    constructor(db, cache) {
         this.db = db;
+        this.cache = cache;
+        this.ttlSeconds = 10 * 60;
+    }
+    tags(companyId) {
+        return [`company:${companyId}:feedback-questions`];
+    }
+    async invalidate(companyId) {
+        await this.cache.bumpCompanyVersion(companyId);
     }
     async create(dto, user) {
         const [question] = await this.db
@@ -32,78 +41,111 @@ let FeedbackQuestionService = class FeedbackQuestionService {
             order: dto.order,
             inputType: dto.inputType,
         })
-            .returning();
+            .returning()
+            .execute();
+        await this.invalidate(user.companyId);
         return question;
     }
-    async findAll() {
-        return this.db.select().from(performance_feedback_questions_schema_1.feedbackQuestions);
-    }
-    async findByType(type) {
-        return this.db
+    async findAll(companyId) {
+        return this.cache.getOrSetVersioned(companyId, ['feedback-questions', 'all'], async () => this.db
             .select()
             .from(performance_feedback_questions_schema_1.feedbackQuestions)
-            .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.type, type));
+            .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.companyId, companyId))
+            .orderBy((0, drizzle_orm_1.asc)(performance_feedback_questions_schema_1.feedbackQuestions.type), (0, drizzle_orm_1.asc)(performance_feedback_questions_schema_1.feedbackQuestions.order))
+            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
-    async findOne(id) {
-        const [question] = await this.db
+    async findByType(companyId, type) {
+        return this.cache.getOrSetVersioned(companyId, ['feedback-questions', 'type', type], async () => this.db
             .select()
             .from(performance_feedback_questions_schema_1.feedbackQuestions)
-            .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.id, id));
-        if (!question) {
-            throw new common_1.NotFoundException('Question not found');
-        }
-        return question;
+            .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.companyId, companyId) &&
+            (0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.type, type))
+            .orderBy((0, drizzle_orm_1.asc)(performance_feedback_questions_schema_1.feedbackQuestions.order))
+            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
     }
-    async update(id, dto) {
+    async findOne(companyId, id) {
+        return this.cache.getOrSetVersioned(companyId, ['feedback-questions', 'one', id], async () => {
+            const [question] = await this.db
+                .select()
+                .from(performance_feedback_questions_schema_1.feedbackQuestions)
+                .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.id, id) &&
+                (0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.companyId, companyId))
+                .execute();
+            if (!question) {
+                throw new common_1.NotFoundException('Question not found');
+            }
+            return question;
+        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+    }
+    async update(companyId, id, dto) {
+        await this.findOne(companyId, id);
         const [updated] = await this.db
             .update(performance_feedback_questions_schema_1.feedbackQuestions)
             .set(dto)
-            .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.id, id))
-            .returning();
+            .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.id, id) &&
+            (0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.companyId, companyId))
+            .returning()
+            .execute();
         if (!updated) {
             throw new common_1.NotFoundException('Question not found');
         }
+        await this.invalidate(companyId);
         return updated;
     }
-    async delete(id) {
+    async delete(companyId, id) {
         const [existing] = await this.db
             .select()
             .from(performance_feedback_questions_schema_1.feedbackQuestions)
-            .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.id, id));
+            .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.id, id) &&
+            (0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.companyId, companyId))
+            .execute();
         if (!existing) {
             throw new common_1.NotFoundException('Question not found');
         }
         const countRes = await this.db
             .select({ count: (0, drizzle_orm_1.count)() })
             .from(performance_feedback_questions_schema_1.feedbackQuestions)
-            .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.type, existing.type));
+            .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.companyId, companyId) &&
+            (0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.type, existing.type))
+            .execute();
         const remainingCount = Number(countRes[0]?.count ?? 0);
         if (remainingCount <= 1) {
             throw new common_1.BadRequestException(`Cannot delete the last question of type "${existing.type}"`);
         }
-        await this.db.delete(performance_feedback_questions_schema_1.feedbackQuestions).where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.id, id));
+        await this.db
+            .delete(performance_feedback_questions_schema_1.feedbackQuestions)
+            .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.id, id) &&
+            (0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.companyId, companyId))
+            .execute();
         const remaining = await this.db
             .select()
             .from(performance_feedback_questions_schema_1.feedbackQuestions)
-            .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.type, existing.type))
-            .orderBy(performance_feedback_questions_schema_1.feedbackQuestions.order);
+            .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.companyId, companyId) &&
+            (0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.type, existing.type))
+            .orderBy((0, drizzle_orm_1.asc)(performance_feedback_questions_schema_1.feedbackQuestions.order))
+            .execute();
         for (let i = 0; i < remaining.length; i++) {
             const q = remaining[i];
             if (q.order !== i) {
                 await this.db
                     .update(performance_feedback_questions_schema_1.feedbackQuestions)
                     .set({ order: i })
-                    .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.id, q.id));
+                    .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.id, q.id))
+                    .execute();
             }
         }
+        await this.invalidate(companyId);
         return { message: 'Question deleted and reordered' };
     }
-    async reorderQuestionsByType(type, newOrder) {
+    async reorderQuestionsByType(companyId, type, newOrder) {
         const ids = newOrder.map((q) => q.id);
         const existing = await this.db
             .select({ id: performance_feedback_questions_schema_1.feedbackQuestions.id })
             .from(performance_feedback_questions_schema_1.feedbackQuestions)
-            .where((0, drizzle_orm_1.inArray)(performance_feedback_questions_schema_1.feedbackQuestions.id, ids));
+            .where((0, drizzle_orm_1.inArray)(performance_feedback_questions_schema_1.feedbackQuestions.id, ids) &&
+            (0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.companyId, companyId) &&
+            (0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.type, type))
+            .execute();
         const existingIds = new Set(existing.map((e) => e.id));
         const invalidIds = ids.filter((id) => !existingIds.has(id));
         if (invalidIds.length > 0) {
@@ -113,8 +155,11 @@ let FeedbackQuestionService = class FeedbackQuestionService {
             await this.db
                 .update(performance_feedback_questions_schema_1.feedbackQuestions)
                 .set({ order })
-                .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.id, id));
+                .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.id, id) &&
+                (0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.companyId, companyId))
+                .execute();
         }
+        await this.invalidate(companyId);
         return { message: `Order updated for ${newOrder.length} questions.` };
     }
     async seedFeedbackQuestions(companyId) {
@@ -159,13 +204,14 @@ let FeedbackQuestionService = class FeedbackQuestionService {
             order: index,
             isActive: true,
         })));
-        await this.db.insert(performance_feedback_questions_schema_1.feedbackQuestions).values(insertData);
+        await this.db.insert(performance_feedback_questions_schema_1.feedbackQuestions).values(insertData).execute();
+        await this.invalidate(companyId);
     }
 };
 exports.FeedbackQuestionService = FeedbackQuestionService;
 exports.FeedbackQuestionService = FeedbackQuestionService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_2.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object])
+    __metadata("design:paramtypes", [Object, cache_service_1.CacheService])
 ], FeedbackQuestionService);
 //# sourceMappingURL=feedback-question.service.js.map

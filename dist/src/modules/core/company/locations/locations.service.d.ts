@@ -4,13 +4,11 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { db } from 'src/drizzle/types/drizzle';
 import { User } from 'src/common/types/user.type';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
-import { PinoLogger } from 'nestjs-pino';
 import { CacheService } from 'src/common/cache/cache.service';
 export declare class LocationsService {
     private readonly db;
     private readonly audit;
     private readonly companySettings;
-    private readonly logger;
     private readonly cache;
     protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "company_locations";
@@ -307,11 +305,9 @@ export declare class LocationsService {
         };
         dialect: "pg";
     }>;
-    constructor(db: db, audit: AuditService, companySettings: CompanySettingsService, logger: PinoLogger, cache: CacheService);
-    private listKey;
-    private oneKey;
-    private mgrKey;
-    private burst;
+    constructor(db: db, audit: AuditService, companySettings: CompanySettingsService, cache: CacheService);
+    private ttlSeconds;
+    private tags;
     checkCompany(companyId: string): Promise<{
         id: string;
         name: string;
@@ -346,42 +342,6 @@ export declare class LocationsService {
         locale: string;
         latitude: number | null;
         longitude: number | null;
-    }>;
-    update(locationId: string, dto: UpdateLocationDto, user: User, ip: string): Promise<{
-        id: string;
-        companyId: string;
-        isPrimary: boolean | null;
-        name: string;
-        street: string | null;
-        city: string | null;
-        state: string | null;
-        country: string | null;
-        postalCode: string | null;
-        timeZone: string | null;
-        locale: string;
-        latitude: number | null;
-        longitude: number | null;
-        isActive: boolean | null;
-        createdAt: Date;
-        updatedAt: Date;
-    }>;
-    softDelete(id: string, user?: User): Promise<{
-        id: string;
-        companyId: string;
-        isPrimary: boolean | null;
-        name: string;
-        street: string | null;
-        city: string | null;
-        state: string | null;
-        country: string | null;
-        postalCode: string | null;
-        timeZone: string | null;
-        locale: string;
-        latitude: number | null;
-        longitude: number | null;
-        isActive: boolean | null;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     findAll(companyId: string): Promise<{
         id: string;
@@ -419,6 +379,42 @@ export declare class LocationsService {
         createdAt: Date;
         updatedAt: Date;
     }>;
+    update(locationId: string, dto: UpdateLocationDto, user: User, ip: string): Promise<{
+        id: string;
+        companyId: string;
+        isPrimary: boolean | null;
+        name: string;
+        street: string | null;
+        city: string | null;
+        state: string | null;
+        country: string | null;
+        postalCode: string | null;
+        timeZone: string | null;
+        locale: string;
+        latitude: number | null;
+        longitude: number | null;
+        isActive: boolean | null;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    softDelete(id: string): Promise<{
+        id: string;
+        companyId: string;
+        isPrimary: boolean | null;
+        name: string;
+        street: string | null;
+        city: string | null;
+        state: string | null;
+        country: string | null;
+        postalCode: string | null;
+        timeZone: string | null;
+        locale: string;
+        latitude: number | null;
+        longitude: number | null;
+        isActive: boolean | null;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
     getLocationManagers(locationId: string): Promise<({
         locationId: string;
         managerId: string;
@@ -430,16 +426,16 @@ export declare class LocationsService {
         name: any;
         email: any;
     })[]>;
-    addLocationManager(locationId: string, managerId: string, user?: User): Promise<{
+    addLocationManager(locationId: string, managerId: string): Promise<{
         id: string;
         createdAt: Date;
-        managerId: string;
         locationId: string;
+        managerId: string;
     }[]>;
-    removeLocationManager(locationId: string, managerId: string, user?: User): Promise<{
+    removeLocationManager(locationId: string, managerId: string): Promise<{
         id: string;
         createdAt: Date;
-        managerId: string;
         locationId: string;
+        managerId: string;
     }[]>;
 }

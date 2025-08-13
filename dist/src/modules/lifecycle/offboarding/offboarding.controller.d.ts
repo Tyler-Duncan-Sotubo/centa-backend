@@ -81,8 +81,8 @@ export declare class OffboardingController extends BaseController {
             createdAt: Date | null;
             description: string | null;
             completed: boolean | null;
-            order: number | null;
             completedAt: Date | null;
+            order: number | null;
             isAssetReturnStep: boolean | null;
             sessionId: string;
             assetId: string | null;
