@@ -35,180 +35,19 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
 }, typeof departments> {
     private readonly cache;
     private readonly companySettings;
-    protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
-        name: "departments";
-        schema: undefined;
-        columns: {
-            id: import("drizzle-orm/pg-core").PgColumn<{
-                name: "id";
-                tableName: "departments";
-                dataType: "string";
-                columnType: "PgUUID";
-                data: string;
-                driverParam: string;
-                notNull: true;
-                hasDefault: true;
-                isPrimaryKey: true;
-                isAutoincrement: false;
-                hasRuntimeDefault: false;
-                enumValues: undefined;
-                baseColumn: never;
-                identity: undefined;
-                generated: undefined;
-            }, {}, {}>;
-            name: import("drizzle-orm/pg-core").PgColumn<{
-                name: "name";
-                tableName: "departments";
-                dataType: "string";
-                columnType: "PgVarchar";
-                data: string;
-                driverParam: string;
-                notNull: true;
-                hasDefault: false;
-                isPrimaryKey: false;
-                isAutoincrement: false;
-                hasRuntimeDefault: false;
-                enumValues: [string, ...string[]];
-                baseColumn: never;
-                identity: undefined;
-                generated: undefined;
-            }, {}, {
-                length: 255;
-            }>;
-            description: import("drizzle-orm/pg-core").PgColumn<{
-                name: "description";
-                tableName: "departments";
-                dataType: "string";
-                columnType: "PgText";
-                data: string;
-                driverParam: string;
-                notNull: false;
-                hasDefault: false;
-                isPrimaryKey: false;
-                isAutoincrement: false;
-                hasRuntimeDefault: false;
-                enumValues: [string, ...string[]];
-                baseColumn: never;
-                identity: undefined;
-                generated: undefined;
-            }, {}, {}>;
-            companyId: import("drizzle-orm/pg-core").PgColumn<{
-                name: "company_id";
-                tableName: "departments";
-                dataType: "string";
-                columnType: "PgUUID";
-                data: string;
-                driverParam: string;
-                notNull: true;
-                hasDefault: false;
-                isPrimaryKey: false;
-                isAutoincrement: false;
-                hasRuntimeDefault: false;
-                enumValues: undefined;
-                baseColumn: never;
-                identity: undefined;
-                generated: undefined;
-            }, {}, {}>;
-            headId: import("drizzle-orm/pg-core").PgColumn<{
-                name: "head_id";
-                tableName: "departments";
-                dataType: "string";
-                columnType: "PgUUID";
-                data: string;
-                driverParam: string;
-                notNull: false;
-                hasDefault: false;
-                isPrimaryKey: false;
-                isAutoincrement: false;
-                hasRuntimeDefault: false;
-                enumValues: undefined;
-                baseColumn: never;
-                identity: undefined;
-                generated: undefined;
-            }, {}, {}>;
-            parentDepartmentId: import("drizzle-orm/pg-core").PgColumn<{
-                name: "parent_department_id";
-                tableName: "departments";
-                dataType: "string";
-                columnType: "PgUUID";
-                data: string;
-                driverParam: string;
-                notNull: false;
-                hasDefault: false;
-                isPrimaryKey: false;
-                isAutoincrement: false;
-                hasRuntimeDefault: false;
-                enumValues: undefined;
-                baseColumn: never;
-                identity: undefined;
-                generated: undefined;
-            }, {}, {}>;
-            costCenterId: import("drizzle-orm/pg-core").PgColumn<{
-                name: "cost_center_id";
-                tableName: "departments";
-                dataType: "string";
-                columnType: "PgUUID";
-                data: string;
-                driverParam: string;
-                notNull: false;
-                hasDefault: false;
-                isPrimaryKey: false;
-                isAutoincrement: false;
-                hasRuntimeDefault: false;
-                enumValues: undefined;
-                baseColumn: never;
-                identity: undefined;
-                generated: undefined;
-            }, {}, {}>;
-            createdAt: import("drizzle-orm/pg-core").PgColumn<{
-                name: "created_at";
-                tableName: "departments";
-                dataType: "date";
-                columnType: "PgTimestamp";
-                data: Date;
-                driverParam: string;
-                notNull: true;
-                hasDefault: true;
-                isPrimaryKey: false;
-                isAutoincrement: false;
-                hasRuntimeDefault: false;
-                enumValues: undefined;
-                baseColumn: never;
-                identity: undefined;
-                generated: undefined;
-            }, {}, {}>;
-            updatedAt: import("drizzle-orm/pg-core").PgColumn<{
-                name: "updated_at";
-                tableName: "departments";
-                dataType: "date";
-                columnType: "PgTimestamp";
-                data: Date;
-                driverParam: string;
-                notNull: true;
-                hasDefault: true;
-                isPrimaryKey: false;
-                isAutoincrement: false;
-                hasRuntimeDefault: false;
-                enumValues: undefined;
-                baseColumn: never;
-                identity: undefined;
-                generated: undefined;
-            }, {}, {}>;
-        };
-        dialect: "pg";
-    }>;
+    protected table: any;
     constructor(db: db, audit: AuditService, cache: CacheService, companySettings: CompanySettingsService);
     private ttlSeconds;
     private tags;
     create(companyId: string, dto: CreateDepartmentDto): Promise<{
-        id: string;
-        name: string;
-        description: string | null;
+        id: any;
+        name: any;
+        description: any;
     }>;
     bulkCreate(companyId: string, rows: any[]): Promise<{
-        id: string;
-        name: string;
-        description: string | null;
+        id: any;
+        name: any;
+        description: any;
     }[]>;
     findAll(companyId: string): Promise<({
         head: {
@@ -218,10 +57,10 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
             avatarUrl: string | null;
         } | null;
         employees: any[];
-        id: string;
-        name: string;
-        description: string | null;
-        createdAt: Date;
+        id: any;
+        name: any;
+        description: any;
+        createdAt: any;
     } | {
         head: {
             id: any;
@@ -230,29 +69,57 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
             avatarUrl: string | null;
         } | null;
         employees: any[];
-        id: string;
-        name: string;
-        description: string | null;
-        createdAt: Date;
+        id: any;
+        name: any;
+        description: any;
+        createdAt: any;
+    } | {
+        head: {
+            id: any;
+            name: unknown;
+            email: any;
+            avatarUrl: string | null;
+        } | null;
+        employees: any[];
+        id: any;
+        name: any;
+        description: any;
+        createdAt: any;
+    } | {
+        head: {
+            id: any;
+            name: unknown;
+            email: any;
+            avatarUrl: string | null;
+        } | null;
+        employees: any[];
+        id: any;
+        name: any;
+        description: any;
+        createdAt: any;
     })[]>;
     findOne(companyId: string, id: string): Promise<{
-        id: string;
-        name: string;
-        description: string | null;
+        id: any;
+        name: any;
+        description: any;
+    } | {
+        id: any;
+        name: any;
+        description: any;
     }>;
     update(companyId: string, id: string, dto: UpdateDepartmentDto, userId: string, ip: string): Promise<{
         id: any;
     }>;
     remove(companyId: string, id: string): Promise<{
-        id: string;
+        id: any;
     }>;
     assignHead(companyId: string, departmentId: string, headId: string, userId: string, ip: string): Promise<{
         id: any;
     }>;
     findOneWithHead(companyId: string, id: string): Promise<{
-        id: string;
-        name: string;
-        description: string | null;
+        id: any;
+        name: any;
+        description: any;
         head: {
             id: any;
             firstName: any;
@@ -260,15 +127,30 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
             email: any;
         };
     } | {
-        id: string;
-        name: string;
-        description: string | null;
+        id: any;
+        name: any;
+        description: any;
+        head: {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: any;
+        };
+    } | {
+        id: any;
+        name: any;
+        description: any;
         head: {
             id: any;
             firstName: any;
             lastName: any;
             email: any;
         } | null;
+    } | {
+        id: any;
+        name: any;
+        description: any;
+        head: never;
     }>;
     assignParent(companyId: string, departmentId: string, dto: AssignParentDto, userId: string, ip: string): Promise<{
         id: any;
@@ -277,8 +159,208 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
         id: any;
     }>;
     private parentDept;
-    findOneWithRelations(companyId: string, id: string): Promise<never>;
-    findAllWithRelations(companyId: string): Promise<never[]>;
+    findOneWithRelations(companyId: string, id: string): Promise<{
+        id: any;
+        name: any;
+        description: any;
+        head: {
+            id: any;
+            firstName: any;
+            lastName: any;
+        };
+        parent: {
+            id: any;
+            name: any;
+        };
+        costCenter: {
+            id: string;
+            code: string;
+            name: string;
+            budget: number;
+        } | null;
+    } | {
+        id: any;
+        name: any;
+        description: any;
+        head: {
+            id: any;
+            firstName: any;
+            lastName: any;
+        } | null;
+        parent: {
+            id: any;
+            name: any;
+        } | null;
+        costCenter: {
+            id: string;
+            code: string;
+            name: string;
+            budget: number;
+        } | null;
+    } | {
+        id: any;
+        name: any;
+        description: any;
+        head: {
+            id: any;
+            firstName: any;
+            lastName: any;
+        };
+        parent: {
+            id: any;
+            name: any;
+        };
+        costCenter: {
+            id: string;
+            code: string;
+            name: string;
+            budget: number;
+        } | null;
+    } | {
+        id: any;
+        name: any;
+        description: any;
+        head: never;
+        parent: never;
+        costCenter: {
+            id: string;
+            code: string;
+            name: string;
+            budget: number;
+        } | null;
+    } | {
+        id: any;
+        name: any;
+        description: any;
+        head: {
+            id: any;
+            firstName: any;
+            lastName: any;
+        } | null;
+        parent: {
+            id: any;
+            name: any;
+        } | null;
+        costCenter: {
+            id: string;
+            code: string;
+            name: string;
+            budget: number;
+        } | null;
+    } | {
+        id: any;
+        name: any;
+        description: any;
+        head: never;
+        parent: never;
+        costCenter: {
+            id: string;
+            code: string;
+            name: string;
+            budget: number;
+        } | null;
+    }>;
+    findAllWithRelations(companyId: string): Promise<({
+        id: any;
+        name: any;
+        description: any;
+        head: {
+            id: any;
+            firstName: any;
+            lastName: any;
+        };
+        parent: {
+            id: any;
+            name: any;
+        };
+        costCenter: {
+            id: string;
+            code: string;
+            name: string;
+            budget: number;
+        } | null;
+    } | {
+        id: any;
+        name: any;
+        description: any;
+        head: {
+            id: any;
+            firstName: any;
+            lastName: any;
+        } | null;
+        parent: {
+            id: any;
+            name: any;
+        } | null;
+        costCenter: {
+            id: string;
+            code: string;
+            name: string;
+            budget: number;
+        } | null;
+    } | {
+        id: any;
+        name: any;
+        description: any;
+        head: {
+            id: any;
+            firstName: any;
+            lastName: any;
+        };
+        parent: {
+            id: any;
+            name: any;
+        };
+        costCenter: {
+            id: string;
+            code: string;
+            name: string;
+            budget: number;
+        } | null;
+    } | {
+        id: any;
+        name: any;
+        description: any;
+        head: never;
+        parent: never;
+        costCenter: {
+            id: string;
+            code: string;
+            name: string;
+            budget: number;
+        } | null;
+    } | {
+        id: any;
+        name: any;
+        description: any;
+        head: {
+            id: any;
+            firstName: any;
+            lastName: any;
+        } | null;
+        parent: {
+            id: any;
+            name: any;
+        } | null;
+        costCenter: {
+            id: string;
+            code: string;
+            name: string;
+            budget: number;
+        } | null;
+    } | {
+        id: any;
+        name: any;
+        description: any;
+        head: never;
+        parent: never;
+        costCenter: {
+            id: string;
+            code: string;
+            name: string;
+            budget: number;
+        } | null;
+    })[]>;
     getHierarchy(companyId: string): Promise<(DeptWithRelations & {
         children: any[];
     })[]>;

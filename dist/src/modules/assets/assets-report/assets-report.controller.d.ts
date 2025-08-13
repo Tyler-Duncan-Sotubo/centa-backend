@@ -9,10 +9,10 @@ export declare class AssetsReportController extends BaseController {
         id: string;
         updatedAt: Date | null;
         companyId: string;
+        status: string | null;
         description: string;
         employeeId: string;
         documentUrl: string | null;
-        status: string | null;
         assetId: string;
         reportType: string;
         reportedAt: Date | null;

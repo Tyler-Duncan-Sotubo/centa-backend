@@ -113,10 +113,10 @@ export declare class SeedController extends BaseController {
         isActive: boolean | null;
         createdAt: Date | null;
         companyId: string | null;
-        isGlobal: boolean | null;
-        competencyId: string | null;
         type: string;
         question: string;
+        isGlobal: boolean | null;
+        competencyId: string | null;
         isMandatory: boolean | null;
         allowNotes: boolean | null;
     }>;

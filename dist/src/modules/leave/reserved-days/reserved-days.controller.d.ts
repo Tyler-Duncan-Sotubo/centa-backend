@@ -10,10 +10,10 @@ export declare class ReservedDaysController extends BaseController {
         id: string;
         createdAt: Date | null;
         companyId: string | null;
-        createdBy: string;
         startDate: string;
-        employeeId: string | null;
         endDate: string;
+        employeeId: string | null;
+        createdBy: string;
         reason: string | null;
         leaveTypeId: string;
     }>;

@@ -24,6 +24,7 @@ export declare class ShiftsService {
         updatedAt: Date | null;
         companyId: string;
         locationId: string | null;
+        isDeleted: boolean | null;
         startTime: string;
         endTime: string;
         workingDays: unknown;
@@ -33,7 +34,6 @@ export declare class ShiftsService {
         allowLateClockOut: boolean | null;
         lateClockOutMinutes: number | null;
         notes: string | null;
-        isDeleted: boolean | null;
     }>;
     findAll(companyId: string): Promise<{
         id: string;

@@ -19,7 +19,7 @@ export declare class ReportController extends BaseController {
             name: string;
             startDate: string;
             endDate: string;
-            status: "active" | "closed" | "upcoming";
+            status: "upcoming" | "active" | "closed";
         };
         cycleHealth: {
             totalAppraisals: number;
@@ -271,8 +271,8 @@ export declare class ReportController extends BaseController {
     getAssessmentReport(user: User, filter?: GetAssessmentReportDto): Promise<({
         id: string;
         employeeId: string;
-        type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        type: "self" | "manager" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -285,8 +285,8 @@ export declare class ReportController extends BaseController {
     } | {
         id: string;
         employeeId: string;
-        type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        type: "self" | "manager" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -299,8 +299,8 @@ export declare class ReportController extends BaseController {
     } | {
         id: string;
         employeeId: string;
-        type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        type: "self" | "manager" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;

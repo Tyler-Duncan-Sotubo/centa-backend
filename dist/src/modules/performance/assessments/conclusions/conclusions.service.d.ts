@@ -13,12 +13,12 @@ export declare class AssessmentConclusionsService {
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        finalScore: number | null;
+        promotionRecommendation: string | null;
         assessmentId: string;
         summary: string | null;
         strengths: string | null;
         areasForImprovement: string | null;
-        finalScore: number | null;
-        promotionRecommendation: string | null;
         potentialFlag: boolean | null;
     }>;
     updateConclusion(assessmentId: string, dto: UpdateConclusionDto, authorId: string): Promise<{

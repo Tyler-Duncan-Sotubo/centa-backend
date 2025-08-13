@@ -18,6 +18,7 @@ let CacheModule = class CacheModule {
 };
 exports.CacheModule = CacheModule;
 exports.CacheModule = CacheModule = __decorate([
+    (0, common_1.Global)(),
     (0, common_1.Module)({
         imports: [
             config_1.ConfigModule.forRoot(),
@@ -33,12 +34,14 @@ exports.CacheModule = CacheModule = __decorate([
                     const useTls = String(config.get('REDIS_TLS') ?? 'true').toLowerCase() === 'true';
                     const prefix = config.get('REDIS_PREFIX') ?? 'app:';
                     const ttlSeconds = Number(config.get('CACHE_TTL') ?? 7200);
-                    const proto = useTls ? 'redis' : 'redis';
+                    const protocol = useTls ? 'redis' : 'redis';
                     const auth = password ? `:${encodeURIComponent(password)}@` : '';
-                    const redisUrl = `${proto}://${auth}${host}:${port}/${db}`;
-                    const store = new keyv_1.default({
-                        store: new redis_1.default(redisUrl, { namespace: prefix }),
+                    const redisUrl = `${protocol}://${auth}${host}:${port}/${db}`;
+                    const redisStore = new redis_1.default(redisUrl, { namespace: prefix });
+                    redisStore.on('error', (err) => {
+                        console.error('Redis connection error', err);
                     });
+                    const store = new keyv_1.default({ store: redisStore });
                     return {
                         stores: [store],
                         ttl: ttlSeconds * 1000,

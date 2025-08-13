@@ -13,6 +13,7 @@ export declare class ShiftsController extends BaseController {
         updatedAt: Date | null;
         companyId: string;
         locationId: string | null;
+        isDeleted: boolean | null;
         startTime: string;
         endTime: string;
         workingDays: unknown;
@@ -22,7 +23,6 @@ export declare class ShiftsController extends BaseController {
         allowLateClockOut: boolean | null;
         lateClockOutMinutes: number | null;
         notes: string | null;
-        isDeleted: boolean | null;
     }>;
     bulkCreate(rows: any[], user: User): Promise<{
         id: string;

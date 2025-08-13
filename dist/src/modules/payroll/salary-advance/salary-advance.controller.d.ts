@@ -10,14 +10,14 @@ export declare class SalaryAdvanceController extends BaseController {
         name: string;
         createdAt: Date;
         companyId: string;
+        status: string;
         employeeId: string;
-        amount: string;
-        paymentStatus: string;
         loanNumber: string | null;
+        amount: string;
         totalPaid: string;
         tenureMonths: number;
         preferredMonthlyPayment: string | null;
-        status: string;
+        paymentStatus: string;
     }>;
     getLoans(user: User): Promise<({
         name: string;

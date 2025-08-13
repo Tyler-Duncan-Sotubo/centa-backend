@@ -28,8 +28,8 @@ export declare class EmployeeShiftsService {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        isDeleted: boolean | null;
         employeeId: string;
+        isDeleted: boolean | null;
         shiftId: string | null;
         shiftDate: string;
     }>;
@@ -50,8 +50,8 @@ export declare class EmployeeShiftsService {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        isDeleted: boolean | null;
         employeeId: string;
+        isDeleted: boolean | null;
         shiftId: string | null;
         shiftDate: string;
     }[]>;

@@ -330,11 +330,15 @@ export declare class CompanyService {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    findAllEmployeesInCompany(companyId: string): Promise<{
-        id: string;
-        confirmed: boolean | null;
+    findAllEmployeesInCompany(companyId: string): Promise<({
+        id: any;
+        confirmed: any;
         gender: string | null;
-    }[]>;
+    } | {
+        id: any;
+        confirmed: any;
+        gender: string | null;
+    })[]>;
     softDelete(id: string): Promise<{
         id: string;
         name: string;
@@ -360,29 +364,57 @@ export declare class CompanyService {
         }[];
         totalEmployees: number;
         allEmployees: ({
-            id: string;
-            employmentStartDate: string;
-            employmentEndDate: Date | null;
-            employeeNumber: string;
-            email: string;
-            firstName: string;
-            lastName: string;
+            id: any;
+            employmentStartDate: any;
+            employmentEndDate: any;
+            employeeNumber: any;
+            email: any;
+            firstName: any;
+            lastName: any;
             departments: any;
             jobRole: string | null;
             annualGross: number | null;
         } | {
-            id: string;
-            employmentStartDate: string;
-            employmentEndDate: Date | null;
-            employeeNumber: string;
-            email: string;
-            firstName: string;
-            lastName: string;
+            id: any;
+            employmentStartDate: any;
+            employmentEndDate: any;
+            employeeNumber: any;
+            email: any;
+            firstName: any;
+            lastName: any;
+            departments: any;
+            jobRole: string | null;
+            annualGross: number | null;
+        } | {
+            id: any;
+            employmentStartDate: any;
+            employmentEndDate: any;
+            employeeNumber: any;
+            email: any;
+            firstName: any;
+            lastName: any;
+            departments: any;
+            jobRole: string | null;
+            annualGross: number | null;
+        } | {
+            id: any;
+            employmentStartDate: any;
+            employmentEndDate: any;
+            employeeNumber: any;
+            email: any;
+            firstName: any;
+            lastName: any;
             departments: any;
             jobRole: string | null;
             annualGross: number | null;
         })[];
         allDepartments: ({
+            department: any;
+            employees: number;
+        } | {
+            department: any;
+            employees: number;
+        } | {
             department: any;
             employees: number;
         } | {
@@ -409,12 +441,17 @@ export declare class CompanyService {
             totalNetSalary: number;
             totalPayrollCost: number;
         }[];
-        recentLeaves: {
+        recentLeaves: ({
             name: string;
             leaveType: string;
             startDate: string;
             endDate: string;
-        }[];
+        } | {
+            name: string;
+            leaveType: string;
+            startDate: string;
+            endDate: string;
+        })[];
         attendanceSummary: {
             month: string;
             present: number;

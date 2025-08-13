@@ -16,6 +16,7 @@ export declare class CacheService {
     del(key: string): Promise<void>;
     buildVersionedKey(companyId: string, ver: number, ...parts: string[]): string;
     private getRedisClient;
+    private safeRedisCall;
     getCompanyVersion(companyId: string): Promise<number>;
     bumpCompanyVersion(companyId: string): Promise<number>;
     getOrSetVersioned<T>(companyId: string, keyParts: string[], compute: () => Promise<T>, opts?: {
@@ -24,28 +25,4 @@ export declare class CacheService {
     }): Promise<T>;
     private attachTags;
     invalidateTags(tags: string[]): Promise<void>;
-    debugInfo(): Promise<{
-        mode: string;
-        storeCount: number;
-        isRedisStore: any;
-        details: {
-            kind: any;
-            url: any;
-            keyPrefix: any;
-            isOpen?: undefined;
-            host?: undefined;
-            port?: undefined;
-            db?: undefined;
-            username?: undefined;
-        } | {
-            kind: any;
-            isOpen: any;
-            host: any;
-            port: any;
-            db: any;
-            username: any;
-            keyPrefix: any;
-            url?: undefined;
-        } | null;
-    }>;
 }

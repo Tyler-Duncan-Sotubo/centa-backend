@@ -11,14 +11,14 @@ export declare class AssetsRequestController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        requestDate: string;
-        assetType: string;
-        purpose: string;
-        urgency: string;
-        notes: string | null;
         status: string | null;
         employeeId: string;
+        notes: string | null;
+        purpose: string;
         rejectionReason: string | null;
+        requestDate: string;
+        assetType: string;
+        urgency: string;
     }>;
     findAll(user: User): Promise<({
         id: string;

@@ -11,10 +11,11 @@ export declare class RunController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        payrollRunId: string;
-        userId: string | null;
         employeeId: string;
-        payrollDate: string;
+        userId: string | null;
+        workflowId: string;
+        paymentStatus: string | null;
+        payrollRunId: string;
         basic: string;
         housing: string;
         transport: string;
@@ -31,8 +32,8 @@ export declare class RunController extends BaseController {
         totalDeductions: string;
         netSalary: string;
         taxableIncome: string;
+        payrollDate: string;
         payrollMonth: string;
-        paymentStatus: string | null;
         paymentDate: string | null;
         paymentReference: string | null;
         approvalDate: string | null;
@@ -45,7 +46,6 @@ export declare class RunController extends BaseController {
         approvalStatus: string;
         lastApprovalAt: Date | null;
         lastApprovedBy: string | null;
-        workflowId: string;
         currentStep: number;
     }[]>;
     getOnePayRun(payRunId: string): Promise<{

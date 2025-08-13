@@ -429,13 +429,13 @@ export declare class LocationsService {
     addLocationManager(locationId: string, managerId: string): Promise<{
         id: string;
         createdAt: Date;
-        locationId: string;
         managerId: string;
+        locationId: string;
     }[]>;
     removeLocationManager(locationId: string, managerId: string): Promise<{
         id: string;
         createdAt: Date;
-        locationId: string;
         managerId: string;
+        locationId: string;
     }[]>;
 }
