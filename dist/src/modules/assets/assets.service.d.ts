@@ -21,11 +21,11 @@ export declare class AssetsService {
         createdAt: string | null;
         updatedAt: string | null;
         companyId: string;
-        status: string;
+        category: string;
         locationId: string;
         isDeleted: boolean | null;
         employeeId: string | null;
-        category: string;
+        status: string;
         internalId: string;
         modelName: string | null;
         color: string | null;
@@ -48,11 +48,11 @@ export declare class AssetsService {
             createdAt: string | null;
             updatedAt: string | null;
             companyId: string;
-            status: string;
+            category: string;
             locationId: string;
             isDeleted: boolean | null;
             employeeId: string | null;
-            category: string;
+            status: string;
             internalId: string;
             modelName: string | null;
             color: string | null;

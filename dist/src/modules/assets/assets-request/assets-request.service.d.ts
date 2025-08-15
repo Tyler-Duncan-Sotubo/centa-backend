@@ -20,14 +20,14 @@ export declare class AssetsRequestService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        status: string | null;
         employeeId: string;
+        status: string | null;
         notes: string | null;
+        rejectionReason: string | null;
+        purpose: string;
         requestDate: string;
         assetType: string;
-        purpose: string;
         urgency: string;
-        rejectionReason: string | null;
     }>;
     findAll(companyId: string): Promise<({
         id: string;

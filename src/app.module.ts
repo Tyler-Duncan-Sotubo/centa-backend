@@ -51,6 +51,7 @@ import { CacheModule } from './common/cache/cache.module';
           host: configService.get('REDIS_HOST'),
           port: configService.get<number>('REDIS_PORT'),
           password: configService.get('REDIS_PASSWORD'),
+          family: 0,
         },
         isGlobal: true,
       }),

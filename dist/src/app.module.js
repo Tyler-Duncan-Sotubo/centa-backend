@@ -63,6 +63,7 @@ exports.AppModule = AppModule = __decorate([
                         host: configService.get('REDIS_HOST'),
                         port: configService.get('REDIS_PORT'),
                         password: configService.get('REDIS_PASSWORD'),
+                        family: 0,
                     },
                     isGlobal: true,
                 }),

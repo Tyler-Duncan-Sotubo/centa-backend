@@ -248,9 +248,9 @@ export declare class ProfileService {
     private tags;
     upsert(employeeId: string, dto: CreateProfileDto, userId: string, ip: string): Promise<{
         id: string;
-        country: string | null;
         createdAt: Date;
         updatedAt: Date;
+        country: string | null;
         state: string | null;
         employeeId: string;
         dateOfBirth: string | null;

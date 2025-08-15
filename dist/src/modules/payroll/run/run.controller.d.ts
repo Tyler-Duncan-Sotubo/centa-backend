@@ -7,6 +7,7 @@ export declare class RunController extends BaseController {
     private formattedDate;
     calculatePayrollForCompany(user: User, date: string): Promise<{
         name: string;
+        transport: string;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
@@ -14,14 +15,10 @@ export declare class RunController extends BaseController {
         userId: string | null;
         employeeId: string;
         workflowId: string;
-        approvalStatus: string;
-        approvalDate: string | null;
+        grossSalary: string;
         payrollRunId: string;
-        payrollDate: string;
         basic: string;
         housing: string;
-        transport: string;
-        grossSalary: string;
         pensionContribution: string;
         employerPensionContribution: string;
         bonuses: string | null;
@@ -34,16 +31,19 @@ export declare class RunController extends BaseController {
         totalDeductions: string;
         netSalary: string;
         taxableIncome: string;
+        payrollDate: string;
         payrollMonth: string;
         paymentStatus: string | null;
         paymentDate: string | null;
         paymentReference: string | null;
+        approvalDate: string | null;
         approvalRemarks: string | null;
         isStarter: boolean | null;
         isLeaver: boolean | null;
         isOffCycle: boolean | null;
         requestedBy: string;
         requestedAt: Date;
+        approvalStatus: string;
         lastApprovalAt: Date | null;
         lastApprovedBy: string | null;
         currentStep: number;
