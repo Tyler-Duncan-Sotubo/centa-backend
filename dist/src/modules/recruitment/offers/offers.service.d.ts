@@ -17,14 +17,14 @@ export declare class OffersService {
     private tags;
     create(dto: CreateOfferDto, user: User): Promise<{
         id: string;
+        currency: string;
         createdAt: Date | null;
         updatedAt: Date | null;
-        currency: string;
         companyId: string;
-        createdBy: string | null;
         startDate: string | null;
-        templateId: string | null;
         status: "pending" | "accepted" | "sent" | "declined" | "expired";
+        templateId: string | null;
+        createdBy: string | null;
         expiresAt: Date | null;
         applicationId: string;
         signingMethod: string;

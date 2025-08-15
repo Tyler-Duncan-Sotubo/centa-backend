@@ -22,7 +22,7 @@ export declare class FeedbackSettingsController extends BaseController {
         allowAnonymous: boolean | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-        rules: Record<"employee" | "manager", any[]>;
+        rules: Record<"manager" | "employee", any[]>;
     }>;
     updateTopLevel(dto: any, user: User): Promise<{
         id: string;

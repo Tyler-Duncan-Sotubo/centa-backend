@@ -12,11 +12,11 @@ export declare class GoogleController extends BaseController {
         updatedAt: Date;
         companyId: string;
         expiryDate: Date;
-        scope: string;
+        googleEmail: string;
         accessToken: string;
         refreshToken: string;
-        googleEmail: string;
         tokenType: string;
+        scope: string;
         refreshTokenExpiry: number | null;
     }>;
     findOne(user: User): Promise<{

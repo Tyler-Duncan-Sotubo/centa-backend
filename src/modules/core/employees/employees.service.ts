@@ -1495,6 +1495,12 @@ export class EmployeesService {
         )
         .execute();
 
+      await this.companySettingsService.setSetting(
+        user.companyId,
+        'onboarding_upload_employees',
+        true,
+      );
+
       return createdEmps;
     });
 

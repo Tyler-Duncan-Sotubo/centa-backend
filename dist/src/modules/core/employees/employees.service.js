@@ -1106,6 +1106,7 @@ let EmployeesService = class EmployeesService {
                 grossSalary: comp.grossSalary,
             })))
                 .execute();
+            await this.companySettingsService.setSetting(user.companyId, 'onboarding_upload_employees', true);
             return createdEmps;
         });
         await this.cacheService.bumpCompanyVersion(companyId);

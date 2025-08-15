@@ -19,7 +19,7 @@ export declare class ReportController extends BaseController {
             name: string;
             startDate: string;
             endDate: string;
-            status: "active" | "closed" | "upcoming";
+            status: "active" | "upcoming" | "closed";
         };
         cycleHealth: {
             totalAppraisals: number;
@@ -68,13 +68,10 @@ export declare class ReportController extends BaseController {
             id: string;
             name: string;
         }[];
-        employeesList: ({
-            id: any;
+        employeesList: {
+            id: string;
             name: string;
-        } | {
-            id: any;
-            name: string;
-        })[];
+        }[];
         departmentsList: ({
             id: any;
             name: any;
@@ -91,7 +88,7 @@ export declare class ReportController extends BaseController {
         cycleId: string;
         cycleName: string;
         appraisalId: string;
-        employeeId: any;
+        employeeId: string;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
@@ -103,31 +100,7 @@ export declare class ReportController extends BaseController {
         cycleId: string;
         cycleName: string;
         appraisalId: string;
-        employeeId: any;
-        employeeName: string;
-        jobRoleName: string | null;
-        departmentName: any;
-        appraisalNote: string | null;
-        appraisalScore: number | null;
-        promotionRecommendation: "promote" | "hold" | "exit" | null;
-        submittedAt: Date | null;
-    } | {
-        cycleId: string;
-        cycleName: string;
-        appraisalId: string;
-        employeeId: any;
-        employeeName: string;
-        jobRoleName: string | null;
-        departmentName: any;
-        appraisalNote: string | null;
-        appraisalScore: number | null;
-        promotionRecommendation: "promote" | "hold" | "exit" | null;
-        submittedAt: Date | null;
-    } | {
-        cycleId: string;
-        cycleName: string;
-        appraisalId: string;
-        employeeId: any;
+        employeeId: string;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
@@ -137,111 +110,33 @@ export declare class ReportController extends BaseController {
         submittedAt: Date | null;
     })[]>;
     getGoalReport(user: User, filter?: GetGoalReportDto): Promise<({
-        goalId: any;
-        employeeId: any;
+        goalId: string;
+        employeeId: string;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
+        title: string;
+        description: string | null;
+        type: string | null;
+        status: string | null;
+        weight: number | null;
+        startDate: string;
+        dueDate: string;
     } | {
-        goalId: any;
-        employeeId: any;
+        goalId: string;
+        employeeId: string;
         employeeName: string;
         jobRoleName: string | null;
         departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
-    } | {
-        goalId: any;
-        employeeId: any;
-        employeeName: string;
-        jobRoleName: string | null;
-        departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
-    } | {
-        goalId: any;
-        employeeId: any;
-        employeeName: string;
-        jobRoleName: string | null;
-        departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
-    } | {
-        goalId: any;
-        employeeId: any;
-        employeeName: string;
-        jobRoleName: string | null;
-        departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
-    } | {
-        goalId: any;
-        employeeId: any;
-        employeeName: string;
-        jobRoleName: string | null;
-        departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
-    } | {
-        goalId: any;
-        employeeId: any;
-        employeeName: string;
-        jobRoleName: string | null;
-        departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
-    } | {
-        goalId: any;
-        employeeId: any;
-        employeeName: string;
-        jobRoleName: string | null;
-        departmentName: any;
-        title: any;
-        description: any;
-        type: any;
-        status: any;
-        weight: any;
-        startDate: any;
-        dueDate: any;
+        title: string;
+        description: string | null;
+        type: string | null;
+        status: string | null;
+        weight: number | null;
+        startDate: string;
+        dueDate: string;
     })[]>;
-    getFeedbackReport(user: User, filter: GetFeedbackReportDto): Promise<({
+    getFeedbackReport(user: User, filter: GetFeedbackReportDto): Promise<{
         senderName: string | undefined;
         responses: {
             questionText: string;
@@ -254,25 +149,12 @@ export declare class ReportController extends BaseController {
         submittedAt: Date | null;
         senderId: string;
         employeeName: string;
-    } | {
-        senderName: string | undefined;
-        responses: {
-            questionText: string;
-            answer: string;
-            order: number;
-        }[];
-        feedbackId: string;
-        recipientId: string;
-        isAnonymous: boolean | null;
-        submittedAt: Date | null;
-        senderId: string;
-        employeeName: string;
-    })[]>;
+    }[]>;
     getAssessmentReport(user: User, filter?: GetAssessmentReportDto): Promise<({
         id: string;
         employeeId: string;
-        type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        type: "self" | "manager" | "peer";
+        status: "not_started" | "in_progress" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -285,22 +167,8 @@ export declare class ReportController extends BaseController {
     } | {
         id: string;
         employeeId: string;
-        type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
-        submittedAt: Date | null;
-        createdAt: Date | null;
-        reviewerId: string;
-        revieweeName: string;
-        reviewerName: string;
-        departmentName: any;
-        finalScore: number | null;
-        promotionRecommendation: string | null;
-        potentialFlag: boolean | null;
-    } | {
-        id: string;
-        employeeId: string;
-        type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        type: "self" | "manager" | "peer";
+        status: "not_started" | "in_progress" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -312,35 +180,21 @@ export declare class ReportController extends BaseController {
         potentialFlag: boolean | null;
     })[]>;
     getTopEmployees(user: User, filter: GetTopEmployeesDto): Promise<({
-        employeeId: any;
+        employeeId: string;
         employeeName: string;
         departmentName: any;
         jobRoleName: string | null;
         finalScore: number | null;
         promotionRecommendation: "promote" | "hold" | "exit" | null;
     } | {
-        employeeId: any;
-        employeeName: string;
-        departmentName: any;
-        jobRoleName: string | null;
-        finalScore: number | null;
-        promotionRecommendation: "promote" | "hold" | "exit" | null;
-    } | {
-        employeeId: any;
-        employeeName: string;
-        departmentName: any;
-        jobRoleName: string | null;
-        finalScore: number | null;
-        promotionRecommendation: "promote" | "hold" | "exit" | null;
-    } | {
-        employeeId: any;
+        employeeId: string;
         employeeName: string;
         departmentName: any;
         jobRoleName: string | null;
         finalScore: number | null;
         promotionRecommendation: "promote" | "hold" | "exit" | null;
     })[] | ({
-        employeeId: any;
+        employeeId: string;
         employeeName: string;
         departmentName: any;
         jobRoleName: string | null;
@@ -348,23 +202,7 @@ export declare class ReportController extends BaseController {
         promotionRecommendation: string | null;
         potentialFlag: boolean | null;
     } | {
-        employeeId: any;
-        employeeName: string;
-        departmentName: any;
-        jobRoleName: string | null;
-        finalScore: number | null;
-        promotionRecommendation: string | null;
-        potentialFlag: boolean | null;
-    } | {
-        employeeId: any;
-        employeeName: string;
-        departmentName: any;
-        jobRoleName: string | null;
-        finalScore: number | null;
-        promotionRecommendation: string | null;
-        potentialFlag: boolean | null;
-    } | {
-        employeeId: any;
+        employeeId: string;
         employeeName: string;
         departmentName: any;
         jobRoleName: string | null;

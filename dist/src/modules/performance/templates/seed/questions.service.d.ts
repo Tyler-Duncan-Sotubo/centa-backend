@@ -9,13 +9,13 @@ export declare class PerformanceReviewQuestionService {
     constructor(db: db, auditService: AuditService);
     create(user: User, dto: CreateQuestionsDto): Promise<{
         id: string;
-        createdAt: Date | null;
         isActive: boolean | null;
+        createdAt: Date | null;
         companyId: string | null;
         type: string;
         isGlobal: boolean | null;
-        question: string;
         competencyId: string | null;
+        question: string;
         isMandatory: boolean | null;
         allowNotes: boolean | null;
     }>;

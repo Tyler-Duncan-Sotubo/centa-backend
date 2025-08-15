@@ -27,9 +27,8 @@ export const DRIZZLE = Symbol('DRIZZLE');
             connectionString: databaseURL,
             ssl:
               process.env.NODE_ENV === 'production'
-                ? // adjust as needed if your provider needs CA-less SSL
-                  { rejectUnauthorized: false }
-                : false,
+                ? false
+                : { rejectUnauthorized: false },
             max: Number(process.env.PG_POOL_MAX || 10),
             idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30_000),
             connectionTimeoutMillis: Number(

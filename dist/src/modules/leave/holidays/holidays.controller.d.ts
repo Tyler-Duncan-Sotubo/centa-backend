@@ -29,9 +29,9 @@ export declare class HolidaysController extends BaseController {
         date: string;
         id: string;
         name: string;
+        country: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-        country: string | null;
         companyId: string | null;
         type: string;
         source: string | null;
@@ -43,9 +43,9 @@ export declare class HolidaysController extends BaseController {
         date: string;
         id: string;
         name: string;
+        country: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-        country: string | null;
         companyId: string | null;
         type: string;
         source: string | null;

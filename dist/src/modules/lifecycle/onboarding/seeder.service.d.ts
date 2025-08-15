@@ -70,8 +70,8 @@ export declare class OnboardingSeederService {
             id: string;
             title: string;
             templateId: string;
-            assignee: "employee" | "hr" | "it" | "finance" | null;
             order: number | null;
+            assignee: "employee" | "hr" | "it" | "finance" | null;
             dueDaysAfterStart: number | null;
         }[];
         fieldCount: number;
@@ -99,8 +99,8 @@ export declare class OnboardingSeederService {
             id: string;
             title: string;
             templateId: string;
-            assignee: "employee" | "hr" | "it" | "finance" | null;
             order: number | null;
+            assignee: "employee" | "hr" | "it" | "finance" | null;
             dueDaysAfterStart: number | null;
         }[];
         id: string;

@@ -33,9 +33,8 @@ exports.DrizzleModule = DrizzleModule = __decorate([
                         g.__PG_POOL__ = new pg_1.Pool({
                             connectionString: databaseURL,
                             ssl: process.env.NODE_ENV === 'production'
-                                ?
-                                    { rejectUnauthorized: false }
-                                : false,
+                                ? false
+                                : { rejectUnauthorized: false },
                             max: Number(process.env.PG_POOL_MAX || 10),
                             idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30_000),
                             connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 5_000),

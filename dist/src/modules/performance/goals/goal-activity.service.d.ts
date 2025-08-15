@@ -14,8 +14,8 @@ export declare class GoalActivityService {
     addProgressUpdate(goalId: string, dto: AddGoalProgressDto, user: User): Promise<{
         id: string;
         createdAt: Date | null;
-        createdBy: string;
         goalId: string;
+        createdBy: string;
         progress: number;
         note: string | null;
     }>;
@@ -41,10 +41,10 @@ export declare class GoalActivityService {
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        goalId: string;
         fileName: string;
         fileUrl: string;
         comment: string;
-        goalId: string;
         uploadedById: string;
     }>;
     updateAttachment(attachmentId: string, user: User, dto: UpdateGoalAttachmentDto): Promise<{

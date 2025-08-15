@@ -10,8 +10,8 @@ export declare class OffboardingController extends BaseController {
     begin(dto: CreateOffboardingBeginDto, user: User): Promise<{
         id: string;
         companyId: string;
-        employeeId: string;
         status: string | null;
+        employeeId: string;
         notes: string | null;
         startedAt: Date | null;
         completedAt: Date | null;
@@ -81,16 +81,16 @@ export declare class OffboardingController extends BaseController {
             createdAt: Date | null;
             description: string | null;
             completed: boolean | null;
-            completedAt: Date | null;
             order: number | null;
+            completedAt: Date | null;
             isAssetReturnStep: boolean | null;
             sessionId: string;
             assetId: string | null;
         }[];
         id: string;
         companyId: string;
-        employeeId: string;
         status: string | null;
+        employeeId: string;
         notes: string | null;
         startedAt: Date | null;
         completedAt: Date | null;
