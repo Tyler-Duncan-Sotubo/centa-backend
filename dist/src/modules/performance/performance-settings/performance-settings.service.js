@@ -17,7 +17,6 @@ let PerformanceSettingsService = class PerformanceSettingsService {
     constructor(companySettingsService, cache) {
         this.companySettingsService = companySettingsService;
         this.cache = cache;
-        this.ttlSeconds = 60 * 60;
     }
     tags(companyId) {
         return [
@@ -36,7 +35,7 @@ let PerformanceSettingsService = class PerformanceSettingsService {
                 }
             }
             return performanceSettings;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async getPerformanceSettings(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['performance', 'config'], async () => {
@@ -91,7 +90,7 @@ let PerformanceSettingsService = class PerformanceSettingsService {
                 allowManagerOverride: Boolean(rows['performance.allow_manager_override']),
                 autoFinalizeDeadlineDays: Number(rows['performance.auto_finalize_deadline_days']) || 5,
             };
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async updatePerformanceSetting(companyId, key, value) {
         const settingKey = `performance.${key}`;

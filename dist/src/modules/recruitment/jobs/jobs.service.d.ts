@@ -6,11 +6,14 @@ import { User } from 'src/common/types/user.type';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { PublicJobsDto } from './dto/public-jobs.dto';
 import { CompanyJobsDto } from './dto/company-job.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class JobsService {
     private readonly db;
     private readonly pipelineSeederService;
     private readonly auditService;
-    constructor(db: db, pipelineSeederService: PipelineSeederService, auditService: AuditService);
+    private readonly cache;
+    constructor(db: db, pipelineSeederService: PipelineSeederService, auditService: AuditService, cache: CacheService);
+    private tags;
     create(createDto: CreateJobDto & {
         pipelineTemplateId?: string;
     }, user: User): Promise<{

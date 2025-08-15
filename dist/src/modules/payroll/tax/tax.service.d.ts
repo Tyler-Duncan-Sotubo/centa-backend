@@ -19,7 +19,9 @@ export declare class TaxService {
         status: string | null;
         month: string;
     }[]>;
-    updateCompanyTaxFilings(tax_filing_id: string, status: string): Promise<any>;
+    updateCompanyTaxFilings(tax_filing_id: string, status: string): Promise<{
+        success: boolean;
+    }>;
     generateTaxFilingExcel(tax_filing_id: string): Promise<Buffer<import("exceljs").Buffer>>;
     generateVoluntaryDeductionsExcel(deductionName: string, payrollMonth: string): Promise<Buffer<import("exceljs").Buffer>>;
 }

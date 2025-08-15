@@ -29,9 +29,33 @@ let PayGroupsService = class PayGroupsService {
         this.auditService = auditService;
         this.companySettings = companySettings;
     }
+    async getCompanyIdByEmployeeId(employeeId) {
+        const [row] = await this.db
+            .select({ companyId: schema_1.employees.companyId })
+            .from(schema_1.employees)
+            .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId))
+            .limit(1)
+            .execute();
+        if (!row?.companyId) {
+            throw new common_1.BadRequestException('Employee not found');
+        }
+        return row.companyId;
+    }
+    async getCompanyIdByGroupId(groupId) {
+        const [row] = await this.db
+            .select({ companyId: pay_groups_schema_1.payGroups.companyId })
+            .from(pay_groups_schema_1.payGroups)
+            .where((0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.id, groupId))
+            .limit(1)
+            .execute();
+        if (!row?.companyId) {
+            throw new common_1.BadRequestException('Pay group not found');
+        }
+        return row.companyId;
+    }
     async findOneEmployee(employeeId) {
-        const cacheKey = `employee_${employeeId}`;
-        return this.cacheService.getOrSetCache(cacheKey, async () => {
+        const companyId = await this.getCompanyIdByEmployeeId(employeeId);
+        return this.cacheService.getOrSetVersioned(companyId, ['employee', 'byId', employeeId], async () => {
             const [employee] = await this.db
                 .select({ id: schema_1.employees.id })
                 .from(schema_1.employees)
@@ -41,24 +65,76 @@ let PayGroupsService = class PayGroupsService {
                 throw new common_1.BadRequestException('Employee not found');
             }
             return employee;
+        }, {
+            tags: [
+                'employees',
+                `company:${companyId}:employees`,
+                `employee:${employeeId}`,
+            ],
         });
     }
     async findAll(companyId) {
-        return this.db
-            .select({
-            id: pay_groups_schema_1.payGroups.id,
-            name: pay_groups_schema_1.payGroups.name,
-            pay_schedule_id: pay_groups_schema_1.payGroups.payScheduleId,
-            apply_nhf: pay_groups_schema_1.payGroups.applyNhf,
-            apply_pension: pay_groups_schema_1.payGroups.applyPension,
-            apply_paye: pay_groups_schema_1.payGroups.applyPaye,
-            payFrequency: pay_schedules_schema_1.paySchedules.payFrequency,
-            createdAt: pay_groups_schema_1.payGroups.createdAt,
-        })
-            .from(pay_groups_schema_1.payGroups)
-            .innerJoin(pay_schedules_schema_1.paySchedules, (0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.payScheduleId, pay_schedules_schema_1.paySchedules.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.companyId, companyId), (0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.isDeleted, false)))
-            .execute();
+        return this.cacheService.getOrSetVersioned(companyId, ['payGroups', 'list'], async () => {
+            return this.db
+                .select({
+                id: pay_groups_schema_1.payGroups.id,
+                name: pay_groups_schema_1.payGroups.name,
+                pay_schedule_id: pay_groups_schema_1.payGroups.payScheduleId,
+                apply_nhf: pay_groups_schema_1.payGroups.applyNhf,
+                apply_pension: pay_groups_schema_1.payGroups.applyPension,
+                apply_paye: pay_groups_schema_1.payGroups.applyPaye,
+                payFrequency: pay_schedules_schema_1.paySchedules.payFrequency,
+                createdAt: pay_groups_schema_1.payGroups.createdAt,
+            })
+                .from(pay_groups_schema_1.payGroups)
+                .innerJoin(pay_schedules_schema_1.paySchedules, (0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.payScheduleId, pay_schedules_schema_1.paySchedules.id))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.companyId, companyId), (0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.isDeleted, false)))
+                .execute();
+        }, { tags: ['payGroups', `company:${companyId}:payGroups`] });
+    }
+    async findOne(groupId) {
+        const companyId = await this.getCompanyIdByGroupId(groupId);
+        return this.cacheService.getOrSetVersioned(companyId, ['payGroups', 'byId', groupId], async () => {
+            const [group] = await this.db
+                .select()
+                .from(pay_groups_schema_1.payGroups)
+                .where((0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.id, groupId))
+                .execute();
+            if (!group) {
+                throw new common_1.BadRequestException('Pay group not found');
+            }
+            return group;
+        }, {
+            tags: [
+                'payGroups',
+                `company:${companyId}:payGroups`,
+                `payGroup:${groupId}`,
+            ],
+        });
+    }
+    async findEmployeesInGroup(groupId) {
+        const companyId = await this.getCompanyIdByGroupId(groupId);
+        return this.cacheService.getOrSetVersioned(companyId, ['payGroups', 'members', groupId], async () => {
+            const employeesList = await this.db
+                .select({
+                id: schema_1.employees.id,
+                first_name: schema_1.employees.firstName,
+                last_name: schema_1.employees.lastName,
+            })
+                .from(schema_1.employees)
+                .where((0, drizzle_orm_1.eq)(schema_1.employees.payGroupId, groupId))
+                .execute();
+            if (!employeesList.length) {
+                throw new common_1.BadRequestException('No employees found in this group');
+            }
+            return employeesList;
+        }, {
+            tags: [
+                'payGroups',
+                `company:${companyId}:payGroups`,
+                `payGroup:${groupId}:members`,
+            ],
+        });
     }
     async create(user, dto, ip) {
         const [paySchedule] = await this.db
@@ -90,18 +166,14 @@ let PayGroupsService = class PayGroupsService {
             await this.addEmployeesToGroup(dto.employees, newGroup.id, user, ip);
         }
         await this.companySettings.setSetting(user.companyId, 'onboarding_pay_group', true);
+        await this.cacheService.bumpCompanyVersion(user.companyId);
+        await this.cacheService.invalidateTags([
+            'payGroups',
+            `company:${user.companyId}:payGroups`,
+            `payGroup:${newGroup.id}`,
+            `payGroup:${newGroup.id}:members`,
+        ]);
         return newGroup;
-    }
-    async findOne(groupId) {
-        const [group] = await this.db
-            .select()
-            .from(pay_groups_schema_1.payGroups)
-            .where((0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.id, groupId))
-            .execute();
-        if (!group) {
-            throw new common_1.BadRequestException('Pay group not found');
-        }
-        return group;
     }
     async update(groupId, dto, user, ip) {
         await this.findOne(groupId);
@@ -123,10 +195,16 @@ let PayGroupsService = class PayGroupsService {
                 changes: dto,
             },
         });
+        await this.cacheService.bumpCompanyVersion(user.companyId);
+        await this.cacheService.invalidateTags([
+            'payGroups',
+            `company:${user.companyId}:payGroups`,
+            `payGroup:${groupId}`,
+            `payGroup:${groupId}:members`,
+        ]);
         return { message: 'Pay group updated successfully' };
     }
     async remove(groupId, user, ip) {
-        console.log('Removing pay group with ID:', groupId);
         const employeesInGroup = await this.db
             .select({ id: schema_1.employees.id })
             .from(schema_1.employees)
@@ -153,22 +231,14 @@ let PayGroupsService = class PayGroupsService {
                 groupId,
             },
         });
+        await this.cacheService.bumpCompanyVersion(user.companyId);
+        await this.cacheService.invalidateTags([
+            'payGroups',
+            `company:${user.companyId}:payGroups`,
+            `payGroup:${groupId}`,
+            `payGroup:${groupId}:members`,
+        ]);
         return { message: 'Pay group deleted successfully' };
-    }
-    async findEmployeesInGroup(groupId) {
-        const employeesList = await this.db
-            .select({
-            id: schema_1.employees.id,
-            first_name: schema_1.employees.firstName,
-            last_name: schema_1.employees.lastName,
-        })
-            .from(schema_1.employees)
-            .where((0, drizzle_orm_1.eq)(schema_1.employees.payGroupId, groupId))
-            .execute();
-        if (!employeesList.length) {
-            throw new common_1.BadRequestException('No employees found in this group');
-        }
-        return employeesList;
     }
     async addEmployeesToGroup(employeeIds, groupId, user, ip) {
         const idsArray = Array.isArray(employeeIds) ? employeeIds : [employeeIds];
@@ -198,12 +268,27 @@ let PayGroupsService = class PayGroupsService {
                 employeeIds: idsArray,
             },
         });
+        await this.cacheService.bumpCompanyVersion(user.companyId);
+        await this.cacheService.invalidateTags([
+            'payGroups',
+            `company:${user.companyId}:payGroups`,
+            `payGroup:${groupId}`,
+            `payGroup:${groupId}:members`,
+        ]);
         return {
             message: `${idsArray.length} employees added to group ${groupId}`,
         };
     }
     async removeEmployeesFromGroup(employeeIds, user, ip) {
         const idsArray = Array.isArray(employeeIds) ? employeeIds : [employeeIds];
+        const currentGroups = await this.db
+            .select({ groupId: schema_1.employees.payGroupId })
+            .from(schema_1.employees)
+            .where((0, drizzle_orm_1.inArray)(schema_1.employees.id, idsArray))
+            .execute();
+        const distinctGroupIds = Array.from(new Set(currentGroups
+            .map((g) => g.groupId)
+            .filter((g) => Boolean(g))));
         const [deleted] = await this.db
             .update(schema_1.employees)
             .set({ payGroupId: null })
@@ -222,6 +307,13 @@ let PayGroupsService = class PayGroupsService {
                 employeeIds: idsArray,
             },
         });
+        await this.cacheService.bumpCompanyVersion(user.companyId);
+        await this.cacheService.invalidateTags([
+            'payGroups',
+            `company:${user.companyId}:payGroups`,
+            ...distinctGroupIds.map((g) => `payGroup:${g}:members`),
+            ...distinctGroupIds.map((g) => `payGroup:${g}`),
+        ]);
         return {
             message: `${idsArray.length} employees removed from group successfully`,
         };

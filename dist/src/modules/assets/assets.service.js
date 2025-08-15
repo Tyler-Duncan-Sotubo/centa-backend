@@ -26,12 +26,14 @@ const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 const create_bulk_asset_dto_1 = require("./dto/create-bulk-asset.dto");
 const asset_reports_schema_1 = require("./schema/asset-reports.schema");
+const cache_service_1 = require("../../common/cache/cache.service");
 let AssetsService = AssetsService_1 = class AssetsService {
-    constructor(usefulLifeService, db, auditService, logger) {
+    constructor(usefulLifeService, db, auditService, logger, cache) {
         this.usefulLifeService = usefulLifeService;
         this.db = db;
         this.auditService = auditService;
         this.logger = logger;
+        this.cache = cache;
         this.categoryMap = {
             Laptop: 'L',
             Monitor: 'M',
@@ -40,6 +42,9 @@ let AssetsService = AssetsService_1 = class AssetsService {
             Other: 'O',
         };
         this.logger.setContext(AssetsService_1.name);
+    }
+    tags(companyId) {
+        return [`company:${companyId}:assets`, `company:${companyId}:assets:list`];
     }
     async create(dto, user) {
         const existingAsset = await this.db
@@ -62,27 +67,16 @@ let AssetsService = AssetsService_1 = class AssetsService {
             .toString()
             .padStart(3, '0');
         const internalId = `${categoryCode}${year}-${sequenceNumber}`;
-        const depreciationMethod = (() => {
-            switch (dto.category) {
-                case 'Laptop':
-                case 'Monitor':
-                case 'Phone':
-                    return 'StraightLine';
-                case 'Furniture':
-                    return 'DecliningBalance';
-                default:
-                    return 'StraightLine';
-            }
-        })();
+        const depreciationMethod = dto.category === 'Furniture' ? 'DecliningBalance' : 'StraightLine';
         const assetData = {
             ...dto,
             usefulLifeYears: usefulLife,
-            depreciationMethod: depreciationMethod,
+            depreciationMethod,
             status: dto.employeeId ? 'assigned' : 'available',
             companyId: user.companyId,
             employeeId: dto.employeeId || null,
             locationId: dto.locationId,
-            internalId: internalId,
+            internalId,
         };
         const [newAsset] = await this.db
             .insert(assets_schema_1.assets)
@@ -106,6 +100,7 @@ let AssetsService = AssetsService_1 = class AssetsService {
                 locationId: newAsset.locationId,
             },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
         return newAsset;
     }
     async bulkCreateAssets(companyId, rows) {
@@ -128,10 +123,9 @@ let AssetsService = AssetsService_1 = class AssetsService {
             const dmy = /^(\d{2})\/(\d{2})\/(\d{4})$/;
             const mdy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
             let y, m, d;
-            if (iso.test(raw)) {
+            if (iso.test(raw))
                 return raw;
-            }
-            else if (dmy.test(raw)) {
+            if (dmy.test(raw)) {
                 const [, dd, mm, yyyy] = raw.match(dmy);
                 y = +yyyy;
                 m = +mm;
@@ -143,11 +137,9 @@ let AssetsService = AssetsService_1 = class AssetsService {
                 m = +mm;
                 d = +dd;
             }
-            else {
+            else
                 return undefined;
-            }
-            const utc = Date.UTC(y, m - 1, d);
-            const dt = new Date(utc);
+            const dt = new Date(Date.UTC(y, m - 1, d));
             return isNaN(dt.getTime()) ? undefined : dt.toISOString().slice(0, 10);
         };
         const toNumber = (v) => {
@@ -183,7 +175,6 @@ let AssetsService = AssetsService_1 = class AssetsService {
         const locationKeyed = new Map(allLocations.map((l) => [l.name, l.id]));
         const locationFuzzy = new Map(allLocations.map((l) => [normalizeLoc(l.name), l.id]));
         this.logger.debug(`bulkCreateAssets: preloaded employees=${allEmployees.length}, locations=${allLocations.length}`);
-        this.logger.debug(`bulkCreateAssets: location keys -> ${JSON.stringify([...locationKeyed.keys()].slice(0, 20))}`);
         const errors = [];
         const dtos = [];
         for (let i = 0; i < rows.length; i++) {
@@ -197,10 +188,8 @@ let AssetsService = AssetsService_1 = class AssetsService {
                 const locationNameRaw = (raw['Location Name'] ?? '').toString();
                 const exactKey = locationNameRaw.toLowerCase();
                 let locationId = locationKeyed.get(exactKey);
-                if (!locationId) {
+                if (!locationId)
                     locationId = locationFuzzy.get(normalizeLoc(locationNameRaw));
-                }
-                this.logger.debug(`row#${i}: name="${name}", category="${category}", serial="${serial}", price="${raw['Purchase Price']}" -> ${price}, purchaseDate="${raw['Purchase Date']}" -> ${purchaseDate}, location="${locationNameRaw}" -> id=${locationId}`);
                 if (!name)
                     throw new Error(`"Asset Name" is required`);
                 if (!category)
@@ -218,9 +207,6 @@ let AssetsService = AssetsService_1 = class AssetsService {
                 if (empNameRaw) {
                     const empKey = empNameRaw.toLowerCase();
                     employeeId = employeeMap.get(empKey);
-                    if (!employeeId) {
-                        this.logger.warn(`row#${i}: Unknown "Employee Name": ${empNameRaw} (inserting unassigned)`);
-                    }
                 }
                 const dto = (0, class_transformer_1.plainToInstance)(create_bulk_asset_dto_1.CreateBulkAssetDto, {
                     name,
@@ -238,19 +224,15 @@ let AssetsService = AssetsService_1 = class AssetsService {
                 });
                 const validationErrors = await (0, class_validator_1.validate)(dto);
                 if (validationErrors.length) {
-                    this.logger.warn(`row#${i}: class-validator failed -> ${JSON.stringify(validationErrors)}`);
                     throw new Error(`Validation failed: ${JSON.stringify(validationErrors)}`);
                 }
                 const year = new Date(dto.purchaseDate).getFullYear();
                 dtos.push({ ...dto, employeeId, locationId, category, year });
             }
             catch (e) {
-                const reason = e?.message ?? 'Invalid row';
-                errors.push({ index: i, name, reason });
-                this.logger.error(`row#${i} FAILED: ${reason}`);
+                errors.push({ index: i, name, reason: e?.message ?? 'Invalid row' });
             }
         }
-        this.logger.debug({ firstKeys }, 'bulkCreateAssets:first-row-keys');
         if (dtos.length === 0) {
             throw new common_1.BadRequestException({
                 message: 'No valid rows in CSV',
@@ -295,7 +277,6 @@ let AssetsService = AssetsService_1 = class AssetsService {
                 }
             }
             prefixNext.set(prefix, maxSeq + 1);
-            this.logger.debug(`internalId: prefix="${prefix}" -> startSeq=${maxSeq + 1}`);
         }
         const inserted = [];
         for (let i = 0; i < dtos.length; i++) {
@@ -308,7 +289,6 @@ let AssetsService = AssetsService_1 = class AssetsService {
             const internalId = `${prefix}${seq}`;
             const usefulLife = await this.usefulLifeService.getUsefulLifeYears(d.category, d.name);
             const depreciationMethod = depMap[d.category] ?? 'StraightLine';
-            this.logger.debug(`insert row#${i}: internalId=${internalId}, depMethod=${depreciationMethod}, usefulLife=${usefulLife}`);
             try {
                 const [asset] = await this.db
                     .insert(assets_schema_1.assets)
@@ -339,53 +319,56 @@ let AssetsService = AssetsService_1 = class AssetsService {
                 prefixNext.set(prefix, next + 1);
             }
             catch (e) {
-                const reason = e?.message ?? 'DB insert failed';
-                errors.push({ index: i, name: d.name, reason });
-                this.logger.error(`insert row#${i} FAILED: ${reason}`);
+                errors.push({
+                    index: i,
+                    name: d.name,
+                    reason: e?.message ?? 'DB insert failed',
+                });
             }
         }
-        this.logger.info({ inserted: inserted.length, errors: errors.length }, 'bulkCreateAssets:done');
         if (inserted.length === 0) {
             throw new common_1.BadRequestException({
                 message: 'No assets were created from CSV',
                 errors,
             });
         }
+        await this.cache.bumpCompanyVersion(companyId);
         return { insertedCount: inserted.length, inserted, errors };
     }
     async findAll(companyId) {
-        const allAssets = await this.db
-            .select({
-            id: assets_schema_1.assets.id,
-            name: assets_schema_1.assets.name,
-            modelName: assets_schema_1.assets.modelName,
-            color: assets_schema_1.assets.color,
-            specs: assets_schema_1.assets.specs,
-            category: assets_schema_1.assets.category,
-            manufacturer: assets_schema_1.assets.manufacturer,
-            serialNumber: assets_schema_1.assets.serialNumber,
-            purchasePrice: assets_schema_1.assets.purchasePrice,
-            purchaseDate: assets_schema_1.assets.purchaseDate,
-            depreciationMethod: assets_schema_1.assets.depreciationMethod,
-            usefulLifeYears: assets_schema_1.assets.usefulLifeYears,
-            lendDate: assets_schema_1.assets.lendDate,
-            returnDate: assets_schema_1.assets.returnDate,
-            warrantyExpiry: assets_schema_1.assets.warrantyExpiry,
-            employeeId: assets_schema_1.assets.employeeId,
-            locationId: assets_schema_1.assets.locationId,
-            assignedTo: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
-            assignedEmail: schema_1.employees.email,
-            location: schema_1.companyLocations.name,
-            status: assets_schema_1.assets.status,
-            internalId: assets_schema_1.assets.internalId,
-        })
-            .from(assets_schema_1.assets)
-            .leftJoin(schema_1.employees, (0, drizzle_orm_1.eq)(assets_schema_1.assets.employeeId, schema_1.employees.id))
-            .innerJoin(schema_1.companyLocations, (0, drizzle_orm_1.eq)(assets_schema_1.assets.locationId, schema_1.companyLocations.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(assets_schema_1.assets.companyId, companyId), (0, drizzle_orm_1.eq)(assets_schema_1.assets.isDeleted, false), (0, drizzle_orm_1.isNull)(assets_schema_1.assets.returnDate)))
-            .orderBy((0, drizzle_orm_1.desc)(assets_schema_1.assets.purchaseDate))
-            .execute();
-        return allAssets;
+        return this.cache.getOrSetVersioned(companyId, ['assets', 'list'], async () => {
+            return this.db
+                .select({
+                id: assets_schema_1.assets.id,
+                name: assets_schema_1.assets.name,
+                modelName: assets_schema_1.assets.modelName,
+                color: assets_schema_1.assets.color,
+                specs: assets_schema_1.assets.specs,
+                category: assets_schema_1.assets.category,
+                manufacturer: assets_schema_1.assets.manufacturer,
+                serialNumber: assets_schema_1.assets.serialNumber,
+                purchasePrice: assets_schema_1.assets.purchasePrice,
+                purchaseDate: assets_schema_1.assets.purchaseDate,
+                depreciationMethod: assets_schema_1.assets.depreciationMethod,
+                usefulLifeYears: assets_schema_1.assets.usefulLifeYears,
+                lendDate: assets_schema_1.assets.lendDate,
+                returnDate: assets_schema_1.assets.returnDate,
+                warrantyExpiry: assets_schema_1.assets.warrantyExpiry,
+                employeeId: assets_schema_1.assets.employeeId,
+                locationId: assets_schema_1.assets.locationId,
+                assignedTo: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
+                assignedEmail: schema_1.employees.email,
+                location: schema_1.companyLocations.name,
+                status: assets_schema_1.assets.status,
+                internalId: assets_schema_1.assets.internalId,
+            })
+                .from(assets_schema_1.assets)
+                .leftJoin(schema_1.employees, (0, drizzle_orm_1.eq)(assets_schema_1.assets.employeeId, schema_1.employees.id))
+                .innerJoin(schema_1.companyLocations, (0, drizzle_orm_1.eq)(assets_schema_1.assets.locationId, schema_1.companyLocations.id))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(assets_schema_1.assets.companyId, companyId), (0, drizzle_orm_1.eq)(assets_schema_1.assets.isDeleted, false), (0, drizzle_orm_1.isNull)(assets_schema_1.assets.returnDate)))
+                .orderBy((0, drizzle_orm_1.desc)(assets_schema_1.assets.purchaseDate))
+                .execute();
+        }, { tags: this.tags(companyId) });
     }
     async findOne(id) {
         const [asset] = await this.db
@@ -450,10 +433,9 @@ let AssetsService = AssetsService_1 = class AssetsService {
                 entity: 'asset',
                 entityId: updatedAsset.id,
                 userId: user.id,
-                changes: {
-                    id: updatedAsset.id,
-                },
+                changes: { id: updatedAsset.id },
             });
+            await this.cache.bumpCompanyVersion(user.companyId);
             return updatedAsset;
         });
     }
@@ -475,7 +457,7 @@ let AssetsService = AssetsService_1 = class AssetsService {
         const [updatedAsset] = await this.db
             .update(assets_schema_1.assets)
             .set({
-            status: status,
+            status,
             employeeId: this.shouldAssignToEmployee(status) ? user.id : null,
             updatedAt: new Date().toISOString(),
         })
@@ -492,6 +474,7 @@ let AssetsService = AssetsService_1 = class AssetsService {
                 status: updatedAsset.status,
             },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
         return updatedAsset;
     }
     remove(id, user) {
@@ -523,6 +506,7 @@ let AssetsService = AssetsService_1 = class AssetsService {
                     serialNumber: existingAsset.serialNumber,
                 },
             });
+            await this.cache.bumpCompanyVersion(user.companyId);
             return { message: `Asset with ID ${id} deleted successfully.` };
         });
     }
@@ -536,6 +520,7 @@ exports.AssetsService = AssetsService = AssetsService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(1, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [useful_life_service_1.UsefulLifeService, Object, audit_service_1.AuditService,
-        nestjs_pino_1.PinoLogger])
+        nestjs_pino_1.PinoLogger,
+        cache_service_1.CacheService])
 ], AssetsService);
 //# sourceMappingURL=assets.service.js.map

@@ -3,10 +3,12 @@ import { UpdatePayrollOverrideDto } from './dto/update-payroll-override.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { User } from 'src/common/types/user.type';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class PayrollOverridesService {
     private db;
     private auditService;
-    constructor(db: db, auditService: AuditService);
+    private cache;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
     create(dto: CreatePayrollOverrideDto, user: User): Promise<{
         id: string;
         createdAt: string | null;

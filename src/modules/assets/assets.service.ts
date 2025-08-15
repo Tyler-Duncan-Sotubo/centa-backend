@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { UsefulLifeService } from './useful-life.service';
 import { User } from 'src/common/types/user.type';
@@ -14,6 +14,7 @@ import { CreateBulkAssetDto } from './dto/create-bulk-asset.dto';
 import { assetReports } from './schema/asset-reports.schema';
 import { UpdateAssetDto } from './dto/update-asset.dto';
 import { CreateAssetDto } from './dto/create-asset.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class AssetsService {
@@ -22,8 +23,13 @@ export class AssetsService {
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
     private readonly logger: PinoLogger,
+    private readonly cache: CacheService, // 👈 inject cache
   ) {
     this.logger.setContext(AssetsService.name);
+  }
+
+  private tags(companyId: string) {
+    return [`company:${companyId}:assets`, `company:${companyId}:assets:list`];
   }
 
   private categoryMap = {
@@ -36,7 +42,6 @@ export class AssetsService {
 
   // -------------------------- CREATE (single) --------------------------
   async create(dto: CreateAssetDto, user: User) {
-    // check if asset with same serial number already exists
     const existingAsset = await this.db
       .select()
       .from(assets)
@@ -54,7 +59,6 @@ export class AssetsService {
       );
     }
 
-    // Get AI generated useful life
     const usefulLife = await this.usefulLifeService.getUsefulLifeYears(
       dto.category,
       dto.name,
@@ -67,36 +71,24 @@ export class AssetsService {
       .execute();
 
     const categoryCode = this.categoryMap[dto.category] || 'A';
-    const year = new Date(dto.purchaseDate).getFullYear().toString().slice(-2); // '25'
+    const year = new Date(dto.purchaseDate).getFullYear().toString().slice(-2);
     const sequenceNumber = (existingCount[0].count + 1)
       .toString()
-      .padStart(3, '0'); // '010'
+      .padStart(3, '0');
+    const internalId = `${categoryCode}${year}-${sequenceNumber}`;
 
-    const internalId = `${categoryCode}${year}-${sequenceNumber}`; // e.g., 'L25-010'
-
-    // Set default depreciation method if not provided
-    const depreciationMethod = (() => {
-      switch (dto.category) {
-        case 'Laptop':
-        case 'Monitor':
-        case 'Phone':
-          return 'StraightLine';
-        case 'Furniture':
-          return 'DecliningBalance';
-        default:
-          return 'StraightLine';
-      }
-    })();
+    const depreciationMethod =
+      dto.category === 'Furniture' ? 'DecliningBalance' : 'StraightLine';
 
     const assetData = {
       ...dto,
       usefulLifeYears: usefulLife,
-      depreciationMethod: depreciationMethod,
+      depreciationMethod,
       status: dto.employeeId ? 'assigned' : 'available',
       companyId: user.companyId,
       employeeId: dto.employeeId || null,
       locationId: dto.locationId,
-      internalId: internalId,
+      internalId,
     };
 
     const [newAsset] = await this.db
@@ -122,6 +114,10 @@ export class AssetsService {
         locationId: newAsset.locationId,
       },
     });
+
+    // write -> invalidate versioned caches
+    await this.cache.bumpCompanyVersion(user.companyId);
+
     return newAsset;
   }
 
@@ -136,26 +132,21 @@ export class AssetsService {
       throw new BadRequestException({ message: 'CSV has no rows' });
     }
 
-    // helpers
     const trim = (v: any) => (typeof v === 'string' ? v.trim() : v);
-
     const sanitizeRow = (r: Record<string, any>) => {
       const out: Record<string, any> = {};
       for (const k of Object.keys(r)) out[k] = trim(r[k]);
       return out;
     };
-
     const toDateString = (v?: string) => {
       if (!v) return undefined;
       const raw = String(v).trim();
-      const iso = /^(\d{4})-(\d{2})-(\d{2})$/; // YYYY-MM-DD
-      const dmy = /^(\d{2})\/(\d{2})\/(\d{4})$/; // DD/MM/YYYY
-      const mdy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/; // MM/DD/YYYY
+      const iso = /^(\d{4})-(\d{2})-(\d{2})$/;
+      const dmy = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+      const mdy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
       let y: number, m: number, d: number;
-
-      if (iso.test(raw)) {
-        return raw;
-      } else if (dmy.test(raw)) {
+      if (iso.test(raw)) return raw;
+      if (dmy.test(raw)) {
         const [, dd, mm, yyyy] = raw.match(dmy)!;
         y = +yyyy;
         m = +mm;
@@ -165,21 +156,15 @@ export class AssetsService {
         y = +yyyy;
         m = +mm;
         d = +dd;
-      } else {
-        return undefined;
-      }
-
-      const utc = Date.UTC(y, m - 1, d);
-      const dt = new Date(utc);
+      } else return undefined;
+      const dt = new Date(Date.UTC(y, m - 1, d));
       return isNaN(dt.getTime()) ? undefined : dt.toISOString().slice(0, 10);
     };
-
     const toNumber = (v: any) => {
       if (v === null || v === undefined || v === '') return NaN;
-      const n = Number(String(v).replace(/[, ]/g, '')); // allow "1,234.56"
+      const n = Number(String(v).replace(/[, ]/g, ''));
       return Number.isFinite(n) ? n : NaN;
     };
-
     const normalizeLoc = (s: string) =>
       s
         .toLowerCase()
@@ -187,7 +172,6 @@ export class AssetsService {
         .replace(/\s+/g, '')
         .trim();
 
-    // debug headers
     const firstKeys = Object.keys(rows[0] ?? {});
     this.logger.debug(
       `bulkCreateAssets: first row keys -> ${JSON.stringify(firstKeys)}`,
@@ -210,7 +194,6 @@ export class AssetsService {
       'Return Date'?: string;
     };
 
-    // preload employees & locations
     const allEmployees = await this.db
       .select({
         id: employees.id,
@@ -230,7 +213,7 @@ export class AssetsService {
       .where(eq(companyLocations.companyId, companyId))
       .execute();
 
-    const locationKeyed = new Map(allLocations.map((l) => [l.name, l.id])); // exact lowercased
+    const locationKeyed = new Map(allLocations.map((l) => [l.name, l.id]));
     const locationFuzzy = new Map(
       allLocations.map((l) => [normalizeLoc(l.name), l.id]),
     );
@@ -238,11 +221,7 @@ export class AssetsService {
     this.logger.debug(
       `bulkCreateAssets: preloaded employees=${allEmployees.length}, locations=${allLocations.length}`,
     );
-    this.logger.debug(
-      `bulkCreateAssets: location keys -> ${JSON.stringify([...locationKeyed.keys()].slice(0, 20))}`,
-    );
 
-    // normalize & validate rows
     const errors: Array<{ index: number; name?: string; reason: string }> = [];
     const dtos: Array<
       CreateBulkAssetDto & {
@@ -266,13 +245,8 @@ export class AssetsService {
         const locationNameRaw = (raw['Location Name'] ?? '').toString();
         const exactKey = locationNameRaw.toLowerCase();
         let locationId = locationKeyed.get(exactKey);
-        if (!locationId) {
+        if (!locationId)
           locationId = locationFuzzy.get(normalizeLoc(locationNameRaw));
-        }
-
-        this.logger.debug(
-          `row#${i}: name="${name}", category="${category}", serial="${serial}", price="${raw['Purchase Price']}" -> ${price}, purchaseDate="${raw['Purchase Date']}" -> ${purchaseDate}, location="${locationNameRaw}" -> id=${locationId}`,
-        );
 
         if (!name) throw new Error(`"Asset Name" is required`);
         if (!category) throw new Error(`"Category" is required`);
@@ -289,11 +263,6 @@ export class AssetsService {
         if (empNameRaw) {
           const empKey = empNameRaw.toLowerCase();
           employeeId = employeeMap.get(empKey);
-          if (!employeeId) {
-            this.logger.warn(
-              `row#${i}: Unknown "Employee Name": ${empNameRaw} (inserting unassigned)`,
-            );
-          }
         }
 
         const dto = plainToInstance(CreateBulkAssetDto, {
@@ -304,8 +273,8 @@ export class AssetsService {
           category,
           manufacturer: raw.Manufacturer ?? '',
           serialNumber: serial,
-          purchasePrice: String(price), // or `price` if DTO expects number
-          purchaseDate, // ISO yyyy-mm-dd
+          purchasePrice: String(price),
+          purchaseDate,
           warrantyExpiry: toDateString(raw['Warranty Expiry']),
           lendDate: toDateString(raw['Lend Date']),
           returnDate: toDateString(raw['Return Date']),
@@ -313,11 +282,6 @@ export class AssetsService {
 
         const validationErrors = await validate(dto);
         if (validationErrors.length) {
-          this.logger.warn(
-            `row#${i}: class-validator failed -> ${JSON.stringify(
-              validationErrors,
-            )}`,
-          );
           throw new Error(
             `Validation failed: ${JSON.stringify(validationErrors)}`,
           );
@@ -326,13 +290,9 @@ export class AssetsService {
         const year = new Date(dto.purchaseDate).getFullYear();
         dtos.push({ ...dto, employeeId, locationId, category, year });
       } catch (e: any) {
-        const reason = e?.message ?? 'Invalid row';
-        errors.push({ index: i, name, reason });
-        this.logger.error(`row#${i} FAILED: ${reason}`);
+        errors.push({ index: i, name, reason: e?.message ?? 'Invalid row' });
       }
     }
-
-    this.logger.debug({ firstKeys }, 'bulkCreateAssets:first-row-keys');
 
     if (dtos.length === 0) {
       throw new BadRequestException({
@@ -341,7 +301,6 @@ export class AssetsService {
       });
     }
 
-    // internalId planning (GLOBAL uniqueness by prefix)
     const categoryMap: Record<string, string> = {
       Laptop: 'L',
       Monitor: 'M',
@@ -383,12 +342,8 @@ export class AssetsService {
         }
       }
       prefixNext.set(prefix, maxSeq + 1);
-      this.logger.debug(
-        `internalId: prefix="${prefix}" -> startSeq=${maxSeq + 1}`,
-      );
     }
 
-    // insert each row individually (no global TX)
     const inserted: (typeof assets.$inferSelect)[] = [];
 
     for (let i = 0; i < dtos.length; i++) {
@@ -406,10 +361,6 @@ export class AssetsService {
         d.name,
       );
       const depreciationMethod = depMap[d.category] ?? 'StraightLine';
-
-      this.logger.debug(
-        `insert row#${i}: internalId=${internalId}, depMethod=${depreciationMethod}, usefulLife=${usefulLife}`,
-      );
 
       try {
         const [asset] = await this.db
@@ -441,16 +392,13 @@ export class AssetsService {
         inserted.push(asset);
         prefixNext.set(prefix, next + 1);
       } catch (e: any) {
-        const reason = e?.message ?? 'DB insert failed';
-        errors.push({ index: i, name: d.name, reason });
-        this.logger.error(`insert row#${i} FAILED: ${reason}`);
+        errors.push({
+          index: i,
+          name: d.name,
+          reason: e?.message ?? 'DB insert failed',
+        });
       }
     }
-
-    this.logger.info(
-      { inserted: inserted.length, errors: errors.length },
-      'bulkCreateAssets:done',
-    );
 
     if (inserted.length === 0) {
       throw new BadRequestException({
@@ -459,53 +407,64 @@ export class AssetsService {
       });
     }
 
+    // write -> invalidate versioned caches
+    await this.cache.bumpCompanyVersion(companyId);
+
     return { insertedCount: inserted.length, inserted, errors };
   }
 
-  // ------------------------------ LIST ------------------------------
+  // ------------------------------ LIST (CACHED) ------------------------------
   async findAll(companyId: string) {
-    const allAssets = await this.db
-      .select({
-        id: assets.id,
-        name: assets.name,
-        modelName: assets.modelName,
-        color: assets.color,
-        specs: assets.specs,
-        category: assets.category,
-        manufacturer: assets.manufacturer,
-        serialNumber: assets.serialNumber,
-        purchasePrice: assets.purchasePrice,
-        purchaseDate: assets.purchaseDate,
-        depreciationMethod: assets.depreciationMethod,
-        usefulLifeYears: assets.usefulLifeYears,
-        lendDate: assets.lendDate,
-        returnDate: assets.returnDate,
-        warrantyExpiry: assets.warrantyExpiry,
-        employeeId: assets.employeeId,
-        locationId: assets.locationId,
-        assignedTo: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
-        assignedEmail: employees.email,
-        location: companyLocations.name,
-        status: assets.status,
-        internalId: assets.internalId,
-      })
-      .from(assets)
-      .leftJoin(employees, eq(assets.employeeId, employees.id))
-      .innerJoin(companyLocations, eq(assets.locationId, companyLocations.id))
-      .where(
-        and(
-          eq(assets.companyId, companyId),
-          eq(assets.isDeleted, false),
-          isNull(assets.returnDate),
-        ),
-      )
-      .orderBy(desc(assets.purchaseDate))
-      .execute();
-
-    return allAssets;
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['assets', 'list'],
+      async () => {
+        return this.db
+          .select({
+            id: assets.id,
+            name: assets.name,
+            modelName: assets.modelName,
+            color: assets.color,
+            specs: assets.specs,
+            category: assets.category,
+            manufacturer: assets.manufacturer,
+            serialNumber: assets.serialNumber,
+            purchasePrice: assets.purchasePrice,
+            purchaseDate: assets.purchaseDate,
+            depreciationMethod: assets.depreciationMethod,
+            usefulLifeYears: assets.usefulLifeYears,
+            lendDate: assets.lendDate,
+            returnDate: assets.returnDate,
+            warrantyExpiry: assets.warrantyExpiry,
+            employeeId: assets.employeeId,
+            locationId: assets.locationId,
+            assignedTo: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+            assignedEmail: employees.email,
+            location: companyLocations.name,
+            status: assets.status,
+            internalId: assets.internalId,
+          })
+          .from(assets)
+          .leftJoin(employees, eq(assets.employeeId, employees.id))
+          .innerJoin(
+            companyLocations,
+            eq(assets.locationId, companyLocations.id),
+          )
+          .where(
+            and(
+              eq(assets.companyId, companyId),
+              eq(assets.isDeleted, false),
+              isNull(assets.returnDate),
+            ),
+          )
+          .orderBy(desc(assets.purchaseDate))
+          .execute();
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
-  // ------------------------------ GET ONE ------------------------------
+  // ------------------------------ GET ONE (UNCACHED) ------------------------------
   async findOne(id: string) {
     const [asset] = await this.db
       .select()
@@ -516,12 +475,12 @@ export class AssetsService {
     if (!asset) {
       throw new BadRequestException(`Asset with ID ${id} not found.`);
     }
-
     return asset;
   }
 
-  // --------------------------- BY EMPLOYEE ---------------------------
+  // --------------------------- BY EMPLOYEE (UNCACHED) ---------------------------
   async findByEmployeeId(employeeId: string) {
+    // kept uncached because we don’t have companyId in the signature for versioning
     const assetsByEmployee = await this.db
       .select({
         id: assets.id,
@@ -552,7 +511,7 @@ export class AssetsService {
     return assetsByEmployee;
   }
 
-  // ------------------------------ UPDATE ------------------------------
+  // ------------------------------ UPDATE (BUMP) ------------------------------
   update(id: string, updateAssetDto: UpdateAssetDto, user: User) {
     return this.db.transaction(async (tx) => {
       const [existingAsset] = await tx
@@ -581,10 +540,11 @@ export class AssetsService {
         entity: 'asset',
         entityId: updatedAsset.id,
         userId: user.id,
-        changes: {
-          id: updatedAsset.id,
-        },
+        changes: { id: updatedAsset.id },
       });
+
+      // write -> invalidate
+      await this.cache.bumpCompanyVersion(user.companyId);
 
       return updatedAsset;
     });
@@ -608,14 +568,14 @@ export class AssetsService {
     // TODO: Implement notification logic
   }
 
-  // --------------------------- CHANGE STATUS ---------------------------
+  // --------------------------- CHANGE STATUS (BUMP) ---------------------------
   async changeStatus(id: string, status: string, user: User) {
     await this.findOne(id);
 
     const [updatedAsset] = await this.db
       .update(assets)
       .set({
-        status: status,
+        status,
         employeeId: this.shouldAssignToEmployee(status) ? user.id : null,
         updatedAt: new Date().toISOString(),
       })
@@ -633,10 +593,14 @@ export class AssetsService {
         status: updatedAsset.status,
       },
     });
+
+    // write -> invalidate
+    await this.cache.bumpCompanyVersion(user.companyId);
+
     return updatedAsset;
   }
 
-  // ------------------------------ REMOVE ------------------------------
+  // ------------------------------ REMOVE (BUMP) ------------------------------
   remove(id: string, user: User) {
     return this.db.transaction(async (tx) => {
       const [existingAsset] = await tx
@@ -669,6 +633,9 @@ export class AssetsService {
           serialNumber: existingAsset.serialNumber,
         },
       });
+
+      // write -> invalidate
+      await this.cache.bumpCompanyVersion(user.companyId);
 
       return { message: `Asset with ID ${id} deleted successfully.` };
     });

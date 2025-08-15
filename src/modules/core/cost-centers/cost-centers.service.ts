@@ -34,7 +34,6 @@ export class CostCentersService extends BaseCrudService<
     super(db, audit);
   }
 
-  private ttlSeconds = 60 * 60; // 1h
   private tags(companyId: string) {
     return [`company:${companyId}:cost-centers`];
   }
@@ -146,7 +145,7 @@ export class CostCentersService extends BaseCrudService<
           .from(costCenters)
           .where(eq(costCenters.companyId, companyId))
           .execute(),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -170,7 +169,7 @@ export class CostCentersService extends BaseCrudService<
         if (!cc) throw new NotFoundException(`Cost center ${id} not found`);
         return cc;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 

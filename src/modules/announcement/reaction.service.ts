@@ -8,17 +8,38 @@ import {
   announcements,
 } from './schema/announcements.schema';
 import { desc, eq, and, sql } from 'drizzle-orm';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class ReactionService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
+
+  private tags(companyId: string, announcementId: string) {
+    return [
+      `company:${companyId}:announcements`,
+      `company:${companyId}:announcement:${announcementId}:reactions`,
+    ];
+  }
+
+  private async getCompanyIdForAnnouncement(
+    announcementId: string,
+  ): Promise<string> {
+    const [row] = await this.db
+      .select({ companyId: announcements.companyId })
+      .from(announcements)
+      .where(eq(announcements.id, announcementId))
+      .execute();
+    if (!row) throw new BadRequestException('Announcement not found');
+    return row.companyId;
+  }
 
   async reactToAnnouncement(
     announcementId: string,
-    reactionType: string, // like, love, celebrate, sad, angry
+    reactionType: string, // like, love, celebrate, sad, angry, clap, happy
     user: User,
   ) {
     const validReactions = [
@@ -34,7 +55,7 @@ export class ReactionService {
       throw new BadRequestException('Invalid reaction type');
     }
 
-    // Check if announcement exists
+    // ensure announcement exists + get companyId for cache versioning
     const [announcement] = await this.db
       .select()
       .from(announcements)
@@ -45,7 +66,7 @@ export class ReactionService {
       throw new BadRequestException('Announcement not found');
     }
 
-    // Check if user already reacted with this type
+    // toggle logic
     const [existingReaction] = await this.db
       .select()
       .from(announcementReactions)
@@ -58,14 +79,15 @@ export class ReactionService {
       )
       .execute();
 
+    let result: any = { toggledOff: false };
+
     if (existingReaction) {
-      // If already reacted, toggle off (un-react)
       await this.db
         .delete(announcementReactions)
         .where(eq(announcementReactions.id, existingReaction.id))
         .execute();
+      result = { toggledOff: true };
     } else {
-      // Insert new reaction
       const [newReaction] = await this.db
         .insert(announcementReactions)
         .values({
@@ -86,48 +108,81 @@ export class ReactionService {
         changes: newReaction,
       });
 
-      return newReaction;
+      result = newReaction;
     }
+
+    // invalidate all cached reaction reads for this company/announcement via version bump
+    await this.cache.bumpCompanyVersion(announcement.companyId);
+
+    return result;
   }
 
   async getReactions(announcementId: string) {
-    // Get all reactions for an announcement
-    return this.db
-      .select()
-      .from(announcementReactions)
-      .where(eq(announcementReactions.announcementId, announcementId))
-      .orderBy(desc(announcementReactions.createdAt))
-      .execute();
+    const companyId = await this.getCompanyIdForAnnouncement(announcementId);
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['announcement', announcementId, 'reactions', 'list'],
+      async () => {
+        return this.db
+          .select()
+          .from(announcementReactions)
+          .where(eq(announcementReactions.announcementId, announcementId))
+          .orderBy(desc(announcementReactions.createdAt))
+          .execute();
+      },
+      {
+        tags: this.tags(companyId, announcementId),
+      },
+    );
   }
 
   async countReactionsByType(announcementId: string) {
-    // Aggregate counts per reaction type
-    return this.db
-      .select({
-        reactionType: announcementReactions.reactionType,
-        count: sql<number>`COUNT(*)`.as('count'),
-      })
-      .from(announcementReactions)
-      .where(eq(announcementReactions.announcementId, announcementId))
-      .groupBy(announcementReactions.reactionType)
-      .execute();
+    const companyId = await this.getCompanyIdForAnnouncement(announcementId);
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['announcement', announcementId, 'reactions', 'counts'],
+      async () => {
+        return this.db
+          .select({
+            reactionType: announcementReactions.reactionType,
+            count: sql<number>`COUNT(*)`.as('count'),
+          })
+          .from(announcementReactions)
+          .where(eq(announcementReactions.announcementId, announcementId))
+          .groupBy(announcementReactions.reactionType)
+          .execute();
+      },
+      {
+        tags: this.tags(companyId, announcementId),
+      },
+    );
   }
 
   async hasUserReacted(
     announcementId: string,
     userId: string,
   ): Promise<boolean> {
-    const [reaction] = await this.db
-      .select()
-      .from(announcementReactions)
-      .where(
-        and(
-          eq(announcementReactions.announcementId, announcementId),
-          eq(announcementReactions.createdBy, userId),
-        ),
-      )
-      .execute();
-
-    return !!reaction;
+    const companyId = await this.getCompanyIdForAnnouncement(announcementId);
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['announcement', announcementId, 'reactions', 'hasUser', userId],
+      async () => {
+        const [reaction] = await this.db
+          .select({ id: announcementReactions.id })
+          .from(announcementReactions)
+          .where(
+            and(
+              eq(announcementReactions.announcementId, announcementId),
+              eq(announcementReactions.createdBy, userId),
+            ),
+          )
+          .limit(1)
+          .execute();
+        return !!reaction;
+      },
+      {
+        tags: this.tags(companyId, announcementId),
+      },
+    );
   }
 }

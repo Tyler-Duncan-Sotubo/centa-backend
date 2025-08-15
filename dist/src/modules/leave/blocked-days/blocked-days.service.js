@@ -19,21 +19,29 @@ const blocked_day_schema_1 = require("./schema/blocked-day.schema");
 const audit_service_1 = require("../../audit/audit.service");
 const drizzle_orm_1 = require("drizzle-orm");
 const schema_1 = require("../../../drizzle/schema");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let BlockedDaysService = class BlockedDaysService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
+    }
+    tags(companyId) {
+        return [
+            `company:${companyId}:leave`,
+            `company:${companyId}:leave:blocked-days`,
+        ];
     }
     async create(dto, user) {
         const existingBlockedDay = await this.db
             .select()
             .from(blocked_day_schema_1.blockedLeaveDays)
-            .where((0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.date, dto.date))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.date, dto.date), (0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.companyId, user.companyId)))
             .execute();
         if (existingBlockedDay.length > 0) {
             throw new common_1.BadRequestException('This date is already blocked.');
         }
-        const blockedDay = await this.db
+        const [blockedDay] = await this.db
             .insert(blocked_day_schema_1.blockedLeaveDays)
             .values({
             ...dto,
@@ -45,50 +53,63 @@ let BlockedDaysService = class BlockedDaysService {
         await this.auditService.logAction({
             action: 'create',
             entity: 'blockedLeaveDays',
-            entityId: blockedDay[0].id,
+            entityId: blockedDay.id,
             userId: user.id,
             details: 'Blocked day created',
-            changes: JSON.stringify(dto),
+            changes: { ...dto, companyId: user.companyId },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
         return blockedDay;
     }
     async getBlockedDates(companyId) {
-        const result = await this.db
-            .select({ date: blocked_day_schema_1.blockedLeaveDays.date })
-            .from(blocked_day_schema_1.blockedLeaveDays)
-            .where((0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.companyId, companyId))
-            .execute();
-        return result.map((r) => r.date.toString().split('T')[0]);
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'blocked-days', 'dates'], async () => {
+            const result = (await this.db
+                .select({ date: blocked_day_schema_1.blockedLeaveDays.date })
+                .from(blocked_day_schema_1.blockedLeaveDays)
+                .where((0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.companyId, companyId))
+                .execute());
+            return result.map((r) => (typeof r.date === 'string' ? r.date : r.date.toISOString()).split('T')[0]);
+        }, { tags: this.tags(companyId) });
     }
     async findAll(companyId) {
-        const blockedDays = await this.db
-            .select({
-            id: blocked_day_schema_1.blockedLeaveDays.id,
-            date: blocked_day_schema_1.blockedLeaveDays.date,
-            reason: blocked_day_schema_1.blockedLeaveDays.reason,
-            createdAt: blocked_day_schema_1.blockedLeaveDays.createdAt,
-            createdBy: (0, drizzle_orm_1.sql) `concat(${schema_1.users.firstName}, ' ', ${schema_1.users.lastName})`,
-            name: blocked_day_schema_1.blockedLeaveDays.name,
-        })
-            .from(blocked_day_schema_1.blockedLeaveDays)
-            .innerJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.users.id, blocked_day_schema_1.blockedLeaveDays.createdBy))
-            .where((0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.companyId, companyId))
-            .execute();
-        return blockedDays;
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'blocked-days', 'list'], async () => {
+            return this.db
+                .select({
+                id: blocked_day_schema_1.blockedLeaveDays.id,
+                date: blocked_day_schema_1.blockedLeaveDays.date,
+                reason: blocked_day_schema_1.blockedLeaveDays.reason,
+                createdAt: blocked_day_schema_1.blockedLeaveDays.createdAt,
+                createdBy: (0, drizzle_orm_1.sql) `concat(${schema_1.users.firstName}, ' ', ${schema_1.users.lastName})`,
+                name: blocked_day_schema_1.blockedLeaveDays.name,
+            })
+                .from(blocked_day_schema_1.blockedLeaveDays)
+                .innerJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.users.id, blocked_day_schema_1.blockedLeaveDays.createdBy))
+                .where((0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.companyId, companyId))
+                .execute();
+        }, { tags: this.tags(companyId) });
     }
-    async findOne(id) {
-        const [blockedDay] = await this.db
-            .select()
-            .from(blocked_day_schema_1.blockedLeaveDays)
-            .where((0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.id, id))
-            .execute();
-        if (!blockedDay) {
-            throw new common_1.BadRequestException('Blocked day not found');
-        }
-        return blockedDay;
+    async findOne(id, companyId) {
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'blocked-days', 'one', id], async () => {
+            const [blockedDay] = await this.db
+                .select()
+                .from(blocked_day_schema_1.blockedLeaveDays)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.id, id), (0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.companyId, companyId)))
+                .execute();
+            if (!blockedDay) {
+                throw new common_1.NotFoundException('Blocked day not found');
+            }
+            return blockedDay;
+        }, { tags: this.tags(companyId) });
     }
     async update(id, dto, user) {
-        const blockedDay = await this.db
+        const [existing] = await this.db
+            .select()
+            .from(blocked_day_schema_1.blockedLeaveDays)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.id, id), (0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.companyId, user.companyId)))
+            .execute();
+        if (!existing)
+            throw new common_1.NotFoundException('Blocked day not found');
+        const [updated] = await this.db
             .update(blocked_day_schema_1.blockedLeaveDays)
             .set(dto)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.id, id), (0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.companyId, user.companyId)))
@@ -100,22 +121,40 @@ let BlockedDaysService = class BlockedDaysService {
             entityId: id,
             userId: user.id,
             details: 'Blocked day updated',
-            changes: JSON.stringify(dto),
+            changes: { before: existing, after: updated },
         });
-        return blockedDay;
+        await this.cache.bumpCompanyVersion(user.companyId);
+        return updated;
     }
-    async remove(id) {
-        await this.findOne(id);
-        return this.db
-            .delete(blocked_day_schema_1.blockedLeaveDays)
-            .where((0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.id, id))
+    async remove(id, user) {
+        const [existing] = await this.db
+            .select()
+            .from(blocked_day_schema_1.blockedLeaveDays)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.id, id), (0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.companyId, user.companyId)))
             .execute();
+        if (!existing)
+            throw new common_1.NotFoundException('Blocked day not found');
+        await this.db
+            .delete(blocked_day_schema_1.blockedLeaveDays)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.id, id), (0, drizzle_orm_1.eq)(blocked_day_schema_1.blockedLeaveDays.companyId, user.companyId)))
+            .execute();
+        await this.auditService.logAction({
+            action: 'delete',
+            entity: 'blockedLeaveDays',
+            entityId: id,
+            userId: user.id,
+            details: 'Blocked day deleted',
+            changes: { id, companyId: user.companyId },
+        });
+        await this.cache.bumpCompanyVersion(user.companyId);
+        return { message: 'Blocked day deleted successfully' };
     }
 };
 exports.BlockedDaysService = BlockedDaysService;
 exports.BlockedDaysService = BlockedDaysService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], BlockedDaysService);
 //# sourceMappingURL=blocked-days.service.js.map

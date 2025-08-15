@@ -28,7 +28,6 @@ let FeedbackSettingsService = class FeedbackSettingsService {
         this.db = db;
         this.auditService = auditService;
         this.cache = cache;
-        this.ttlSeconds = 10 * 60;
     }
     tags(companyId) {
         return [`company:${companyId}:feedback-settings`];
@@ -212,7 +211,7 @@ let FeedbackSettingsService = class FeedbackSettingsService {
                 updatedAt: settings.updatedAt,
                 rules: feedbackRulesByGroup,
             };
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async update(companyId, dto, user) {
         const [existing] = await this.db

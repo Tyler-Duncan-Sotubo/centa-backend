@@ -34,7 +34,6 @@ let AssessmentsService = class AssessmentsService {
         this.clockInOutService = clockInOutService;
         this.auditService = auditService;
         this.cache = cache;
-        this.ttlSeconds = 10 * 60;
     }
     tags(companyId) {
         return [`company:${companyId}:assessments`];
@@ -250,7 +249,7 @@ let AssessmentsService = class AssessmentsService {
                 dueDate: a.dueDate,
                 score: a.score ?? null,
             }));
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
     async getAssessmentById(assessmentId) {
         const [meta] = await this.db
@@ -415,7 +414,7 @@ let AssessmentsService = class AssessmentsService {
                 result.attendance = attendance;
             }
             return result;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(meta.companyId) });
+        });
     }
     async getAssessmentsForUser(userId) {
         return this.db
@@ -475,7 +474,7 @@ let AssessmentsService = class AssessmentsService {
                 }
             }
             return summary;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
     calculateProgress(status) {
         switch (status) {

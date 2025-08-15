@@ -5,7 +5,6 @@ import { CacheService } from 'src/common/cache/cache.service';
 export declare class AssessmentConclusionsService {
     private readonly db;
     private readonly cache;
-    private readonly ttlSeconds;
     constructor(db: db, cache: CacheService);
     private tags;
     private invalidate;
@@ -13,12 +12,12 @@ export declare class AssessmentConclusionsService {
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
-        finalScore: number | null;
-        promotionRecommendation: string | null;
-        assessmentId: string;
         summary: string | null;
+        assessmentId: string;
         strengths: string | null;
         areasForImprovement: string | null;
+        finalScore: number | null;
+        promotionRecommendation: string | null;
         potentialFlag: boolean | null;
     }>;
     updateConclusion(assessmentId: string, dto: UpdateConclusionDto, authorId: string): Promise<{

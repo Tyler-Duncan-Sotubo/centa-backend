@@ -21,15 +21,14 @@ export declare class EmployeeShiftsService {
     private readonly db;
     private readonly cache;
     constructor(auditService: AuditService, db: db, cache: CacheService);
-    private ttlSeconds;
     private tags;
     private assertNoOverlap;
     assignShift(employeeId: string, dto: CreateEmployeeShiftDto, user: User, ip: string): Promise<{
         id: string;
         createdAt: Date | null;
         companyId: string;
-        employeeId: string;
         isDeleted: boolean | null;
+        employeeId: string;
         shiftId: string | null;
         shiftDate: string;
     }>;
@@ -50,8 +49,8 @@ export declare class EmployeeShiftsService {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        employeeId: string;
         isDeleted: boolean | null;
+        employeeId: string;
         shiftId: string | null;
         shiftDate: string;
     }[]>;

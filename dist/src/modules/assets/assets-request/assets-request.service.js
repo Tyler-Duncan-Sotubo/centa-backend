@@ -22,12 +22,20 @@ const schema_1 = require("../../../drizzle/schema");
 const asset_approval_schema_1 = require("../schema/asset-approval.schema");
 const assets_settings_service_1 = require("../settings/assets-settings.service");
 const pusher_service_1 = require("../../notification/services/pusher.service");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let AssetsRequestService = class AssetsRequestService {
-    constructor(db, auditService, assetsSettingsService, pusher) {
+    constructor(db, auditService, assetsSettingsService, pusher, cache) {
         this.db = db;
         this.auditService = auditService;
         this.assetsSettingsService = assetsSettingsService;
         this.pusher = pusher;
+        this.cache = cache;
+    }
+    tags(companyId) {
+        return [
+            `company:${companyId}:assets`,
+            `company:${companyId}:assets:requests`,
+        ];
     }
     async handleAssetApprovalFlow(assetRequestId, user) {
         const assetSettings = await this.assetsSettingsService.getAssetSettings(user.companyId);
@@ -122,6 +130,7 @@ let AssetsRequestService = class AssetsRequestService {
             }
             await this.pusher.createEmployeeNotification(user.companyId, updated.employeeId, `Your asset request has been auto-approved.`, 'asset');
             await this.pusher.createNotification(user.companyId, `Your asset request has been auto-approved.`, 'asset');
+            await this.cache.bumpCompanyVersion(user.companyId);
         }
     }
     async create(dto, user) {
@@ -158,6 +167,7 @@ let AssetsRequestService = class AssetsRequestService {
                 notes: newRequest.notes,
             },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
         return newRequest;
     }
     findAll(companyId) {
@@ -169,24 +179,26 @@ let AssetsRequestService = class AssetsRequestService {
         ELSE 4
       END
     `;
-        return this.db
-            .select({
-            id: asset_requests_schema_1.assetRequests.id,
-            employeeId: asset_requests_schema_1.assetRequests.employeeId,
-            assetType: asset_requests_schema_1.assetRequests.assetType,
-            purpose: asset_requests_schema_1.assetRequests.purpose,
-            urgency: asset_requests_schema_1.assetRequests.urgency,
-            status: asset_requests_schema_1.assetRequests.status,
-            requestDate: asset_requests_schema_1.assetRequests.requestDate,
-            createdAt: asset_requests_schema_1.assetRequests.createdAt,
-            employeeName: (0, drizzle_orm_1.sql) `${schema_1.employees.firstName} || ' ' || ${schema_1.employees.lastName}`,
-            employeeEmail: schema_1.employees.email,
-        })
-            .from(asset_requests_schema_1.assetRequests)
-            .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(schema_1.employees.id, asset_requests_schema_1.assetRequests.employeeId))
-            .where((0, drizzle_orm_1.eq)(asset_requests_schema_1.assetRequests.companyId, companyId))
-            .orderBy(urgencyOrder, (0, drizzle_orm_1.desc)(asset_requests_schema_1.assetRequests.createdAt))
-            .execute();
+        return this.cache.getOrSetVersioned(companyId, ['assets', 'requests', 'list'], async () => {
+            return this.db
+                .select({
+                id: asset_requests_schema_1.assetRequests.id,
+                employeeId: asset_requests_schema_1.assetRequests.employeeId,
+                assetType: asset_requests_schema_1.assetRequests.assetType,
+                purpose: asset_requests_schema_1.assetRequests.purpose,
+                urgency: asset_requests_schema_1.assetRequests.urgency,
+                status: asset_requests_schema_1.assetRequests.status,
+                requestDate: asset_requests_schema_1.assetRequests.requestDate,
+                createdAt: asset_requests_schema_1.assetRequests.createdAt,
+                employeeName: (0, drizzle_orm_1.sql) `${schema_1.employees.firstName} || ' ' || ${schema_1.employees.lastName}`,
+                employeeEmail: schema_1.employees.email,
+            })
+                .from(asset_requests_schema_1.assetRequests)
+                .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(schema_1.employees.id, asset_requests_schema_1.assetRequests.employeeId))
+                .where((0, drizzle_orm_1.eq)(asset_requests_schema_1.assetRequests.companyId, companyId))
+                .orderBy(urgencyOrder, (0, drizzle_orm_1.desc)(asset_requests_schema_1.assetRequests.createdAt))
+                .execute();
+        }, { tags: this.tags(companyId) });
     }
     async findOne(id) {
         const [request] = await this.db
@@ -234,6 +246,7 @@ let AssetsRequestService = class AssetsRequestService {
                 notes: updatedRequest.notes,
             },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
         return updatedRequest;
     }
     async checkApprovalStatus(assetRequestId, user) {
@@ -294,6 +307,7 @@ let AssetsRequestService = class AssetsRequestService {
             workflowId: schema_1.approvalWorkflows.id,
             approvalStatus: asset_requests_schema_1.assetRequests.status,
             employeeId: asset_requests_schema_1.assetRequests.employeeId,
+            companyId: asset_requests_schema_1.assetRequests.companyId,
         })
             .from(asset_requests_schema_1.assetRequests)
             .leftJoin(schema_1.approvalWorkflows, (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.approvalWorkflows.entityId, asset_requests_schema_1.assetRequests.id), (0, drizzle_orm_1.eq)(schema_1.approvalWorkflows.companyId, user.companyId)))
@@ -358,6 +372,7 @@ let AssetsRequestService = class AssetsRequestService {
                 .execute();
             await this.pusher.createEmployeeNotification(user.companyId, request.employeeId, `Your asset request has been ${action}`, 'asset');
             await this.pusher.createNotification(user.companyId, `Your asset request has been ${action}`, 'asset');
+            await this.cache.bumpCompanyVersion(user.companyId);
             return `Asset request rejected successfully`;
         }
         if (isFallback) {
@@ -387,6 +402,7 @@ let AssetsRequestService = class AssetsRequestService {
                 .execute();
             await this.pusher.createEmployeeNotification(user.companyId, request.employeeId, `Your asset request has been ${action}`, 'asset');
             await this.pusher.createNotification(user.companyId, `Your asset request has been ${action}`, 'asset');
+            await this.cache.bumpCompanyVersion(user.companyId);
             return `Asset request fully approved via fallback`;
         }
         await this.db
@@ -415,6 +431,7 @@ let AssetsRequestService = class AssetsRequestService {
         }
         await this.pusher.createEmployeeNotification(user.companyId, request.employeeId, `Your asset request has been ${action}`, 'asset');
         await this.pusher.createNotification(user.companyId, `Your asset request has been ${action}`, 'asset');
+        await this.cache.bumpCompanyVersion(user.companyId);
         return `Asset request ${action} successfully`;
     }
 };
@@ -424,6 +441,7 @@ exports.AssetsRequestService = AssetsRequestService = __decorate([
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
         assets_settings_service_1.AssetsSettingsService,
-        pusher_service_1.PusherService])
+        pusher_service_1.PusherService,
+        cache_service_1.CacheService])
 ], AssetsRequestService);
 //# sourceMappingURL=assets-request.service.js.map

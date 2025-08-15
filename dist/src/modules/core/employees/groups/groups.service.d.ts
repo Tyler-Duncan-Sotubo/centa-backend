@@ -3,9 +3,11 @@ import { UpdateGroupDto } from './dto/update-group.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class GroupsService {
     private readonly db;
     private readonly auditService;
+    private readonly cache;
     protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "employee_groups";
         schema: undefined;
@@ -158,7 +160,8 @@ export declare class GroupsService {
         };
         dialect: "pg";
     }>;
-    constructor(db: db, auditService: AuditService);
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private tags;
     create(createGroupDto: CreateGroupDto, user: User, ip: string): Promise<{
         id: string;
         name: string;

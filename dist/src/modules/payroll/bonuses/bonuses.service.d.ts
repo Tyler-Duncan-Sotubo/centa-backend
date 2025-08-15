@@ -1,12 +1,15 @@
-import { CreateBonusDto } from './dto/create-bonus.dto';
-import { UpdateBonusDto } from './dto/update-bonus.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { CacheService } from 'src/common/cache/cache.service';
 import { User } from 'src/common/types/user.type';
+import { CreateBonusDto } from './dto/create-bonus.dto';
+import { UpdateBonusDto } from './dto/update-bonus.dto';
 export declare class BonusesService {
     private db;
     private auditService;
-    constructor(db: db, auditService: AuditService);
+    private cache;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private getCompanyIdByBonusId;
     create(user: User, dto: CreateBonusDto): Promise<{
         id: string;
         createdAt: Date | null;

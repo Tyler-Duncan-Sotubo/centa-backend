@@ -30,7 +30,6 @@ let LocationsService = class LocationsService {
         this.companySettings = companySettings;
         this.cache = cache;
         this.table = company_location_schema_1.companyLocations;
-        this.ttlSeconds = 60 * 60;
     }
     tags(companyId) {
         return [`company:${companyId}:locations`];
@@ -81,7 +80,7 @@ let LocationsService = class LocationsService {
             .select()
             .from(company_location_schema_1.companyLocations)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.companyId, companyId), (0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.isActive, true)))
-            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+            .execute(), { tags: this.tags(companyId) });
     }
     async findOne(id) {
         const [row] = await this.db
@@ -93,7 +92,7 @@ let LocationsService = class LocationsService {
             throw new common_1.BadRequestException('CompanyLocation not found');
         if (!row.isActive)
             throw new common_1.BadRequestException('CompanyLocation is inactive');
-        return this.cache.getOrSetVersioned(row.companyId, ['locations', 'one', id], async () => row, { ttlSeconds: this.ttlSeconds, tags: this.tags(row.companyId) });
+        return this.cache.getOrSetVersioned(row.companyId, ['locations', 'one', id], async () => row, { tags: this.tags(row.companyId) });
     }
     async update(locationId, dto, user, ip) {
         const { id: userId } = user;
@@ -172,7 +171,7 @@ let LocationsService = class LocationsService {
                 .where((0, drizzle_orm_1.eq)(location_managers_schema_1.locationManagers.locationId, locationId))
                 .execute();
             return managers;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(loc.companyId) });
+        }, { tags: this.tags(loc.companyId) });
     }
     async addLocationManager(locationId, managerId) {
         const [loc] = await this.db

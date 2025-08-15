@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
-import { and, eq, or, isNull, sql } from 'drizzle-orm';
+import { and, eq, or, isNull, sql, asc } from 'drizzle-orm';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import {
@@ -15,48 +15,71 @@ import {
   scorecard_templates,
 } from '../schema';
 import { CreateScorecardTemplateDto } from './dto/create-score-card.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class ScorecardTemplateService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
 
-  async getAllTemplates(companyId: string) {
-    const templates = await this.db
-      .select({
-        id: scorecard_templates.id,
-        name: scorecard_templates.name,
-        description: scorecard_templates.description,
-        isSystem: scorecard_templates.isSystem,
-        createdAt: scorecard_templates.createdAt,
-        criteria: sql`json_agg(json_build_object(
-          'id', ${scorecard_criteria.id},
-          'name', ${scorecard_criteria.label},
-          'maxScore', ${scorecard_criteria.maxScore},
-          'description', ${scorecard_criteria.description}
-        ))`.as('criteria'),
-      })
-      .from(scorecard_templates)
-      .leftJoin(
-        scorecard_criteria,
-        eq(scorecard_templates.id, scorecard_criteria.templateId),
-      )
-      .where(
-        or(
-          isNull(scorecard_templates.companyId),
-          eq(scorecard_templates.companyId, companyId),
-        ),
-      )
-      .groupBy(scorecard_templates.id)
-      .orderBy(scorecard_templates.createdAt);
-
-    return templates;
+  private tags(scope: string) {
+    // scope is companyId or "global"
+    return [
+      `company:${scope}:scorecards`,
+      `company:${scope}:scorecards:templates`,
+    ];
   }
 
+  // READ (cached): includes system templates + company templates
+  async getAllTemplates(companyId: string) {
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['scorecards', 'templates', 'all'],
+      async () => {
+        const templates = await this.db
+          .select({
+            id: scorecard_templates.id,
+            name: scorecard_templates.name,
+            description: scorecard_templates.description,
+            isSystem: scorecard_templates.isSystem,
+            createdAt: scorecard_templates.createdAt,
+            criteria: sql`json_agg(json_build_object(
+              'id', ${scorecard_criteria.id},
+              'name', ${scorecard_criteria.label},
+              'maxScore', ${scorecard_criteria.maxScore},
+              'description', ${scorecard_criteria.description}
+            ))`.as('criteria'),
+          })
+          .from(scorecard_templates)
+          .leftJoin(
+            scorecard_criteria,
+            eq(scorecard_templates.id, scorecard_criteria.templateId),
+          )
+          .where(
+            or(
+              isNull(scorecard_templates.companyId), // system
+              eq(scorecard_templates.companyId, companyId), // company
+            ),
+          )
+          .groupBy(scorecard_templates.id)
+          .orderBy(asc(scorecard_templates.createdAt))
+          .execute();
+
+        return templates;
+      },
+      {
+        tags: [...this.tags(companyId), ...this.tags('global')],
+      },
+    );
+  }
+
+  // CREATE (write): bump company cache
   async create(user: User, dto: CreateScorecardTemplateDto) {
     const { companyId, id } = user;
+
     const [template] = await this.db
       .insert(scorecard_templates)
       .values({
@@ -95,11 +118,17 @@ export class ScorecardTemplateService {
       },
     });
 
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(companyId);
+
     return template;
   }
 
+  // CLONE (write): bump company cache
   async cloneTemplate(templateId: string, user: User) {
     const { companyId, id } = user;
+
+    // only system templates can be cloned
     const [template] = await this.db
       .select()
       .from(scorecard_templates)
@@ -108,7 +137,8 @@ export class ScorecardTemplateService {
           eq(scorecard_templates.id, templateId),
           isNull(scorecard_templates.companyId),
         ),
-      );
+      )
+      .execute();
 
     if (!template) throw new NotFoundException('System template not found');
 
@@ -122,7 +152,6 @@ export class ScorecardTemplateService {
       })
       .returning();
 
-    // log the creation of the cloned template
     await this.auditService.logAction({
       action: 'clone',
       entity: 'scorecard_template',
@@ -135,9 +164,13 @@ export class ScorecardTemplateService {
       },
     });
 
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(companyId);
+
     return cloned;
   }
 
+  // SEED SYSTEM (write): bump "global" cache scope
   async seedSystemTemplates() {
     const templates = [
       {
@@ -253,13 +286,17 @@ export class ScorecardTemplateService {
       await this.db.insert(scorecard_criteria).values(criteria);
     }
 
+    // Invalidate system/global cache consumers
+    await this.cache.bumpCompanyVersion('global');
+
     return { success: true };
   }
 
+  // DELETE (write): bump company cache
   async deleteTemplate(templateId: string, user: User) {
     const { companyId, id } = user;
 
-    // 1. Fetch the template
+    // 1) Fetch template and ensure visibility
     const template = await this.db.query.scorecard_templates.findFirst({
       where: and(
         eq(scorecard_templates.id, templateId),
@@ -270,15 +307,11 @@ export class ScorecardTemplateService {
       ),
     });
 
-    if (!template) {
-      throw new NotFoundException(`Template not found`);
-    }
-
-    if (template.isSystem) {
+    if (!template) throw new NotFoundException(`Template not found`);
+    if (template.isSystem)
       throw new BadRequestException(`System templates cannot be deleted`);
-    }
 
-    // 2. Check if any interviews are using this template
+    // 2) Check if referenced by interviews
     const isInUse = await this.db.query.interviewInterviewers.findFirst({
       where: eq(interviewInterviewers.scorecardTemplateId, templateId),
     });
@@ -288,12 +321,12 @@ export class ScorecardTemplateService {
       );
     }
 
-    // 3. Proceed with deletion
+    // 3) Delete (criteria should be cascaded by FK if configured; otherwise delete explicitly first)
     await this.db
       .delete(scorecard_templates)
       .where(eq(scorecard_templates.id, templateId));
 
-    // 4. Log audit
+    // 4) Audit
     await this.auditService.logAction({
       action: 'delete',
       entity: 'scorecard_template',
@@ -305,6 +338,9 @@ export class ScorecardTemplateService {
         description: template.description,
       },
     });
+
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(companyId);
 
     return { message: 'Template deleted successfully' };
   }

@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsUUID, IsNumber } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsUUID,
+  IsNumber,
+  IsBoolean,
+} from 'class-validator';
 
 export class CreateGoalDto {
   @IsString()
@@ -7,6 +13,10 @@ export class CreateGoalDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  kpiBased?: boolean;
 
   @IsString()
   dueDate: string;

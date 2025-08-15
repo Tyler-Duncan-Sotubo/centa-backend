@@ -2,9 +2,11 @@ import { CreateHistoryDto } from './dto/create-history.dto';
 import { UpdateHistoryDto } from './dto/update-history.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class HistoryService {
     private readonly db;
     private readonly auditService;
+    private readonly cache;
     protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "employee_history";
         schema: undefined;
@@ -165,7 +167,8 @@ export declare class HistoryService {
         };
         dialect: "pg";
     }>;
-    constructor(db: db, auditService: AuditService);
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private tags;
     create(employeeId: string, dto: CreateHistoryDto, userId: string, ip: string): Promise<{
         id: string;
         createdAt: Date;
@@ -199,7 +202,7 @@ export declare class HistoryService {
         institution: string | null;
         description: string | null;
         createdAt: Date;
-    } | undefined>;
+    }>;
     remove(historyId: string): Promise<{
         deleted: boolean;
         id: string;

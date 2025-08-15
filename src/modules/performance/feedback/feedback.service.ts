@@ -28,7 +28,6 @@ export class FeedbackService {
     private readonly cache: CacheService,
   ) {}
 
-  private ttlSeconds = 5 * 60; // 5 minutes
   private tags(companyId: string) {
     return [`company:${companyId}:feedback`];
   }
@@ -293,7 +292,7 @@ export class FeedbackService {
           isArchived: f.isArchived,
         }));
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -383,7 +382,7 @@ export class FeedbackService {
           isArchived: f.isArchived,
         }));
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -462,7 +461,7 @@ export class FeedbackService {
           responses,
         };
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(item.companyId) },
+      { tags: this.tags(item.companyId) },
     );
 
     return payload;

@@ -21,11 +21,19 @@ const asset_reports_schema_1 = require("../schema/asset-reports.schema");
 const aws_service_1 = require("../../../common/aws/aws.service");
 const assets_schema_1 = require("../schema/assets.schema");
 const schema_1 = require("../../../drizzle/schema");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let AssetsReportService = class AssetsReportService {
-    constructor(db, auditService, awsService) {
+    constructor(db, auditService, awsService, cache) {
         this.db = db;
         this.auditService = auditService;
         this.awsService = awsService;
+        this.cache = cache;
+    }
+    tags(companyId) {
+        return [
+            `company:${companyId}:assets`,
+            `company:${companyId}:assets:reports`,
+        ];
     }
     async create(dto, user) {
         const [existingReport] = await this.db
@@ -67,45 +75,65 @@ let AssetsReportService = class AssetsReportService {
                 documentUrl,
             },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
         return newReport;
     }
     async findAll(companyId) {
-        const allReports = await this.db
-            .select({
-            id: asset_reports_schema_1.assetReports.id,
-            employeeId: asset_reports_schema_1.assetReports.employeeId,
-            assetId: asset_reports_schema_1.assetReports.assetId,
-            reportType: asset_reports_schema_1.assetReports.reportType,
-            description: asset_reports_schema_1.assetReports.description,
-            documentUrl: asset_reports_schema_1.assetReports.documentUrl,
-            reportedAt: asset_reports_schema_1.assetReports.reportedAt,
-            employeeName: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
-            employeeEmail: schema_1.employees.email,
-            assetName: assets_schema_1.assets.name,
-            status: asset_reports_schema_1.assetReports.status,
-            assetStatus: assets_schema_1.assets.status,
-        })
-            .from(asset_reports_schema_1.assetReports)
-            .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(asset_reports_schema_1.assetReports.employeeId, schema_1.employees.id))
-            .leftJoin(assets_schema_1.assets, (0, drizzle_orm_1.eq)(asset_reports_schema_1.assetReports.assetId, assets_schema_1.assets.id))
-            .where((0, drizzle_orm_1.eq)(asset_reports_schema_1.assetReports.companyId, companyId))
-            .orderBy((0, drizzle_orm_1.desc)(asset_reports_schema_1.assetReports.reportedAt))
-            .execute();
-        return allReports;
+        return this.cache.getOrSetVersioned(companyId, ['assets', 'reports', 'list'], async () => {
+            return this.db
+                .select({
+                id: asset_reports_schema_1.assetReports.id,
+                employeeId: asset_reports_schema_1.assetReports.employeeId,
+                assetId: asset_reports_schema_1.assetReports.assetId,
+                reportType: asset_reports_schema_1.assetReports.reportType,
+                description: asset_reports_schema_1.assetReports.description,
+                documentUrl: asset_reports_schema_1.assetReports.documentUrl,
+                reportedAt: asset_reports_schema_1.assetReports.reportedAt,
+                employeeName: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
+                employeeEmail: schema_1.employees.email,
+                assetName: assets_schema_1.assets.name,
+                status: asset_reports_schema_1.assetReports.status,
+                assetStatus: assets_schema_1.assets.status,
+            })
+                .from(asset_reports_schema_1.assetReports)
+                .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(asset_reports_schema_1.assetReports.employeeId, schema_1.employees.id))
+                .leftJoin(assets_schema_1.assets, (0, drizzle_orm_1.eq)(asset_reports_schema_1.assetReports.assetId, assets_schema_1.assets.id))
+                .where((0, drizzle_orm_1.eq)(asset_reports_schema_1.assetReports.companyId, companyId))
+                .orderBy((0, drizzle_orm_1.desc)(asset_reports_schema_1.assetReports.reportedAt))
+                .execute();
+        }, { tags: this.tags(companyId) });
     }
-    async findOne(id) {
-        const [report] = await this.db
-            .select()
-            .from(asset_reports_schema_1.assetReports)
-            .where((0, drizzle_orm_1.eq)(asset_reports_schema_1.assetReports.id, id))
-            .execute();
-        if (!report) {
-            throw new common_1.BadRequestException(`Report with ID ${id} not found`);
-        }
-        return report;
+    async findOne(id, companyId) {
+        const keyParts = companyId
+            ? ['assets', 'reports', 'one', id]
+            : ['assets', 'reports', 'one-no-company', id];
+        return this.cache.getOrSetVersioned(companyId ?? 'global', keyParts, async () => {
+            let rows;
+            if (companyId) {
+                rows = await this.db
+                    .select()
+                    .from(asset_reports_schema_1.assetReports)
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(asset_reports_schema_1.assetReports.id, id), (0, drizzle_orm_1.eq)(asset_reports_schema_1.assetReports.companyId, companyId)))
+                    .execute();
+            }
+            else {
+                rows = await this.db
+                    .select()
+                    .from(asset_reports_schema_1.assetReports)
+                    .where((0, drizzle_orm_1.eq)(asset_reports_schema_1.assetReports.id, id))
+                    .execute();
+            }
+            const report = rows[0];
+            if (!report) {
+                throw new common_1.BadRequestException(`Report with ID ${id} not found`);
+            }
+            return report;
+        }, {
+            tags: companyId ? this.tags(companyId) : undefined,
+        });
     }
     async update(id, user, status, assetStatus) {
-        const report = await this.findOne(id.toString());
+        const report = await this.findOne(id, user.companyId);
         const [updatedReport] = await this.db
             .update(asset_reports_schema_1.assetReports)
             .set({
@@ -136,6 +164,7 @@ let AssetsReportService = class AssetsReportService {
                 assetStatus: assetStatus ?? 'unchanged',
             },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
         return updatedReport;
     }
 };
@@ -144,6 +173,7 @@ exports.AssetsReportService = AssetsReportService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
-        aws_service_1.AwsService])
+        aws_service_1.AwsService,
+        cache_service_1.CacheService])
 ], AssetsReportService);
 //# sourceMappingURL=assets-report.service.js.map

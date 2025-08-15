@@ -10,10 +10,10 @@ export declare class ReservedDaysController extends BaseController {
         id: string;
         createdAt: Date | null;
         companyId: string | null;
-        startDate: string;
-        endDate: string;
-        employeeId: string | null;
         createdBy: string;
+        startDate: string;
+        employeeId: string | null;
+        endDate: string;
         reason: string | null;
         leaveTypeId: string;
     }>;
@@ -36,7 +36,7 @@ export declare class ReservedDaysController extends BaseController {
         createdBy: string;
         reason: string | null;
     })[]>;
-    findOne(id: string): Promise<{
+    findOne(id: string, user: User): Promise<{
         id: string;
         employeeId: string | null;
         companyId: string | null;
@@ -68,6 +68,8 @@ export declare class ReservedDaysController extends BaseController {
         endDate: string;
         reason: string | null;
         createdAt: Date | null;
-    }[]>;
-    remove(id: string): Promise<any>;
+    }>;
+    remove(id: string, user: User): Promise<{
+        message: string;
+    }>;
 }

@@ -4,7 +4,6 @@ export declare class PayrollSettingsService {
     private readonly companySettingsService;
     private readonly cache;
     constructor(companySettingsService: CompanySettingsService, cache: CacheService);
-    private ttlSeconds;
     private tags;
     getAllPayrollSettings(companyId: string): Promise<Record<string, any>>;
     payrollSettings(companyId: string): Promise<any>;

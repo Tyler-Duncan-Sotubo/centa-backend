@@ -6,14 +6,27 @@ import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { eq } from 'drizzle-orm';
 import { employeeHistory } from '../schema/history.schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class HistoryService {
   protected table = employeeHistory;
+
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
+
+  private tags(scope: string) {
+    // scope is employeeId or "global"
+    return [
+      `employee:${scope}:history`,
+      `employee:${scope}:history:list`,
+      `employee:${scope}:history:detail`,
+    ];
+  }
+
   async create(
     employeeId: string,
     dto: CreateHistoryDto,
@@ -40,28 +53,48 @@ export class HistoryService {
       changes: { ...dto },
     });
 
+    // Invalidate caches for this employee
+    await this.cache.bumpCompanyVersion(employeeId);
+
     return created;
   }
 
+  // READ (cached per employee)
   findAll(employeeId: string) {
-    return this.db
-      .select()
-      .from(this.table)
-      .where(eq(this.table.employeeId, employeeId))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      employeeId,
+      ['history', 'list', employeeId],
+      async () => {
+        const rows = await this.db
+          .select()
+          .from(this.table)
+          .where(eq(this.table.employeeId, employeeId))
+          .execute();
+        return rows;
+      },
+      { tags: this.tags(employeeId) },
+    );
   }
 
+  // READ (cached; no employeeId in signature → global scope)
   async findOne(historyId: string) {
-    const [history] = await this.db
-      .select()
-      .from(this.table)
-      .where(eq(this.table.id, historyId))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      'global',
+      ['history', 'detail', historyId],
+      async () => {
+        const [history] = await this.db
+          .select()
+          .from(this.table)
+          .where(eq(this.table.id, historyId))
+          .execute();
 
-    if (!history) {
-      return {};
-    }
-    return history;
+        if (!history) {
+          return {};
+        }
+        return history;
+      },
+      { tags: this.tags('global') },
+    );
   }
 
   async update(
@@ -70,7 +103,7 @@ export class HistoryService {
     userId: string,
     ip: string,
   ) {
-    // Check if Employee exists
+    // fetch for existence + employeeId (for precise cache bump)
     const [history] = await this.db
       .select()
       .from(this.table)
@@ -83,42 +116,49 @@ export class HistoryService {
       );
     }
 
-    if (history) {
-      const [updated] = await this.db
-        .update(this.table)
-        .set({
-          ...dto,
-          type: dto.type as 'employment' | 'education' | 'certification',
-        })
-        .where(eq(this.table.id, historyId))
-        .returning()
-        .execute();
+    const [updated] = await this.db
+      .update(this.table)
+      .set({
+        ...dto,
+        type: dto.type as 'employment' | 'education' | 'certification',
+      })
+      .where(eq(this.table.id, historyId))
+      .returning()
+      .execute();
 
-      const changes: Record<string, any> = {};
-      for (const key of Object.keys(dto)) {
-        const before = (history as any)[key];
-        const after = (dto as any)[key];
-        if (before !== after) {
-          changes[key] = { before, after };
-        }
-      }
-      if (Object.keys(changes).length) {
-        await this.auditService.logAction({
-          action: 'update',
-          entity: 'EmployeeHistory',
-          details: 'Updated employee history',
-          userId,
-          entityId: historyId,
-          ipAddress: ip,
-          changes,
-        });
-      }
-
-      return updated;
+    const changes: Record<string, any> = {};
+    for (const key of Object.keys(dto)) {
+      const before = (history as any)[key];
+      const after = (dto as any)[key];
+      if (before !== after) changes[key] = { before, after };
     }
+    if (Object.keys(changes).length) {
+      await this.auditService.logAction({
+        action: 'update',
+        entity: 'EmployeeHistory',
+        details: 'Updated employee history',
+        userId,
+        entityId: historyId,
+        ipAddress: ip,
+        changes,
+      });
+    }
+
+    // Invalidate caches: employee list + global detail
+    await this.cache.bumpCompanyVersion(history.employeeId);
+    await this.cache.bumpCompanyVersion('global');
+
+    return updated;
   }
 
   async remove(historyId: string) {
+    // grab for cache bump
+    const [existing] = await this.db
+      .select()
+      .from(this.table)
+      .where(eq(this.table.id, historyId))
+      .execute();
+
     const result = await this.db
       .delete(this.table)
       .where(eq(this.table.id, historyId))
@@ -130,6 +170,12 @@ export class HistoryService {
         `History for employee ${historyId} not found`,
       );
     }
+
+    // Invalidate caches
+    if (existing?.employeeId) {
+      await this.cache.bumpCompanyVersion(existing.employeeId);
+    }
+    await this.cache.bumpCompanyVersion('global');
 
     return { deleted: true, id: result[0].id };
   }

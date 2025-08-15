@@ -25,7 +25,6 @@ let AssessmentConclusionsService = class AssessmentConclusionsService {
     constructor(db, cache) {
         this.db = db;
         this.cache = cache;
-        this.ttlSeconds = 10 * 60;
     }
     tags(companyId) {
         return [`company:${companyId}:assessments`];
@@ -106,7 +105,7 @@ let AssessmentConclusionsService = class AssessmentConclusionsService {
             if (!conclusion)
                 throw new common_1.NotFoundException('Conclusion not found');
             return conclusion;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(assessment.companyId) });
+        });
     }
     async isHR(userId) {
         const [row] = await this.db

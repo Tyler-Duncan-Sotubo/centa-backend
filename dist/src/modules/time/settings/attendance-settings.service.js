@@ -17,7 +17,6 @@ let AttendanceSettingsService = class AttendanceSettingsService {
     constructor(companySettingsService, cache) {
         this.companySettingsService = companySettingsService;
         this.cache = cache;
-        this.ttlSeconds = 60 * 60;
     }
     tags(companyId) {
         return [
@@ -36,7 +35,7 @@ let AttendanceSettingsService = class AttendanceSettingsService {
                 }
             }
             return attendanceSettings;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
     async getAttendanceSettings(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['attendance', 'config'], async () => {
@@ -67,7 +66,7 @@ let AttendanceSettingsService = class AttendanceSettingsService {
                 allowHalfDay: Boolean(rows['attendance.allow_half_day']),
                 halfDayDuration: Number(rows['attendance.half_day_duration']) || 4,
             };
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
     async updateAttendanceSetting(companyId, key, value) {
         const settingKey = `attendance.${key}`;

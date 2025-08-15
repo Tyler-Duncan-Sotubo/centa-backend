@@ -3,10 +3,13 @@ import { UpdateBlockedDayDto } from './dto/update-blocked-day.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class BlockedDaysService {
     private db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private tags;
     create(dto: CreateBlockedDayDto, user: User): Promise<{
         date: string;
         id: string;
@@ -15,7 +18,7 @@ export declare class BlockedDaysService {
         companyId: string | null;
         createdBy: string;
         reason: string | null;
-    }[]>;
+    }>;
     getBlockedDates(companyId: string): Promise<string[]>;
     findAll(companyId: string): Promise<{
         id: string;
@@ -25,7 +28,7 @@ export declare class BlockedDaysService {
         createdBy: string;
         name: string;
     }[]>;
-    findOne(id: string): Promise<{
+    findOne(id: string, companyId: string): Promise<{
         id: string;
         companyId: string | null;
         name: string;
@@ -42,6 +45,8 @@ export declare class BlockedDaysService {
         reason: string | null;
         createdBy: string;
         createdAt: Date | null;
-    }[]>;
-    remove(id: string): Promise<any>;
+    }>;
+    remove(id: string, user: User): Promise<{
+        message: string;
+    }>;
 }

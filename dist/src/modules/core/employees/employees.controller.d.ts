@@ -410,7 +410,21 @@ export declare class EmployeesController extends BaseController {
             role: string;
             confirmed: any;
         } | null;
-        profile: {} | null;
+        profile: {
+            id: string;
+            dateOfBirth: string | null;
+            gender: string | null;
+            maritalStatus: string | null;
+            address: string | null;
+            state: string | null;
+            country: string | null;
+            phone: string | null;
+            emergencyName: string | null;
+            emergencyPhone: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            employeeId: string;
+        } | null;
         history: {
             id: string;
             employeeId: string;
@@ -503,7 +517,7 @@ export declare class EmployeesController extends BaseController {
             transport: string;
             voluntaryDeductions: unknown;
         }[] | null;
-        avatarUrl: string;
+        avatarUrl: any;
     }>;
     findOne(id: string, user: User): Promise<{
         employeeManager: {
@@ -632,7 +646,7 @@ export declare class EmployeesController extends BaseController {
     }>;
     update(id: string, dto: EmployeeProfileDto, user: User, ip: string): Promise<{
         [x: string]: any;
-    } | undefined>;
+    }>;
     remove(id: string): Promise<{
         deleted: boolean;
         id: any;

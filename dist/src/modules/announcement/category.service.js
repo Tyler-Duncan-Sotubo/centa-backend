@@ -18,10 +18,18 @@ const drizzle_module_1 = require("../../drizzle/drizzle.module");
 const announcements_schema_1 = require("./schema/announcements.schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const audit_service_1 = require("../audit/audit.service");
+const cache_service_1 = require("../../common/cache/cache.service");
 let CategoryService = class CategoryService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
+    }
+    tags(companyId) {
+        return [
+            `company:${companyId}:announcements`,
+            `company:${companyId}:announcement:categories`,
+        ];
     }
     async createCategory(name, user) {
         const [existing] = await this.db
@@ -30,7 +38,7 @@ let CategoryService = class CategoryService {
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.name, name), (0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.companyId, user.companyId)))
             .execute();
         if (existing) {
-            throw new common_1.BadRequestException('Category code already exists');
+            throw new common_1.BadRequestException('Category name already exists');
         }
         const [newCategory] = await this.db
             .insert(announcements_schema_1.announcementCategories)
@@ -51,6 +59,7 @@ let CategoryService = class CategoryService {
                 companyId: newCategory.companyId,
             },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
         return newCategory;
     }
     async updateCategory(id, name, user) {
@@ -64,9 +73,7 @@ let CategoryService = class CategoryService {
         }
         const [updated] = await this.db
             .update(announcements_schema_1.announcementCategories)
-            .set({
-            name,
-        })
+            .set({ name })
             .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.id, id))
             .returning()
             .execute();
@@ -81,6 +88,7 @@ let CategoryService = class CategoryService {
                 companyId: updated.companyId,
             },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
         return updated;
     }
     async deleteCategory(id, user) {
@@ -103,20 +111,24 @@ let CategoryService = class CategoryService {
             userId: user.id,
             details: `Deleted category ${id} for company ${user.companyId}`,
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
         return { success: true };
     }
     async listCategories(companyId) {
-        return await this.db
-            .select()
-            .from(announcements_schema_1.announcementCategories)
-            .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.companyId, companyId))
-            .execute();
+        return this.cache.getOrSetVersioned(companyId, ['announcements', 'categories'], async () => {
+            return this.db
+                .select()
+                .from(announcements_schema_1.announcementCategories)
+                .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementCategories.companyId, companyId))
+                .execute();
+        }, { tags: this.tags(companyId) });
     }
 };
 exports.CategoryService = CategoryService;
 exports.CategoryService = CategoryService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], CategoryService);
 //# sourceMappingURL=category.service.js.map

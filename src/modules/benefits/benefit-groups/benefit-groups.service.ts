@@ -8,16 +8,28 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { benefitGroups } from '../schema/benefit-groups.schema';
 import { benefitPlans } from '../schema/benefit-plan.schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class BenefitGroupsService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
 
+  private tags(companyId: string) {
+    return [
+      `company:${companyId}:benefit-groups`,
+      `company:${companyId}:benefit-groups:list`,
+    ];
+  }
+
+  // -----------------------------
+  // Create
+  // -----------------------------
   async create(dto: CreateBenefitGroupDto, user: User) {
-    // check if the group name already exists
+    // Uniqueness check
     const [existingGroup] = await this.db
       .select()
       .from(benefitGroups)
@@ -34,16 +46,15 @@ export class BenefitGroupsService {
       );
     }
 
-    // create the new benefit group
     const [newGroup] = await this.db
       .insert(benefitGroups)
       .values({
         ...dto,
         companyId: user.companyId,
       })
-      .returning();
+      .returning()
+      .execute();
 
-    // log the creation of the new benefit group
     await this.auditService.logAction({
       action: 'create',
       entity: 'benefitGroup',
@@ -57,35 +68,66 @@ export class BenefitGroupsService {
         createdAt: newGroup.createdAt,
       },
     });
+
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(user.companyId);
+
     return newGroup;
   }
 
+  // -----------------------------
+  // Read (all) — cached
+  // -----------------------------
   async findAll(companyId: string) {
-    const allGroups = await this.db
-      .select()
-      .from(benefitGroups)
-      .where(eq(benefitGroups.companyId, companyId))
-      .execute();
-
-    return allGroups;
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['benefit-groups', 'all'],
+      async () => {
+        return this.db
+          .select()
+          .from(benefitGroups)
+          .where(eq(benefitGroups.companyId, companyId))
+          .execute();
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
-  findOne(id: string) {
-    const group = this.db
-      .select()
-      .from(benefitGroups)
-      .where(eq(benefitGroups.id, id))
-      .execute();
+  // -----------------------------
+  // Read (one) — cached
+  // (Use companyId so versioned cache invalidation works)
+  // -----------------------------
+  async findOne(companyId: string, id: string) {
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['benefit-groups', 'one', id],
+      async () => {
+        const [group] = await this.db
+          .select()
+          .from(benefitGroups)
+          .where(
+            and(
+              eq(benefitGroups.id, id),
+              eq(benefitGroups.companyId, companyId),
+            ),
+          )
+          .execute();
 
-    if (!group) {
-      throw new BadRequestException('Benefit group not found');
-    }
-    return group;
+        if (!group) {
+          throw new BadRequestException('Benefit group not found');
+        }
+        return group;
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
+  // -----------------------------
+  // Update
+  // -----------------------------
   async update(id: string, dto: UpdateBenefitGroupDto, user: User) {
-    // check if the group name already exists
-    await this.findOne(id);
+    // Ensure it exists (and scopes by company)
+    await this.findOne(user.companyId, id);
 
     const [updatedGroup] = await this.db
       .update(benefitGroups)
@@ -93,11 +135,15 @@ export class BenefitGroupsService {
         ...dto,
         companyId: user.companyId,
       })
-      .where(eq(benefitGroups.id, id))
+      .where(
+        and(
+          eq(benefitGroups.id, id),
+          eq(benefitGroups.companyId, user.companyId),
+        ),
+      )
       .returning()
       .execute();
 
-    // log the update of the benefit group
     await this.auditService.logAction({
       action: 'update',
       entity: 'benefitGroup',
@@ -112,12 +158,20 @@ export class BenefitGroupsService {
       },
     });
 
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(user.companyId);
+
     return updatedGroup;
   }
 
+  // -----------------------------
+  // Delete
+  // -----------------------------
   async remove(id: string, user: User) {
-    await this.findOne(id);
+    // Ensure it exists
+    await this.findOne(user.companyId, id);
 
+    // Prevent delete if plans reference this group
     const existingPlans = await this.db
       .select()
       .from(benefitPlans)
@@ -141,7 +195,6 @@ export class BenefitGroupsService {
       .returning()
       .execute();
 
-    // log the deletion of the benefit group
     await this.auditService.logAction({
       action: 'delete',
       entity: 'benefitGroup',
@@ -155,5 +208,8 @@ export class BenefitGroupsService {
         createdAt: deletedGroup.createdAt,
       },
     });
+
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(user.companyId);
   }
 }

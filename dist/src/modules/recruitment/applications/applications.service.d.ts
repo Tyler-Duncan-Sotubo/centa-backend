@@ -7,13 +7,16 @@ import { ChangeApplicationStatusDto } from './dto/chnage-app-status.dto';
 import { User } from 'src/common/types/user.type';
 import { ResumeScoringService } from './resume-scoring.service';
 import { Queue } from 'bullmq';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class ApplicationsService {
     private readonly db;
     private readonly queue;
     private readonly awsService;
     private readonly auditService;
     private readonly resumeScoring;
-    constructor(db: db, queue: Queue, awsService: AwsService, auditService: AuditService, resumeScoring: ResumeScoringService);
+    private readonly cache;
+    constructor(db: db, queue: Queue, awsService: AwsService, auditService: AuditService, resumeScoring: ResumeScoringService, cache: CacheService);
+    private tags;
     submitApplication(dto: CreateApplicationDto): Promise<{
         success: boolean;
         applicationId: string;

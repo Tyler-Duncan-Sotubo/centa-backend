@@ -18,11 +18,20 @@ const drizzle_module_1 = require("../../../../drizzle/drizzle.module");
 const audit_service_1 = require("../../../audit/audit.service");
 const drizzle_orm_1 = require("drizzle-orm");
 const certifications_schema_1 = require("../schema/certifications.schema");
+const cache_service_1 = require("../../../../common/cache/cache.service");
 let CertificationsService = class CertificationsService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
         this.table = certifications_schema_1.employeeCertifications;
+    }
+    tags(scope) {
+        return [
+            `employee:${scope}:certifications`,
+            `employee:${scope}:certifications:list`,
+            `employee:${scope}:certifications:detail`,
+        ];
     }
     async create(employeeId, dto, userId, ip) {
         const [created] = await this.db
@@ -39,25 +48,32 @@ let CertificationsService = class CertificationsService {
             ipAddress: ip,
             changes: { ...dto },
         });
+        await this.cache.bumpCompanyVersion(employeeId);
         return created;
     }
     findAll(employeeId) {
-        return this.db
-            .select()
-            .from(this.table)
-            .where((0, drizzle_orm_1.eq)(this.table.employeeId, employeeId))
-            .execute();
+        return this.cache.getOrSetVersioned(employeeId, ['certifications', 'list', employeeId], async () => {
+            const rows = await this.db
+                .select()
+                .from(this.table)
+                .where((0, drizzle_orm_1.eq)(this.table.employeeId, employeeId))
+                .execute();
+            return rows;
+        }, { tags: this.tags(employeeId) });
     }
     async findOne(certificationId) {
-        const [certification] = await this.db
-            .select()
-            .from(this.table)
-            .where((0, drizzle_orm_1.eq)(this.table.id, certificationId))
-            .execute();
-        if (!certification) {
-            return {};
-        }
-        return certification;
+        const scope = 'global';
+        return this.cache.getOrSetVersioned(scope, ['certifications', 'detail', certificationId], async () => {
+            const [certification] = await this.db
+                .select()
+                .from(this.table)
+                .where((0, drizzle_orm_1.eq)(this.table.id, certificationId))
+                .execute();
+            if (!certification) {
+                return {};
+            }
+            return certification;
+        }, { tags: this.tags(scope) });
     }
     async update(certificationId, dto, userId, ip) {
         const [certification] = await this.db
@@ -68,36 +84,41 @@ let CertificationsService = class CertificationsService {
         if (!certification) {
             throw new common_1.NotFoundException(`Profile for employee ${certificationId} not found`);
         }
-        if (certification) {
-            const [updated] = await this.db
-                .update(this.table)
-                .set({ ...dto })
-                .where((0, drizzle_orm_1.eq)(this.table.id, certificationId))
-                .returning()
-                .execute();
-            const changes = {};
-            for (const key of Object.keys(dto)) {
-                const before = certification[key];
-                const after = dto[key];
-                if (before !== after) {
-                    changes[key] = { before, after };
-                }
+        const [updated] = await this.db
+            .update(this.table)
+            .set({ ...dto })
+            .where((0, drizzle_orm_1.eq)(this.table.id, certificationId))
+            .returning()
+            .execute();
+        const changes = {};
+        for (const key of Object.keys(dto)) {
+            const before = certification[key];
+            const after = dto[key];
+            if (before !== after) {
+                changes[key] = { before, after };
             }
-            if (Object.keys(changes).length) {
-                await this.auditService.logAction({
-                    action: 'update',
-                    entity: 'Employee certification',
-                    details: 'Updated employee certification',
-                    userId,
-                    entityId: certificationId,
-                    ipAddress: ip,
-                    changes,
-                });
-            }
-            return updated;
         }
+        if (Object.keys(changes).length) {
+            await this.auditService.logAction({
+                action: 'update',
+                entity: 'Employee certification',
+                details: 'Updated employee certification',
+                userId,
+                entityId: certificationId,
+                ipAddress: ip,
+                changes,
+            });
+        }
+        await this.cache.bumpCompanyVersion(certification.employeeId);
+        await this.cache.bumpCompanyVersion('global');
+        return updated;
     }
     async remove(certificationId) {
+        const [existing] = await this.db
+            .select()
+            .from(this.table)
+            .where((0, drizzle_orm_1.eq)(this.table.id, certificationId))
+            .execute();
         const result = await this.db
             .delete(this.table)
             .where((0, drizzle_orm_1.eq)(this.table.id, certificationId))
@@ -106,6 +127,10 @@ let CertificationsService = class CertificationsService {
         if (!result.length) {
             throw new common_1.NotFoundException(`Profile for employee ${certificationId} not found`);
         }
+        if (existing?.employeeId) {
+            await this.cache.bumpCompanyVersion(existing.employeeId);
+        }
+        await this.cache.bumpCompanyVersion('global');
         return { deleted: true, id: result[0].id };
     }
 };
@@ -113,6 +138,7 @@ exports.CertificationsService = CertificationsService;
 exports.CertificationsService = CertificationsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], CertificationsService);
 //# sourceMappingURL=certifications.service.js.map

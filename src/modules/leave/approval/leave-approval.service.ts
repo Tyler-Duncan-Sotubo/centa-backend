@@ -14,6 +14,7 @@ import { LeaveBalanceService } from '../balance/leave-balance.service';
 import { ApproveRejectLeaveDto } from './dto/approve-reject.dto';
 import { LeaveSettingsService } from '../settings/leave-settings.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class LeaveApprovalService {
@@ -23,26 +24,42 @@ export class LeaveApprovalService {
     private readonly leaveBalanceService: LeaveBalanceService,
     private readonly leaveSettingsService: LeaveSettingsService,
     private readonly pusher: PusherService,
+    private readonly cache: CacheService,
   ) {}
 
-  // find one by ID
+  /** cache tags used for this domain (lets CacheService pick TTL centrally) */
+  private tags(companyId: string) {
+    return [
+      `company:${companyId}:leave`,
+      `company:${companyId}:leave:requests`,
+      `company:${companyId}:leave:approvals`,
+    ];
+  }
+
+  /** Get one leave request (cached, versioned by company) */
   async findOneById(leaveRequestId: string, companyId: string) {
-    const [leaveRequest] = await this.db
-      .select()
-      .from(leaveRequests)
-      .where(
-        and(
-          eq(leaveRequests.id, leaveRequestId),
-          eq(leaveRequests.companyId, companyId),
-        ),
-      )
-      .execute();
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['leave', 'request', 'one', leaveRequestId],
+      async () => {
+        const [leaveRequest] = await this.db
+          .select()
+          .from(leaveRequests)
+          .where(
+            and(
+              eq(leaveRequests.id, leaveRequestId),
+              eq(leaveRequests.companyId, companyId),
+            ),
+          )
+          .execute();
 
-    if (!leaveRequest) {
-      throw new NotFoundException('Leave request not found');
-    }
-
-    return leaveRequest;
+        if (!leaveRequest) {
+          throw new NotFoundException('Leave request not found');
+        }
+        return leaveRequest;
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
   // Approve Leave Request
@@ -55,7 +72,6 @@ export class LeaveApprovalService {
     const isMultiLevel = await this.leaveSettingsService.isMultiLevelApproval(
       user.companyId,
     );
-
     const leaveRequest = await this.findOneById(leaveRequestId, user.companyId);
 
     if (leaveRequest.approverId !== user.id && user.role !== 'super_admin') {
@@ -63,7 +79,6 @@ export class LeaveApprovalService {
         'You are not authorized to approve this request',
       );
     }
-
     if (leaveRequest.status !== 'pending') {
       throw new BadRequestException(
         'Leave request is not in a state that can be approved',
@@ -71,7 +86,7 @@ export class LeaveApprovalService {
     }
 
     if (isMultiLevel) {
-      // 1. Find current approver in approvalChain
+      // 1) Resolve current approver in chain
       const approvalChain: Array<{
         approverId: string;
         status: string;
@@ -82,36 +97,26 @@ export class LeaveApprovalService {
       const currentApprover = approvalChain.find(
         (level) => level.status === 'pending',
       );
-
-      if (!currentApprover) {
+      if (!currentApprover)
         throw new BadRequestException('No pending approver found.');
-      }
-
-      // 2. Verify if CurrentUser is authorized
       if (currentApprover.approverId !== user.id) {
         throw new BadRequestException(
           'You are not authorized to approve this request.',
         );
       }
 
-      // 3. Update approvalChain: mark current level as approved
+      // 2) Mark this level approved
       currentApprover.status = 'approved';
       currentApprover.actionedAt = new Date().toISOString();
 
-      // 4. Check if there are more approvers pending
+      // 3) Determine overall status
       const stillPending = approvalChain.some(
         (level) => level.status === 'pending',
       );
+      const newStatus = stillPending ? 'pending' : 'approved';
+      const approvedAt = stillPending ? null : new Date();
 
-      let newStatus = 'pending';
-      let approvedAt: Date | null = null;
-
-      if (!stillPending) {
-        newStatus = 'approved';
-        approvedAt = new Date();
-      }
-
-      // 5. Update DB
+      // 4) Persist
       const updatedLeaveRequest = await this.db
         .update(leaveRequests)
         .set({
@@ -125,7 +130,7 @@ export class LeaveApprovalService {
         .returning()
         .execute();
 
-      // 6. If fully approved, update leave balance
+      // 5) Apply balance only when fully approved
       if (newStatus === 'approved') {
         await this.leaveBalanceService.updateLeaveBalanceOnLeaveApproval(
           leaveRequest.leaveTypeId,
@@ -136,7 +141,7 @@ export class LeaveApprovalService {
         );
       }
 
-      // 7. Audit Log
+      // 6) Audit
       await this.auditService.logAction({
         action: 'approve',
         entity: 'leave_request',
@@ -147,17 +152,25 @@ export class LeaveApprovalService {
         changes: { status: newStatus },
       });
 
+      // 7) Invalidate (version bump clears all versioned keys for this company)
+      await this.cache.bumpCompanyVersion(user.companyId);
+
       return updatedLeaveRequest;
     } else {
-      // Update Leave Request Status
+      // Single-level approval: update status
       const updatedLeaveRequest = await this.db
         .update(leaveRequests)
-        .set({ status: 'approved' })
+        .set({
+          status: 'approved',
+          approvedAt: new Date(),
+          approverId: user.id,
+          updatedAt: new Date(),
+        })
         .where(eq(leaveRequests.id, leaveRequestId))
         .returning()
         .execute();
 
-      // Update Leave Balance
+      // Update leave balance
       await this.leaveBalanceService.updateLeaveBalanceOnLeaveApproval(
         leaveRequest.leaveTypeId,
         leaveRequest.employeeId,
@@ -166,15 +179,15 @@ export class LeaveApprovalService {
         user.id,
       );
 
-      // Send Notification //
+      // Notify
       await this.pusher.createEmployeeNotification(
         updatedLeaveRequest[0].companyId,
         updatedLeaveRequest[0].employeeId,
-        `Your loan request has been approved!`,
+        `Your leave request has been approved!`,
         'leave',
       );
 
-      // Create Audit Record
+      // Audit
       await this.auditService.logAction({
         action: 'approve',
         entity: 'leave_request',
@@ -184,6 +197,9 @@ export class LeaveApprovalService {
         ipAddress: ip,
         changes: { status: 'approved' },
       });
+
+      // Invalidate caches
+      await this.cache.bumpCompanyVersion(user.companyId);
 
       return updatedLeaveRequest;
     }
@@ -197,7 +213,6 @@ export class LeaveApprovalService {
     ip: string,
   ) {
     const leaveRequest = await this.findOneById(leaveRequestId, user.companyId);
-
     if (leaveRequest.status !== 'pending') {
       throw new BadRequestException('Leave request is not pending.');
     }
@@ -207,7 +222,6 @@ export class LeaveApprovalService {
     );
 
     if (isMultiLevel && leaveRequest.approvalChain) {
-      // If multi-level approval enabled
       const approvalChain: Array<{
         approverId: string;
         status: string;
@@ -218,61 +232,85 @@ export class LeaveApprovalService {
       const currentApprover = approvalChain.find(
         (level) => level.status === 'pending',
       );
-
-      if (!currentApprover) {
+      if (!currentApprover)
         throw new BadRequestException('No pending approver found.');
-      }
-
       if (currentApprover.approverId !== user.id) {
         throw new BadRequestException(
           'You are not authorized to reject this request.',
         );
       }
-
-      // Mark this approver's status as rejected
       currentApprover.status = 'rejected';
       currentApprover.actionedAt = new Date().toISOString();
+
+      // Persist chain + overall status rejected
+      const updatedLeaveRequest = await this.db
+        .update(leaveRequests)
+        .set({
+          approvalChain,
+          status: 'rejected',
+          rejectionReason: dto.rejectionReason,
+          approverId: user.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(leaveRequests.id, leaveRequestId))
+        .returning()
+        .execute();
+
+      await this.auditService.logAction({
+        action: 'reject',
+        entity: 'leave_request',
+        details: 'Leave request rejected',
+        entityId: leaveRequestId,
+        userId: user.id,
+        ipAddress: ip,
+        changes: { status: 'rejected' },
+      });
+
+      await this.pusher.createEmployeeNotification(
+        updatedLeaveRequest[0].companyId,
+        updatedLeaveRequest[0].employeeId,
+        `Your leave request has been rejected!`,
+        'leave',
+      );
+
+      // Invalidate caches
+      await this.cache.bumpCompanyVersion(user.companyId);
+
+      return updatedLeaveRequest;
     } else {
-      // Single approver case
-      if (leaveRequest.approverId !== user.id) {
-        throw new BadRequestException(
-          'You are not authorized to reject this request.',
-        );
-      }
+      // Single-level rejection
+      const updatedLeaveRequest = await this.db
+        .update(leaveRequests)
+        .set({
+          status: 'rejected',
+          rejectionReason: dto.rejectionReason,
+          approverId: user.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(leaveRequests.id, leaveRequestId))
+        .returning()
+        .execute();
+
+      await this.auditService.logAction({
+        action: 'reject',
+        entity: 'leave_request',
+        details: 'Leave request rejected',
+        entityId: leaveRequestId,
+        userId: user.id,
+        ipAddress: ip,
+        changes: { status: 'rejected' },
+      });
+
+      await this.pusher.createEmployeeNotification(
+        updatedLeaveRequest[0].companyId,
+        updatedLeaveRequest[0].employeeId,
+        `Your leave request has been rejected!`,
+        'leave',
+      );
+
+      await this.cache.bumpCompanyVersion(user.companyId);
+
+      return updatedLeaveRequest;
     }
-
-    // In either case, when rejected, mark overall leave request as rejected
-    const updatedLeaveRequest = await this.db
-      .update(leaveRequests)
-      .set({
-        approvalChain: leaveRequest.approvalChain, // Update if multi-level
-        status: 'rejected',
-        rejectionReason: dto.rejectionReason,
-        approverId: user.id,
-        updatedAt: new Date(),
-      })
-      .where(eq(leaveRequests.id, leaveRequestId))
-      .returning()
-      .execute();
-
-    await this.auditService.logAction({
-      action: 'reject',
-      entity: 'leave_request',
-      details: 'Leave request rejected',
-      entityId: leaveRequestId,
-      userId: user.id,
-      ipAddress: ip,
-      changes: { status: 'rejected' },
-    });
-
-    // Send Notification //
-    await this.pusher.createEmployeeNotification(
-      updatedLeaveRequest[0].companyId,
-      updatedLeaveRequest[0].employeeId,
-      `Your loan request has been rejected!`,
-      'leave',
-    );
-
-    return updatedLeaveRequest;
   }
 }

@@ -30,7 +30,6 @@ let DepartmentService = class DepartmentService extends base_crud_service_1.Base
         this.cache = cache;
         this.companySettings = companySettings;
         this.table = schema_1.departments;
-        this.ttlSeconds = 60 * 60;
         this.parentDept = (0, drizzle_orm_1.aliasedTable)(schema_1.departments, 'parentDept');
     }
     tags(companyId) {
@@ -160,7 +159,7 @@ let DepartmentService = class DepartmentService extends base_crud_service_1.Base
                 head: dept.head && dept.head.id ? dept.head : null,
                 employees: deptIdToEmployees[dept.id] || [],
             }));
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async findOne(companyId, id) {
         return this.cache.getOrSetVersioned(companyId, ['departments', 'one', id], async () => {
@@ -177,7 +176,7 @@ let DepartmentService = class DepartmentService extends base_crud_service_1.Base
                 throw new common_1.NotFoundException(`Department ${id} not found`);
             }
             return dept;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async update(companyId, id, dto, userId, ip) {
         const result = await this.updateWithAudit(companyId, id, {
@@ -250,7 +249,7 @@ let DepartmentService = class DepartmentService extends base_crud_service_1.Base
             if (!dept)
                 throw new common_1.NotFoundException();
             return dept;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async assignParent(companyId, departmentId, dto, userId, ip) {
         const parentId = dto.parentDepartmentId;
@@ -322,7 +321,7 @@ let DepartmentService = class DepartmentService extends base_crud_service_1.Base
                 throw new common_1.NotFoundException(`Department ${id} not found`);
             }
             return dept;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async findAllWithRelations(companyId) {
         const pd = this.parentDept;
@@ -349,7 +348,7 @@ let DepartmentService = class DepartmentService extends base_crud_service_1.Base
             .leftJoin(schema_1.costCenters, (0, drizzle_orm_1.eq)(schema_1.costCenters.id, schema_1.departments.costCenterId))
             .leftJoin(pd, (0, drizzle_orm_1.eq)(pd.id, schema_1.departments.parentDepartmentId))
             .where((0, drizzle_orm_1.eq)(schema_1.departments.companyId, companyId))
-            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+            .execute(), { tags: this.tags(companyId) });
     }
     async getHierarchy(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['departments', 'hierarchy'], async () => {
@@ -366,7 +365,7 @@ let DepartmentService = class DepartmentService extends base_crud_service_1.Base
                 }
             }
             return roots;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
 };
 exports.DepartmentService = DepartmentService;

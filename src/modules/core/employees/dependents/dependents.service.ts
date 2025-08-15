@@ -6,14 +6,26 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { eq } from 'drizzle-orm';
 import { employeeDependents } from '../schema/dependents.schema';
 import { UpdateDependentDto } from './dto/update-dependent.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class DependentsService {
   protected table = employeeDependents;
+
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
+
+  private tags(scope: string) {
+    // scope is employeeId or "global"
+    return [
+      `employee:${scope}:dependents`,
+      `employee:${scope}:dependents:list`,
+      `employee:${scope}:dependents:detail`,
+    ];
+  }
 
   async create(
     employeeId: string,
@@ -37,28 +49,49 @@ export class DependentsService {
       changes: { ...dto },
     });
 
+    // Invalidate caches for this employee and global detail entries
+    await this.cache.bumpCompanyVersion(employeeId);
+    await this.cache.bumpCompanyVersion('global');
+
     return created;
   }
 
+  // READ (cached per employee)
   findAll(employeeId: string) {
-    return this.db
-      .select()
-      .from(this.table)
-      .where(eq(this.table.employeeId, employeeId))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      employeeId,
+      ['dependents', 'list', employeeId],
+      async () => {
+        const rows = await this.db
+          .select()
+          .from(this.table)
+          .where(eq(this.table.employeeId, employeeId))
+          .execute();
+        return rows;
+      },
+      { tags: this.tags(employeeId) },
+    );
   }
 
+  // READ (cached; no employeeId provided → global scope)
   async findOne(dependentId: string) {
-    const [dependent] = await this.db
-      .select()
-      .from(this.table)
-      .where(eq(this.table.id, dependentId))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      'global',
+      ['dependents', 'detail', dependentId],
+      async () => {
+        const [dependent] = await this.db
+          .select()
+          .from(this.table)
+          .where(eq(this.table.id, dependentId))
+          .execute();
 
-    if (!dependent) {
-      return {};
-    }
-    return dependent;
+        if (!dependent) {
+          return {};
+        }
+        return dependent;
+      },
+      { tags: this.tags('global') },
+    );
   }
 
   async update(
@@ -67,7 +100,7 @@ export class DependentsService {
     userId: string,
     ip: string,
   ) {
-    // Check if Employee exists
+    // Check if record exists
     const [dependant] = await this.db
       .select()
       .from(this.table)
@@ -80,39 +113,48 @@ export class DependentsService {
       );
     }
 
-    if (dependant) {
-      const [updated] = await this.db
-        .update(this.table)
-        .set({ ...dto })
-        .where(eq(this.table.id, dependentId))
-        .returning()
-        .execute();
+    const [updated] = await this.db
+      .update(this.table)
+      .set({ ...dto })
+      .where(eq(this.table.id, dependentId))
+      .returning()
+      .execute();
 
-      const changes: Record<string, any> = {};
-      for (const key of Object.keys(dto)) {
-        const before = (dependant as any)[key];
-        const after = (dto as any)[key];
-        if (before !== after) {
-          changes[key] = { before, after };
-        }
+    const changes: Record<string, any> = {};
+    for (const key of Object.keys(dto)) {
+      const before = (dependant as any)[key];
+      const after = (dto as any)[key];
+      if (before !== after) {
+        changes[key] = { before, after };
       }
-      if (Object.keys(changes).length) {
-        await this.auditService.logAction({
-          action: 'update',
-          entity: 'Employee Dependent',
-          details: 'Updated employee dependent',
-          userId,
-          entityId: dependentId,
-          ipAddress: ip,
-          changes,
-        });
-      }
-
-      return updated;
     }
+    if (Object.keys(changes).length) {
+      await this.auditService.logAction({
+        action: 'update',
+        entity: 'Employee Dependent',
+        details: 'Updated employee dependent',
+        userId,
+        entityId: dependentId,
+        ipAddress: ip,
+        changes,
+      });
+    }
+
+    // Invalidate caches: employee (from existing row) + global
+    await this.cache.bumpCompanyVersion(dependant.employeeId);
+    await this.cache.bumpCompanyVersion('global');
+
+    return updated;
   }
 
   async remove(dependentId: string) {
+    // grab for cache bump
+    const [existing] = await this.db
+      .select()
+      .from(this.table)
+      .where(eq(this.table.id, dependentId))
+      .execute();
+
     const result = await this.db
       .delete(this.table)
       .where(eq(this.table.id, dependentId))
@@ -124,6 +166,12 @@ export class DependentsService {
         `Profile for employee ${dependentId} not found`,
       );
     }
+
+    // Invalidate caches
+    if (existing?.employeeId) {
+      await this.cache.bumpCompanyVersion(existing.employeeId);
+    }
+    await this.cache.bumpCompanyVersion('global');
 
     return { deleted: true, id: result[0].id };
   }

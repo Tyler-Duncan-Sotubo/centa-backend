@@ -14,7 +14,9 @@ export declare class TaxController extends BaseController {
         status: string | null;
         month: string;
     }[]>;
-    updateCompanyTaxFilings(id: string, status: string): Promise<any>;
+    updateCompanyTaxFilings(id: string, status: string): Promise<{
+        success: boolean;
+    }>;
     createCompanyTaxFiling(user: User): Promise<{
         message: string;
     }>;

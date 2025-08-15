@@ -40,8 +40,8 @@ export class BenefitGroupsController extends BaseController {
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['benefit_groups.read'])
-  findOne(@Param('id') id: string) {
-    return this.benefitGroupsService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.benefitGroupsService.findOne(user.companyId, id);
   }
 
   @Patch(':id')

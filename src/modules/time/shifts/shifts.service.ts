@@ -20,7 +20,6 @@ export class ShiftsService {
     private readonly cache: CacheService,
   ) {}
 
-  private ttlSeconds = 60 * 10; // cache shift reads for 10 minutes
   private tags(companyId: string) {
     return [
       `company:${companyId}:settings`,
@@ -234,7 +233,6 @@ export class ShiftsService {
           )
           .execute();
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 
@@ -265,7 +263,6 @@ export class ShiftsService {
 
         return shift;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 

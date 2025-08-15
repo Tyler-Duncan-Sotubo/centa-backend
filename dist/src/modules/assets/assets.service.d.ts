@@ -5,12 +5,15 @@ import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { UpdateAssetDto } from './dto/update-asset.dto';
 import { CreateAssetDto } from './dto/create-asset.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class AssetsService {
     private readonly usefulLifeService;
     private readonly db;
     private readonly auditService;
     private readonly logger;
-    constructor(usefulLifeService: UsefulLifeService, db: db, auditService: AuditService, logger: PinoLogger);
+    private readonly cache;
+    constructor(usefulLifeService: UsefulLifeService, db: db, auditService: AuditService, logger: PinoLogger, cache: CacheService);
+    private tags;
     private categoryMap;
     create(dto: CreateAssetDto, user: User): Promise<{
         id: string;

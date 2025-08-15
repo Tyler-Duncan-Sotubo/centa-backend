@@ -33,7 +33,6 @@ export class JobRolesService extends BaseCrudService<
     super(db, audit);
   }
 
-  private ttlSeconds = 60 * 60; // 1h cache
   private tags(companyId: string) {
     return [`company:${companyId}:job-roles`];
   }
@@ -151,7 +150,7 @@ export class JobRolesService extends BaseCrudService<
           .where(eq(jobRoles.companyId, companyId))
           .orderBy(jobRoles.title)
           .execute(),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -170,7 +169,7 @@ export class JobRolesService extends BaseCrudService<
         }
         return rows[0];
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 

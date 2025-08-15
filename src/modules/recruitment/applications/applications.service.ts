@@ -38,6 +38,7 @@ import { ResumeScoringService } from './resume-scoring.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { users } from 'src/drizzle/schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class ApplicationsService {
@@ -47,7 +48,17 @@ export class ApplicationsService {
     private readonly awsService: AwsService,
     private readonly auditService: AuditService,
     private readonly resumeScoring: ResumeScoringService,
+    private readonly cache: CacheService,
   ) {}
+
+  private tags(scope: string) {
+    // scope is companyId or "global"
+    return [
+      `company:${scope}:applications`,
+      `company:${scope}:applications:details`,
+      `company:${scope}:applications:kanban`,
+    ];
+  }
 
   async submitApplication(dto: CreateApplicationDto) {
     const { jobId, fieldResponses, questionResponses = [] } = dto;
@@ -205,12 +216,13 @@ export class ApplicationsService {
       notes: 'Application submitted',
     });
 
-    // Job form
+    // Job form (+ companyId for cache bump + scoring payload)
     const [job] = await this.db
       .select({
         title: job_postings.title,
         responsibilities: job_postings.responsibilities,
         requirements: job_postings.requirements,
+        companyId: job_postings.companyId,
       })
       .from(job_postings)
       .where(eq(job_postings.id, jobId));
@@ -223,258 +235,299 @@ export class ApplicationsService {
       });
     }
 
+    // Invalidate caches: company and global (kanban & details consumers)
+    if (job?.companyId) {
+      await this.cache.bumpCompanyVersion(job.companyId);
+    }
+    await this.cache.bumpCompanyVersion('global');
+
     return { success: true, applicationId: application.id };
   }
 
+  // READ (cached, global scope)
   async getApplicationDetails(applicationId: string) {
-    // 1. Fetch application
-    const [application] = await this.db
-      .select()
-      .from(applications)
-      .where(eq(applications.id, applicationId));
-
-    if (!application) {
-      throw new NotFoundException('Application not found');
-    }
-
-    // 2. Parallel fetch of related data
-    const [candidate, fieldResponses, questionResponses, stageHistory] =
-      await Promise.all([
-        this.db
+    return this.cache.getOrSetVersioned(
+      'global',
+      ['applications', 'details', applicationId],
+      async () => {
+        // 1. Fetch application
+        const [application] = await this.db
           .select()
-          .from(candidates)
-          .where(eq(candidates.id, application.candidateId))
-          .then((res) => res[0]),
-
-        this.db
-          .select({
-            label: application_field_responses.label,
-            value: application_field_responses.value,
-          })
-          .from(application_field_responses)
-          .where(eq(application_field_responses.applicationId, applicationId)),
-
-        this.db
-          .select({
-            question: application_question_responses.question,
-            answer: application_question_responses.answer,
-          })
-          .from(application_question_responses)
-          .where(
-            eq(application_question_responses.applicationId, applicationId),
-          ),
-
-        this.db
-          .select({
-            name: pipeline_stages.name,
-            movedAt: pipeline_history.movedAt,
-            movedBy: sql`concat(${users.firstName}, ' ', ${users.lastName})`,
-          })
-          .from(pipeline_history)
-          .innerJoin(
-            pipeline_stages,
-            eq(pipeline_history.stageId, pipeline_stages.id),
-          )
-          .innerJoin(users, eq(pipeline_history.movedBy, users.id))
-          .where(eq(pipeline_history.applicationId, applicationId))
-          .orderBy(desc(pipeline_history.movedAt)),
-      ]);
-
-    // 3. Fetch interview
-    const interview = await this.db
-      .select()
-      .from(interviews)
-      .where(eq(interviews.applicationId, applicationId))
-      .then((res) => res[0]);
-
-    let interviewers: { id: string; name: string; email: string }[] = [];
-
-    if (interview) {
-      // 4. Fetch interviewers with their scorecardTemplateIds
-      const rawInterviewers = await this.db
-        .select({
-          id: users.id,
-          name: sql`concat(${users.firstName}, ' ', ${users.lastName})`,
-          email: users.email,
-          scorecardTemplateId: interviewInterviewers.scorecardTemplateId,
-        })
-        .from(interviewInterviewers)
-        .innerJoin(users, eq(interviewInterviewers.interviewerId, users.id))
-        .where(eq(interviewInterviewers.interviewId, interview.id));
-
-      interviewers = rawInterviewers.map((row) => ({
-        id: row.id,
-        name: String(row.name),
-        email: row.email,
-      }));
-
-      const templateIds = [
-        ...new Set(
-          rawInterviewers.map((i) => i.scorecardTemplateId).filter(Boolean),
-        ),
-      ];
-
-      // 5. Fetch criteria for all unique templates
-      const criteria = templateIds.length
-        ? await this.db
-            .select({
-              criterionId: scorecard_criteria.id,
-              label: scorecard_criteria.label,
-              description: scorecard_criteria.description,
-              maxScore: scorecard_criteria.maxScore,
-              order: scorecard_criteria.order,
-              templateId: scorecard_criteria.templateId,
-              templateName: scorecard_templates.name,
-              templateDescription: scorecard_templates.description,
-            })
-            .from(scorecard_criteria)
-            .innerJoin(
-              scorecard_templates,
-              eq(scorecard_criteria.templateId, scorecard_templates.id),
-            )
-
-            .where(
-              inArray(
-                scorecard_criteria.templateId,
-                templateIds.filter((id): id is string => !!id),
-              ),
-            )
-        : [];
-
-      // 6. Group criteria by templateId
-      const grouped: Record<
-        string,
-        {
-          name: string;
-          description: string;
-          criteria: {
-            criterionId: string;
-            label: string;
-            description: string | null;
-            maxScore: number;
-            order: number;
-          }[];
-        }
-      > = {};
-
-      for (const c of criteria) {
-        if (!grouped[c.templateId]) {
-          grouped[c.templateId] = {
-            name: c.templateName,
-            description: c.templateDescription ?? '',
-            criteria: [],
-          };
-        }
-        grouped[c.templateId].criteria.push({
-          criterionId: c.criterionId,
-          label: c.label,
-          description: c.description,
-          maxScore: c.maxScore,
-          order: c.order,
-        });
-      }
-
-      // 7. Attach scorecard to each interviewer
-      interviewers = rawInterviewers.map((row) => {
-        const scorecard =
-          row.scorecardTemplateId && grouped[row.scorecardTemplateId]
-            ? {
-                templateId: row.scorecardTemplateId,
-                name: grouped[row.scorecardTemplateId].name,
-                description: grouped[row.scorecardTemplateId].description,
-                criteria: grouped[row.scorecardTemplateId].criteria,
-              }
-            : null;
-
-        return {
-          id: row.id,
-          name: String(row.name),
-          email: row.email,
-          scorecard,
-        };
-      });
-    }
-
-    return {
-      application,
-      candidate,
-      fieldResponses,
-      questionResponses,
-      stageHistory,
-      interview: interview
-        ? {
-            ...interview,
-            interviewers,
-          }
-        : null,
-    };
-  }
-
-  async listApplicationsByJobKanban(jobId: string) {
-    // 1. Get all pipeline stages
-    const stages = await this.db
-      .select()
-      .from(pipeline_stages)
-      .where(eq(pipeline_stages.jobId, jobId))
-      .orderBy(asc(pipeline_stages.order));
-
-    // 2. Map each stage to its applications + candidate summary
-    const result = await Promise.all(
-      stages.map(async (stage) => {
-        const rawApps = await this.db
-          .select({
-            applicationId: applications.id,
-            candidateId: candidates.id,
-            fullName: candidates.fullName,
-            email: candidates.email,
-            appliedAt: applications.appliedAt,
-            status: applications.status,
-            appSource: applications.source,
-            resumeScore: applications.resumeScore,
-          })
           .from(applications)
-          .innerJoin(candidates, eq(applications.candidateId, candidates.id))
-          .where(
-            and(
-              eq(applications.jobId, jobId),
-              eq(applications.currentStage, stage.id),
-              not(eq(applications.status, 'rejected')),
-            ),
-          )
-          .orderBy(applications.appliedAt);
+          .where(eq(applications.id, applicationId));
 
-        // 3. Attach top 2–3 skills for each candidate
-        const applicationsWithSkills = await Promise.all(
-          rawApps.map(async (app) => {
-            const skillRows = await this.db
+        if (!application) {
+          throw new NotFoundException('Application not found');
+        }
+
+        // 2. Parallel fetch of related data
+        const [candidate, fieldResponses, questionResponses, stageHistory] =
+          await Promise.all([
+            this.db
+              .select()
+              .from(candidates)
+              .where(eq(candidates.id, application.candidateId))
+              .then((res) => res[0]),
+
+            this.db
               .select({
-                name: skills.name,
+                label: application_field_responses.label,
+                value: application_field_responses.value,
               })
-              .from(candidate_skills)
-              .innerJoin(skills, eq(candidate_skills.skillId, skills.id))
-              .where(eq(candidate_skills.candidateId, app.candidateId))
-              .limit(3);
+              .from(application_field_responses)
+              .where(
+                eq(application_field_responses.applicationId, applicationId),
+              ),
+
+            this.db
+              .select({
+                question: application_question_responses.question,
+                answer: application_question_responses.answer,
+              })
+              .from(application_question_responses)
+              .where(
+                eq(application_question_responses.applicationId, applicationId),
+              ),
+
+            this.db
+              .select({
+                name: pipeline_stages.name,
+                movedAt: pipeline_history.movedAt,
+                movedBy: sql`concat(${users.firstName}, ' ', ${users.lastName})`,
+              })
+              .from(pipeline_history)
+              .innerJoin(
+                pipeline_stages,
+                eq(pipeline_history.stageId, pipeline_stages.id),
+              )
+              .innerJoin(users, eq(pipeline_history.movedBy, users.id))
+              .where(eq(pipeline_history.applicationId, applicationId))
+              .orderBy(desc(pipeline_history.movedAt)),
+          ]);
+
+        // 3. Fetch interview
+        const interview = await this.db
+          .select()
+          .from(interviews)
+          .where(eq(interviews.applicationId, applicationId))
+          .then((res) => res[0]);
+
+        let interviewers: { id: string; name: string; email: string }[] = [];
+
+        if (interview) {
+          // 4. Fetch interviewers with their scorecardTemplateIds
+          const rawInterviewers = await this.db
+            .select({
+              id: users.id,
+              name: sql`concat(${users.firstName}, ' ', ${users.lastName})`,
+              email: users.email,
+              scorecardTemplateId: interviewInterviewers.scorecardTemplateId,
+            })
+            .from(interviewInterviewers)
+            .innerJoin(users, eq(interviewInterviewers.interviewerId, users.id))
+            .where(eq(interviewInterviewers.interviewId, interview.id));
+
+          interviewers = rawInterviewers.map((row) => ({
+            id: row.id,
+            name: String(row.name),
+            email: row.email,
+          }));
+
+          const templateIds = [
+            ...new Set(
+              rawInterviewers.map((i) => i.scorecardTemplateId).filter(Boolean),
+            ),
+          ];
+
+          // 5. Fetch criteria for all unique templates
+          const criteria = templateIds.length
+            ? await this.db
+                .select({
+                  criterionId: scorecard_criteria.id,
+                  label: scorecard_criteria.label,
+                  description: scorecard_criteria.description,
+                  maxScore: scorecard_criteria.maxScore,
+                  order: scorecard_criteria.order,
+                  templateId: scorecard_criteria.templateId,
+                  templateName: scorecard_templates.name,
+                  templateDescription: scorecard_templates.description,
+                })
+                .from(scorecard_criteria)
+                .innerJoin(
+                  scorecard_templates,
+                  eq(scorecard_criteria.templateId, scorecard_templates.id),
+                )
+                .where(
+                  inArray(
+                    scorecard_criteria.templateId,
+                    templateIds.filter((id): id is string => !!id),
+                  ),
+                )
+            : [];
+
+          // 6. Group criteria by templateId
+          const grouped: Record<
+            string,
+            {
+              name: string;
+              description: string;
+              criteria: {
+                criterionId: string;
+                label: string;
+                description: string | null;
+                maxScore: number;
+                order: number;
+              }[];
+            }
+          > = {};
+
+          for (const c of criteria) {
+            if (!grouped[c.templateId]) {
+              grouped[c.templateId] = {
+                name: c.templateName,
+                description: c.templateDescription ?? '',
+                criteria: [],
+              };
+            }
+            grouped[c.templateId].criteria.push({
+              criterionId: c.criterionId,
+              label: c.label,
+              description: c.description,
+              maxScore: c.maxScore,
+              order: c.order,
+            });
+          }
+
+          // 7. Attach scorecard to each interviewer
+          interviewers = rawInterviewers.map((row) => {
+            const scorecard =
+              row.scorecardTemplateId && grouped[row.scorecardTemplateId]
+                ? {
+                    templateId: row.scorecardTemplateId,
+                    name: grouped[row.scorecardTemplateId].name,
+                    description: grouped[row.scorecardTemplateId].description,
+                    criteria: grouped[row.scorecardTemplateId].criteria,
+                  }
+                : null;
 
             return {
-              ...app,
-              skills: skillRows.map((s) => s.name),
+              id: row.id,
+              name: String(row.name),
+              email: row.email,
+              scorecard,
+            };
+          });
+        }
+
+        return {
+          application,
+          candidate,
+          fieldResponses,
+          questionResponses,
+          stageHistory,
+          interview: interview
+            ? {
+                ...interview,
+                interviewers,
+              }
+            : null,
+        };
+      },
+      { tags: this.tags('global') },
+    );
+  }
+
+  // READ (cached, global scope)
+  async listApplicationsByJobKanban(jobId: string) {
+    return this.cache.getOrSetVersioned(
+      'global',
+      ['applications', 'kanban', jobId],
+      async () => {
+        // 1. Get all pipeline stages
+        const stages = await this.db
+          .select()
+          .from(pipeline_stages)
+          .where(eq(pipeline_stages.jobId, jobId))
+          .orderBy(asc(pipeline_stages.order));
+
+        // 2. Map each stage to its applications + candidate summary
+        const result = await Promise.all(
+          stages.map(async (stage) => {
+            const rawApps = await this.db
+              .select({
+                applicationId: applications.id,
+                candidateId: candidates.id,
+                fullName: candidates.fullName,
+                email: candidates.email,
+                appliedAt: applications.appliedAt,
+                status: applications.status,
+                appSource: applications.source,
+                resumeScore: applications.resumeScore,
+              })
+              .from(applications)
+              .innerJoin(
+                candidates,
+                eq(applications.candidateId, candidates.id),
+              )
+              .where(
+                and(
+                  eq(applications.jobId, jobId),
+                  eq(applications.currentStage, stage.id),
+                  not(eq(applications.status, 'rejected')),
+                ),
+              )
+              .orderBy(applications.appliedAt);
+
+            // 3. Attach top 2–3 skills for each candidate
+            const applicationsWithSkills = await Promise.all(
+              rawApps.map(async (app) => {
+                const skillRows = await this.db
+                  .select({
+                    name: skills.name,
+                  })
+                  .from(candidate_skills)
+                  .innerJoin(skills, eq(candidate_skills.skillId, skills.id))
+                  .where(eq(candidate_skills.candidateId, app.candidateId))
+                  .limit(3);
+
+                return {
+                  ...app,
+                  skills: skillRows.map((s) => s.name),
+                };
+              }),
+            );
+
+            return {
+              stageId: stage.id,
+              stageName: stage.name,
+              applications: applicationsWithSkills,
             };
           }),
         );
 
-        return {
-          stageId: stage.id,
-          stageName: stage.name,
-          applications: applicationsWithSkills,
-        };
-      }),
+        return result;
+      },
+      { tags: this.tags('global') },
     );
-
-    return result;
   }
 
   async moveToStage(dto: MoveToStageDto, user: User) {
     const { applicationId, newStageId, feedback } = dto;
+
+    // Get companyId via job to invalidate cache precisely
+    const [row] = await this.db
+      .select({ jobId: applications.jobId })
+      .from(applications)
+      .where(eq(applications.id, applicationId));
+    let companyIdForBump: string | undefined;
+    if (row?.jobId) {
+      const [jobRow] = await this.db
+        .select({ companyId: job_postings.companyId })
+        .from(job_postings)
+        .where(eq(job_postings.id, row.jobId));
+      companyIdForBump = jobRow?.companyId;
+    }
+
     // Update application currentStage
     await this.db
       .update(applications)
@@ -508,6 +561,12 @@ export class ApplicationsService {
         toStage: newStageId,
       },
     });
+
+    // Invalidate caches: company (if known) + global
+    if (companyIdForBump) {
+      await this.cache.bumpCompanyVersion(companyIdForBump);
+    }
+    await this.cache.bumpCompanyVersion('global');
 
     return { success: true };
   }
@@ -548,6 +607,17 @@ export class ApplicationsService {
       },
     });
 
+    // Invalidate caches: company (via job) + global
+    const [jobRow] = await this.db
+      .select({ companyId: job_postings.companyId })
+      .from(job_postings)
+      .where(eq(job_postings.id, app.jobId));
+
+    if (jobRow?.companyId) {
+      await this.cache.bumpCompanyVersion(jobRow.companyId);
+    }
+    await this.cache.bumpCompanyVersion('global');
+
     return { success: true };
   }
 
@@ -573,6 +643,7 @@ export class ApplicationsService {
         .insert(skills)
         .values(missing.map((name) => ({ name })))
         .returning();
+      // Optional: you might bump 'global' if you cache skills lists elsewhere
     }
 
     // 4. Return all

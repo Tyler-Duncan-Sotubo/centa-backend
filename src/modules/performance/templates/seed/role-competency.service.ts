@@ -18,8 +18,6 @@ import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class RoleCompetencyExpectationService {
-  private readonly ttlSeconds = 60 * 5; // 5 min
-
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
@@ -225,7 +223,7 @@ export class RoleCompetencyExpectationService {
         this.db.query.roleCompetencyExpectations.findMany({
           where: eq(roleCompetencyExpectations.companyId, companyId),
         }),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -290,7 +288,7 @@ export class RoleCompetencyExpectationService {
 
         return { roles, expectationsByRole };
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -319,21 +317,17 @@ export class RoleCompetencyExpectationService {
 
         return { competencies, levels };
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
   async getAllCompetencyLevels() {
     // company-agnostic; simple cache is fine
     const key = 'competency-levels:all';
-    return this.cache.getOrSetCache(
-      key,
-      async () => {
-        return this.db
-          .select({ id: competencyLevels.id, name: competencyLevels.name })
-          .from(competencyLevels);
-      },
-      { ttlSeconds: this.ttlSeconds },
-    );
+    return this.cache.getOrSetCache(key, async () => {
+      return this.db
+        .select({ id: competencyLevels.id, name: competencyLevels.name })
+        .from(competencyLevels);
+    });
   }
 }

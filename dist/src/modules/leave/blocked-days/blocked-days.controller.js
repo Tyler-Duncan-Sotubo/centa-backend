@@ -31,14 +31,14 @@ let BlockedDaysController = class BlockedDaysController extends base_controller_
     findAll(user) {
         return this.blockedDaysService.findAll(user.companyId);
     }
-    findOne(id) {
-        return this.blockedDaysService.findOne(id);
+    findOne(id, user) {
+        return this.blockedDaysService.findOne(id, user.companyId);
     }
     update(id, updateBlockedDayDto, user) {
         return this.blockedDaysService.update(id, updateBlockedDayDto, user);
     }
-    remove(id) {
-        return this.blockedDaysService.remove(id);
+    remove(id, user) {
+        return this.blockedDaysService.remove(id, user);
     }
 };
 exports.BlockedDaysController = BlockedDaysController;
@@ -66,8 +66,9 @@ __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('permissions', ['leave.blocked_days.read']),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], BlockedDaysController.prototype, "findOne", null);
 __decorate([
@@ -86,8 +87,9 @@ __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('permissions', ['leave.blocked_days.manage']),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], BlockedDaysController.prototype, "remove", null);
 exports.BlockedDaysController = BlockedDaysController = __decorate([

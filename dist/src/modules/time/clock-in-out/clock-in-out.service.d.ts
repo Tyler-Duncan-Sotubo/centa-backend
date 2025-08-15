@@ -7,6 +7,7 @@ import { EmployeeShiftsService } from '../employee-shifts/employee-shifts.servic
 import { User } from 'src/common/types/user.type';
 import { ReportService } from '../report/report.service';
 import { AdjustAttendanceDto } from './dto/adjust-attendance.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class ClockInOutService {
     private readonly db;
     private readonly auditService;
@@ -14,23 +15,21 @@ export declare class ClockInOutService {
     private readonly attendanceSettingsService;
     private readonly employeeShiftsService;
     private readonly reportService;
-    constructor(db: db, auditService: AuditService, employeesService: EmployeesService, attendanceSettingsService: AttendanceSettingsService, employeeShiftsService: EmployeeShiftsService, reportService: ReportService);
-    checkLocation(latitude: string, longitude: string, employee: any): Promise<void>;
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, employeesService: EmployeesService, attendanceSettingsService: AttendanceSettingsService, employeeShiftsService: EmployeeShiftsService, reportService: ReportService, cache: CacheService);
+    private tags;
     private isWithinRadius;
+    checkLocation(latitude: string, longitude: string, employee: any): Promise<void>;
     clockIn(user: User, dto: CreateClockInOutDto): Promise<string>;
     clockOut(user: User, latitude: string, longitude: string): Promise<string>;
     getAttendanceStatus(employeeId: string, companyId: string): Promise<{
-        status: string;
+        status: "absent";
         checkInTime?: undefined;
         checkOutTime?: undefined;
     } | {
-        status: string;
+        status: "present";
         checkInTime: Date;
-        checkOutTime: Date;
-    } | {
-        status: string;
-        checkInTime: Date;
-        checkOutTime: null;
+        checkOutTime: Date | null;
     }>;
     getDailyDashboardStats(companyId: string): Promise<{
         sevenDayTrend: number[];

@@ -13,6 +13,7 @@ export declare class SalaryAdvanceService {
     private readonly pusher;
     constructor(db: db, cache: CacheService, auditService: AuditService, payrollSettingsService: PayrollSettingsService, pusher: PusherService);
     createLoanNumber(companyId: string): Promise<string>;
+    private getEmployeeCompanyId;
     private getEmployee;
     getUnpaidAdvanceDeductions(employee_id: string): Promise<{
         loanId: string;
@@ -23,14 +24,14 @@ export declare class SalaryAdvanceService {
         name: string;
         createdAt: Date;
         companyId: string;
-        status: string;
         employeeId: string;
+        status: string;
+        paymentStatus: string;
         loanNumber: string | null;
         amount: string;
         totalPaid: string;
         tenureMonths: number;
         preferredMonthlyPayment: string | null;
-        paymentStatus: string;
     }>;
     getAdvances(company_id: string): Promise<({
         name: string;
@@ -82,7 +83,7 @@ export declare class SalaryAdvanceService {
         status: string;
         paymentStatus: string;
         createdAt: Date;
-    }>;
+    } | undefined>;
     updateAdvanceStatus(loan_id: string, dto: UpdateLoanStatusDto, user_id: string): Promise<{
         id: string;
         loanNumber: string | null;
@@ -121,7 +122,7 @@ export declare class SalaryAdvanceService {
         salaryAdvanceId: string;
         amountPaid: string;
         paidAt: Date;
-    }>;
+    } | undefined>;
     getAdvanceHistoryByEmployee(employee_id: string): Promise<{
         salary_advance: {
             id: string;

@@ -15,13 +15,20 @@ import { UpdateLeaveTypeDto } from './dto/update-leave-type.dto';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { leavePolicies } from '../schema/leave-policies.schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class LeaveTypesService {
   constructor(
     private readonly auditService: AuditService,
     @Inject(DRIZZLE) private readonly db: db,
+    private readonly cache: CacheService,
   ) {}
+
+  /** Common tags for this domain (used for Redis tag invalidation if available) */
+  private tags(companyId: string) {
+    return [`company:${companyId}:leave`, `company:${companyId}:leave:types`];
+  }
 
   async bulkCreateLeaveTypes(companyId: string, rows: any[]) {
     // 1) Map and validate to DTOs
@@ -42,7 +49,6 @@ export class LeaveTypesService {
           'Invalid CSV format or data: ' + JSON.stringify(errs),
         );
       }
-
       dtos.push(dto);
     }
 
@@ -75,7 +81,7 @@ export class LeaveTypesService {
         colorTag: d.colorTag || null,
       }));
 
-      const result = await trx
+      return trx
         .insert(leaveTypes)
         .values(values)
         .returning({
@@ -85,92 +91,105 @@ export class LeaveTypesService {
           colorTag: leaveTypes.colorTag,
         })
         .execute();
-
-      return result;
     });
+
+    // Invalidate reads
+    await this.cache.bumpCompanyVersion(companyId);
 
     return inserted;
   }
 
   async create(dto: CreateLeaveTypeDto, user: User, ip: string) {
+    const { companyId, id } = user;
+
     // 1. Check if leave type already exists
-    const existingLeaveType = await this.db
+    const existing = await this.db
       .select()
       .from(leaveTypes)
       .where(
-        and(
-          eq(leaveTypes.companyId, user.companyId),
-          eq(leaveTypes.name, dto.name),
-        ),
+        and(eq(leaveTypes.companyId, companyId), eq(leaveTypes.name, dto.name)),
       )
       .execute();
 
-    if (existingLeaveType.length > 0) {
-      throw new NotFoundException(
-        `Leave type with name ${dto.name} already exists`,
+    if (existing.length > 0) {
+      throw new BadRequestException(
+        `Leave type with name "${dto.name}" already exists`,
       );
     }
 
-    const { companyId, id } = user;
-    //  2. Create leave type
-    const leaveType = await this.db
+    // 2. Create leave type
+    const [created] = await this.db
       .insert(leaveTypes)
       .values({
         companyId,
         name: dto.name,
-        isPaid: dto.isPaid,
-        colorTag: dto.colorTag,
+        isPaid: dto.isPaid ?? false,
+        colorTag: dto.colorTag ?? null,
       })
       .returning()
       .execute();
 
-    // 3. Create audit record
+    // 3. Audit
     await this.auditService.logAction({
       action: 'create',
-      entity: 'leave',
-      entityId: leaveType[0].id,
+      entity: 'leave_type',
+      entityId: created.id,
       details: 'Created new leave type',
       userId: id,
       ipAddress: ip,
       changes: {
         name: dto.name,
-        isPaid: dto.isPaid,
-        colorTag: dto.colorTag,
+        isPaid: dto.isPaid ?? false,
+        colorTag: dto.colorTag ?? null,
       },
     });
 
-    return leaveType[0];
+    // Invalidate reads
+    await this.cache.bumpCompanyVersion(companyId);
+
+    return created;
   }
 
   async findAll(companyId: string) {
-    return this.db
-      .select()
-      .from(leaveTypes)
-      .where(eq(leaveTypes.companyId, companyId))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['leave', 'types', 'list'],
+      async () => {
+        return this.db
+          .select()
+          .from(leaveTypes)
+          .where(eq(leaveTypes.companyId, companyId))
+          .execute();
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
   async findOne(companyId: string, leaveTypeId: string) {
-    // 1. Fetch leave type
-    const leaveType = await this.db
-      .select()
-      .from(leaveTypes)
-      .where(
-        and(
-          eq(leaveTypes.companyId, companyId),
-          eq(leaveTypes.id, leaveTypeId),
-        ),
-      )
-      .execute();
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['leave', 'types', 'one', leaveTypeId],
+      async () => {
+        const rows = await this.db
+          .select()
+          .from(leaveTypes)
+          .where(
+            and(
+              eq(leaveTypes.companyId, companyId),
+              eq(leaveTypes.id, leaveTypeId),
+            ),
+          )
+          .execute();
 
-    if (leaveType.length === 0) {
-      throw new NotFoundException(
-        `Leave type with ID ${leaveTypeId} not found`,
-      );
-    }
-
-    // 2. Return leave type
-    return leaveType[0];
+        if (!rows.length) {
+          throw new NotFoundException(
+            `Leave type with ID ${leaveTypeId} not found`,
+          );
+        }
+        return rows[0];
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
   async update(
@@ -180,15 +199,15 @@ export class LeaveTypesService {
     ip: string,
   ) {
     const { companyId, id } = user;
-    // check if leave type exists
-    const leaveType = await this.findOne(companyId, leaveTypeId);
 
-    await this.db
+    const current = await this.findOne(companyId, leaveTypeId);
+
+    const [updated] = await this.db
       .update(leaveTypes)
       .set({
-        name: dto.name ?? leaveType.name,
-        isPaid: dto.isPaid ?? leaveType.isPaid,
-        colorTag: dto.colorTag ?? leaveType.colorTag,
+        name: dto.name ?? current.name,
+        isPaid: dto.isPaid ?? current.isPaid,
+        colorTag: dto.colorTag ?? current.colorTag,
       })
       .where(
         and(
@@ -196,28 +215,30 @@ export class LeaveTypesService {
           eq(leaveTypes.id, leaveTypeId),
         ),
       )
+      .returning()
       .execute();
 
-    // 2. Create audit record
     await this.auditService.logAction({
       action: 'update',
-      entity: 'leave',
+      entity: 'leave_type',
       entityId: leaveTypeId,
       userId: id,
       details: 'Updated leave type',
       ipAddress: ip,
-      changes: {
-        name: dto.name,
-        isPaid: dto.isPaid,
-        colorTag: dto.colorTag,
-      },
+      changes: { before: current, after: updated },
     });
-    return this.findOne(companyId, leaveTypeId);
+
+    // Invalidate reads
+    await this.cache.bumpCompanyVersion(companyId);
+
+    return updated;
   }
 
-  async remove(companyId: string, leaveTypeId: string) {
+  async remove(user: User, leaveTypeId: string) {
+    const { companyId, id } = user;
+
     // Ensure the leave type exists
-    await this.findOne(companyId, leaveTypeId);
+    const existing = await this.findOne(companyId, leaveTypeId);
 
     // Check if there are any policies using this leave type
     const policyExists = await this.db
@@ -226,13 +247,12 @@ export class LeaveTypesService {
       .where(eq(leavePolicies.leaveTypeId, leaveTypeId))
       .execute();
 
-    if (policyExists && policyExists.length > 0) {
+    if (policyExists?.length) {
       throw new BadRequestException(
         "Cannot delete leave type: it's used by one or more leave policies.",
       );
     }
 
-    // Safe to delete
     await this.db
       .delete(leaveTypes)
       .where(
@@ -242,6 +262,18 @@ export class LeaveTypesService {
         ),
       )
       .execute();
+
+    await this.auditService.logAction({
+      action: 'delete',
+      entity: 'leave_type',
+      entityId: existing.id,
+      details: 'Deleted leave type',
+      userId: id,
+      changes: { id: existing.id, name: existing.name },
+    });
+
+    // Invalidate reads
+    await this.cache.bumpCompanyVersion(companyId);
 
     return { success: true, message: 'Leave type deleted successfully' };
   }

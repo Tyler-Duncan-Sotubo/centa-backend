@@ -20,9 +20,18 @@ const application_form_questions_schema_1 = require("./schema/application-form-q
 const application_form_configs_schema_1 = require("./schema/application-form-configs.schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const application_field_definitions_schema_1 = require("./schema/application-field-definitions.schema");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let ApplicationFormService = class ApplicationFormService {
-    constructor(db) {
+    constructor(db, cache) {
         this.db = db;
+        this.cache = cache;
+    }
+    tags(scope) {
+        return [
+            `company:${scope}:applications`,
+            `company:${scope}:applications:forms`,
+            `company:${scope}:applications:fields`,
+        ];
     }
     async seedDefaultFields() {
         await this.db.insert(application_field_definitions_schema_1.application_field_definitions).values(defaultFields.map((field, index) => ({
@@ -34,13 +43,18 @@ let ApplicationFormService = class ApplicationFormService {
             isEditable: field.isEditable ?? true,
             order: index + 1,
         })));
+        await this.cache.bumpCompanyVersion('global');
     }
     async getDefaultFields() {
-        const fields = await this.db.select().from(application_field_definitions_schema_1.application_field_definitions);
-        if (fields.length === 0) {
-            throw new common_1.NotFoundException('No default fields found');
-        }
-        return fields;
+        return this.cache.getOrSetVersioned('global', ['applications', 'fields', 'defaults'], async () => {
+            const fields = await this.db
+                .select()
+                .from(application_field_definitions_schema_1.application_field_definitions);
+            if (fields.length === 0) {
+                throw new common_1.NotFoundException('No default fields found');
+            }
+            return fields;
+        }, { tags: this.tags('global') });
     }
     async upsertApplicationForm(jobId, user, config) {
         const existing = await this.db
@@ -68,7 +82,6 @@ let ApplicationFormService = class ApplicationFormService {
             })
                 .returning();
             formId = form.id;
-            console.log('Created new application form config:', formId);
         }
         if (config.customFields?.length) {
             await this.db.insert(application_form_fields_schema_1.application_form_fields).values(config.customFields.map((f, i) => ({
@@ -92,39 +105,43 @@ let ApplicationFormService = class ApplicationFormService {
                 order: q.order ?? i + 1,
             })));
         }
+        await this.cache.bumpCompanyVersion(user.companyId);
+        await this.cache.bumpCompanyVersion('global');
         return { formId };
     }
     async getFormPreview(jobId) {
-        const [config] = await this.db
-            .select()
-            .from(application_form_configs_schema_1.application_form_configs)
-            .where((0, drizzle_orm_1.eq)(application_form_configs_schema_1.application_form_configs.jobId, jobId));
-        if (!config) {
-            throw new common_1.NotFoundException('Application form not configured for this job');
-        }
-        const fields = await this.db
-            .select()
-            .from(application_form_fields_schema_1.application_form_fields)
-            .where((0, drizzle_orm_1.eq)(application_form_fields_schema_1.application_form_fields.formId, config.id))
-            .orderBy((0, drizzle_orm_1.asc)(application_form_fields_schema_1.application_form_fields.order));
-        const questions = await this.db
-            .select()
-            .from(application_form_questions_schema_1.application_form_questions)
-            .where((0, drizzle_orm_1.eq)(application_form_questions_schema_1.application_form_questions.formId, config.id))
-            .orderBy((0, drizzle_orm_1.asc)(application_form_questions_schema_1.application_form_questions.order));
-        return {
-            style: config.style,
-            includeReferences: config.includeReferences,
-            fields,
-            questions,
-        };
+        return this.cache.getOrSetVersioned('global', ['applications', 'forms', 'preview', jobId], async () => {
+            const [config] = await this.db
+                .select()
+                .from(application_form_configs_schema_1.application_form_configs)
+                .where((0, drizzle_orm_1.eq)(application_form_configs_schema_1.application_form_configs.jobId, jobId));
+            if (!config) {
+                throw new common_1.NotFoundException('Application form not configured for this job');
+            }
+            const fields = await this.db
+                .select()
+                .from(application_form_fields_schema_1.application_form_fields)
+                .where((0, drizzle_orm_1.eq)(application_form_fields_schema_1.application_form_fields.formId, config.id))
+                .orderBy((0, drizzle_orm_1.asc)(application_form_fields_schema_1.application_form_fields.order));
+            const questions = await this.db
+                .select()
+                .from(application_form_questions_schema_1.application_form_questions)
+                .where((0, drizzle_orm_1.eq)(application_form_questions_schema_1.application_form_questions.formId, config.id))
+                .orderBy((0, drizzle_orm_1.asc)(application_form_questions_schema_1.application_form_questions.order));
+            return {
+                style: config.style,
+                includeReferences: config.includeReferences,
+                fields,
+                questions,
+            };
+        }, { tags: this.tags('global') });
     }
 };
 exports.ApplicationFormService = ApplicationFormService;
 exports.ApplicationFormService = ApplicationFormService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object])
+    __metadata("design:paramtypes", [Object, cache_service_1.CacheService])
 ], ApplicationFormService);
 const defaultFields = [
     {
@@ -227,11 +244,6 @@ const defaultFields = [
         fieldType: 'date',
         required: false,
     },
-    {
-        section: 'custom',
-        label: 'Skills',
-        fieldType: 'text',
-        required: false,
-    },
+    { section: 'custom', label: 'Skills', fieldType: 'text', required: false },
 ];
 //# sourceMappingURL=applicationForm.service.js.map

@@ -6,19 +6,18 @@ import { CacheService } from 'src/common/cache/cache.service';
 export declare class FeedbackQuestionService {
     private readonly db;
     private readonly cache;
-    private readonly ttlSeconds;
     constructor(db: db, cache: CacheService);
     private tags;
     private invalidate;
     create(dto: CreateFeedbackQuestionDto, user: User): Promise<{
         id: string;
-        isActive: boolean | null;
         createdAt: Date | null;
+        isActive: boolean | null;
         companyId: string;
         type: string;
+        order: number | null;
         question: string;
         inputType: string | null;
-        order: number | null;
     }>;
     findAll(companyId: string): Promise<{
         id: string;

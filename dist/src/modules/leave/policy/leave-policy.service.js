@@ -22,18 +22,23 @@ const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 const create_bulk_policy_dto_1 = require("./dto/create-bulk-policy.dto");
 const leave_types_schema_1 = require("../schema/leave-types.schema");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let LeavePolicyService = class LeavePolicyService {
-    constructor(auditService, db) {
+    constructor(auditService, db, cache) {
         this.auditService = auditService;
         this.db = db;
+        this.cache = cache;
         this.table = leave_policies_schema_1.leavePolicies;
+    }
+    tags(companyId) {
+        return [
+            `company:${companyId}:leave`,
+            `company:${companyId}:leave:policies`,
+        ];
     }
     async bulkCreateLeavePolicies(companyId, rows) {
         const leaveTypesList = await this.db
-            .select({
-            id: leave_types_schema_1.leaveTypes.id,
-            name: leave_types_schema_1.leaveTypes.name,
-        })
+            .select({ id: leave_types_schema_1.leaveTypes.id, name: leave_types_schema_1.leaveTypes.name })
             .from(leave_types_schema_1.leaveTypes)
             .where((0, drizzle_orm_1.eq)(leave_types_schema_1.leaveTypes.companyId, companyId))
             .execute();
@@ -99,25 +104,22 @@ let LeavePolicyService = class LeavePolicyService {
             }));
             return trx.insert(leave_policies_schema_1.leavePolicies).values(values).returning().execute();
         });
+        await this.cache.bumpCompanyVersion(companyId);
         return inserted;
     }
     async create(leaveTypeId, dto, user, ip) {
         const { companyId, id } = user;
-        const existingLeavePolicy = await this.db
+        const existing = await this.db
             .select()
             .from(this.table)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.companyId, companyId), (0, drizzle_orm_1.eq)(this.table.leaveTypeId, leaveTypeId)))
             .execute();
-        if (existingLeavePolicy.length > 0) {
-            throw new common_1.NotFoundException(`Leave policy for leave type ${leaveTypeId} already exists`);
+        if (existing.length > 0) {
+            throw new common_1.BadRequestException(`Leave policy for leave type ${leaveTypeId} already exists`);
         }
         const [leavePolicy] = await this.db
             .insert(this.table)
-            .values({
-            leaveTypeId,
-            companyId,
-            ...dto,
-        })
+            .values({ leaveTypeId, companyId, ...dto })
             .returning()
             .execute();
         await this.auditService.logAction({
@@ -127,77 +129,78 @@ let LeavePolicyService = class LeavePolicyService {
             details: 'Created new leave policy',
             userId: id,
             ipAddress: ip,
-            changes: {
-                leaveTypeId,
-                companyId,
-                ...dto,
-            },
+            changes: { leaveTypeId, companyId, ...dto },
         });
+        await this.cache.bumpCompanyVersion(companyId);
         return leavePolicy;
     }
     async findAll(companyId) {
-        return this.db
-            .select({
-            id: leave_policies_schema_1.leavePolicies.id,
-            leaveTypeId: leave_policies_schema_1.leavePolicies.leaveTypeId,
-            accrualEnabled: leave_policies_schema_1.leavePolicies.accrualEnabled,
-            accrualFrequency: leave_policies_schema_1.leavePolicies.accrualFrequency,
-            accrualAmount: leave_policies_schema_1.leavePolicies.accrualAmount,
-            maxBalance: leave_policies_schema_1.leavePolicies.maxBalance,
-            allowCarryover: leave_policies_schema_1.leavePolicies.allowCarryover,
-            carryoverLimit: leave_policies_schema_1.leavePolicies.carryoverLimit,
-            onlyConfirmedEmployees: leave_policies_schema_1.leavePolicies.onlyConfirmedEmployees,
-            eligibilityRules: leave_policies_schema_1.leavePolicies.eligibilityRules,
-            genderEligibility: leave_policies_schema_1.leavePolicies.genderEligibility,
-            isSplittable: leave_policies_schema_1.leavePolicies.isSplittable,
-            leaveTypeName: leave_types_schema_1.leaveTypes.name,
-        })
-            .from(this.table)
-            .innerJoin(leave_types_schema_1.leaveTypes, (0, drizzle_orm_1.eq)(leave_policies_schema_1.leavePolicies.leaveTypeId, leave_types_schema_1.leaveTypes.id))
-            .where((0, drizzle_orm_1.eq)(this.table.companyId, companyId))
-            .execute();
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'policies', 'list'], async () => {
+            return this.db
+                .select({
+                id: leave_policies_schema_1.leavePolicies.id,
+                leaveTypeId: leave_policies_schema_1.leavePolicies.leaveTypeId,
+                accrualEnabled: leave_policies_schema_1.leavePolicies.accrualEnabled,
+                accrualFrequency: leave_policies_schema_1.leavePolicies.accrualFrequency,
+                accrualAmount: leave_policies_schema_1.leavePolicies.accrualAmount,
+                maxBalance: leave_policies_schema_1.leavePolicies.maxBalance,
+                allowCarryover: leave_policies_schema_1.leavePolicies.allowCarryover,
+                carryoverLimit: leave_policies_schema_1.leavePolicies.carryoverLimit,
+                onlyConfirmedEmployees: leave_policies_schema_1.leavePolicies.onlyConfirmedEmployees,
+                eligibilityRules: leave_policies_schema_1.leavePolicies.eligibilityRules,
+                genderEligibility: leave_policies_schema_1.leavePolicies.genderEligibility,
+                isSplittable: leave_policies_schema_1.leavePolicies.isSplittable,
+                leaveTypeName: leave_types_schema_1.leaveTypes.name,
+            })
+                .from(this.table)
+                .innerJoin(leave_types_schema_1.leaveTypes, (0, drizzle_orm_1.eq)(leave_policies_schema_1.leavePolicies.leaveTypeId, leave_types_schema_1.leaveTypes.id))
+                .where((0, drizzle_orm_1.eq)(this.table.companyId, companyId))
+                .execute();
+        }, { tags: this.tags(companyId) });
     }
     async findLeavePoliciesByLeaveTypeId(companyId, leaveTypeId) {
-        try {
-            const leavePolicy = await this.db
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'policies', 'by-leave-type', leaveTypeId], async () => {
+            const rows = await this.db
                 .select()
                 .from(this.table)
                 .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.leaveTypeId, leaveTypeId), (0, drizzle_orm_1.eq)(this.table.companyId, companyId)))
                 .execute();
-            if (leavePolicy.length === 0) {
+            if (rows.length === 0) {
                 throw new common_1.NotFoundException(`Leave policy with leave type id ${leaveTypeId} not found`);
             }
-            return leavePolicy[0];
-        }
-        catch (error) {
-            console.error('Error fetching leave policy:', error);
-            throw new common_1.NotFoundException(`Leave policy with leave type id ${leaveTypeId} not found`);
-        }
+            return rows[0];
+        }, { tags: this.tags(companyId) });
     }
     async findOne(companyId, leavePolicyId) {
-        const leavePolicy = await this.db
-            .select()
-            .from(this.table)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.companyId, companyId), (0, drizzle_orm_1.eq)(this.table.id, leavePolicyId)))
-            .execute();
-        if (leavePolicy.length === 0) {
-            throw new common_1.NotFoundException(`Leave policy with id ${leavePolicyId} not found`);
-        }
-        return leavePolicy[0];
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'policies', 'one', leavePolicyId], async () => {
+            const rows = await this.db
+                .select()
+                .from(this.table)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.companyId, companyId), (0, drizzle_orm_1.eq)(this.table.id, leavePolicyId)))
+                .execute();
+            if (rows.length === 0) {
+                throw new common_1.NotFoundException(`Leave policy with id ${leavePolicyId} not found`);
+            }
+            return rows[0];
+        }, { tags: this.tags(companyId) });
     }
-    async findAllAccrualPolicies() {
-        return this.db
-            .select()
-            .from(this.table)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.accrualEnabled, true)))
-            .execute();
+    async findAllAccrualPolicies(companyId) {
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'policies', 'accrual-enabled'], async () => {
+            return this.db
+                .select()
+                .from(this.table)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.accrualEnabled, true), (0, drizzle_orm_1.eq)(this.table.companyId, companyId)))
+                .execute();
+        }, { tags: this.tags(companyId) });
     }
-    findAllNonAccrualPolicies() {
-        return this.db
-            .select()
-            .from(leave_policies_schema_1.leavePolicies)
-            .where((0, drizzle_orm_1.eq)(leave_policies_schema_1.leavePolicies.accrualEnabled, false))
-            .execute();
+    async findAllNonAccrualPolicies(companyId) {
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'policies', 'accrual-disabled'], async () => {
+            return this.db
+                .select()
+                .from(this.table)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.accrualEnabled, false), (0, drizzle_orm_1.eq)(this.table.companyId, companyId)))
+                .execute();
+        }, { tags: this.tags(companyId) });
     }
     async update(leavePolicyId, dto, user, ip) {
         const { companyId, id } = user;
@@ -215,10 +218,9 @@ let LeavePolicyService = class LeavePolicyService {
             details: 'Updated leave policy',
             userId: id,
             ipAddress: ip,
-            changes: {
-                ...dto,
-            },
+            changes: { ...dto },
         });
+        await this.cache.bumpCompanyVersion(companyId);
         return leavePolicy;
     }
     async remove(leavePolicyId, user, ip) {
@@ -236,12 +238,13 @@ let LeavePolicyService = class LeavePolicyService {
             userId: id,
             ipAddress: ip,
         });
+        await this.cache.bumpCompanyVersion(companyId);
     }
 };
 exports.LeavePolicyService = LeavePolicyService;
 exports.LeavePolicyService = LeavePolicyService = __decorate([
     (0, common_1.Injectable)(),
     __param(1, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [audit_service_1.AuditService, Object])
+    __metadata("design:paramtypes", [audit_service_1.AuditService, Object, cache_service_1.CacheService])
 ], LeavePolicyService);
 //# sourceMappingURL=leave-policy.service.js.map

@@ -21,33 +21,48 @@ const drizzle_orm_1 = require("drizzle-orm");
 const schema_1 = require("../../../drizzle/schema");
 const leave_types_schema_1 = require("../schema/leave-types.schema");
 const date_fns_1 = require("date-fns");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let ReservedDaysService = class ReservedDaysService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
+    }
+    tags(companyId) {
+        return [
+            `company:${companyId}:leave`,
+            `company:${companyId}:leave:reserved-days`,
+        ];
+    }
+    rangesOverlap(aStart, aEnd, bStart, bEnd) {
+        const as = (0, date_fns_1.parseISO)(aStart).getTime();
+        const ae = (0, date_fns_1.parseISO)(aEnd).getTime();
+        const bs = (0, date_fns_1.parseISO)(bStart).getTime();
+        const be = (0, date_fns_1.parseISO)(bEnd).getTime();
+        return as <= be && ae >= bs;
     }
     async create(dto, user) {
-        const { startDate, endDate } = dto;
+        const { startDate, endDate, employeeId } = dto;
+        if ((0, date_fns_1.parseISO)(startDate).getTime() > (0, date_fns_1.parseISO)(endDate).getTime()) {
+            throw new common_1.BadRequestException('startDate must be before or equal to endDate.');
+        }
         const existingReservedDays = await this.db
-            .select()
+            .select({
+            id: reserved_day_schema_1.reservedLeaveDays.id,
+            startDate: reserved_day_schema_1.reservedLeaveDays.startDate,
+            endDate: reserved_day_schema_1.reservedLeaveDays.endDate,
+        })
             .from(reserved_day_schema_1.reservedLeaveDays)
-            .where((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.companyId, user.companyId))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.companyId, user.companyId), (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.employeeId, employeeId)))
             .execute();
-        const conflict = existingReservedDays.find((day) => (0, date_fns_1.isWithinInterval)((0, date_fns_1.parseISO)(day.startDate), {
-            start: (0, date_fns_1.parseISO)(startDate),
-            end: (0, date_fns_1.parseISO)(endDate),
-        }) ||
-            (0, date_fns_1.isWithinInterval)((0, date_fns_1.parseISO)(day.endDate), {
-                start: (0, date_fns_1.parseISO)(startDate),
-                end: (0, date_fns_1.parseISO)(endDate),
-            }));
+        const conflict = existingReservedDays.find((day) => this.rangesOverlap(day.startDate, day.endDate, startDate, endDate));
         if (conflict) {
             throw new common_1.BadRequestException('This date range overlaps with a reserved period.');
         }
         const [reservedDay] = await this.db
             .insert(reserved_day_schema_1.reservedLeaveDays)
             .values({
-            employeeId: dto.employeeId,
+            employeeId,
             leaveTypeId: dto.leaveTypeId,
             startDate,
             endDate,
@@ -63,71 +78,116 @@ let ReservedDaysService = class ReservedDaysService {
             entityId: reservedDay.id,
             userId: user.id,
             details: 'Reserved day created',
-            changes: JSON.stringify(dto),
+            changes: { ...dto, companyId: user.companyId },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
         return reservedDay;
     }
     async getReservedDates(companyId, employeeId) {
-        const reserved = await this.db
-            .select({
-            startDate: reserved_day_schema_1.reservedLeaveDays.startDate,
-            endDate: reserved_day_schema_1.reservedLeaveDays.endDate,
-        })
-            .from(reserved_day_schema_1.reservedLeaveDays)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.companyId, companyId), (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.employeeId, employeeId)))
-            .execute();
-        const allDates = [];
-        for (const entry of reserved) {
-            const range = (0, date_fns_1.eachDayOfInterval)({
-                start: (0, date_fns_1.parseISO)(entry.startDate),
-                end: (0, date_fns_1.parseISO)(entry.endDate),
-            });
-            range.forEach((date) => {
-                allDates.push((0, date_fns_1.format)(date, 'yyyy-MM-dd'));
-            });
-        }
-        return allDates;
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'reserved-days', 'dates', employeeId], async () => {
+            const reserved = await this.db
+                .select({
+                startDate: reserved_day_schema_1.reservedLeaveDays.startDate,
+                endDate: reserved_day_schema_1.reservedLeaveDays.endDate,
+            })
+                .from(reserved_day_schema_1.reservedLeaveDays)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.companyId, companyId), (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.employeeId, employeeId)))
+                .execute();
+            const allDates = [];
+            for (const entry of reserved) {
+                const range = (0, date_fns_1.eachDayOfInterval)({
+                    start: (0, date_fns_1.parseISO)(entry.startDate),
+                    end: (0, date_fns_1.parseISO)(entry.endDate),
+                });
+                range.forEach((date) => {
+                    allDates.push((0, date_fns_1.format)(date, 'yyyy-MM-dd'));
+                });
+            }
+            return allDates;
+        }, { tags: this.tags(companyId) });
     }
     async findAll(companyId) {
-        return this.db
-            .select({
-            id: reserved_day_schema_1.reservedLeaveDays.id,
-            startDate: reserved_day_schema_1.reservedLeaveDays.startDate,
-            endDate: reserved_day_schema_1.reservedLeaveDays.endDate,
-            createdAt: reserved_day_schema_1.reservedLeaveDays.createdAt,
-            employeeName: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
-            leaveType: leave_types_schema_1.leaveTypes.name,
-            createdBy: (0, drizzle_orm_1.sql) `concat(${schema_1.users.firstName}, ' ', ${schema_1.users.lastName})`,
-            reason: reserved_day_schema_1.reservedLeaveDays.reason,
-        })
-            .from(reserved_day_schema_1.reservedLeaveDays)
-            .innerJoin(schema_1.users, (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.createdBy, schema_1.users.id))
-            .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.employeeId, schema_1.employees.id))
-            .innerJoin(leave_types_schema_1.leaveTypes, (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.leaveTypeId, leave_types_schema_1.leaveTypes.id))
-            .where((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.companyId, companyId))
-            .execute();
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'reserved-days', 'list'], async () => {
+            return this.db
+                .select({
+                id: reserved_day_schema_1.reservedLeaveDays.id,
+                startDate: reserved_day_schema_1.reservedLeaveDays.startDate,
+                endDate: reserved_day_schema_1.reservedLeaveDays.endDate,
+                createdAt: reserved_day_schema_1.reservedLeaveDays.createdAt,
+                employeeName: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
+                leaveType: leave_types_schema_1.leaveTypes.name,
+                createdBy: (0, drizzle_orm_1.sql) `concat(${schema_1.users.firstName}, ' ', ${schema_1.users.lastName})`,
+                reason: reserved_day_schema_1.reservedLeaveDays.reason,
+            })
+                .from(reserved_day_schema_1.reservedLeaveDays)
+                .innerJoin(schema_1.users, (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.createdBy, schema_1.users.id))
+                .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.employeeId, schema_1.employees.id))
+                .innerJoin(leave_types_schema_1.leaveTypes, (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.leaveTypeId, leave_types_schema_1.leaveTypes.id))
+                .where((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.companyId, companyId))
+                .execute();
+        }, { tags: this.tags(companyId) });
     }
     async findByEmployee(employeeId) {
-        return this.db
-            .select()
-            .from(reserved_day_schema_1.reservedLeaveDays)
-            .where((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.employeeId, employeeId))
+        const [emp] = await this.db
+            .select({ companyId: schema_1.employees.companyId })
+            .from(schema_1.employees)
+            .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId))
             .execute();
+        const companyId = emp?.companyId ?? 'unknown';
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'reserved-days', 'by-employee', employeeId], async () => {
+            return this.db
+                .select()
+                .from(reserved_day_schema_1.reservedLeaveDays)
+                .where((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.employeeId, employeeId))
+                .execute();
+        }, { tags: this.tags(companyId) });
     }
-    async findOne(id) {
-        const [reservedDay] = await this.db
-            .select()
-            .from(reserved_day_schema_1.reservedLeaveDays)
-            .where((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.id, id))
-            .execute();
-        if (!reservedDay) {
-            throw new common_1.BadRequestException('Reserved day not found');
-        }
-        return reservedDay;
+    async findOne(id, companyId) {
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'reserved-days', 'one', id], async () => {
+            const [reservedDay] = await this.db
+                .select()
+                .from(reserved_day_schema_1.reservedLeaveDays)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.id, id), (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.companyId, companyId)))
+                .execute();
+            if (!reservedDay)
+                throw new common_1.NotFoundException('Reserved day not found');
+            return reservedDay;
+        }, { tags: this.tags(companyId) });
     }
     async update(id, dto, user) {
-        await this.findOne(id);
-        const reservedDay = this.db
+        const [existing] = await this.db
+            .select()
+            .from(reserved_day_schema_1.reservedLeaveDays)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.id, id), (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.companyId, user.companyId)))
+            .execute();
+        if (!existing)
+            throw new common_1.NotFoundException('Reserved day not found');
+        if ((dto.startDate && dto.endDate) || dto.startDate || dto.endDate) {
+            const newStart = dto.startDate ?? existing.startDate;
+            const newEnd = dto.endDate ?? existing.endDate;
+            if ((0, date_fns_1.parseISO)(newStart).getTime() > (0, date_fns_1.parseISO)(newEnd).getTime()) {
+                throw new common_1.BadRequestException('startDate must be before or equal to endDate.');
+            }
+            if (existing.employeeId == null) {
+                throw new common_1.BadRequestException('Reserved day is missing employeeId.');
+            }
+            const others = await this.db
+                .select({
+                startDate: reserved_day_schema_1.reservedLeaveDays.startDate,
+                endDate: reserved_day_schema_1.reservedLeaveDays.endDate,
+            })
+                .from(reserved_day_schema_1.reservedLeaveDays)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.companyId, user.companyId), (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.employeeId, existing.employeeId)))
+                .execute();
+            const conflict = others
+                .filter((r) => !(r.startDate === existing.startDate &&
+                r.endDate === existing.endDate))
+                .find((r) => this.rangesOverlap(r.startDate, r.endDate, newStart, newEnd));
+            if (conflict) {
+                throw new common_1.BadRequestException('This date range overlaps with a reserved period.');
+            }
+        }
+        const [updated] = await this.db
             .update(reserved_day_schema_1.reservedLeaveDays)
             .set(dto)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.id, id), (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.companyId, user.companyId)))
@@ -136,24 +196,43 @@ let ReservedDaysService = class ReservedDaysService {
         await this.auditService.logAction({
             action: 'update',
             entity: 'reservedLeaveDays',
-            entityId: reservedDay[0].id,
+            entityId: updated.id,
             userId: user.id,
             details: 'Reserved day updated',
-            changes: JSON.stringify(dto),
+            changes: { before: existing, after: updated },
         });
-        return reservedDay;
+        await this.cache.bumpCompanyVersion(user.companyId);
+        return updated;
     }
-    async remove(id) {
-        return this.db
-            .delete(reserved_day_schema_1.reservedLeaveDays)
-            .where((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.id, id))
+    async remove(id, user) {
+        const [existing] = await this.db
+            .select()
+            .from(reserved_day_schema_1.reservedLeaveDays)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.id, id), (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.companyId, user.companyId)))
             .execute();
+        if (!existing)
+            throw new common_1.NotFoundException('Reserved day not found');
+        await this.db
+            .delete(reserved_day_schema_1.reservedLeaveDays)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.id, id), (0, drizzle_orm_1.eq)(reserved_day_schema_1.reservedLeaveDays.companyId, user.companyId)))
+            .execute();
+        await this.auditService.logAction({
+            action: 'delete',
+            entity: 'reservedLeaveDays',
+            entityId: id,
+            userId: user.id,
+            details: 'Reserved day deleted',
+            changes: { id, companyId: user.companyId },
+        });
+        await this.cache.bumpCompanyVersion(user.companyId);
+        return { message: 'Reserved day deleted successfully' };
     }
 };
 exports.ReservedDaysService = ReservedDaysService;
 exports.ReservedDaysService = ReservedDaysService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], ReservedDaysService);
 //# sourceMappingURL=reserved-days.service.js.map

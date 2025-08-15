@@ -1,24 +1,70 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
-import { Inject } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  Inject,
+} from '@nestjs/common';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
-import { payGroupAllowances } from '../schema/pay-group-allowances.schema';
-import { CreateAllowanceDto } from './dto/create-allowance.dto';
-import { UpdateAllowanceDto } from './dto/update-allowance.dto';
 import { eq } from 'drizzle-orm';
+
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
+
+import { payGroupAllowances } from '../schema/pay-group-allowances.schema';
+import { payGroups } from 'src/modules/payroll/schema/pay-groups.schema';
+
+import { CreateAllowanceDto } from './dto/create-allowance.dto';
+import { UpdateAllowanceDto } from './dto/update-allowance.dto';
+
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class AllowancesService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
 
+  // ------------------------
+  // helpers
+  // ------------------------
+  private cents(n?: number | null) {
+    return n != null ? Math.round(n * 100) : 0;
+  }
+
+  private async getCompanyIdByPayGroupId(payGroupId: string): Promise<string> {
+    const [pg] = await this.db
+      .select({ companyId: payGroups.companyId })
+      .from(payGroups)
+      .where(eq(payGroups.id, payGroupId))
+      .limit(1)
+      .execute();
+
+    if (!pg?.companyId) throw new NotFoundException('Pay group not found');
+    return pg.companyId;
+  }
+
+  private async getCompanyIdByAllowanceId(
+    allowanceId: string,
+  ): Promise<string> {
+    const [row] = await this.db
+      .select({ payGroupId: payGroupAllowances.payGroupId })
+      .from(payGroupAllowances)
+      .where(eq(payGroupAllowances.id, allowanceId))
+      .limit(1)
+      .execute();
+
+    if (!row?.payGroupId) throw new NotFoundException('Allowance not found');
+    return this.getCompanyIdByPayGroupId(row.payGroupId);
+  }
+
+  // ------------------------
+  // create
+  // ------------------------
   /** Create a new allowance for a pay group */
   async create(dto: CreateAllowanceDto, user: User) {
-    // basic validation: if percentage type, percentage must be set, etc.
     if (dto.valueType === 'percentage' && dto.percentage == null) {
       throw new BadRequestException(
         'percentage is required for percentage-type allowance',
@@ -37,17 +83,16 @@ export class AllowancesService {
         allowanceType: dto.allowanceType,
         valueType: dto.valueType,
         percentage: dto.percentage ?? '0.00',
-        fixedAmount: dto.fixedAmount != null ? dto.fixedAmount * 100 : 0,
+        fixedAmount: this.cents(dto.fixedAmount),
       })
       .returning()
       .execute();
 
-    // Log the creation of the allowance
     await this.auditService.logAction({
       action: 'create',
       entity: 'pay_group_allowance',
       entityId: inserted.id,
-      userId: user.id, // Assuming userId is part of the DTO
+      userId: user.id,
       details: `Created allowance ${inserted.allowanceType} for pay group ${dto.payGroupId}`,
       changes: {
         payGroupId: dto.payGroupId,
@@ -58,36 +103,72 @@ export class AllowancesService {
       },
     });
 
+    // 🔄 Invalidate caches for this company/paygroup
+    await this.cache.bumpCompanyVersion(user.companyId);
+    await this.cache.invalidateTags([
+      `paygroup:${dto.payGroupId}`,
+      'allowances:list',
+    ]);
+
     return inserted;
   }
 
-  /** List all allowances, optionally scoped to one pay-group */
+  // ------------------------
+  // read
+  // ------------------------
+  /** List all allowances for a pay-group (recommended); if payGroupId omitted, returns all (no cache). */
   async findAll(payGroupId?: string) {
-    const qb = this.db.select().from(payGroupAllowances);
-    if (payGroupId) {
-      qb.where(eq(payGroupAllowances.payGroupId, payGroupId));
+    if (!payGroupId) {
+      // No clear company scope → return fresh result (avoid wrong version key)
+      return await this.db.select().from(payGroupAllowances).execute();
     }
-    return await qb.execute();
+
+    const companyId = await this.getCompanyIdByPayGroupId(payGroupId);
+
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['paygroup', payGroupId, 'allowances'],
+      async () => {
+        return await this.db
+          .select()
+          .from(payGroupAllowances)
+          .where(eq(payGroupAllowances.payGroupId, payGroupId))
+          .execute();
+      },
+      { tags: ['allowances:list', `paygroup:${payGroupId}`] },
+    );
   }
 
   /** Get a single allowance by its ID */
   async findOne(id: string) {
-    const [allowance] = await this.db
-      .select()
-      .from(payGroupAllowances)
-      .where(eq(payGroupAllowances.id, id))
-      .execute();
-    if (!allowance) {
-      throw new BadRequestException(`Allowance ${id} not found`);
-    }
-    return allowance;
+    const companyId = await this.getCompanyIdByAllowanceId(id);
+
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['allowance', id],
+      async () => {
+        const [allowance] = await this.db
+          .select()
+          .from(payGroupAllowances)
+          .where(eq(payGroupAllowances.id, id))
+          .execute();
+        if (!allowance) {
+          throw new BadRequestException(`Allowance ${id} not found`);
+        }
+        return allowance;
+      },
+      { tags: [`allowance:${id}`] },
+    );
   }
 
+  // ------------------------
+  // update
+  // ------------------------
   /** Update an existing allowance */
   async update(id: string, dto: UpdateAllowanceDto, user: User) {
-    await this.findOne(id); // ensure exists
+    // Ensure exists (and resolve company via helper later)
+    await this.findOne(id);
 
-    // If switching types, ensure corresponding field is present
     if (dto.valueType === 'percentage' && dto.percentage == null) {
       throw new BadRequestException(
         'percentage is required for percentage-type allowance',
@@ -99,46 +180,87 @@ export class AllowancesService {
       );
     }
 
+    const payload: Partial<UpdateAllowanceDto & { fixedAmount: number }> = {
+      ...dto,
+    };
+    if (dto.fixedAmount != null) {
+      payload.fixedAmount = this.cents(dto.fixedAmount);
+    }
+
     await this.db
       .update(payGroupAllowances)
-      .set({ ...dto })
+      .set(payload as any)
       .where(eq(payGroupAllowances.id, id))
       .execute();
 
-    // Log the update of the allowance
     await this.auditService.logAction({
       action: 'update',
       entity: 'pay_group_allowance',
       entityId: id,
-      userId: user.id, // Assuming userId is part of the DTO
+      userId: user.id,
       details: `Updated allowance ${id}`,
-      changes: {
-        ...dto,
-      },
+      changes: { ...dto },
     });
+
+    // 🔄 Invalidate caches (bump company, clear item + list by paygroup)
+    const companyId = await this.getCompanyIdByAllowanceId(id);
+
+    // find payGroupId to tag-invalidate list
+    const [row] = await this.db
+      .select({ payGroupId: payGroupAllowances.payGroupId })
+      .from(payGroupAllowances)
+      .where(eq(payGroupAllowances.id, id))
+      .limit(1)
+      .execute();
+
+    await this.cache.bumpCompanyVersion(companyId);
+    await this.cache.invalidateTags([
+      `allowance:${id}`,
+      'allowances:list',
+      ...(row?.payGroupId ? [`paygroup:${row.payGroupId}`] : []),
+    ]);
 
     return { message: 'Allowance updated successfully' };
   }
 
+  // ------------------------
+  // delete
+  // ------------------------
   /** Remove an allowance */
   async remove(id: string, user: User) {
-    await this.findOne(id); // ensure exists first
+    // ensure exists & get payGroupId for invalidation
+    const [existing] = await this.db
+      .select({ payGroupId: payGroupAllowances.payGroupId })
+      .from(payGroupAllowances)
+      .where(eq(payGroupAllowances.id, id))
+      .limit(1)
+      .execute();
+
+    if (!existing?.payGroupId)
+      throw new BadRequestException(`Allowance ${id} not found`);
+
     await this.db
       .delete(payGroupAllowances)
       .where(eq(payGroupAllowances.id, id))
       .execute();
 
-    // Log the deletion of the allowance
     await this.auditService.logAction({
       action: 'delete',
       entity: 'pay_group_allowance',
       entityId: id,
-      userId: user.id, // Assuming userId is part of the DTO
+      userId: user.id,
       details: `Deleted allowance ${id}`,
-      changes: {
-        id,
-      },
+      changes: { id },
     });
+
+    // 🔄 Invalidate caches
+    const companyId = await this.getCompanyIdByPayGroupId(existing.payGroupId);
+    await this.cache.bumpCompanyVersion(companyId);
+    await this.cache.invalidateTags([
+      `allowance:${id}`,
+      'allowances:list',
+      `paygroup:${existing.payGroupId}`,
+    ]);
 
     return { message: 'Allowance deleted successfully' };
   }

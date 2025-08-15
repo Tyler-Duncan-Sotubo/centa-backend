@@ -27,7 +27,6 @@ let RoleCompetencyExpectationService = class RoleCompetencyExpectationService {
         this.db = db;
         this.auditService = auditService;
         this.cache = cache;
-        this.ttlSeconds = 60 * 5;
     }
     ns() {
         return ['performance', 'role-expectations'];
@@ -186,7 +185,7 @@ let RoleCompetencyExpectationService = class RoleCompetencyExpectationService {
         const key = [...this.ns(), 'list'];
         return this.cache.getOrSetVersioned(companyId, [...key], async () => this.db.query.roleCompetencyExpectations.findMany({
             where: (0, drizzle_orm_1.eq)(performance_competency_role_expectations_schema_1.roleCompetencyExpectations.companyId, companyId),
-        }), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }), { tags: this.tags(companyId) });
     }
     async getFrameworkSettings(companyId) {
         const key = [...this.ns(), 'framework-settings'];
@@ -222,7 +221,7 @@ let RoleCompetencyExpectationService = class RoleCompetencyExpectationService {
                 });
             }
             return { roles, expectationsByRole };
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async getFrameworkFields(companyId) {
         const key = [...this.ns(), 'framework-fields'];
@@ -238,7 +237,7 @@ let RoleCompetencyExpectationService = class RoleCompetencyExpectationService {
                 .select({ id: schema_1.competencyLevels.id, name: schema_1.competencyLevels.name })
                 .from(schema_1.competencyLevels);
             return { competencies, levels };
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async getAllCompetencyLevels() {
         const key = 'competency-levels:all';
@@ -246,7 +245,7 @@ let RoleCompetencyExpectationService = class RoleCompetencyExpectationService {
             return this.db
                 .select({ id: schema_1.competencyLevels.id, name: schema_1.competencyLevels.name })
                 .from(schema_1.competencyLevels);
-        }, { ttlSeconds: this.ttlSeconds });
+        });
     }
 };
 exports.RoleCompetencyExpectationService = RoleCompetencyExpectationService;

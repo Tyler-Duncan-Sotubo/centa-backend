@@ -2,10 +2,13 @@ import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { CreateScorecardTemplateDto } from './dto/create-score-card.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class ScorecardTemplateService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private tags;
     getAllTemplates(companyId: string): Promise<{
         id: string;
         name: string;

@@ -4,10 +4,14 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { CreateDeductionTypeDto } from './dto/create-deduction-type.dto';
 import { UpdateEmployeeDeductionDto } from './dto/update-employee-deduction.dto';
 import { CreateEmployeeDeductionDto } from './dto/create-employee-deduction.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class DeductionsService {
     private db;
     private auditService;
-    constructor(db: db, auditService: AuditService);
+    private cache;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private getCompanyIdByEmployeeId;
+    private getCompanyIdByEmployeeDeductionId;
     getDeductionTypes(): Promise<{
         id: string;
         name: string;

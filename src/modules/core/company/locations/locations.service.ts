@@ -28,8 +28,6 @@ export class LocationsService {
     private readonly companySettings: CompanySettingsService,
     private readonly cache: CacheService,
   ) {}
-
-  private ttlSeconds = 60 * 60; // 1h cache
   private tags(companyId: string) {
     return [`company:${companyId}:locations`];
   }
@@ -113,7 +111,7 @@ export class LocationsService {
             ),
           )
           .execute(),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -134,7 +132,7 @@ export class LocationsService {
       row.companyId,
       ['locations', 'one', id],
       async () => row, // we already have it
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(row.companyId) },
+      { tags: this.tags(row.companyId) },
     );
   }
 
@@ -257,7 +255,7 @@ export class LocationsService {
 
         return managers; // [] if none
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(loc.companyId) },
+      { tags: this.tags(loc.companyId) },
     );
   }
 

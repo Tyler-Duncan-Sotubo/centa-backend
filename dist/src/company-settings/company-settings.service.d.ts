@@ -7,7 +7,6 @@ export declare class CompanySettingsService {
     private settings;
     private tagCompany;
     private tagGroup;
-    private ttlSeconds;
     getSetting(companyId: string, key: string): Promise<any | null>;
     getAllSettings(companyId: string): Promise<any[]>;
     getSettingsOrDefaults(companyId: string, key: string, defaultValue: any): Promise<any>;

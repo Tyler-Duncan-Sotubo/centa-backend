@@ -14,35 +14,85 @@ import { CreateDeductionTypeDto } from './dto/create-deduction-type.dto';
 import { UpdateEmployeeDeductionDto } from './dto/update-employee-deduction.dto';
 import { CreateEmployeeDeductionDto } from './dto/create-employee-deduction.dto';
 import Decimal from 'decimal.js';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class DeductionsService {
   constructor(
     @Inject(DRIZZLE) private db: db,
     private auditService: AuditService,
+    private cache: CacheService,
   ) {}
 
-  // Deduction Types
-  async getDeductionTypes() {
-    const allDeductionTypes = await this.db
-      .select()
-      .from(deductionTypes)
+  // ----------------------------------------------------------------------------
+  // Helpers
+  // ----------------------------------------------------------------------------
+  private async getCompanyIdByEmployeeId(employeeId: string): Promise<string> {
+    const [row] = await this.db
+      .select({ companyId: employees.companyId })
+      .from(employees)
+      .where(eq(employees.id, employeeId))
+      .limit(1)
       .execute();
 
-    return allDeductionTypes;
+    if (!row?.companyId) {
+      throw new BadRequestException('Employee not found');
+    }
+    return row.companyId;
+  }
+
+  private async getCompanyIdByEmployeeDeductionId(
+    id: string,
+  ): Promise<{ companyId: string; employeeId: string }> {
+    const [row] = await this.db
+      .select({
+        employeeId: employeeDeductions.employeeId,
+      })
+      .from(employeeDeductions)
+      .where(eq(employeeDeductions.id, id))
+      .limit(1)
+      .execute();
+
+    if (!row?.employeeId) {
+      throw new BadRequestException('Deduction not found');
+    }
+
+    const companyId = await this.getCompanyIdByEmployeeId(row.employeeId);
+    return { companyId, employeeId: row.employeeId };
+  }
+
+  // ----------------------------------------------------------------------------
+  // Deduction Types (global-scoped; use a synthetic "global" company key)
+  // ----------------------------------------------------------------------------
+  async getDeductionTypes() {
+    return this.cache.getOrSetVersioned(
+      'global',
+      ['deductionTypes', 'all'],
+      async () => {
+        return await this.db.select().from(deductionTypes).execute();
+      },
+      { tags: ['deductionTypes'] },
+    );
   }
 
   async findDeductionType(id: string) {
-    const deductionType = await this.db
-      .select()
-      .from(deductionTypes)
-      .where(eq(deductionTypes.id, id))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      'global',
+      ['deductionType', id],
+      async () => {
+        const rows = await this.db
+          .select()
+          .from(deductionTypes)
+          .where(eq(deductionTypes.id, id))
+          .execute();
 
-    if (!deductionType)
-      throw new BadRequestException('Deduction type not found');
-
-    return deductionType[0];
+        if (!rows.length) {
+          throw new BadRequestException('Deduction type not found');
+        }
+        return rows[0];
+      },
+      { tags: ['deductionTypes', `deductionType:${id}`] },
+    );
   }
 
   async createDeductionType(dto: CreateDeductionTypeDto, user?: User) {
@@ -61,8 +111,7 @@ export class DeductionsService {
       })
       .execute();
 
-    if (user && user.id) {
-      // log the creation
+    if (user?.id) {
       await this.auditService.logAction({
         action: 'create',
         entity: 'deduction_type',
@@ -78,6 +127,10 @@ export class DeductionsService {
       });
     }
 
+    // Invalidate global caches
+    await this.cache.bumpCompanyVersion('global');
+    await this.cache.invalidateTags(['deductionTypes']);
+
     return created;
   }
 
@@ -86,8 +139,9 @@ export class DeductionsService {
     dto: CreateDeductionTypeDto,
     id: string,
   ) {
-    // find the deduction type
+    // ensure present (cached)
     await this.findDeductionType(id);
+
     const [updated] = await this.db
       .update(deductionTypes)
       .set({
@@ -104,7 +158,6 @@ export class DeductionsService {
       })
       .execute();
 
-    // log the update
     await this.auditService.logAction({
       action: 'update',
       entity: 'deduction_type',
@@ -119,19 +172,19 @@ export class DeductionsService {
       },
     });
 
+    await this.cache.bumpCompanyVersion('global');
+    await this.cache.invalidateTags(['deductionTypes', `deductionType:${id}`]);
+
     return updated;
   }
 
   async deleteDeductionType(id: string, userId: string) {
-    // find the deduction type
+    // ensure present (cached)
     await this.findDeductionType(id);
 
-    // delete the deduction type
     const [deleted] = await this.db
       .update(deductionTypes)
-      .set({
-        systemDefined: false,
-      })
+      .set({ systemDefined: false })
       .where(eq(deductionTypes.id, id))
       .returning({
         id: deductionTypes.id,
@@ -140,47 +193,50 @@ export class DeductionsService {
       })
       .execute();
 
-    // log the deletion
     await this.auditService.logAction({
       action: 'delete',
       entity: 'deduction_type',
       entityId: deleted.id,
       userId,
       details: `Deduction type with ID ${id} was deleted.`,
-      changes: {
-        systemDefined: false,
-      },
+      changes: { systemDefined: false },
     });
+
+    await this.cache.bumpCompanyVersion('global');
+    await this.cache.invalidateTags(['deductionTypes', `deductionType:${id}`]);
 
     return 'Deduction type deleted successfully';
   }
 
-  // Employee deductions
+  // ----------------------------------------------------------------------------
+  // Employee Deductions (company-scoped)
+  // ----------------------------------------------------------------------------
   async getEmployeeDeductions(employeeId: string) {
-    const deductions = await this.db
-      .select()
-      .from(employeeDeductions)
-      .where(eq(employeeDeductions.employeeId, employeeId))
-      .execute();
+    const companyId = await this.getCompanyIdByEmployeeId(employeeId);
 
-    if (deductions.length === 0) {
+    const list = await this.cache.getOrSetVersioned(
+      companyId,
+      ['employee', employeeId, 'deductions', 'all'],
+      async () => {
+        return await this.db
+          .select()
+          .from(employeeDeductions)
+          .where(eq(employeeDeductions.employeeId, employeeId))
+          .execute();
+      },
+      { tags: [`employee:${employeeId}:deductions`, 'deductions:company'] },
+    );
+
+    if (!list.length) {
       throw new BadRequestException('No deductions found for this employee');
     }
 
-    return deductions;
+    return list;
   }
 
   async assignDeductionToEmployee(user: User, dto: CreateEmployeeDeductionDto) {
-    // Optional: Validate deductionTypeId exists and is active
-    const [deductionType] = await this.db
-      .select()
-      .from(deductionTypes)
-      .where(eq(deductionTypes.id, dto.deductionTypeId))
-      .execute();
-
-    if (!deductionType) {
-      throw new BadRequestException('Deduction type does not exist');
-    }
+    // Validate type exists (cached)
+    await this.findDeductionType(dto.deductionTypeId);
 
     const [created] = await this.db
       .insert(employeeDeductions)
@@ -205,6 +261,14 @@ export class DeductionsService {
       details: `Employee deduction assigned to ${dto.employeeId}`,
       changes: dto,
     });
+
+    // Cache invalidation
+    const companyId = await this.getCompanyIdByEmployeeId(dto.employeeId);
+    await this.cache.bumpCompanyVersion(companyId);
+    await this.cache.invalidateTags([
+      'deductions:company',
+      `employee:${dto.employeeId}:deductions`,
+    ]);
 
     return created;
   }
@@ -245,6 +309,15 @@ export class DeductionsService {
       changes: dto,
     });
 
+    // Invalidate caches
+    const { companyId, employeeId } =
+      await this.getCompanyIdByEmployeeDeductionId(id);
+    await this.cache.bumpCompanyVersion(companyId);
+    await this.cache.invalidateTags([
+      'deductions:company',
+      `employee:${employeeId}:deductions`,
+    ]);
+
     return updated;
   }
 
@@ -267,52 +340,65 @@ export class DeductionsService {
       changes: { isActive: false },
     });
 
+    // Invalidate caches
+    const { companyId, employeeId } =
+      await this.getCompanyIdByEmployeeDeductionId(id);
+    await this.cache.bumpCompanyVersion(companyId);
+    await this.cache.invalidateTags([
+      'deductions:company',
+      `employee:${employeeId}:deductions`,
+    ]);
+
     return { message: 'Employee deduction deactivated successfully' };
   }
 
   async getAllEmployeeDeductionsForCompany(companyId: string) {
-    const result = await this.db
-      .select({
-        id: employeeDeductions.id,
-        employeeId: employeeDeductions.employeeId,
-        rateType: employeeDeductions.rateType,
-        rateValue: employeeDeductions.rateValue,
-        deductionTypeName: deductionTypes.name,
-        isActive: employeeDeductions.isActive,
-        startDate: employeeDeductions.startDate,
-        endDate: employeeDeductions.endDate,
-        employeeName: sql<string>`CONCAT(${employees.firstName}, ' ', ${employees.lastName})`,
-      })
-      .from(employeeDeductions)
-      .leftJoin(
-        deductionTypes,
-        eq(employeeDeductions.deductionTypeId, deductionTypes.id),
-      )
-      .innerJoin(employees, eq(employeeDeductions.employeeId, employees.id))
-      .where(
-        and(
-          eq(employees.companyId, companyId),
-          eq(employeeDeductions.isActive, true),
-        ),
-      )
-      .execute();
-
-    return result;
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['company', 'deductions', 'active', 'allEmployees'],
+      async () => {
+        return await this.db
+          .select({
+            id: employeeDeductions.id,
+            employeeId: employeeDeductions.employeeId,
+            rateType: employeeDeductions.rateType,
+            rateValue: employeeDeductions.rateValue,
+            deductionTypeName: deductionTypes.name,
+            isActive: employeeDeductions.isActive,
+            startDate: employeeDeductions.startDate,
+            endDate: employeeDeductions.endDate,
+            employeeName: sql<string>`CONCAT(${employees.firstName}, ' ', ${employees.lastName})`,
+          })
+          .from(employeeDeductions)
+          .leftJoin(
+            deductionTypes,
+            eq(employeeDeductions.deductionTypeId, deductionTypes.id),
+          )
+          .innerJoin(employees, eq(employeeDeductions.employeeId, employees.id))
+          .where(
+            and(
+              eq(employees.companyId, companyId),
+              eq(employeeDeductions.isActive, true),
+            ),
+          )
+          .execute();
+      },
+      { tags: ['deductions:company'] },
+    );
   }
 
+  // ----------------------------------------------------------------------------
+  // Voluntary deductions filing (write-heavy; invalidate company-wide + employees)
+  // ----------------------------------------------------------------------------
   async processVoluntaryDeductionsFromPayroll(
     payrollRecords: any[], // each record includes voluntaryDeductions
     payrollRunId: string,
     companyId: string,
   ) {
-    // Step 1: Get deduction type names
-    const deductionType = await this.db
-      .select({ id: deductionTypes.id, name: deductionTypes.name })
-      .from(deductionTypes)
-      .execute();
-
+    // Step 1: Get deduction type names (cached globally)
+    const types = await this.getDeductionTypes(); // uses cache
     const deductionTypeMap = new Map<string, string>();
-    for (const dt of deductionType) {
+    for (const dt of types) {
       deductionTypeMap.set(dt.id, dt.name);
     }
 
@@ -347,7 +433,7 @@ export class DeductionsService {
           employeeName: `${record.firstName} ${record.lastName}`,
           deductionName,
           payrollId: payrollRunId,
-          payrollMonth: record.payrollMonth.toString(),
+          payrollMonth: String(record.payrollMonth),
           amount: amt.toFixed(2),
           companyId,
         });
@@ -358,6 +444,15 @@ export class DeductionsService {
     if (allRows.length > 0) {
       await this.db.insert(filingVoluntaryDeductions).values(allRows).execute();
     }
+
+    // Cache invalidation (company-wide; employees impacted)
+    await this.cache.bumpCompanyVersion(companyId);
+    const tags = new Set<string>(['deductions:company', 'voluntary:company']);
+    for (const row of allRows) {
+      tags.add(`employee:${row.employeeId}:deductions`);
+      tags.add(`employee:${row.employeeId}:voluntary`);
+    }
+    await this.cache.invalidateTags(Array.from(tags));
 
     return { inserted: allRows.length };
   }

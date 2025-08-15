@@ -18,10 +18,28 @@ const drizzle_module_1 = require("../../drizzle/drizzle.module");
 const audit_service_1 = require("../audit/audit.service");
 const announcements_schema_1 = require("./schema/announcements.schema");
 const drizzle_orm_1 = require("drizzle-orm");
+const cache_service_1 = require("../../common/cache/cache.service");
 let ReactionService = class ReactionService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
+    }
+    tags(companyId, announcementId) {
+        return [
+            `company:${companyId}:announcements`,
+            `company:${companyId}:announcement:${announcementId}:reactions`,
+        ];
+    }
+    async getCompanyIdForAnnouncement(announcementId) {
+        const [row] = await this.db
+            .select({ companyId: announcements_schema_1.announcements.companyId })
+            .from(announcements_schema_1.announcements)
+            .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcements.id, announcementId))
+            .execute();
+        if (!row)
+            throw new common_1.BadRequestException('Announcement not found');
+        return row.companyId;
     }
     async reactToAnnouncement(announcementId, reactionType, user) {
         const validReactions = [
@@ -49,11 +67,13 @@ let ReactionService = class ReactionService {
             .from(announcements_schema_1.announcementReactions)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(announcements_schema_1.announcementReactions.announcementId, announcementId), (0, drizzle_orm_1.eq)(announcements_schema_1.announcementReactions.createdBy, user.id), (0, drizzle_orm_1.eq)(announcements_schema_1.announcementReactions.reactionType, reactionType)))
             .execute();
+        let result = { toggledOff: false };
         if (existingReaction) {
             await this.db
                 .delete(announcements_schema_1.announcementReactions)
                 .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementReactions.id, existingReaction.id))
                 .execute();
+            result = { toggledOff: true };
         }
         else {
             const [newReaction] = await this.db
@@ -74,41 +94,60 @@ let ReactionService = class ReactionService {
                 details: `User ${user.id} reacted with ${reactionType} on announcement ${announcementId}`,
                 changes: newReaction,
             });
-            return newReaction;
+            result = newReaction;
         }
+        await this.cache.bumpCompanyVersion(announcement.companyId);
+        return result;
     }
     async getReactions(announcementId) {
-        return this.db
-            .select()
-            .from(announcements_schema_1.announcementReactions)
-            .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementReactions.announcementId, announcementId))
-            .orderBy((0, drizzle_orm_1.desc)(announcements_schema_1.announcementReactions.createdAt))
-            .execute();
+        const companyId = await this.getCompanyIdForAnnouncement(announcementId);
+        return this.cache.getOrSetVersioned(companyId, ['announcement', announcementId, 'reactions', 'list'], async () => {
+            return this.db
+                .select()
+                .from(announcements_schema_1.announcementReactions)
+                .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementReactions.announcementId, announcementId))
+                .orderBy((0, drizzle_orm_1.desc)(announcements_schema_1.announcementReactions.createdAt))
+                .execute();
+        }, {
+            tags: this.tags(companyId, announcementId),
+        });
     }
     async countReactionsByType(announcementId) {
-        return this.db
-            .select({
-            reactionType: announcements_schema_1.announcementReactions.reactionType,
-            count: (0, drizzle_orm_1.sql) `COUNT(*)`.as('count'),
-        })
-            .from(announcements_schema_1.announcementReactions)
-            .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementReactions.announcementId, announcementId))
-            .groupBy(announcements_schema_1.announcementReactions.reactionType)
-            .execute();
+        const companyId = await this.getCompanyIdForAnnouncement(announcementId);
+        return this.cache.getOrSetVersioned(companyId, ['announcement', announcementId, 'reactions', 'counts'], async () => {
+            return this.db
+                .select({
+                reactionType: announcements_schema_1.announcementReactions.reactionType,
+                count: (0, drizzle_orm_1.sql) `COUNT(*)`.as('count'),
+            })
+                .from(announcements_schema_1.announcementReactions)
+                .where((0, drizzle_orm_1.eq)(announcements_schema_1.announcementReactions.announcementId, announcementId))
+                .groupBy(announcements_schema_1.announcementReactions.reactionType)
+                .execute();
+        }, {
+            tags: this.tags(companyId, announcementId),
+        });
     }
     async hasUserReacted(announcementId, userId) {
-        const [reaction] = await this.db
-            .select()
-            .from(announcements_schema_1.announcementReactions)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(announcements_schema_1.announcementReactions.announcementId, announcementId), (0, drizzle_orm_1.eq)(announcements_schema_1.announcementReactions.createdBy, userId)))
-            .execute();
-        return !!reaction;
+        const companyId = await this.getCompanyIdForAnnouncement(announcementId);
+        return this.cache.getOrSetVersioned(companyId, ['announcement', announcementId, 'reactions', 'hasUser', userId], async () => {
+            const [reaction] = await this.db
+                .select({ id: announcements_schema_1.announcementReactions.id })
+                .from(announcements_schema_1.announcementReactions)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(announcements_schema_1.announcementReactions.announcementId, announcementId), (0, drizzle_orm_1.eq)(announcements_schema_1.announcementReactions.createdBy, userId)))
+                .limit(1)
+                .execute();
+            return !!reaction;
+        }, {
+            tags: this.tags(companyId, announcementId),
+        });
     }
 };
 exports.ReactionService = ReactionService;
 exports.ReactionService = ReactionService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], ReactionService);
 //# sourceMappingURL=reaction.service.js.map

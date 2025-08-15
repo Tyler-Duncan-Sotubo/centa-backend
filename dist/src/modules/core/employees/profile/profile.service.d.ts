@@ -1,9 +1,11 @@
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class ProfileService {
     private readonly db;
     private readonly auditService;
+    private readonly cache;
     protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "employee_profiles";
         schema: undefined;
@@ -242,7 +244,8 @@ export declare class ProfileService {
         };
         dialect: "pg";
     }>;
-    constructor(db: db, auditService: AuditService);
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private tags;
     upsert(employeeId: string, dto: CreateProfileDto, userId: string, ip: string): Promise<{
         id: string;
         createdAt: Date;
@@ -258,7 +261,21 @@ export declare class ProfileService {
         emergencyName: string | null;
         emergencyPhone: string | null;
     }>;
-    findOne(employeeId: string): Promise<{}>;
+    findOne(employeeId: string): Promise<{
+        id: string;
+        dateOfBirth: string | null;
+        gender: string | null;
+        maritalStatus: string | null;
+        address: string | null;
+        state: string | null;
+        country: string | null;
+        phone: string | null;
+        emergencyName: string | null;
+        emergencyPhone: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        employeeId: string;
+    }>;
     remove(employeeId: string): Promise<{
         deleted: boolean;
         id: string;

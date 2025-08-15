@@ -15,8 +15,6 @@ import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class FeedbackQuestionService {
-  private readonly ttlSeconds = 10 * 60; // 10 minutes
-
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly cache: CacheService,
@@ -61,7 +59,7 @@ export class FeedbackQuestionService {
           .where(eq(feedbackQuestions.companyId, companyId))
           .orderBy(asc(feedbackQuestions.type), asc(feedbackQuestions.order))
           .execute(),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -80,7 +78,7 @@ export class FeedbackQuestionService {
           )
           .orderBy(asc(feedbackQuestions.order))
           .execute(),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -104,7 +102,7 @@ export class FeedbackQuestionService {
         }
         return question;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 

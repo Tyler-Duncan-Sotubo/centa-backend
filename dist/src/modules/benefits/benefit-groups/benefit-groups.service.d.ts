@@ -3,10 +3,13 @@ import { UpdateBenefitGroupDto } from './dto/update-benefit-group.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class BenefitGroupsService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private tags;
     create(dto: CreateBenefitGroupDto, user: User): Promise<{
         id: string;
         name: string;
@@ -23,14 +26,14 @@ export declare class BenefitGroupsService {
         rules: unknown;
         createdAt: Date | null;
     }[]>;
-    findOne(id: string): Promise<{
+    findOne(companyId: string, id: string): Promise<{
         id: string;
         companyId: string;
         name: string;
         description: string | null;
         rules: unknown;
         createdAt: Date | null;
-    }[]>;
+    }>;
     update(id: string, dto: UpdateBenefitGroupDto, user: User): Promise<{
         id: string;
         companyId: string;

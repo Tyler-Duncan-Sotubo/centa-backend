@@ -8,7 +8,6 @@ export declare class FeedbackSettingsService {
     private readonly db;
     private readonly auditService;
     private readonly cache;
-    private readonly ttlSeconds;
     constructor(db: db, auditService: AuditService, cache: CacheService);
     private tags;
     private invalidate;

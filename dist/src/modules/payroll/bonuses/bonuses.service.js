@@ -14,15 +14,28 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BonusesService = void 0;
 const common_1 = require("@nestjs/common");
-const payroll_bonuses_schema_1 = require("../schema/payroll-bonuses.schema");
 const drizzle_module_1 = require("../../../drizzle/drizzle.module");
-const audit_service_1 = require("../../audit/audit.service");
-const schema_1 = require("../../../drizzle/schema");
 const drizzle_orm_1 = require("drizzle-orm");
+const audit_service_1 = require("../../audit/audit.service");
+const cache_service_1 = require("../../../common/cache/cache.service");
+const schema_1 = require("../../../drizzle/schema");
+const payroll_bonuses_schema_1 = require("../schema/payroll-bonuses.schema");
 let BonusesService = class BonusesService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
+    }
+    async getCompanyIdByBonusId(bonusId) {
+        const [row] = await this.db
+            .select({ companyId: payroll_bonuses_schema_1.payrollBonuses.companyId })
+            .from(payroll_bonuses_schema_1.payrollBonuses)
+            .where((0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.id, bonusId))
+            .limit(1)
+            .execute();
+        if (!row?.companyId)
+            throw new common_1.NotFoundException('Bonus not found');
+        return row.companyId;
     }
     async create(user, dto) {
         const result = await this.db
@@ -50,50 +63,60 @@ let BonusesService = class BonusesService {
                 effectiveDate: dto.effectiveDate,
             },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
+        await this.cache.invalidateTags([
+            'bonuses:active',
+            `employee:${dto.employeeId}:bonuses`,
+        ]);
         return result;
     }
     async findAll(companyId) {
-        const result = await this.db
-            .select({
-            id: payroll_bonuses_schema_1.payrollBonuses.id,
-            employee_id: payroll_bonuses_schema_1.payrollBonuses.employeeId,
-            amount: payroll_bonuses_schema_1.payrollBonuses.amount,
-            bonus_type: payroll_bonuses_schema_1.payrollBonuses.bonusType,
-            first_name: schema_1.employees.firstName,
-            last_name: schema_1.employees.lastName,
-            effective_date: payroll_bonuses_schema_1.payrollBonuses.effectiveDate,
-            status: payroll_bonuses_schema_1.payrollBonuses.status,
-        })
-            .from(payroll_bonuses_schema_1.payrollBonuses)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.companyId, companyId), (0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.status, 'active')))
-            .leftJoin(schema_1.employees, (0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.employeeId, schema_1.employees.id))
-            .execute();
-        return result;
+        return this.cache.getOrSetVersioned(companyId, ['bonuses', 'active'], async () => {
+            return await this.db
+                .select({
+                id: payroll_bonuses_schema_1.payrollBonuses.id,
+                employee_id: payroll_bonuses_schema_1.payrollBonuses.employeeId,
+                amount: payroll_bonuses_schema_1.payrollBonuses.amount,
+                bonus_type: payroll_bonuses_schema_1.payrollBonuses.bonusType,
+                first_name: schema_1.employees.firstName,
+                last_name: schema_1.employees.lastName,
+                effective_date: payroll_bonuses_schema_1.payrollBonuses.effectiveDate,
+                status: payroll_bonuses_schema_1.payrollBonuses.status,
+            })
+                .from(payroll_bonuses_schema_1.payrollBonuses)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.companyId, companyId), (0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.status, 'active')))
+                .leftJoin(schema_1.employees, (0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.employeeId, schema_1.employees.id))
+                .execute();
+        }, { tags: ['bonuses:active'] });
     }
     async findOne(bonusId) {
-        const result = await this.db
-            .select({})
-            .from(payroll_bonuses_schema_1.payrollBonuses)
-            .where((0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.id, bonusId))
-            .execute();
-        if (result.length === 0) {
-            throw new common_1.NotFoundException('Bonus not found');
-        }
-        return result;
+        const companyId = await this.getCompanyIdByBonusId(bonusId);
+        return this.cache.getOrSetVersioned(companyId, ['bonus', bonusId], async () => {
+            const result = await this.db
+                .select({})
+                .from(payroll_bonuses_schema_1.payrollBonuses)
+                .where((0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.id, bonusId))
+                .execute();
+            if (result.length === 0) {
+                throw new common_1.NotFoundException('Bonus not found');
+            }
+            return result;
+        }, { tags: [`bonus:${bonusId}`] });
     }
     async findAllEmployeeBonuses(companyId, employee_id) {
-        const result = await this.db
-            .select({
-            id: payroll_bonuses_schema_1.payrollBonuses.id,
-            employee_id: payroll_bonuses_schema_1.payrollBonuses.employeeId,
-            amount: payroll_bonuses_schema_1.payrollBonuses.amount,
-            bonus_type: payroll_bonuses_schema_1.payrollBonuses.bonusType,
-            effective_date: payroll_bonuses_schema_1.payrollBonuses.effectiveDate,
-        })
-            .from(payroll_bonuses_schema_1.payrollBonuses)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.companyId, companyId), (0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.employeeId, employee_id), (0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.status, 'active')))
-            .execute();
-        return result;
+        return this.cache.getOrSetVersioned(companyId, ['employee', employee_id, 'bonuses', 'active'], async () => {
+            return await this.db
+                .select({
+                id: payroll_bonuses_schema_1.payrollBonuses.id,
+                employee_id: payroll_bonuses_schema_1.payrollBonuses.employeeId,
+                amount: payroll_bonuses_schema_1.payrollBonuses.amount,
+                bonus_type: payroll_bonuses_schema_1.payrollBonuses.bonusType,
+                effective_date: payroll_bonuses_schema_1.payrollBonuses.effectiveDate,
+            })
+                .from(payroll_bonuses_schema_1.payrollBonuses)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.companyId, companyId), (0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.employeeId, employee_id), (0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.status, 'active')))
+                .execute();
+        }, { tags: ['bonuses:active', `employee:${employee_id}:bonuses`] });
     }
     async update(bonusId, dto, user) {
         await this.findOne(bonusId);
@@ -117,10 +140,18 @@ let BonusesService = class BonusesService {
                 bonusType: dto.bonusType,
             },
         });
+        const companyId = await this.getCompanyIdByBonusId(bonusId);
+        await this.cache.bumpCompanyVersion(companyId);
+        await this.cache.invalidateTags([
+            `bonus:${bonusId}`,
+            'bonuses:active',
+            `employee:${updated.employeeId}:bonuses`,
+        ]);
         return updated;
     }
     async remove(user, bonusId) {
-        await this.findOne(bonusId);
+        const existing = await this.findOne(bonusId);
+        const [current] = existing;
         const result = await this.db
             .update(payroll_bonuses_schema_1.payrollBonuses)
             .set({
@@ -135,10 +166,14 @@ let BonusesService = class BonusesService {
             entity: 'payroll_bonuses',
             details: 'Deleted a bonus',
             entityId: bonusId,
-            changes: {
-                status: 'inactive',
-            },
+            changes: { status: 'inactive' },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
+        await this.cache.invalidateTags([
+            `bonus:${bonusId}`,
+            'bonuses:active',
+            `employee:${current?.employeeId ?? result[0]?.employeeId}:bonuses`,
+        ]);
         return result;
     }
 };
@@ -146,6 +181,7 @@ exports.BonusesService = BonusesService;
 exports.BonusesService = BonusesService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], BonusesService);
 //# sourceMappingURL=bonuses.service.js.map

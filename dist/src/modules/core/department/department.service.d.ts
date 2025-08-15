@@ -37,7 +37,6 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
     private readonly companySettings;
     protected table: any;
     constructor(db: db, audit: AuditService, cache: CacheService, companySettings: CompanySettingsService);
-    private ttlSeconds;
     private tags;
     create(companyId: string, dto: CreateDepartmentDto): Promise<{
         id: any;
@@ -186,11 +185,11 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
             id: any;
             firstName: any;
             lastName: any;
-        } | null;
+        };
         parent: {
             id: any;
             name: any;
-        } | null;
+        };
         costCenter: {
             id: string;
             code: string;
@@ -205,11 +204,11 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
             id: any;
             firstName: any;
             lastName: any;
-        };
+        } | null;
         parent: {
             id: any;
             name: any;
-        };
+        } | null;
         costCenter: {
             id: string;
             code: string;
@@ -287,11 +286,11 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
             id: any;
             firstName: any;
             lastName: any;
-        } | null;
+        };
         parent: {
             id: any;
             name: any;
-        } | null;
+        };
         costCenter: {
             id: string;
             code: string;
@@ -306,11 +305,11 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
             id: any;
             firstName: any;
             lastName: any;
-        };
+        } | null;
         parent: {
             id: any;
             name: any;
-        };
+        } | null;
         costCenter: {
             id: string;
             code: string;

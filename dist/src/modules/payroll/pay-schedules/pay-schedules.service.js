@@ -22,86 +22,107 @@ const axios_1 = require("axios");
 const date_fns_1 = require("date-fns");
 const pay_groups_schema_1 = require("../schema/pay-groups.schema");
 const company_settings_service_1 = require("../../../company-settings/company-settings.service");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let PaySchedulesService = class PaySchedulesService {
-    constructor(db, auditService, companySettings) {
+    constructor(db, auditService, companySettings, cache) {
         this.db = db;
         this.auditService = auditService;
         this.companySettings = companySettings;
+        this.cache = cache;
     }
     async findOne(scheduleId) {
-        const paySchedule = await this.db
-            .select()
+        const [owner] = await this.db
+            .select({ companyId: pay_schedules_schema_1.paySchedules.companyId })
             .from(pay_schedules_schema_1.paySchedules)
             .where((0, drizzle_orm_1.eq)(pay_schedules_schema_1.paySchedules.id, scheduleId))
+            .limit(1)
             .execute();
-        if (paySchedule.length === 0) {
+        if (!owner?.companyId) {
             throw new common_1.BadRequestException('Pay schedule not found');
         }
-        return paySchedule[0];
+        return this.cache.getOrSetVersioned(owner.companyId, ['paySchedule', 'byId', scheduleId], async () => {
+            const rows = await this.db
+                .select()
+                .from(pay_schedules_schema_1.paySchedules)
+                .where((0, drizzle_orm_1.eq)(pay_schedules_schema_1.paySchedules.id, scheduleId))
+                .execute();
+            if (!rows.length) {
+                throw new common_1.BadRequestException('Pay schedule not found');
+            }
+            return rows[0];
+        }, {
+            tags: [
+                'paySchedules',
+                `company:${owner.companyId}:paySchedules`,
+                `paySchedule:${scheduleId}`,
+            ],
+        });
     }
     async getCompanyPaySchedule(companyId) {
-        const payFrequency = await this.db
-            .select()
-            .from(pay_schedules_schema_1.paySchedules)
-            .where((0, drizzle_orm_1.eq)(pay_schedules_schema_1.paySchedules.companyId, companyId))
-            .execute();
-        return payFrequency;
+        return this.cache.getOrSetVersioned(companyId, ['paySchedules', 'full'], async () => {
+            return await this.db
+                .select()
+                .from(pay_schedules_schema_1.paySchedules)
+                .where((0, drizzle_orm_1.eq)(pay_schedules_schema_1.paySchedules.companyId, companyId))
+                .execute();
+        }, { tags: ['paySchedules', `company:${companyId}:paySchedules`] });
     }
     async getNextPayDate(companyId) {
-        const paySchedulesData = await this.db
-            .select({
-            paySchedule: pay_schedules_schema_1.paySchedules.paySchedule,
-        })
-            .from(pay_schedules_schema_1.paySchedules)
-            .where((0, drizzle_orm_1.eq)(pay_schedules_schema_1.paySchedules.companyId, companyId))
-            .execute();
-        if (paySchedulesData.length === 0) {
-            throw new common_1.BadRequestException('No pay schedules found for this company');
-        }
-        const today = new Date();
-        const allPayDates = paySchedulesData
-            .flatMap((schedule) => schedule.paySchedule)
-            .map((date) => new Date(date))
-            .filter((date) => date > today)
-            .sort((a, b) => a.getTime() - b.getTime());
-        return allPayDates.length > 0 ? allPayDates[0] : null;
+        return this.cache.getOrSetVersioned(companyId, ['paySchedules', 'nextPayDate'], async () => {
+            const paySchedulesData = await this.db
+                .select({ paySchedule: pay_schedules_schema_1.paySchedules.paySchedule })
+                .from(pay_schedules_schema_1.paySchedules)
+                .where((0, drizzle_orm_1.eq)(pay_schedules_schema_1.paySchedules.companyId, companyId))
+                .execute();
+            if (paySchedulesData.length === 0) {
+                throw new common_1.BadRequestException('No pay schedules found for this company');
+            }
+            const today = new Date();
+            const allPayDates = paySchedulesData
+                .flatMap((s) => s.paySchedule)
+                .map((d) => new Date(d))
+                .filter((d) => d > today)
+                .sort((a, b) => a.getTime() - b.getTime());
+            return allPayDates.length > 0 ? allPayDates[0] : null;
+        }, { tags: ['paySchedules', `company:${companyId}:paySchedules`] });
     }
     async listPaySchedulesForCompany(companyId) {
-        const payFrequency = await this.db
-            .select({
-            payFrequency: pay_schedules_schema_1.paySchedules.payFrequency,
-            paySchedules: pay_schedules_schema_1.paySchedules.paySchedule,
-            id: pay_schedules_schema_1.paySchedules.id,
-        })
-            .from(pay_schedules_schema_1.paySchedules)
-            .where((0, drizzle_orm_1.eq)(pay_schedules_schema_1.paySchedules.companyId, companyId))
-            .execute();
-        if (payFrequency.length === 0) {
-            throw new common_1.BadRequestException('No pay schedules found for this company');
-        }
-        return payFrequency;
+        return this.cache.getOrSetVersioned(companyId, ['paySchedules', 'list'], async () => {
+            const rows = await this.db
+                .select({
+                payFrequency: pay_schedules_schema_1.paySchedules.payFrequency,
+                paySchedules: pay_schedules_schema_1.paySchedules.paySchedule,
+                id: pay_schedules_schema_1.paySchedules.id,
+            })
+                .from(pay_schedules_schema_1.paySchedules)
+                .where((0, drizzle_orm_1.eq)(pay_schedules_schema_1.paySchedules.companyId, companyId))
+                .execute();
+            if (!rows.length) {
+                throw new common_1.BadRequestException('No pay schedules found for this company');
+            }
+            return rows;
+        }, { tags: ['paySchedules', `company:${companyId}:paySchedules`] });
     }
     async isPublicHoliday(date, countryCode) {
         const formattedDate = date.toISOString().split('T')[0];
         const url = `https://date.nager.at/api/v3/publicholidays/${date.getFullYear()}/${countryCode}`;
         try {
-            const response = await axios_1.default.get(url);
-            const holidays = response.data;
-            return holidays.some((holiday) => holiday.date === formattedDate);
+            const { data } = await axios_1.default.get(url);
+            return (Array.isArray(data) && data.some((h) => h?.date === formattedDate));
         }
         catch (error) {
             throw new common_1.BadRequestException(error.message);
         }
     }
     async adjustForWeekendAndHoliday(date, countryCode) {
-        let adjustedDate = new Date(date);
-        while ((0, date_fns_1.isSaturday)(adjustedDate) || (0, date_fns_1.isSunday)(adjustedDate)) {
-            adjustedDate = (0, date_fns_1.addDays)(adjustedDate, -1);
+        let adjusted = new Date(date);
+        while ((0, date_fns_1.isSaturday)(adjusted) || (0, date_fns_1.isSunday)(adjusted)) {
+            adjusted = (0, date_fns_1.addDays)(adjusted, -1);
         }
-        while (await this.isPublicHoliday(adjustedDate, countryCode)) {
-            adjustedDate = (0, date_fns_1.addDays)(adjustedDate, -1);
+        while (await this.isPublicHoliday(adjusted, countryCode)) {
+            adjusted = (0, date_fns_1.addDays)(adjusted, -1);
         }
-        return adjustedDate;
+        return adjusted;
     }
     async generatePaySchedule(startDate, frequency, numPeriods = 6, countryCode) {
         const schedule = [];
@@ -114,11 +135,12 @@ let PaySchedulesService = class PaySchedulesService {
                 case 'biweekly':
                     payDate = (0, date_fns_1.addDays)(startDate, i * 14);
                     break;
-                case 'semi-monthly':
+                case 'semi-monthly': {
                     const firstHalf = (0, date_fns_1.startOfMonth)((0, date_fns_1.addMonths)(startDate, i));
                     const secondHalf = (0, date_fns_1.addDays)(firstHalf, 14);
                     schedule.push(await this.adjustForWeekendAndHoliday(firstHalf, countryCode), await this.adjustForWeekendAndHoliday(secondHalf, countryCode));
                     continue;
+                }
                 case 'monthly':
                     payDate = (0, date_fns_1.endOfMonth)((0, date_fns_1.addMonths)(startDate, i));
                     break;
@@ -132,10 +154,10 @@ let PaySchedulesService = class PaySchedulesService {
     async createPayFrequency(companyId, dto) {
         const schedule = await this.generatePaySchedule(new Date(dto.startDate), dto.payFrequency, 6, dto.countryCode);
         try {
-            const paySchedule = await this.db
+            const inserted = await this.db
                 .insert(pay_schedules_schema_1.paySchedules)
                 .values({
-                companyId: companyId,
+                companyId,
                 payFrequency: dto.payFrequency,
                 paySchedule: schedule,
                 startDate: dto.startDate,
@@ -147,7 +169,12 @@ let PaySchedulesService = class PaySchedulesService {
                 .returning()
                 .execute();
             await this.companySettings.setSetting(companyId, 'onboarding_pay_frequency', true);
-            return paySchedule;
+            await this.cache.bumpCompanyVersion(companyId);
+            await this.cache.invalidateTags([
+                'paySchedules',
+                `company:${companyId}:paySchedules`,
+            ]);
+            return inserted;
         }
         catch (error) {
             throw new common_1.BadRequestException(error.message);
@@ -182,6 +209,12 @@ let PaySchedulesService = class PaySchedulesService {
                     holidayAdjustment: dto.holidayAdjustment,
                 },
             });
+            await this.cache.bumpCompanyVersion(user.companyId);
+            await this.cache.invalidateTags([
+                'paySchedules',
+                `company:${user.companyId}:paySchedules`,
+                `paySchedule:${payFrequencyId}`,
+            ]);
             return 'Pay frequency updated successfully';
         }
         catch (error) {
@@ -200,9 +233,7 @@ let PaySchedulesService = class PaySchedulesService {
         }
         await this.db
             .update(pay_schedules_schema_1.paySchedules)
-            .set({
-            isDeleted: true,
-        })
+            .set({ isDeleted: true })
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(pay_schedules_schema_1.paySchedules.companyId, user.companyId), (0, drizzle_orm_1.eq)(pay_schedules_schema_1.paySchedules.id, scheduleId)))
             .execute();
         await this.auditService.logAction({
@@ -213,6 +244,12 @@ let PaySchedulesService = class PaySchedulesService {
             details: 'Pay schedule deleted',
             ipAddress: ip,
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
+        await this.cache.invalidateTags([
+            'paySchedules',
+            `company:${user.companyId}:paySchedules`,
+            `paySchedule:${scheduleId}`,
+        ]);
         return 'Pay frequency deleted successfully';
     }
 };
@@ -221,6 +258,7 @@ exports.PaySchedulesService = PaySchedulesService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
-        company_settings_service_1.CompanySettingsService])
+        company_settings_service_1.CompanySettingsService,
+        cache_service_1.CacheService])
 ], PaySchedulesService);
 //# sourceMappingURL=pay-schedules.service.js.map

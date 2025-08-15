@@ -145,7 +145,6 @@ export declare class CostCentersService extends BaseCrudService<{
         dialect: "pg";
     }>;
     constructor(db: db, audit: AuditService, companySettings: CompanySettingsService, cache: CacheService);
-    private ttlSeconds;
     private tags;
     create(companyId: string, dto: CreateCostCenterDto): Promise<{
         id: string;

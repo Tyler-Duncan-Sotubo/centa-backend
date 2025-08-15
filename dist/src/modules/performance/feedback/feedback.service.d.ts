@@ -9,7 +9,6 @@ export declare class FeedbackService {
     private readonly auditService;
     private readonly cache;
     constructor(db: db, auditService: AuditService, cache: CacheService);
-    private ttlSeconds;
     private tags;
     private invalidate;
     create(dto: CreateFeedbackDto, user: User): Promise<{
@@ -17,11 +16,11 @@ export declare class FeedbackService {
         createdAt: Date | null;
         companyId: string;
         type: string;
+        isArchived: boolean | null;
+        submittedAt: Date | null;
         senderId: string;
         recipientId: string;
         isAnonymous: boolean | null;
-        submittedAt: Date | null;
-        isArchived: boolean | null;
     }>;
     private resolveViewerIds;
     getFeedbackForRecipient(recipientId: string, viewer: User): Promise<any[]>;

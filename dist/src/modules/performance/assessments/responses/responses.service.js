@@ -27,7 +27,6 @@ let AssessmentResponsesService = class AssessmentResponsesService {
         this.db = db;
         this.auditService = auditService;
         this.cache = cache;
-        this.ttlSeconds = 10 * 60;
     }
     tags(companyId) {
         return [`company:${companyId}:assessments`];
@@ -61,7 +60,7 @@ let AssessmentResponsesService = class AssessmentResponsesService {
                 .where((0, drizzle_orm_1.eq)(schema_1.performanceTemplateQuestions.templateId, meta.templateId))
                 .orderBy(schema_1.performanceTemplateQuestions.order);
             return results;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(meta.companyId) });
+        });
     }
     async saveResponse(assessmentId, dto, user) {
         const [meta] = await this.db

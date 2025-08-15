@@ -23,13 +23,22 @@ const resume_scoring_service_1 = require("./resume-scoring.service");
 const bullmq_1 = require("@nestjs/bullmq");
 const bullmq_2 = require("bullmq");
 const schema_2 = require("../../../drizzle/schema");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let ApplicationsService = class ApplicationsService {
-    constructor(db, queue, awsService, auditService, resumeScoring) {
+    constructor(db, queue, awsService, auditService, resumeScoring, cache) {
         this.db = db;
         this.queue = queue;
         this.awsService = awsService;
         this.auditService = auditService;
         this.resumeScoring = resumeScoring;
+        this.cache = cache;
+    }
+    tags(scope) {
+        return [
+            `company:${scope}:applications`,
+            `company:${scope}:applications:details`,
+            `company:${scope}:applications:kanban`,
+        ];
     }
     async submitApplication(dto) {
         const { jobId, fieldResponses, questionResponses = [] } = dto;
@@ -145,6 +154,7 @@ let ApplicationsService = class ApplicationsService {
             title: schema_1.job_postings.title,
             responsibilities: schema_1.job_postings.responsibilities,
             requirements: schema_1.job_postings.requirements,
+            companyId: schema_1.job_postings.companyId,
         })
             .from(schema_1.job_postings)
             .where((0, drizzle_orm_1.eq)(schema_1.job_postings.id, jobId));
@@ -155,183 +165,203 @@ let ApplicationsService = class ApplicationsService {
                 applicationId: application.id,
             });
         }
+        if (job?.companyId) {
+            await this.cache.bumpCompanyVersion(job.companyId);
+        }
+        await this.cache.bumpCompanyVersion('global');
         return { success: true, applicationId: application.id };
     }
     async getApplicationDetails(applicationId) {
-        const [application] = await this.db
-            .select()
-            .from(schema_1.applications)
-            .where((0, drizzle_orm_1.eq)(schema_1.applications.id, applicationId));
-        if (!application) {
-            throw new common_1.NotFoundException('Application not found');
-        }
-        const [candidate, fieldResponses, questionResponses, stageHistory] = await Promise.all([
-            this.db
+        return this.cache.getOrSetVersioned('global', ['applications', 'details', applicationId], async () => {
+            const [application] = await this.db
                 .select()
-                .from(schema_1.candidates)
-                .where((0, drizzle_orm_1.eq)(schema_1.candidates.id, application.candidateId))
-                .then((res) => res[0]),
-            this.db
-                .select({
-                label: schema_1.application_field_responses.label,
-                value: schema_1.application_field_responses.value,
-            })
-                .from(schema_1.application_field_responses)
-                .where((0, drizzle_orm_1.eq)(schema_1.application_field_responses.applicationId, applicationId)),
-            this.db
-                .select({
-                question: schema_1.application_question_responses.question,
-                answer: schema_1.application_question_responses.answer,
-            })
-                .from(schema_1.application_question_responses)
-                .where((0, drizzle_orm_1.eq)(schema_1.application_question_responses.applicationId, applicationId)),
-            this.db
-                .select({
-                name: schema_1.pipeline_stages.name,
-                movedAt: schema_1.pipeline_history.movedAt,
-                movedBy: (0, drizzle_orm_1.sql) `concat(${schema_2.users.firstName}, ' ', ${schema_2.users.lastName})`,
-            })
-                .from(schema_1.pipeline_history)
-                .innerJoin(schema_1.pipeline_stages, (0, drizzle_orm_1.eq)(schema_1.pipeline_history.stageId, schema_1.pipeline_stages.id))
-                .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_1.pipeline_history.movedBy, schema_2.users.id))
-                .where((0, drizzle_orm_1.eq)(schema_1.pipeline_history.applicationId, applicationId))
-                .orderBy((0, drizzle_orm_1.desc)(schema_1.pipeline_history.movedAt)),
-        ]);
-        const interview = await this.db
-            .select()
-            .from(schema_1.interviews)
-            .where((0, drizzle_orm_1.eq)(schema_1.interviews.applicationId, applicationId))
-            .then((res) => res[0]);
-        let interviewers = [];
-        if (interview) {
-            const rawInterviewers = await this.db
-                .select({
-                id: schema_2.users.id,
-                name: (0, drizzle_orm_1.sql) `concat(${schema_2.users.firstName}, ' ', ${schema_2.users.lastName})`,
-                email: schema_2.users.email,
-                scorecardTemplateId: schema_1.interviewInterviewers.scorecardTemplateId,
-            })
-                .from(schema_1.interviewInterviewers)
-                .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_1.interviewInterviewers.interviewerId, schema_2.users.id))
-                .where((0, drizzle_orm_1.eq)(schema_1.interviewInterviewers.interviewId, interview.id));
-            interviewers = rawInterviewers.map((row) => ({
-                id: row.id,
-                name: String(row.name),
-                email: row.email,
-            }));
-            const templateIds = [
-                ...new Set(rawInterviewers.map((i) => i.scorecardTemplateId).filter(Boolean)),
-            ];
-            const criteria = templateIds.length
-                ? await this.db
-                    .select({
-                    criterionId: schema_1.scorecard_criteria.id,
-                    label: schema_1.scorecard_criteria.label,
-                    description: schema_1.scorecard_criteria.description,
-                    maxScore: schema_1.scorecard_criteria.maxScore,
-                    order: schema_1.scorecard_criteria.order,
-                    templateId: schema_1.scorecard_criteria.templateId,
-                    templateName: schema_1.scorecard_templates.name,
-                    templateDescription: schema_1.scorecard_templates.description,
-                })
-                    .from(schema_1.scorecard_criteria)
-                    .innerJoin(schema_1.scorecard_templates, (0, drizzle_orm_1.eq)(schema_1.scorecard_criteria.templateId, schema_1.scorecard_templates.id))
-                    .where((0, drizzle_orm_1.inArray)(schema_1.scorecard_criteria.templateId, templateIds.filter((id) => !!id)))
-                : [];
-            const grouped = {};
-            for (const c of criteria) {
-                if (!grouped[c.templateId]) {
-                    grouped[c.templateId] = {
-                        name: c.templateName,
-                        description: c.templateDescription ?? '',
-                        criteria: [],
-                    };
-                }
-                grouped[c.templateId].criteria.push({
-                    criterionId: c.criterionId,
-                    label: c.label,
-                    description: c.description,
-                    maxScore: c.maxScore,
-                    order: c.order,
-                });
+                .from(schema_1.applications)
+                .where((0, drizzle_orm_1.eq)(schema_1.applications.id, applicationId));
+            if (!application) {
+                throw new common_1.NotFoundException('Application not found');
             }
-            interviewers = rawInterviewers.map((row) => {
-                const scorecard = row.scorecardTemplateId && grouped[row.scorecardTemplateId]
-                    ? {
-                        templateId: row.scorecardTemplateId,
-                        name: grouped[row.scorecardTemplateId].name,
-                        description: grouped[row.scorecardTemplateId].description,
-                        criteria: grouped[row.scorecardTemplateId].criteria,
-                    }
-                    : null;
-                return {
+            const [candidate, fieldResponses, questionResponses, stageHistory] = await Promise.all([
+                this.db
+                    .select()
+                    .from(schema_1.candidates)
+                    .where((0, drizzle_orm_1.eq)(schema_1.candidates.id, application.candidateId))
+                    .then((res) => res[0]),
+                this.db
+                    .select({
+                    label: schema_1.application_field_responses.label,
+                    value: schema_1.application_field_responses.value,
+                })
+                    .from(schema_1.application_field_responses)
+                    .where((0, drizzle_orm_1.eq)(schema_1.application_field_responses.applicationId, applicationId)),
+                this.db
+                    .select({
+                    question: schema_1.application_question_responses.question,
+                    answer: schema_1.application_question_responses.answer,
+                })
+                    .from(schema_1.application_question_responses)
+                    .where((0, drizzle_orm_1.eq)(schema_1.application_question_responses.applicationId, applicationId)),
+                this.db
+                    .select({
+                    name: schema_1.pipeline_stages.name,
+                    movedAt: schema_1.pipeline_history.movedAt,
+                    movedBy: (0, drizzle_orm_1.sql) `concat(${schema_2.users.firstName}, ' ', ${schema_2.users.lastName})`,
+                })
+                    .from(schema_1.pipeline_history)
+                    .innerJoin(schema_1.pipeline_stages, (0, drizzle_orm_1.eq)(schema_1.pipeline_history.stageId, schema_1.pipeline_stages.id))
+                    .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_1.pipeline_history.movedBy, schema_2.users.id))
+                    .where((0, drizzle_orm_1.eq)(schema_1.pipeline_history.applicationId, applicationId))
+                    .orderBy((0, drizzle_orm_1.desc)(schema_1.pipeline_history.movedAt)),
+            ]);
+            const interview = await this.db
+                .select()
+                .from(schema_1.interviews)
+                .where((0, drizzle_orm_1.eq)(schema_1.interviews.applicationId, applicationId))
+                .then((res) => res[0]);
+            let interviewers = [];
+            if (interview) {
+                const rawInterviewers = await this.db
+                    .select({
+                    id: schema_2.users.id,
+                    name: (0, drizzle_orm_1.sql) `concat(${schema_2.users.firstName}, ' ', ${schema_2.users.lastName})`,
+                    email: schema_2.users.email,
+                    scorecardTemplateId: schema_1.interviewInterviewers.scorecardTemplateId,
+                })
+                    .from(schema_1.interviewInterviewers)
+                    .innerJoin(schema_2.users, (0, drizzle_orm_1.eq)(schema_1.interviewInterviewers.interviewerId, schema_2.users.id))
+                    .where((0, drizzle_orm_1.eq)(schema_1.interviewInterviewers.interviewId, interview.id));
+                interviewers = rawInterviewers.map((row) => ({
                     id: row.id,
                     name: String(row.name),
                     email: row.email,
-                    scorecard,
-                };
-            });
-        }
-        return {
-            application,
-            candidate,
-            fieldResponses,
-            questionResponses,
-            stageHistory,
-            interview: interview
-                ? {
-                    ...interview,
-                    interviewers,
+                }));
+                const templateIds = [
+                    ...new Set(rawInterviewers.map((i) => i.scorecardTemplateId).filter(Boolean)),
+                ];
+                const criteria = templateIds.length
+                    ? await this.db
+                        .select({
+                        criterionId: schema_1.scorecard_criteria.id,
+                        label: schema_1.scorecard_criteria.label,
+                        description: schema_1.scorecard_criteria.description,
+                        maxScore: schema_1.scorecard_criteria.maxScore,
+                        order: schema_1.scorecard_criteria.order,
+                        templateId: schema_1.scorecard_criteria.templateId,
+                        templateName: schema_1.scorecard_templates.name,
+                        templateDescription: schema_1.scorecard_templates.description,
+                    })
+                        .from(schema_1.scorecard_criteria)
+                        .innerJoin(schema_1.scorecard_templates, (0, drizzle_orm_1.eq)(schema_1.scorecard_criteria.templateId, schema_1.scorecard_templates.id))
+                        .where((0, drizzle_orm_1.inArray)(schema_1.scorecard_criteria.templateId, templateIds.filter((id) => !!id)))
+                    : [];
+                const grouped = {};
+                for (const c of criteria) {
+                    if (!grouped[c.templateId]) {
+                        grouped[c.templateId] = {
+                            name: c.templateName,
+                            description: c.templateDescription ?? '',
+                            criteria: [],
+                        };
+                    }
+                    grouped[c.templateId].criteria.push({
+                        criterionId: c.criterionId,
+                        label: c.label,
+                        description: c.description,
+                        maxScore: c.maxScore,
+                        order: c.order,
+                    });
                 }
-                : null,
-        };
+                interviewers = rawInterviewers.map((row) => {
+                    const scorecard = row.scorecardTemplateId && grouped[row.scorecardTemplateId]
+                        ? {
+                            templateId: row.scorecardTemplateId,
+                            name: grouped[row.scorecardTemplateId].name,
+                            description: grouped[row.scorecardTemplateId].description,
+                            criteria: grouped[row.scorecardTemplateId].criteria,
+                        }
+                        : null;
+                    return {
+                        id: row.id,
+                        name: String(row.name),
+                        email: row.email,
+                        scorecard,
+                    };
+                });
+            }
+            return {
+                application,
+                candidate,
+                fieldResponses,
+                questionResponses,
+                stageHistory,
+                interview: interview
+                    ? {
+                        ...interview,
+                        interviewers,
+                    }
+                    : null,
+            };
+        }, { tags: this.tags('global') });
     }
     async listApplicationsByJobKanban(jobId) {
-        const stages = await this.db
-            .select()
-            .from(schema_1.pipeline_stages)
-            .where((0, drizzle_orm_1.eq)(schema_1.pipeline_stages.jobId, jobId))
-            .orderBy((0, drizzle_orm_1.asc)(schema_1.pipeline_stages.order));
-        const result = await Promise.all(stages.map(async (stage) => {
-            const rawApps = await this.db
-                .select({
-                applicationId: schema_1.applications.id,
-                candidateId: schema_1.candidates.id,
-                fullName: schema_1.candidates.fullName,
-                email: schema_1.candidates.email,
-                appliedAt: schema_1.applications.appliedAt,
-                status: schema_1.applications.status,
-                appSource: schema_1.applications.source,
-                resumeScore: schema_1.applications.resumeScore,
-            })
-                .from(schema_1.applications)
-                .innerJoin(schema_1.candidates, (0, drizzle_orm_1.eq)(schema_1.applications.candidateId, schema_1.candidates.id))
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.applications.jobId, jobId), (0, drizzle_orm_1.eq)(schema_1.applications.currentStage, stage.id), (0, drizzle_orm_1.not)((0, drizzle_orm_1.eq)(schema_1.applications.status, 'rejected'))))
-                .orderBy(schema_1.applications.appliedAt);
-            const applicationsWithSkills = await Promise.all(rawApps.map(async (app) => {
-                const skillRows = await this.db
+        return this.cache.getOrSetVersioned('global', ['applications', 'kanban', jobId], async () => {
+            const stages = await this.db
+                .select()
+                .from(schema_1.pipeline_stages)
+                .where((0, drizzle_orm_1.eq)(schema_1.pipeline_stages.jobId, jobId))
+                .orderBy((0, drizzle_orm_1.asc)(schema_1.pipeline_stages.order));
+            const result = await Promise.all(stages.map(async (stage) => {
+                const rawApps = await this.db
                     .select({
-                    name: schema_1.skills.name,
+                    applicationId: schema_1.applications.id,
+                    candidateId: schema_1.candidates.id,
+                    fullName: schema_1.candidates.fullName,
+                    email: schema_1.candidates.email,
+                    appliedAt: schema_1.applications.appliedAt,
+                    status: schema_1.applications.status,
+                    appSource: schema_1.applications.source,
+                    resumeScore: schema_1.applications.resumeScore,
                 })
-                    .from(schema_1.candidate_skills)
-                    .innerJoin(schema_1.skills, (0, drizzle_orm_1.eq)(schema_1.candidate_skills.skillId, schema_1.skills.id))
-                    .where((0, drizzle_orm_1.eq)(schema_1.candidate_skills.candidateId, app.candidateId))
-                    .limit(3);
+                    .from(schema_1.applications)
+                    .innerJoin(schema_1.candidates, (0, drizzle_orm_1.eq)(schema_1.applications.candidateId, schema_1.candidates.id))
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.applications.jobId, jobId), (0, drizzle_orm_1.eq)(schema_1.applications.currentStage, stage.id), (0, drizzle_orm_1.not)((0, drizzle_orm_1.eq)(schema_1.applications.status, 'rejected'))))
+                    .orderBy(schema_1.applications.appliedAt);
+                const applicationsWithSkills = await Promise.all(rawApps.map(async (app) => {
+                    const skillRows = await this.db
+                        .select({
+                        name: schema_1.skills.name,
+                    })
+                        .from(schema_1.candidate_skills)
+                        .innerJoin(schema_1.skills, (0, drizzle_orm_1.eq)(schema_1.candidate_skills.skillId, schema_1.skills.id))
+                        .where((0, drizzle_orm_1.eq)(schema_1.candidate_skills.candidateId, app.candidateId))
+                        .limit(3);
+                    return {
+                        ...app,
+                        skills: skillRows.map((s) => s.name),
+                    };
+                }));
                 return {
-                    ...app,
-                    skills: skillRows.map((s) => s.name),
+                    stageId: stage.id,
+                    stageName: stage.name,
+                    applications: applicationsWithSkills,
                 };
             }));
-            return {
-                stageId: stage.id,
-                stageName: stage.name,
-                applications: applicationsWithSkills,
-            };
-        }));
-        return result;
+            return result;
+        }, { tags: this.tags('global') });
     }
     async moveToStage(dto, user) {
         const { applicationId, newStageId, feedback } = dto;
+        const [row] = await this.db
+            .select({ jobId: schema_1.applications.jobId })
+            .from(schema_1.applications)
+            .where((0, drizzle_orm_1.eq)(schema_1.applications.id, applicationId));
+        let companyIdForBump;
+        if (row?.jobId) {
+            const [jobRow] = await this.db
+                .select({ companyId: schema_1.job_postings.companyId })
+                .from(schema_1.job_postings)
+                .where((0, drizzle_orm_1.eq)(schema_1.job_postings.id, row.jobId));
+            companyIdForBump = jobRow?.companyId;
+        }
         await this.db
             .update(schema_1.applications)
             .set({ currentStage: newStageId })
@@ -358,6 +388,10 @@ let ApplicationsService = class ApplicationsService {
                 toStage: newStageId,
             },
         });
+        if (companyIdForBump) {
+            await this.cache.bumpCompanyVersion(companyIdForBump);
+        }
+        await this.cache.bumpCompanyVersion('global');
         return { success: true };
     }
     async changeStatus(dto, user) {
@@ -391,6 +425,14 @@ let ApplicationsService = class ApplicationsService {
                 toStatus: newStatus,
             },
         });
+        const [jobRow] = await this.db
+            .select({ companyId: schema_1.job_postings.companyId })
+            .from(schema_1.job_postings)
+            .where((0, drizzle_orm_1.eq)(schema_1.job_postings.id, app.jobId));
+        if (jobRow?.companyId) {
+            await this.cache.bumpCompanyVersion(jobRow.companyId);
+        }
+        await this.cache.bumpCompanyVersion('global');
         return { success: true };
     }
     async ensureSkillsExist(skillNames) {
@@ -449,6 +491,7 @@ exports.ApplicationsService = ApplicationsService = __decorate([
     __metadata("design:paramtypes", [Object, bullmq_2.Queue,
         aws_service_1.AwsService,
         audit_service_1.AuditService,
-        resume_scoring_service_1.ResumeScoringService])
+        resume_scoring_service_1.ResumeScoringService,
+        cache_service_1.CacheService])
 ], ApplicationsService);
 //# sourceMappingURL=applications.service.js.map

@@ -9,7 +9,6 @@ export declare class GoogleService {
     private readonly auditService;
     private readonly cache;
     constructor(db: db, auditService: AuditService, cache: CacheService);
-    private ttlSeconds;
     private tags;
     create(createGoogleDto: CreateGoogleDto, user: User): Promise<{
         id: string;
@@ -17,11 +16,11 @@ export declare class GoogleService {
         updatedAt: Date;
         companyId: string;
         expiryDate: Date;
-        googleEmail: string;
+        scope: string;
         accessToken: string;
         refreshToken: string;
+        googleEmail: string;
         tokenType: string;
-        scope: string;
         refreshTokenExpiry: number | null;
     }>;
     findOne(companyId: string): Promise<{

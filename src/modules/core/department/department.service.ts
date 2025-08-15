@@ -54,7 +54,6 @@ export class DepartmentService extends BaseCrudService<
     super(db, audit);
   }
 
-  private ttlSeconds = 60 * 60; // 1 hour
   private tags(companyId: string) {
     return [`company:${companyId}:departments`];
   }
@@ -247,7 +246,7 @@ export class DepartmentService extends BaseCrudService<
           employees: deptIdToEmployees[dept.id] || [],
         }));
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -273,7 +272,7 @@ export class DepartmentService extends BaseCrudService<
         }
         return dept;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -391,7 +390,7 @@ export class DepartmentService extends BaseCrudService<
         if (!dept) throw new NotFoundException();
         return dept;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -517,7 +516,7 @@ export class DepartmentService extends BaseCrudService<
         }
         return dept;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -551,7 +550,7 @@ export class DepartmentService extends BaseCrudService<
           .leftJoin(pd, eq(pd.id, departments.parentDepartmentId))
           .where(eq(departments.companyId, companyId))
           .execute(),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -582,7 +581,7 @@ export class DepartmentService extends BaseCrudService<
         }
         return roots;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 }

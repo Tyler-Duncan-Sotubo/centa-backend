@@ -9,13 +9,13 @@ export declare class FeedbackQuestionsController extends BaseController {
     seedFeedbackQuestions(user: User): Promise<void>;
     create(dto: CreateFeedbackQuestionDto, user: User): Promise<{
         id: string;
-        isActive: boolean | null;
         createdAt: Date | null;
+        isActive: boolean | null;
         companyId: string;
         type: string;
+        order: number | null;
         question: string;
         inputType: string | null;
-        order: number | null;
     }>;
     findAll(user: User): Promise<{
         id: string;

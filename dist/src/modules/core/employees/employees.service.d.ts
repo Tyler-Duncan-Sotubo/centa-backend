@@ -51,6 +51,8 @@ export declare class EmployeesService {
     private readonly onboardingService;
     protected table: any;
     constructor(db: db, audit: AuditService, profileService: ProfileService, historyService: HistoryService, dependentsService: DependentsService, certificationsService: CertificationsService, compensationService: CompensationService, financeService: FinanceService, deptSvc: DepartmentService, roleSvc: JobRolesService, ccSvc: CostCentersService, groupsService: GroupsService, config: ConfigService, employeeInvitationService: EmployeeInvitationService, cacheService: CacheService, companySettingsService: CompanySettingsService, permissionService: PermissionsService, leaveBalanceService: LeaveBalanceService, attendanceSettingsService: AttendanceSettingsService, employeeShiftsService: EmployeeShiftsService, payslipService: PayslipService, onboardingService: OnboardingService);
+    private kCompany;
+    private kEmployee;
     private generateToken;
     createEmployeeNumber(companyId: string): Promise<string>;
     create(dto: CreateEmployeeCoreDto, currentUser: User): Promise<{
@@ -186,7 +188,21 @@ export declare class EmployeesService {
             role: string;
             confirmed: any;
         } | null;
-        profile: {} | null;
+        profile: {
+            id: string;
+            dateOfBirth: string | null;
+            gender: string | null;
+            maritalStatus: string | null;
+            address: string | null;
+            state: string | null;
+            country: string | null;
+            phone: string | null;
+            emergencyName: string | null;
+            emergencyPhone: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            employeeId: string;
+        } | null;
         history: {
             id: string;
             employeeId: string;
@@ -279,7 +295,7 @@ export declare class EmployeesService {
             transport: string;
             voluntaryDeductions: unknown;
         }[] | null;
-        avatarUrl: string;
+        avatarUrl: any;
     }>;
     getEmployeeByUserId(user_id: string): Promise<{
         employeeManager: {
@@ -638,7 +654,7 @@ export declare class EmployeesService {
     findSuperAdminUser(companyId: string): Promise<string>;
     update(employeeId: string, dto: EmployeeProfileDto, userId: string, ip: string): Promise<{
         [x: string]: any;
-    } | undefined>;
+    }>;
     remove(employeeId: string): Promise<{
         deleted: boolean;
         id: any;

@@ -4,7 +4,6 @@ export declare class PerformanceSettingsService {
     private readonly companySettingsService;
     private readonly cache;
     constructor(companySettingsService: CompanySettingsService, cache: CacheService);
-    private ttlSeconds;
     private tags;
     getAllPerformanceSettings(companyId: string): Promise<Record<string, any>>;
     getPerformanceSettings(companyId: string): Promise<{

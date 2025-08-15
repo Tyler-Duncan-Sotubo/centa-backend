@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
-import { and, eq, or } from 'drizzle-orm';
+import { and, eq, or, asc } from 'drizzle-orm';
 import { offerLetterTemplates } from './schema/offer-letter-templates.schema';
 import { globalTemplates } from './seed/globalTemplates';
 import { CreateOfferTemplateDto } from './dto/create-offer-template.dto';
@@ -11,14 +11,24 @@ import { offerLetterTemplateVariables } from './schema/offer-letter-template-var
 import { offerLetterTemplateVariableLinks } from './schema/offer-letter-template-variable-links.schema';
 import { User } from 'src/common/types/user.type';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class OfferLetterService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
 
+  private tags(scope: string) {
+    // scope is companyId or "global"
+    return [`company:${scope}:offers`, `company:${scope}:offers:templates`];
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // SYSTEM SEED (write): bump "global" cache scope
+  // ────────────────────────────────────────────────────────────────────────────
   async seedSystemOfferLetterTemplates() {
     const existing = await this.db
       .select()
@@ -28,7 +38,8 @@ export class OfferLetterService {
           eq(offerLetterTemplates.isSystemTemplate, true),
           eq(offerLetterTemplates.isDefault, true),
         ),
-      );
+      )
+      .execute();
 
     if (existing.length > 0) {
       throw new BadRequestException(
@@ -70,11 +81,17 @@ export class OfferLetterService {
         });
       }
     }
+
+    // Invalidate global-scoped consumers
+    await this.cache.bumpCompanyVersion('global');
   }
 
-  // Company Template Clone
+  // ────────────────────────────────────────────────────────────────────────────
+  // CLONE (write): bump company scope
+  // ────────────────────────────────────────────────────────────────────────────
   async cloneCompanyTemplate(user: User, templateId: string) {
     const { companyId, id } = user;
+
     // Get system template
     const [template] = await this.db
       .select()
@@ -84,7 +101,8 @@ export class OfferLetterService {
           eq(offerLetterTemplates.id, templateId),
           eq(offerLetterTemplates.isSystemTemplate, true),
         ),
-      );
+      )
+      .execute();
 
     if (!template) {
       throw new BadRequestException('Template not found');
@@ -99,7 +117,8 @@ export class OfferLetterService {
           eq(offerLetterTemplates.companyId, companyId),
           eq(offerLetterTemplates.name, template.name),
         ),
-      );
+      )
+      .execute();
 
     if (alreadyExists.length) {
       throw new BadRequestException('This template has already been cloned.');
@@ -126,13 +145,19 @@ export class OfferLetterService {
       changes: cloned,
     });
 
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(companyId);
+
     return cloned;
   }
 
-  // Create a new template for a company
+  // ────────────────────────────────────────────────────────────────────────────
+  // CREATE (write): bump company scope
+  // ────────────────────────────────────────────────────────────────────────────
   async createCompanyTemplate(user: User, dto: CreateOfferTemplateDto) {
     const { companyId, id } = user;
-    /* ───── 1. Uniqueness check ───── */
+
+    // 1) Uniqueness
     const duplicate = await this.db
       .select()
       .from(offerLetterTemplates)
@@ -141,7 +166,8 @@ export class OfferLetterService {
           eq(offerLetterTemplates.companyId, companyId),
           eq(offerLetterTemplates.name, dto.name),
         ),
-      );
+      )
+      .execute();
 
     if (duplicate.length) {
       throw new BadRequestException(
@@ -149,7 +175,7 @@ export class OfferLetterService {
       );
     }
 
-    /* ───── 2. Ensure single default per company ───── */
+    // 2) Ensure single default per company
     if (dto.isDefault) {
       await this.db
         .update(offerLetterTemplates)
@@ -159,10 +185,11 @@ export class OfferLetterService {
             eq(offerLetterTemplates.companyId, companyId),
             eq(offerLetterTemplates.isDefault, true),
           ),
-        );
+        )
+        .execute();
     }
 
-    /* ───── 3. Insert the template ───── */
+    // 3) Insert template
     const [template] = await this.db
       .insert(offerLetterTemplates)
       .values({
@@ -174,18 +201,18 @@ export class OfferLetterService {
       })
       .returning();
 
-    /* ───── 4. Extract & up-sert variables ───── */
+    // 4) Extract & upsert variables + links
     const vars = extractHandlebarsVariables(dto.content);
 
     for (const variableName of vars) {
-      // 4a. Ensure variable exists (system or tenant)
+      // a) Ensure variable exists (company-scoped preferred here)
       const [existingVar] = await this.db
         .select()
         .from(offerLetterTemplateVariables)
         .where(
           and(
             eq(offerLetterTemplateVariables.name, variableName),
-            eq(offerLetterTemplateVariables.companyId, companyId), // null for system vars is fine
+            eq(offerLetterTemplateVariables.companyId, companyId),
           ),
         )
         .limit(1)
@@ -196,12 +223,11 @@ export class OfferLetterService {
       if (existingVar) {
         variableId = existingVar.id;
       } else {
-        // Create new company-specific variable
         const [createdVar] = await this.db
           .insert(offerLetterTemplateVariables)
           .values({
             name: variableName,
-            companyId, // leave NULL if you want it global; here we mark tenant-specific
+            companyId,
             isSystem: false,
           })
           .returning();
@@ -209,7 +235,7 @@ export class OfferLetterService {
         variableId = createdVar.id;
       }
 
-      // 4b. Link template <-> variable
+      // b) Link
       await this.db.insert(offerLetterTemplateVariableLinks).values({
         templateId: template.id,
         variableId,
@@ -225,71 +251,108 @@ export class OfferLetterService {
       changes: template,
     });
 
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(companyId);
+
     return template;
   }
 
-  // Get all templates for a company
+  // ────────────────────────────────────────────────────────────────────────────
+  // READ (cached): company + system templates together
+  // ────────────────────────────────────────────────────────────────────────────
   async getCompanyTemplates(companyId: string) {
-    const [companyTemplates, systemTemplates] = await Promise.all([
-      this.db
-        .select()
-        .from(offerLetterTemplates)
-        .where(eq(offerLetterTemplates.companyId, companyId)),
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['offers', 'templates', 'all'],
+      async () => {
+        const [companyTemplates, systemTemplates] = await Promise.all([
+          this.db
+            .select()
+            .from(offerLetterTemplates)
+            .where(eq(offerLetterTemplates.companyId, companyId))
+            .orderBy(asc(offerLetterTemplates.name))
+            .execute(),
+          this.db
+            .select()
+            .from(offerLetterTemplates)
+            .where(eq(offerLetterTemplates.isSystemTemplate, true))
+            .orderBy(asc(offerLetterTemplates.name))
+            .execute(),
+        ]);
 
-      this.db
-        .select()
-        .from(offerLetterTemplates)
-        .where(eq(offerLetterTemplates.isSystemTemplate, true)),
-    ]);
-
-    return {
-      companyTemplates,
-      systemTemplates,
-    };
+        return { companyTemplates, systemTemplates };
+      },
+      {
+        tags: [...this.tags(companyId), ...this.tags('global')],
+      },
+    );
   }
 
+  // READ (cached): compact list for company picker
   async getCompanyOfferTemplates(companyId: string) {
-    const companyTemplates = await this.db
-      .select({
-        id: offerLetterTemplates.id,
-        name: offerLetterTemplates.name,
-      })
-      .from(offerLetterTemplates)
-      .where(eq(offerLetterTemplates.companyId, companyId));
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['offers', 'templates', 'companyList'],
+      async () => {
+        const companyTemplates = await this.db
+          .select({
+            id: offerLetterTemplates.id,
+            name: offerLetterTemplates.name,
+          })
+          .from(offerLetterTemplates)
+          .where(eq(offerLetterTemplates.companyId, companyId))
+          .orderBy(asc(offerLetterTemplates.name))
+          .execute();
 
-    return companyTemplates;
+        return companyTemplates;
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
-  // Get a specific template by ID
+  // READ (cached): detail (visible if company-owned or system)
   async getTemplateById(templateId: string, companyId: string) {
-    const [template] = await this.db
-      .select()
-      .from(offerLetterTemplates)
-      .where(
-        and(
-          eq(offerLetterTemplates.id, templateId),
-          or(
-            eq(offerLetterTemplates.companyId, companyId),
-            eq(offerLetterTemplates.isSystemTemplate, true),
-          ),
-        ),
-      );
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['offers', 'templates', 'detail', templateId],
+      async () => {
+        const [template] = await this.db
+          .select()
+          .from(offerLetterTemplates)
+          .where(
+            and(
+              eq(offerLetterTemplates.id, templateId),
+              or(
+                eq(offerLetterTemplates.companyId, companyId),
+                eq(offerLetterTemplates.isSystemTemplate, true),
+              ),
+            ),
+          )
+          .execute();
 
-    if (!template) {
-      throw new BadRequestException('Template not found');
-    }
+        if (!template) {
+          throw new BadRequestException('Template not found');
+        }
 
-    return template;
+        return template;
+      },
+      {
+        tags: [...this.tags(companyId), ...this.tags('global')],
+      },
+    );
   }
 
-  // Update a template by ID
+  // ────────────────────────────────────────────────────────────────────────────
+  // UPDATE (write): bump company scope
+  // ────────────────────────────────────────────────────────────────────────────
   async updateTemplate(
     templateId: string,
     user: User,
     dto: UpdateOfferTemplateDto,
   ) {
     const { companyId, id } = user;
-    // Check if the template exists
+
+    // Check exists (company-owned)
     const [existingTemplate] = await this.db
       .select()
       .from(offerLetterTemplates)
@@ -298,13 +361,14 @@ export class OfferLetterService {
           eq(offerLetterTemplates.id, templateId),
           eq(offerLetterTemplates.companyId, companyId),
         ),
-      );
+      )
+      .execute();
 
     if (!existingTemplate) {
       throw new BadRequestException('Template not found');
     }
 
-    // Optional: ensure only one default per company
+    // Ensure single default per company
     if (dto.isDefault) {
       await this.db
         .update(offerLetterTemplates)
@@ -314,10 +378,11 @@ export class OfferLetterService {
             eq(offerLetterTemplates.companyId, companyId),
             eq(offerLetterTemplates.isDefault, true),
           ),
-        );
+        )
+        .execute();
     }
 
-    // Update the template
+    // Update
     const [updatedTemplate] = await this.db
       .update(offerLetterTemplates)
       .set({
@@ -342,18 +407,25 @@ export class OfferLetterService {
       changes: dto,
     });
 
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(companyId);
+
     return updatedTemplate;
   }
 
-  // Delete a template by ID
+  // ────────────────────────────────────────────────────────────────────────────
+  // DELETE (write): bump company scope
+  // ────────────────────────────────────────────────────────────────────────────
   async deleteTemplate(templateId: string, user: User) {
     const { companyId, id } = user;
 
+    // Remove links first
     await this.db
       .delete(offerLetterTemplateVariableLinks)
-      .where(eq(offerLetterTemplateVariableLinks.templateId, templateId));
+      .where(eq(offerLetterTemplateVariableLinks.templateId, templateId))
+      .execute();
 
-    // 1. Delete the template
+    // Delete template
     const [deleted] = await this.db
       .delete(offerLetterTemplates)
       .where(
@@ -372,6 +444,9 @@ export class OfferLetterService {
       details: 'Deleted offer-letter template',
       changes: deleted,
     });
+
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(companyId);
 
     return { message: 'Template deleted successfully' };
   }

@@ -2,9 +2,12 @@ import { db } from 'src/drizzle/types/drizzle';
 import { CreateFieldDto } from './dto/create-field.dto';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { User } from 'src/common/types/user.type';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class ApplicationFormService {
     private readonly db;
-    constructor(db: db);
+    private readonly cache;
+    constructor(db: db, cache: CacheService);
+    private tags;
     seedDefaultFields(): Promise<void>;
     getDefaultFields(): Promise<{
         id: string;

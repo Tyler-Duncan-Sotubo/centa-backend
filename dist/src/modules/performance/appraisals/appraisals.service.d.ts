@@ -10,7 +10,6 @@ export declare class AppraisalsService {
     private readonly auditService;
     private readonly companySettingsService;
     private readonly cache;
-    private readonly ttlSeconds;
     constructor(db: db, auditService: AuditService, companySettingsService: CompanySettingsService, cache: CacheService);
     private tags;
     private invalidate;
@@ -18,14 +17,14 @@ export declare class AppraisalsService {
         id: string;
         createdAt: Date | null;
         companyId: string | null;
-        cycleId: string;
-        employeeId: string;
         managerId: string;
+        employeeId: string;
+        cycleId: string;
+        finalScore: number | null;
+        promotionRecommendation: "promote" | "hold" | "exit" | null;
         submittedByEmployee: boolean | null;
         submittedByManager: boolean | null;
         finalized: boolean | null;
-        finalScore: number | null;
-        promotionRecommendation: "promote" | "hold" | "exit" | null;
         finalNote: string | null;
     }>;
     findAll(companyId: string, cycleId: string): Promise<({
@@ -55,7 +54,7 @@ export declare class AppraisalsService {
             name: string;
             startDate: string;
             endDate: string;
-            status: "upcoming" | "active" | "closed";
+            status: "active" | "closed" | "upcoming";
         } | null;
         currentCycleAppraisal: {
             id: string;

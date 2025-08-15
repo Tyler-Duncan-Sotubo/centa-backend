@@ -27,8 +27,9 @@ const schema_1 = require("../../../drizzle/schema");
 const leave_types_schema_1 = require("../schema/leave-types.schema");
 const blocked_days_service_1 = require("../blocked-days/blocked-days.service");
 const reserved_days_service_1 = require("../reserved-days/reserved-days.service");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let LeaveRequestService = class LeaveRequestService {
-    constructor(db, leavePolicyService, leaveSettingsService, leaveBalanceService, employeesService, auditService, holidayService, blockedDaysService, reservedDaysService) {
+    constructor(db, leavePolicyService, leaveSettingsService, leaveBalanceService, employeesService, auditService, holidayService, blockedDaysService, reservedDaysService, cache) {
         this.db = db;
         this.leavePolicyService = leavePolicyService;
         this.leaveSettingsService = leaveSettingsService;
@@ -38,6 +39,13 @@ let LeaveRequestService = class LeaveRequestService {
         this.holidayService = holidayService;
         this.blockedDaysService = blockedDaysService;
         this.reservedDaysService = reservedDaysService;
+        this.cache = cache;
+    }
+    tags(companyId) {
+        return [
+            `company:${companyId}:leave`,
+            `company:${companyId}:leave:requests`,
+        ];
     }
     async applyForLeave(dto, user, ip) {
         const { companyId } = user;
@@ -173,6 +181,7 @@ let LeaveRequestService = class LeaveRequestService {
                 approverId,
             },
         });
+        await this.cache.bumpCompanyVersion(companyId);
         return leaveRequest;
     }
     async determineApproverByRole(employeeId, companyId, role) {
@@ -217,7 +226,7 @@ let LeaveRequestService = class LeaveRequestService {
     async calculateEffectiveLeaveDays(companyId, requestedDates, excludeWeekends, weekendDays, excludePublicHolidays, partialDay) {
         let effectiveDates = [...requestedDates];
         if (excludeWeekends) {
-            const weekendSet = new Set(weekendDays.map((day) => day.toLowerCase()));
+            const weekendSet = new Set(weekendDays.map((d) => d.toLowerCase()));
             effectiveDates = effectiveDates.filter((dateStr) => {
                 const date = new Date(dateStr);
                 const dayName = date
@@ -230,8 +239,8 @@ let LeaveRequestService = class LeaveRequestService {
             const startDate = requestedDates[0];
             const end = requestedDates[requestedDates.length - 1];
             const holidaysInRange = await this.holidayService.listHolidaysInRange(companyId, startDate, end);
-            const holidayDates = new Set(holidaysInRange.map((holiday) => holiday.date));
-            effectiveDates = effectiveDates.filter((date) => !holidayDates.has(date));
+            const holidayDates = new Set(holidaysInRange.map((h) => h.date));
+            effectiveDates = effectiveDates.filter((d) => !holidayDates.has(d));
         }
         let totalDays = effectiveDates.length;
         if (partialDay && totalDays === 1) {
@@ -240,65 +249,69 @@ let LeaveRequestService = class LeaveRequestService {
         return totalDays;
     }
     async findAll(companyId) {
-        const leaveRequestsData = await this.db
-            .select({
-            employeeId: leave_requests_schema_1.leaveRequests.employeeId,
-            requestId: leave_requests_schema_1.leaveRequests.id,
-            employeeName: (0, drizzle_orm_1.sql) `CONCAT(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
-            leaveType: leave_types_schema_1.leaveTypes.name,
-            startDate: leave_requests_schema_1.leaveRequests.startDate,
-            endDate: leave_requests_schema_1.leaveRequests.endDate,
-            status: leave_requests_schema_1.leaveRequests.status,
-            reason: leave_requests_schema_1.leaveRequests.reason,
-            department: schema_1.departments.name,
-            jobRole: schema_1.jobRoles.title,
-            totalDays: leave_requests_schema_1.leaveRequests.totalDays,
-        })
-            .from(leave_requests_schema_1.leaveRequests)
-            .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.employeeId, schema_1.employees.id))
-            .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
-            .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
-            .innerJoin(leave_types_schema_1.leaveTypes, (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.leaveTypeId, leave_types_schema_1.leaveTypes.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.companyId, companyId)))
-            .execute();
-        if (!leaveRequestsData) {
-            throw new common_1.NotFoundException('Leave requests not found');
-        }
-        return leaveRequestsData;
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'requests', 'list'], async () => {
+            const rows = await this.db
+                .select({
+                employeeId: leave_requests_schema_1.leaveRequests.employeeId,
+                requestId: leave_requests_schema_1.leaveRequests.id,
+                employeeName: (0, drizzle_orm_1.sql) `CONCAT(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
+                leaveType: leave_types_schema_1.leaveTypes.name,
+                startDate: leave_requests_schema_1.leaveRequests.startDate,
+                endDate: leave_requests_schema_1.leaveRequests.endDate,
+                status: leave_requests_schema_1.leaveRequests.status,
+                reason: leave_requests_schema_1.leaveRequests.reason,
+                department: schema_1.departments.name,
+                jobRole: schema_1.jobRoles.title,
+                totalDays: leave_requests_schema_1.leaveRequests.totalDays,
+            })
+                .from(leave_requests_schema_1.leaveRequests)
+                .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.employeeId, schema_1.employees.id))
+                .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
+                .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
+                .innerJoin(leave_types_schema_1.leaveTypes, (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.leaveTypeId, leave_types_schema_1.leaveTypes.id))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.companyId, companyId)))
+                .execute();
+            if (!rows)
+                throw new common_1.NotFoundException('Leave requests not found');
+            return rows;
+        }, { tags: this.tags(companyId) });
     }
     async findAllByEmployeeId(employeeId, companyId) {
-        const leaveRequestsData = await this.db
-            .select({
-            requestId: leave_requests_schema_1.leaveRequests.id,
-            employeeId: leave_requests_schema_1.leaveRequests.employeeId,
-            leaveType: leave_types_schema_1.leaveTypes.name,
-            startDate: leave_requests_schema_1.leaveRequests.startDate,
-            endDate: leave_requests_schema_1.leaveRequests.endDate,
-            status: leave_requests_schema_1.leaveRequests.status,
-            reason: leave_requests_schema_1.leaveRequests.reason,
-        })
-            .from(leave_requests_schema_1.leaveRequests)
-            .innerJoin(leave_types_schema_1.leaveTypes, (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.leaveTypeId, leave_types_schema_1.leaveTypes.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.employeeId, employeeId), (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.companyId, companyId)))
-            .execute();
-        if (!leaveRequestsData) {
-            throw new common_1.NotFoundException('Leave requests not found');
-        }
-        return leaveRequestsData;
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'requests', 'by-employee', employeeId], async () => {
+            const rows = await this.db
+                .select({
+                requestId: leave_requests_schema_1.leaveRequests.id,
+                employeeId: leave_requests_schema_1.leaveRequests.employeeId,
+                leaveType: leave_types_schema_1.leaveTypes.name,
+                startDate: leave_requests_schema_1.leaveRequests.startDate,
+                endDate: leave_requests_schema_1.leaveRequests.endDate,
+                status: leave_requests_schema_1.leaveRequests.status,
+                reason: leave_requests_schema_1.leaveRequests.reason,
+            })
+                .from(leave_requests_schema_1.leaveRequests)
+                .innerJoin(leave_types_schema_1.leaveTypes, (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.leaveTypeId, leave_types_schema_1.leaveTypes.id))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.employeeId, employeeId), (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.companyId, companyId)))
+                .execute();
+            if (!rows)
+                throw new common_1.NotFoundException('Leave requests not found');
+            return rows;
+        }, { tags: this.tags(companyId) });
     }
     async findOneById(leaveRequestId, companyId) {
-        const [leaveRequest] = await this.db
-            .select({
-            requestId: leave_requests_schema_1.leaveRequests.id,
-            status: leave_requests_schema_1.leaveRequests.status,
-        })
-            .from(leave_requests_schema_1.leaveRequests)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.id, leaveRequestId), (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.companyId, companyId)))
-            .execute();
-        if (!leaveRequest) {
-            throw new common_1.NotFoundException('Leave request not found');
-        }
-        return leaveRequest;
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'requests', 'one', leaveRequestId], async () => {
+            const [row] = await this.db
+                .select({
+                requestId: leave_requests_schema_1.leaveRequests.id,
+                status: leave_requests_schema_1.leaveRequests.status,
+            })
+                .from(leave_requests_schema_1.leaveRequests)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.id, leaveRequestId), (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.companyId, companyId)))
+                .execute();
+            if (!row) {
+                throw new common_1.NotFoundException('Leave request not found');
+            }
+            return row;
+        }, { tags: this.tags(companyId) });
     }
 };
 exports.LeaveRequestService = LeaveRequestService;
@@ -312,6 +325,7 @@ exports.LeaveRequestService = LeaveRequestService = __decorate([
         audit_service_1.AuditService,
         holidays_service_1.HolidaysService,
         blocked_days_service_1.BlockedDaysService,
-        reserved_days_service_1.ReservedDaysService])
+        reserved_days_service_1.ReservedDaysService,
+        cache_service_1.CacheService])
 ], LeaveRequestService);
 //# sourceMappingURL=leave-request.service.js.map

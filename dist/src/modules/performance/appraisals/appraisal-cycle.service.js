@@ -24,7 +24,6 @@ let AppraisalCycleService = class AppraisalCycleService {
         this.db = db;
         this.auditService = auditService;
         this.cache = cache;
-        this.ttlSeconds = 60 * 5;
     }
     ns(companyId) {
         return ['performance', 'appraisal-cycles', companyId];
@@ -83,7 +82,7 @@ let AppraisalCycleService = class AppraisalCycleService {
             .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
             .where((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, companyId))
             .orderBy((0, drizzle_orm_1.asc)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate))
-            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+            .execute());
         const nowIso = new Date().toISOString();
         const current = rows.find((c) => c.startDate <= nowIso && c.endDate >= nowIso);
         return rows.map((c) => ({
@@ -102,7 +101,7 @@ let AppraisalCycleService = class AppraisalCycleService {
                 .limit(1)
                 .execute();
             return lastCycle ?? null;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
     async getLast(companyId) {
         return this.getLastCycle(companyId);
@@ -120,7 +119,7 @@ let AppraisalCycleService = class AppraisalCycleService {
                 .limit(1)
                 .execute();
             return current[0] ?? null;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
     async findOne(id, companyId) {
         const key = [...this.ns(companyId), 'one', id];
@@ -132,7 +131,7 @@ let AppraisalCycleService = class AppraisalCycleService {
                 .limit(1)
                 .execute();
             return row ?? null;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
         if (!cycle) {
             throw new common_1.NotFoundException(`Appraisal cycle with ID ${id} not found`);
         }

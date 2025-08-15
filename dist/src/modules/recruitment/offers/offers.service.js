@@ -15,7 +15,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.OffersService = void 0;
 const common_1 = require("@nestjs/common");
 const drizzle_module_1 = require("../../../drizzle/drizzle.module");
-const common_2 = require("@nestjs/common");
 const offers_schema_1 = require("./schema/offers.schema");
 const schema_1 = require("../../../drizzle/schema");
 const drizzle_orm_1 = require("drizzle-orm");
@@ -26,20 +25,27 @@ const bullmq_1 = require("@nestjs/bullmq");
 const bullmq_2 = require("bullmq");
 const normalizeDateFields_1 = require("../../../utils/normalizeDateFields");
 const offer_letter_pdf_service_1 = require("./offer-letter/offer-letter-pdf.service");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let OffersService = class OffersService {
-    constructor(db, queue, auditService, offerLetterPdfService) {
+    constructor(db, queue, auditService, offerLetterPdfService, cache) {
         this.db = db;
         this.queue = queue;
         this.auditService = auditService;
         this.offerLetterPdfService = offerLetterPdfService;
+        this.cache = cache;
+    }
+    tags(scope) {
+        return [
+            `company:${scope}:offers`,
+            `company:${scope}:offers:list`,
+            `company:${scope}:offers:variables`,
+        ];
     }
     async create(dto, user) {
         const { id: userId, companyId } = user;
         const { applicationId, templateId, pdfData } = dto;
         const [application] = await this.db
-            .select({
-            candidateId: schema_1.applications.candidateId,
-        })
+            .select({ candidateId: schema_1.applications.candidateId })
             .from(schema_1.applications)
             .where((0, drizzle_orm_1.eq)(schema_1.applications.id, applicationId));
         if (!application) {
@@ -96,133 +102,148 @@ let OffersService = class OffersService {
             generatedBy: userId,
             payload: pdfData,
         });
+        await this.cache.bumpCompanyVersion(companyId);
+        await this.cache.bumpCompanyVersion('global');
         return offer;
     }
     async getTemplateVariablesWithAutoFilledData(templateId, applicationId, user) {
         const { companyId } = user;
-        const [template] = await this.db
-            .select()
-            .from(offer_letter_templates_schema_1.offerLetterTemplates)
-            .where((0, drizzle_orm_1.eq)(offer_letter_templates_schema_1.offerLetterTemplates.id, templateId));
-        if (!template) {
-            throw new common_1.BadRequestException('Offer letter template not found');
-        }
-        const requiredVars = (0, extractHandlebarsVariables_1.extractHandlebarsVariables)(template.content);
-        const [application] = await this.db
-            .select({
-            candidateId: schema_1.applications.candidateId,
-            jobPostingId: schema_1.applications.jobId,
-        })
-            .from(schema_1.applications)
-            .where((0, drizzle_orm_1.eq)(schema_1.applications.id, applicationId));
-        if (!application) {
-            throw new common_1.BadRequestException('Application not found');
-        }
-        const [candidate] = await this.db
-            .select({
-            fullName: schema_1.candidates.fullName,
-            email: schema_1.candidates.email,
-        })
-            .from(schema_1.candidates)
-            .where((0, drizzle_orm_1.eq)(schema_1.candidates.id, application.candidateId));
-        if (!candidate) {
-            throw new common_1.BadRequestException('Candidate not found');
-        }
-        const [jobPosting] = await this.db
-            .select({ title: schema_1.job_postings.title })
-            .from(schema_1.job_postings)
-            .where((0, drizzle_orm_1.eq)(schema_1.job_postings.id, application.jobPostingId));
-        if (!jobPosting) {
-            throw new common_1.BadRequestException('Job posting not found');
-        }
-        const [company] = await this.db
-            .select({
-            name: schema_1.companies.name,
-            address: (0, drizzle_orm_1.sql) `concat(${schema_1.companyLocations.street}, ', ', ${schema_1.companyLocations.city}, ', ', ${schema_1.companyLocations.state} || ' ', ${schema_1.companyLocations.country})`.as('address'),
-            companyLogoUrl: schema_1.companies.logo_url,
-            supportEmail: schema_1.companies.primaryContactEmail,
-        })
-            .from(schema_1.companies)
-            .innerJoin(schema_1.companyLocations, (0, drizzle_orm_1.eq)(schema_1.companyLocations.companyId, schema_1.companies.id))
-            .where((0, drizzle_orm_1.eq)(schema_1.companies.id, companyId));
-        if (!company) {
-            throw new common_1.BadRequestException('Company not found');
-        }
-        const fullName = candidate.fullName?.trim() || '';
-        const candidateFirstName = fullName.split(' ')[0];
-        const autoFilled = {};
-        if (fullName)
-            autoFilled.candidateFullName = fullName;
-        if (candidateFirstName)
-            autoFilled.candidateFirstName = candidateFirstName;
-        if (candidate?.email)
-            autoFilled.candidateEmail = candidate.email;
-        if (company?.companyLogoUrl)
-            autoFilled.companyLogoUrl = company.companyLogoUrl;
-        if (jobPosting?.title)
-            autoFilled.jobTitle = jobPosting.title;
-        if (company?.name)
-            autoFilled.companyName = company.name;
-        if (company?.address && typeof company.address === 'string')
-            autoFilled.companyAddress = company.address;
-        if (company?.supportEmail)
-            autoFilled.supportEmail = company.supportEmail;
-        autoFilled.todayDate = new Date().toLocaleDateString('en-US', {
+        const base = await this.cache.getOrSetVersioned(companyId, ['offers', 'variables', 'byTemplateApp', templateId, applicationId], async () => {
+            const [template] = await this.db
+                .select()
+                .from(offer_letter_templates_schema_1.offerLetterTemplates)
+                .where((0, drizzle_orm_1.eq)(offer_letter_templates_schema_1.offerLetterTemplates.id, templateId));
+            if (!template) {
+                throw new common_1.BadRequestException('Offer letter template not found');
+            }
+            const requiredVars = (0, extractHandlebarsVariables_1.extractHandlebarsVariables)(template.content);
+            const [application] = await this.db
+                .select({
+                candidateId: schema_1.applications.candidateId,
+                jobPostingId: schema_1.applications.jobId,
+            })
+                .from(schema_1.applications)
+                .where((0, drizzle_orm_1.eq)(schema_1.applications.id, applicationId));
+            if (!application) {
+                throw new common_1.BadRequestException('Application not found');
+            }
+            const [candidate] = await this.db
+                .select({
+                fullName: schema_1.candidates.fullName,
+                email: schema_1.candidates.email,
+            })
+                .from(schema_1.candidates)
+                .where((0, drizzle_orm_1.eq)(schema_1.candidates.id, application.candidateId));
+            if (!candidate) {
+                throw new common_1.BadRequestException('Candidate not found');
+            }
+            const [jobPosting] = await this.db
+                .select({ title: schema_1.job_postings.title })
+                .from(schema_1.job_postings)
+                .where((0, drizzle_orm_1.eq)(schema_1.job_postings.id, application.jobPostingId));
+            if (!jobPosting) {
+                throw new common_1.BadRequestException('Job posting not found');
+            }
+            const [company] = await this.db
+                .select({
+                name: schema_1.companies.name,
+                address: (0, drizzle_orm_1.sql) `concat(${schema_1.companyLocations.street}, ', ', ${schema_1.companyLocations.city}, ', ', ${schema_1.companyLocations.state} || ' ', ${schema_1.companyLocations.country})`.as('address'),
+                companyLogoUrl: schema_1.companies.logo_url,
+                supportEmail: schema_1.companies.primaryContactEmail,
+            })
+                .from(schema_1.companies)
+                .innerJoin(schema_1.companyLocations, (0, drizzle_orm_1.eq)(schema_1.companyLocations.companyId, schema_1.companies.id))
+                .where((0, drizzle_orm_1.eq)(schema_1.companies.id, companyId));
+            if (!company) {
+                throw new common_1.BadRequestException('Company not found');
+            }
+            const fullName = candidate.fullName?.trim() || '';
+            const candidateFirstName = fullName.split(' ')[0];
+            const autoFilledStable = {};
+            if (fullName)
+                autoFilledStable.candidateFullName = fullName;
+            if (candidateFirstName)
+                autoFilledStable.candidateFirstName = candidateFirstName;
+            if (candidate?.email)
+                autoFilledStable.candidateEmail = candidate.email;
+            if (company?.companyLogoUrl)
+                autoFilledStable.companyLogoUrl = company.companyLogoUrl;
+            if (jobPosting?.title)
+                autoFilledStable.jobTitle = jobPosting.title;
+            if (company?.name)
+                autoFilledStable.companyName = company.name;
+            if (company?.address && typeof company.address === 'string')
+                autoFilledStable.companyAddress = company.address;
+            if (company?.supportEmail)
+                autoFilledStable.supportEmail = company.supportEmail;
+            autoFilledStable.sig_cand = '_________';
+            autoFilledStable.date_cand = '_________';
+            autoFilledStable.sig_emp = '_________';
+            autoFilledStable.date_emp = '_________';
+            return {
+                variables: requiredVars,
+                autoFilledStable,
+                templateContent: template.content,
+            };
+        }, { tags: this.tags(companyId) });
+        const todayDate = new Date().toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'long',
             day: 'numeric',
         });
-        autoFilled.sig_cand = '_________';
-        autoFilled.date_cand = '_________';
-        autoFilled.sig_emp = '_________';
-        autoFilled.date_emp = '_________';
         return {
-            variables: requiredVars,
-            autoFilled,
-            templateContent: template.content,
+            variables: base.variables,
+            autoFilled: { ...base.autoFilledStable, todayDate },
+            templateContent: base.templateContent,
         };
     }
     findAll(companyId) {
-        return this.db
-            .select({
-            id: offers_schema_1.offers.id,
-            applicationId: offers_schema_1.offers.applicationId,
-            templateId: offers_schema_1.offers.templateId,
-            status: offers_schema_1.offers.status,
-            salary: offers_schema_1.offers.salary,
-            sentAt: offers_schema_1.offers.sentAt,
-            startDate: offers_schema_1.offers.startDate,
-            candidateFullName: schema_1.candidates.fullName,
-            candidateEmail: schema_1.candidates.email,
-            jobTitle: schema_1.job_postings.title,
-            letterUrl: offers_schema_1.offers.letterUrl,
-            signedLetterUrl: offers_schema_1.offers.signedLetterUrl,
-        })
-            .from(offers_schema_1.offers)
-            .innerJoin(schema_1.applications, (0, drizzle_orm_1.eq)(schema_1.applications.id, offers_schema_1.offers.applicationId))
-            .innerJoin(schema_1.job_postings, (0, drizzle_orm_1.eq)(schema_1.job_postings.id, schema_1.applications.jobId))
-            .innerJoin(schema_1.candidates, (0, drizzle_orm_1.eq)(schema_1.candidates.id, schema_1.applications.candidateId))
-            .where((0, drizzle_orm_1.eq)(offers_schema_1.offers.companyId, companyId));
+        return this.cache.getOrSetVersioned(companyId, ['offers', 'list', 'all'], async () => {
+            const rows = await this.db
+                .select({
+                id: offers_schema_1.offers.id,
+                applicationId: offers_schema_1.offers.applicationId,
+                templateId: offers_schema_1.offers.templateId,
+                status: offers_schema_1.offers.status,
+                salary: offers_schema_1.offers.salary,
+                sentAt: offers_schema_1.offers.sentAt,
+                startDate: offers_schema_1.offers.startDate,
+                candidateFullName: schema_1.candidates.fullName,
+                candidateEmail: schema_1.candidates.email,
+                jobTitle: schema_1.job_postings.title,
+                letterUrl: offers_schema_1.offers.letterUrl,
+                signedLetterUrl: offers_schema_1.offers.signedLetterUrl,
+            })
+                .from(offers_schema_1.offers)
+                .innerJoin(schema_1.applications, (0, drizzle_orm_1.eq)(schema_1.applications.id, offers_schema_1.offers.applicationId))
+                .innerJoin(schema_1.job_postings, (0, drizzle_orm_1.eq)(schema_1.job_postings.id, schema_1.applications.jobId))
+                .innerJoin(schema_1.candidates, (0, drizzle_orm_1.eq)(schema_1.candidates.id, schema_1.applications.candidateId))
+                .where((0, drizzle_orm_1.eq)(offers_schema_1.offers.companyId, companyId))
+                .orderBy((0, drizzle_orm_1.asc)(offers_schema_1.offers.createdAt));
+            return rows;
+        }, { tags: this.tags(companyId) });
     }
     async getTemplateVariablesFromOffer(offerId) {
-        const [offer] = await this.db
-            .select({
-            pdfData: offers_schema_1.offers.pdfData,
-            templateContent: offer_letter_templates_schema_1.offerLetterTemplates.content,
-        })
-            .from(offers_schema_1.offers)
-            .innerJoin(offer_letter_templates_schema_1.offerLetterTemplates, (0, drizzle_orm_1.eq)(offers_schema_1.offers.templateId, offer_letter_templates_schema_1.offerLetterTemplates.id))
-            .where((0, drizzle_orm_1.eq)(offers_schema_1.offers.id, offerId));
-        if (!offer) {
-            throw new common_1.BadRequestException('Offer not found');
-        }
-        const requiredVars = (0, extractHandlebarsVariables_1.extractHandlebarsVariables)(offer.templateContent);
-        const cleanedPdfData = (0, normalizeDateFields_1.normalizeDateFields)(offer.pdfData);
-        return {
-            variables: requiredVars,
-            autoFilled: cleanedPdfData || {},
-            templateContent: offer.templateContent,
-        };
+        return this.cache.getOrSetVersioned('global', ['offers', 'variables', 'fromOffer', offerId], async () => {
+            const [offer] = await this.db
+                .select({
+                pdfData: offers_schema_1.offers.pdfData,
+                templateContent: offer_letter_templates_schema_1.offerLetterTemplates.content,
+            })
+                .from(offers_schema_1.offers)
+                .innerJoin(offer_letter_templates_schema_1.offerLetterTemplates, (0, drizzle_orm_1.eq)(offers_schema_1.offers.templateId, offer_letter_templates_schema_1.offerLetterTemplates.id))
+                .where((0, drizzle_orm_1.eq)(offers_schema_1.offers.id, offerId));
+            if (!offer) {
+                throw new common_1.BadRequestException('Offer not found');
+            }
+            const requiredVars = (0, extractHandlebarsVariables_1.extractHandlebarsVariables)(offer.templateContent);
+            const cleanedPdfData = (0, normalizeDateFields_1.normalizeDateFields)(offer.pdfData);
+            return {
+                variables: requiredVars,
+                autoFilled: cleanedPdfData || {},
+                templateContent: offer.templateContent,
+            };
+        }, { tags: this.tags('global') });
     }
     findOne(id) {
         return `This action returns a #${id} offer`;
@@ -283,6 +304,8 @@ let OffersService = class OffersService {
             generatedBy: userId,
             payload: pdfData,
         });
+        await this.cache.bumpCompanyVersion(companyId);
+        await this.cache.bumpCompanyVersion('global');
         return {
             status: 'success',
             message: 'Offer updated and queued for PDF regeneration',
@@ -316,6 +339,7 @@ let OffersService = class OffersService {
             .update(offers_schema_1.offers)
             .set({ signedLetterUrl: signedUrl, status: 'accepted' })
             .where((0, drizzle_orm_1.eq)(offers_schema_1.offers.id, dto.offerId));
+        await this.cache.bumpCompanyVersion('global');
         return {
             status: 'success',
             message: 'Offer signed successfully',
@@ -343,9 +367,7 @@ let OffersService = class OffersService {
             entityId: applicationId,
             userId: user.id,
             details: 'Moved to stage ' + newStageId,
-            changes: {
-                toStage: newStageId,
-            },
+            changes: { toStage: newStageId },
         });
         return { success: true };
     }
@@ -353,10 +375,11 @@ let OffersService = class OffersService {
 exports.OffersService = OffersService;
 exports.OffersService = OffersService = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, common_2.Inject)(drizzle_module_1.DRIZZLE)),
+    __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __param(1, (0, bullmq_1.InjectQueue)('offerPdfQueue')),
     __metadata("design:paramtypes", [Object, bullmq_2.Queue,
         audit_service_1.AuditService,
-        offer_letter_pdf_service_1.OfferLetterPdfService])
+        offer_letter_pdf_service_1.OfferLetterPdfService,
+        cache_service_1.CacheService])
 ], OffersService);
 //# sourceMappingURL=offers.service.js.map

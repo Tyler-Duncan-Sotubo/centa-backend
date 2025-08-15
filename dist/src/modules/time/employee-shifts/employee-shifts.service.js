@@ -27,7 +27,6 @@ let EmployeeShiftsService = class EmployeeShiftsService {
         this.auditService = auditService;
         this.db = db;
         this.cache = cache;
-        this.ttlSeconds = 60 * 10;
     }
     tags(companyId) {
         return [
@@ -244,7 +243,7 @@ let EmployeeShiftsService = class EmployeeShiftsService {
     async listAll(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['attendance', 'employee-shifts', 'list'], () => this.baseEmployeeShiftQuery()
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(employee_shifts_schema_1.employeeShifts.companyId, companyId), (0, drizzle_orm_1.eq)(employee_shifts_schema_1.employeeShifts.isDeleted, false)))
-            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+            .execute());
     }
     async listAllPaginated(companyId, { page = 1, limit = 20, search, shiftId, }) {
         const offset = (page - 1) * limit;
@@ -292,7 +291,7 @@ let EmployeeShiftsService = class EmployeeShiftsService {
                     totalPages: Math.ceil(Number(count) / limit),
                 },
             };
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
     async getOne(companyId, assignmentId) {
         return this.cache.getOrSetVersioned(companyId, ['attendance', 'employee-shifts', 'one', assignmentId], async () => {
@@ -303,12 +302,12 @@ let EmployeeShiftsService = class EmployeeShiftsService {
                 throw new common_1.NotFoundException(`Assignment ${assignmentId} not found`);
             }
             return rec;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
     async listByEmployee(companyId, employeeId) {
         return this.cache.getOrSetVersioned(companyId, ['attendance', 'employee-shifts', 'by-employee', employeeId], () => this.baseEmployeeShiftQuery()
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(employee_shifts_schema_1.employeeShifts.companyId, companyId), (0, drizzle_orm_1.eq)(employee_shifts_schema_1.employeeShifts.employeeId, employeeId), (0, drizzle_orm_1.eq)(employee_shifts_schema_1.employeeShifts.isDeleted, false)))
-            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+            .execute());
     }
     async getActiveShiftForEmployee(employeeId, companyId, date) {
         return this.cache.getOrSetVersioned(companyId, ['attendance', 'employee-shifts', 'active', employeeId, date], async () => {
@@ -328,12 +327,12 @@ let EmployeeShiftsService = class EmployeeShiftsService {
                 : (0, drizzle_orm_1.sql) `false`, (0, drizzle_orm_1.eq)(schema_2.shifts.companyId, companyId), (0, drizzle_orm_1.eq)(schema_2.shifts.isDeleted, false)))
                 .execute();
             return shiftRec || null;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
     async listByShift(companyId, shiftId) {
         return this.cache.getOrSetVersioned(companyId, ['attendance', 'employee-shifts', 'by-shift', shiftId], () => this.baseEmployeeShiftQuery()
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(employee_shifts_schema_1.employeeShifts.companyId, companyId), (0, drizzle_orm_1.eq)(employee_shifts_schema_1.employeeShifts.shiftId, shiftId), (0, drizzle_orm_1.eq)(employee_shifts_schema_1.employeeShifts.isDeleted, false)))
-            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+            .execute());
     }
     async getCalendarEvents(companyId, from, to) {
         return this.cache.getOrSetVersioned(companyId, ['attendance', 'employee-shifts', 'calendar', from, to], async () => {
@@ -398,7 +397,7 @@ let EmployeeShiftsService = class EmployeeShiftsService {
                 camelCasedGroupedEvents[camelKey] = events;
             }
             return camelCasedGroupedEvents;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
 };
 exports.EmployeeShiftsService = EmployeeShiftsService;

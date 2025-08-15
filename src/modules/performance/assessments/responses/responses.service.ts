@@ -21,8 +21,6 @@ import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class AssessmentResponsesService {
-  private readonly ttlSeconds = 10 * 60; // 10 minutes
-
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
@@ -85,7 +83,6 @@ export class AssessmentResponsesService {
 
         return results;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(meta.companyId) },
     );
   }
 

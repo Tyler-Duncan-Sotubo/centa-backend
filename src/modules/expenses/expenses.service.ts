@@ -27,6 +27,7 @@ import { CreateBulkExpenseDto } from './dto/create-bulk-expense.dto';
 import { ExportUtil } from 'src/utils/export.util';
 import { S3StorageService } from 'src/common/aws/s3-storage.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class ExpensesService {
@@ -37,7 +38,19 @@ export class ExpensesService {
     private readonly expenseSettingsService: ExpensesSettingsService,
     private readonly awsStorage: S3StorageService,
     private readonly pusher: PusherService,
+    private readonly cache: CacheService,
   ) {}
+
+  /** Tags used for Redis tag invalidation (optional, additive to versioning) */
+  private tags(companyId: string) {
+    return [
+      `company:${companyId}:expenses`,
+      `company:${companyId}:expenses:list`,
+      `company:${companyId}:expenses:reports`,
+    ];
+  }
+
+  // ---------- helpers for export ----------
 
   private async exportAndUploadExcel<T>(
     rows: T[],
@@ -49,13 +62,11 @@ export class ExpensesService {
     if (!rows.length) {
       throw new BadRequestException(`No data available for ${filenameBase}`);
     }
-
     const filePath = await ExportUtil.exportToExcel(
       rows,
       columns,
       filenameBase,
     );
-
     return this.awsStorage.uploadFilePath(
       filePath,
       companyId,
@@ -74,9 +85,7 @@ export class ExpensesService {
     if (!rows.length) {
       throw new BadRequestException(`No data available for ${filenameBase}`);
     }
-
     const filePath = await ExportUtil.exportToCSV(rows, columns, filenameBase);
-
     return this.awsStorage.uploadFilePath(
       filePath,
       companyId,
@@ -85,14 +94,14 @@ export class ExpensesService {
     );
   }
 
+  // ---------- approval flow ----------
+
   async handleExpenseApprovalFlow(expenseId: string, user: User) {
-    // 1. Load expense settings
     const expenseSettings =
       await this.expenseSettingsService.getExpenseSettings(user.companyId);
     const multi = expenseSettings.multiLevelApproval;
     const chain = expenseSettings.approverChain || [];
 
-    // 2. Reuse or create approvalWorkflow for this expense
     let [workflow] = await this.db
       .select()
       .from(approvalWorkflows)
@@ -120,7 +129,6 @@ export class ExpensesService {
 
     const workflowId = workflow.id;
 
-    // 3. Create approval steps if not exist
     const existingSteps = await this.db
       .select()
       .from(approvalSteps)
@@ -141,7 +149,7 @@ export class ExpensesService {
             {
               workflowId,
               sequence: 1,
-              role: 'finance_manager', // default role
+              role: 'finance_manager',
               status: 'approved',
               minApprovals: 1,
               maxApprovals: 1,
@@ -152,12 +160,9 @@ export class ExpensesService {
       const createdSteps = await this.db
         .insert(approvalSteps)
         .values(steps)
-        .returning({
-          id: approvalSteps.id,
-        })
+        .returning({ id: approvalSteps.id })
         .execute();
 
-      // 4. Create initial approval record
       await this.db
         .insert(expenseApprovals)
         .values({
@@ -171,7 +176,6 @@ export class ExpensesService {
         .execute();
     }
 
-    // 5. Auto-approve if not multi-level
     if (!multi) {
       const [step] = await this.db
         .select()
@@ -184,12 +188,9 @@ export class ExpensesService {
         )
         .execute();
 
-      // update the expense status to 'Approved'
       const [expense] = await this.db
         .update(expenses)
-        .set({
-          status: 'pending',
-        })
+        .set({ status: 'pending' })
         .where(eq(expenses.id, expenseId))
         .returning()
         .execute();
@@ -200,7 +201,6 @@ export class ExpensesService {
         `Your expense request has been auto-approved`,
         'expense',
       );
-
       await this.pusher.createNotification(
         user.companyId,
         `Your expense request has been auto-approved`,
@@ -220,16 +220,20 @@ export class ExpensesService {
           })
           .execute();
       }
+
+      // any status/write -> bump version to invalidate caches
+      await this.cache.bumpCompanyVersion(user.companyId);
     }
   }
+
+  // ---------- writes (bump cache version) ----------
 
   async create(dto: CreateExpenseDto, user: User) {
     let receiptUrl = dto.receiptUrl;
     const [meta, base64Data] = dto.receiptUrl.split(',');
-    const isPdf = meta.includes('application/pdf');
+    const isPdf = meta?.includes('application/pdf');
 
     if (isPdf) {
-      // Convert raw Base64 → Buffer (PDF helper expects Buffer)
       const pdfBuffer = Buffer.from(base64Data, 'base64');
       const fileName = `receipt-${Date.now()}.pdf`;
       receiptUrl = await this.awsService.uploadPdfToS3(
@@ -238,7 +242,7 @@ export class ExpensesService {
         pdfBuffer,
       );
     } else {
-      const fileName = `receipt-${Date.now()}.jpg`; // or `.png` depending on contentType logic
+      const fileName = `receipt-${Date.now()}.jpg`;
       receiptUrl = await this.awsService.uploadImageToS3(
         dto.employeeId,
         fileName,
@@ -257,7 +261,7 @@ export class ExpensesService {
         amount: dto.amount,
         status: 'requested',
         submittedAt: new Date(),
-        receiptUrl, // Updated here
+        receiptUrl,
         paymentMethod: dto.paymentMethod,
       })
       .returning();
@@ -268,7 +272,6 @@ export class ExpensesService {
       'expense',
     );
 
-    // Handle approval flow
     await this.handleExpenseApprovalFlow(expense.id, user);
 
     await this.auditService.logAction({
@@ -289,6 +292,9 @@ export class ExpensesService {
       },
     });
 
+    // write -> invalidate
+    await this.cache.bumpCompanyVersion(user.companyId);
+
     return expense;
   }
 
@@ -302,7 +308,6 @@ export class ExpensesService {
       'Payment Method': string;
     };
 
-    // Preload all employees for the company
     const allEmployees = await this.db
       .select({
         id: employees.id,
@@ -319,16 +324,10 @@ export class ExpensesService {
 
     for (const row of rows as Row[]) {
       const employeeName = row['Employee Name']?.trim().toLowerCase();
-      if (!employeeName) {
-        console.warn(`Skipping row with missing employee name:`, row);
-        continue;
-      }
+      if (!employeeName) continue;
 
       const employeeId = employeeMap.get(employeeName);
-      if (!employeeId) {
-        console.warn(`Skipping row with unknown employee: ${employeeName}`);
-        continue;
-      }
+      if (!employeeId) continue;
 
       const dto = plainToInstance(CreateBulkExpenseDto, {
         date: row['Date'],
@@ -340,10 +339,7 @@ export class ExpensesService {
       });
 
       const errors = await validate(dto);
-      if (errors.length) {
-        console.warn(`❌ Skipping invalid row for ${employeeName}:`, errors);
-        continue;
-      }
+      if (errors.length) continue;
 
       dtos.push({ ...dto, employeeId });
     }
@@ -378,111 +374,45 @@ export class ExpensesService {
       await this.handleExpenseApprovalFlow(expense.id, user);
     }
 
+    // write -> invalidate
+    await this.cache.bumpCompanyVersion(companyId);
+
     return inserted;
   }
 
-  findAll(companyId: string) {
-    const latestApprovals = this.db.$with('latest_approvals').as(
-      this.db
-        .select({
-          expenseId: expenseApprovals.expenseId,
-          actorId: expenseApprovals.actorId,
-          createdAt: expenseApprovals.createdAt,
-          rowNumber:
-            sql<number>`ROW_NUMBER() OVER (PARTITION BY ${expenseApprovals.expenseId} ORDER BY ${expenseApprovals.createdAt} DESC)`.as(
-              'row_number',
-            ),
-        })
-        .from(expenseApprovals)
-        .where(eq(expenseApprovals.action, 'approved')),
-    );
-
-    return this.db
-      .with(latestApprovals)
-      .select({
-        id: expenses.id,
-        date: expenses.date,
-        submittedAt: expenses.submittedAt,
-        category: expenses.category,
-        purpose: expenses.purpose,
-        amount: expenses.amount,
-        status: expenses.status,
-        paymentMethod: expenses.paymentMethod,
-        receiptUrl: expenses.receiptUrl,
-        requester: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
-        employeeId: expenses.employeeId,
-        approvedBy: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
-      })
-      .from(expenses)
-      .leftJoin(employees, eq(expenses.employeeId, employees.id))
-      .leftJoin(
-        latestApprovals,
-        and(
-          eq(expenses.id, latestApprovals.expenseId),
-          eq(latestApprovals.rowNumber, 1),
-        ),
-      )
-      .leftJoin(users, eq(latestApprovals.actorId, users.id))
-      .where(and(eq(expenses.companyId, companyId), isNull(expenses.deletedAt)))
-      .orderBy(desc(expenses.createdAt));
-  }
-
-  async findAllByEmployeeId(employeeId: string) {
-    const expensesList = await this.db
-      .select()
-      .from(expenses)
-      .where(eq(expenses.employeeId, employeeId))
-      .orderBy(desc(expenses.createdAt));
-
-    return expensesList;
-  }
-
-  async findOne(id: string) {
-    const [expense] = await this.db
-      .select()
-      .from(expenses)
-      .where(eq(expenses.id, id));
-
-    if (!expense) {
-      throw new BadRequestException(`Expense with ID ${id} not found`);
-    }
-
-    return expense;
-  }
-
   async update(id: string, dto: UpdateExpenseDto, user: User) {
-    // Check if the expense exists
     const expense = await this.findOne(id);
 
     let receiptUrl = dto.receiptUrl;
-
-    const splitResult = dto.receiptUrl ? dto.receiptUrl.split(',') : [];
-    const [meta = '', base64Data = ''] = splitResult;
+    const [meta = '', base64Data = ''] = dto.receiptUrl
+      ? dto.receiptUrl.split(',')
+      : [];
     const isPdf = meta.includes('application/pdf');
 
-    if (isPdf) {
-      // Convert raw Base64 → Buffer (PDF helper expects Buffer)
-      const pdfBuffer = Buffer.from(base64Data, 'base64');
-      const fileName = `receipt-${Date.now()}.pdf`;
-      receiptUrl = await this.awsService.uploadPdfToS3(
-        expense.employeeId,
-        fileName,
-        pdfBuffer,
-      );
-    } else {
-      const fileName = `receipt-${Date.now()}.jpg`; // or `.png` depending on contentType logic
-      receiptUrl = await this.awsService.uploadImageToS3(
-        expense.employeeId,
-        fileName,
-        receiptUrl,
-      );
+    if (dto.receiptUrl) {
+      if (isPdf) {
+        const pdfBuffer = Buffer.from(base64Data, 'base64');
+        const fileName = `receipt-${Date.now()}.pdf`;
+        receiptUrl = await this.awsService.uploadPdfToS3(
+          expense.employeeId,
+          fileName,
+          pdfBuffer,
+        );
+      } else {
+        const fileName = `receipt-${Date.now()}.jpg`;
+        receiptUrl = await this.awsService.uploadImageToS3(
+          expense.employeeId,
+          fileName,
+          receiptUrl!,
+        );
+      }
     }
 
     const [updated] = await this.db
       .update(expenses)
       .set({
         ...dto,
-        receiptUrl, // updated with uploaded S3 URL if needed
+        receiptUrl: receiptUrl ?? expense.receiptUrl,
       })
       .where(eq(expenses.id, id))
       .returning();
@@ -505,9 +435,11 @@ export class ExpensesService {
       },
     });
 
+    // write -> invalidate
+    await this.cache.bumpCompanyVersion(updated.companyId);
+
     return updated;
   }
-
   async checkApprovalStatus(expenseId: string, user?: User) {
     // 1. Fetch expense and its workflow
     const [expense] = await this.db
@@ -589,6 +521,7 @@ export class ExpensesService {
         workflowId: approvalWorkflows.id,
         approvalStatus: expenses.status,
         employeeId: expenses.employeeId,
+        companyId: expenses.companyId,
       })
       .from(expenses)
       .leftJoin(
@@ -602,10 +535,7 @@ export class ExpensesService {
       .limit(1)
       .execute();
 
-    if (!expense) {
-      throw new NotFoundException(`Expense not found`);
-    }
-
+    if (!expense) throw new NotFoundException(`Expense not found`);
     if (
       expense.approvalStatus === 'approved' ||
       expense.approvalStatus === 'rejected'
@@ -614,7 +544,6 @@ export class ExpensesService {
         `This expense has already been ${expense.approvalStatus}.`,
       );
     }
-
     if (!expense.workflowId) {
       throw new BadRequestException(
         `Approval workflow not initialized for this expense.`,
@@ -634,9 +563,8 @@ export class ExpensesService {
       .execute();
 
     const currentStep = steps.find((s) => s.status === 'pending');
-    if (!currentStep) {
+    if (!currentStep)
       throw new BadRequestException(`No pending steps left to act on.`);
-    }
 
     const settings = await this.expenseSettingsService.getExpenseSettings(
       user.companyId,
@@ -652,14 +580,12 @@ export class ExpensesService {
       );
     }
 
-    // 👇 If rejected, mark the current step & expense as rejected
     if (action === 'rejected') {
       await this.db
         .update(approvalSteps)
         .set({ status: 'rejected' })
         .where(eq(approvalSteps.id, currentStep.id))
         .execute();
-
       await this.db.insert(expenseApprovals).values({
         expenseId,
         actorId: user.id,
@@ -668,7 +594,6 @@ export class ExpensesService {
         stepId: currentStep.id,
         createdAt: new Date(),
       });
-
       await this.db
         .update(expenses)
         .set({
@@ -685,27 +610,26 @@ export class ExpensesService {
         `Your expense request has been ${action}`,
         'expense',
       );
-
       await this.pusher.createNotification(
         user.companyId,
         `Your expense request has been ${action}`,
         'expense',
       );
 
+      // write -> invalidate
+      await this.cache.bumpCompanyVersion(expense.companyId);
+
       return `Expense rejected successfully`;
     }
 
-    // ✅ Handle fallback bulk approval
     if (isFallback) {
       const remainingSteps = steps.filter((s) => s.status === 'pending');
-
       for (const step of remainingSteps) {
         await this.db
           .update(approvalSteps)
           .set({ status: 'approved' })
           .where(eq(approvalSteps.id, step.id))
           .execute();
-
         await this.db.insert(expenseApprovals).values({
           expenseId,
           actorId: user.id,
@@ -715,13 +639,9 @@ export class ExpensesService {
           createdAt: new Date(),
         });
       }
-
       await this.db
         .update(expenses)
-        .set({
-          status: 'pending',
-          updatedAt: new Date(),
-        })
+        .set({ status: 'pending', updatedAt: new Date() })
         .where(eq(expenses.id, expenseId))
         .execute();
 
@@ -731,23 +651,23 @@ export class ExpensesService {
         `Your expense request has been ${action}`,
         'expense',
       );
-
       await this.pusher.createNotification(
         user.companyId,
         `Your expense request has been ${action}`,
         'expense',
       );
 
+      // write -> invalidate
+      await this.cache.bumpCompanyVersion(expense.companyId);
+
       return `Expense fully approved via fallback`;
     }
 
-    // ✅ Regular actor: Approve only current step
     await this.db
       .update(approvalSteps)
       .set({ status: 'approved' })
       .where(eq(approvalSteps.id, currentStep.id))
       .execute();
-
     await this.db.insert(expenseApprovals).values({
       expenseId,
       actorId: user.id,
@@ -760,61 +680,133 @@ export class ExpensesService {
     const allApproved = steps.every(
       (s) => s.id === currentStep.id || s.status === 'approved',
     );
-
     if (allApproved) {
       await this.db
         .update(expenses)
-        .set({
-          status: 'pending',
-          updatedAt: new Date(),
-        })
+        .set({ status: 'pending', updatedAt: new Date() })
         .where(eq(expenses.id, expenseId))
         .execute();
     }
 
-    // notify the user about the action taken
     await this.pusher.createEmployeeNotification(
       user.companyId,
       expense.employeeId,
       `Your expense request has been ${action}`,
       'expense',
     );
-
     await this.pusher.createNotification(
       user.companyId,
       `Your expense request has been ${action}`,
       'expense',
     );
 
+    // write -> invalidate
+    await this.cache.bumpCompanyVersion(expense.companyId);
+
     return `Expense ${action} successfully`;
   }
 
   async remove(id: string, user: User) {
-    // Ensure the expense exists (optional but recommended)
-    await this.findOne(id);
+    const exp = await this.findOne(id);
 
-    // Soft delete by setting deletedAt
     const [updated] = await this.db
       .update(expenses)
-      .set({
-        deletedAt: new Date(),
-      })
+      .set({ deletedAt: new Date() })
       .where(eq(expenses.id, id))
       .returning();
 
-    // Audit log for deletion
     await this.auditService.logAction({
       action: 'delete',
       entity: 'expense',
       entityId: updated.id,
       userId: user.id,
       details: 'Expense soft-deleted',
-      changes: {
-        deletedAt: updated.deletedAt,
-      },
+      changes: { deletedAt: updated.deletedAt },
     });
 
+    // write -> invalidate
+    await this.cache.bumpCompanyVersion(exp.companyId);
+
     return { success: true, id: updated.id };
+  }
+
+  // ---------- reads (cached) ----------
+
+  findAll(companyId: string) {
+    const latestApprovals = this.db.$with('latest_approvals').as(
+      this.db
+        .select({
+          expenseId: expenseApprovals.expenseId,
+          actorId: expenseApprovals.actorId,
+          createdAt: expenseApprovals.createdAt,
+          rowNumber:
+            sql<number>`ROW_NUMBER() OVER (PARTITION BY ${expenseApprovals.expenseId} ORDER BY ${expenseApprovals.createdAt} DESC)`.as(
+              'row_number',
+            ),
+        })
+        .from(expenseApprovals)
+        .where(eq(expenseApprovals.action, 'approved')),
+    );
+
+    // Wrap the heavy join in versioned cache
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['expenses', 'list'],
+      async () => {
+        return this.db
+          .with(latestApprovals)
+          .select({
+            id: expenses.id,
+            date: expenses.date,
+            submittedAt: expenses.submittedAt,
+            category: expenses.category,
+            purpose: expenses.purpose,
+            amount: expenses.amount,
+            status: expenses.status,
+            paymentMethod: expenses.paymentMethod,
+            receiptUrl: expenses.receiptUrl,
+            requester: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+            employeeId: expenses.employeeId,
+            approvedBy: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
+          })
+          .from(expenses)
+          .leftJoin(employees, eq(expenses.employeeId, employees.id))
+          .leftJoin(
+            latestApprovals,
+            and(
+              eq(expenses.id, latestApprovals.expenseId),
+              eq(latestApprovals.rowNumber, 1),
+            ),
+          )
+          .leftJoin(users, eq(latestApprovals.actorId, users.id))
+          .where(
+            and(eq(expenses.companyId, companyId), isNull(expenses.deletedAt)),
+          )
+          .orderBy(desc(expenses.createdAt));
+      },
+      { tags: this.tags(companyId) },
+    );
+  }
+
+  // (kept uncached unless you add companyId param)
+  async findAllByEmployeeId(employeeId: string) {
+    const expensesList = await this.db
+      .select()
+      .from(expenses)
+      .where(eq(expenses.employeeId, employeeId))
+      .orderBy(desc(expenses.createdAt));
+    return expensesList;
+  }
+
+  // (kept uncached; lacks companyId to version keys correctly)
+  async findOne(id: string) {
+    const [expense] = await this.db
+      .select()
+      .from(expenses)
+      .where(eq(expenses.id, id));
+    if (!expense)
+      throw new BadRequestException(`Expense with ID ${id} not found`);
+    return expense;
   }
 
   async generateReimbursementReport(
@@ -832,6 +824,17 @@ export class ExpensesService {
         | 'paid';
     },
   ) {
+    // normalize filters to stable cache key parts
+    const keyParts = [
+      'expenses',
+      'reports',
+      'reimbursement',
+      `from:${filters?.fromDate ?? ''}`,
+      `to:${filters?.toDate ?? ''}`,
+      `emp:${filters?.employeeId ?? ''}`,
+      `status:${filters?.status ?? 'all'}`,
+    ];
+
     const latestApprovals = this.db.$with('latest_approvals').as(
       this.db
         .select({
@@ -847,64 +850,66 @@ export class ExpensesService {
         .where(eq(expenseApprovals.action, 'approved')),
     );
 
-    let whereClause = and(
-      eq(expenses.companyId, companyId),
-      isNull(expenses.deletedAt),
+    return this.cache.getOrSetVersioned(
+      companyId,
+      keyParts,
+      async () => {
+        let whereClause = and(
+          eq(expenses.companyId, companyId),
+          isNull(expenses.deletedAt),
+        );
+
+        if (filters?.fromDate)
+          whereClause = and(
+            whereClause,
+            sql`${expenses.date} >= ${filters.fromDate}`,
+          );
+        if (filters?.toDate)
+          whereClause = and(
+            whereClause,
+            sql`${expenses.date} <= ${filters.toDate}`,
+          );
+        if (filters?.employeeId)
+          whereClause = and(
+            whereClause,
+            eq(expenses.employeeId, filters.employeeId),
+          );
+        if (filters?.status && filters.status !== 'all') {
+          whereClause = and(whereClause, eq(expenses.status, filters.status));
+        }
+
+        return this.db
+          .with(latestApprovals)
+          .select({
+            id: expenses.id,
+            date: expenses.date,
+            submittedAt: expenses.submittedAt,
+            category: expenses.category,
+            purpose: expenses.purpose,
+            amount: expenses.amount,
+            status: expenses.status,
+            paymentMethod: expenses.paymentMethod,
+            receiptUrl: expenses.receiptUrl,
+            requester: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+            employeeId: expenses.employeeId,
+            approvedBy: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
+            approvalDate: latestApprovals.createdAt,
+          })
+          .from(expenses)
+          .leftJoin(employees, eq(expenses.employeeId, employees.id))
+          .leftJoin(
+            latestApprovals,
+            and(
+              eq(expenses.id, latestApprovals.expenseId),
+              eq(latestApprovals.rowNumber, 1),
+            ),
+          )
+          .leftJoin(users, eq(latestApprovals.actorId, users.id))
+          .where(whereClause)
+          .orderBy(desc(expenses.createdAt));
+      },
+      { tags: this.tags(companyId) },
     );
-
-    if (filters?.fromDate) {
-      whereClause = and(
-        whereClause,
-        sql`${expenses.date} >= ${filters.fromDate}`,
-      );
-    }
-    if (filters?.toDate) {
-      whereClause = and(
-        whereClause,
-        sql`${expenses.date} <= ${filters.toDate}`,
-      );
-    }
-    if (filters?.employeeId) {
-      whereClause = and(
-        whereClause,
-        eq(expenses.employeeId, filters.employeeId),
-      );
-    }
-    if (filters?.status && filters.status !== 'all') {
-      whereClause = and(whereClause, eq(expenses.status, filters.status));
-    }
-
-    const report = await this.db
-      .with(latestApprovals)
-      .select({
-        id: expenses.id,
-        date: expenses.date,
-        submittedAt: expenses.submittedAt,
-        category: expenses.category,
-        purpose: expenses.purpose,
-        amount: expenses.amount,
-        status: expenses.status,
-        paymentMethod: expenses.paymentMethod,
-        receiptUrl: expenses.receiptUrl,
-        requester: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
-        employeeId: expenses.employeeId,
-        approvedBy: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
-        approvalDate: latestApprovals.createdAt,
-      })
-      .from(expenses)
-      .leftJoin(employees, eq(expenses.employeeId, employees.id))
-      .leftJoin(
-        latestApprovals,
-        and(
-          eq(expenses.id, latestApprovals.expenseId),
-          eq(latestApprovals.rowNumber, 1),
-        ),
-      )
-      .leftJoin(users, eq(latestApprovals.actorId, users.id))
-      .where(whereClause)
-      .orderBy(desc(expenses.createdAt));
-
-    return report;
   }
 
   async generateReimbursementReportToS3(
@@ -923,10 +928,8 @@ export class ExpensesService {
         | 'all';
     },
   ) {
-    // 1. Fetch reimbursement report using existing service
     const allData = await this.generateReimbursementReport(companyId, filters);
 
-    // 2. Prepare rows for export
     const rows = allData.map((r) => ({
       ExpenseID: r.id,
       Date: r.date,
@@ -941,7 +944,6 @@ export class ExpensesService {
       ApprovalDate: r.approvalDate,
     }));
 
-    // 3. Define export columns
     const columns = [
       { field: 'Date', title: 'Date' },
       { field: 'Requester', title: 'Requester' },
@@ -955,10 +957,10 @@ export class ExpensesService {
       { field: 'ApprovalDate', title: 'Approval Date' },
     ];
 
-    // 4. File name convention (include current date)
-    const filename = `reimbursement_report_${companyId}_${new Date().toISOString().split('T')[0]}`;
+    const filename = `reimbursement_report_${companyId}_${
+      new Date().toISOString().split('T')[0]
+    }`;
 
-    // 5. Export and upload to S3
     if (format === 'excel') {
       return this.exportAndUploadExcel(
         rows,
@@ -967,7 +969,7 @@ export class ExpensesService {
         companyId,
         'reimbursement',
       );
-    } else if (format === 'csv') {
+    } else {
       return this.exportAndUpload(
         rows,
         columns,

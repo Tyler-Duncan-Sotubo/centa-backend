@@ -3,15 +3,10 @@ import { UpdateGoalDto } from './dto/update-goal.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { User } from 'src/common/types/user.type';
 import { AuditService } from 'src/modules/audit/audit.service';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class GoalsService {
     private readonly db;
     private readonly auditService;
-    private readonly cache;
-    constructor(db: db, auditService: AuditService, cache: CacheService);
-    private ttlListSeconds;
-    private ttlItemSeconds;
-    private tags;
+    constructor(db: db, auditService: AuditService);
     create(dto: CreateGoalDto, user: User): Promise<any>;
     findAll(companyId: string, status?: string): Promise<({
         progress: number;

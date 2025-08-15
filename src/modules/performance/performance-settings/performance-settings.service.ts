@@ -9,8 +9,6 @@ export class PerformanceSettingsService {
     private readonly cache: CacheService,
   ) {}
 
-  private ttlSeconds = 60 * 60; // tune as needed
-
   private tags(companyId: string) {
     return [
       `company:${companyId}:settings`,
@@ -40,7 +38,7 @@ export class PerformanceSettingsService {
         }
         return performanceSettings;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -136,7 +134,7 @@ export class PerformanceSettingsService {
             Number(rows['performance.auto_finalize_deadline_days']) || 5,
         };
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 

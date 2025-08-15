@@ -39,7 +39,7 @@ export declare class CertificationsController extends BaseController {
         expiryDate: string | null;
         documentUrl: string | null;
         createdAt: Date;
-    } | undefined>;
+    }>;
     remove(id: string): Promise<{
         deleted: boolean;
         id: string;

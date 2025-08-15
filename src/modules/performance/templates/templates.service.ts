@@ -21,8 +21,6 @@ import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class PerformanceTemplatesService {
-  private readonly ttlSeconds = 60 * 5; // 5 minutes
-
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
@@ -126,7 +124,7 @@ export class PerformanceTemplatesService {
           .where(eq(performanceReviewTemplates.companyId, companyId))
           .orderBy(asc(performanceReviewTemplates.name))
           .execute(),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -181,7 +179,7 @@ export class PerformanceTemplatesService {
 
         return { template, questions };
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
 
     if (!data) throw new NotFoundException('Template not found');

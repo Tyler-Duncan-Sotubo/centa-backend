@@ -16,8 +16,6 @@ import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class CycleService {
-  private readonly ttlSeconds = 10 * 60; // 10 minutes
-
   constructor(
     private readonly auditService: AuditService,
     @Inject(DRIZZLE) private readonly db: db,
@@ -108,7 +106,7 @@ export class CycleService {
           .where(eq(performanceCycles.companyId, companyId))
           .orderBy(desc(performanceCycles.startDate))
           .execute(),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -135,7 +133,7 @@ export class CycleService {
           .execute();
         return rows[0] ?? null;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -178,7 +176,7 @@ export class CycleService {
         }
         return cycle;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -197,7 +195,7 @@ export class CycleService {
 
         return lastCycle ?? null;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 

@@ -12,26 +12,62 @@ const config_1 = require("@nestjs/config");
 const pg_1 = require("pg");
 const node_postgres_1 = require("drizzle-orm/node-postgres");
 const schema = require("./schema");
-exports.DRIZZLE = Symbol('drizzle-connection');
+exports.DRIZZLE = Symbol('DRIZZLE');
 let DrizzleModule = class DrizzleModule {
 };
 exports.DrizzleModule = DrizzleModule;
 exports.DrizzleModule = DrizzleModule = __decorate([
+    (0, common_1.Global)(),
     (0, common_1.Module)({
-        imports: [],
-        controllers: [],
+        imports: [config_1.ConfigModule],
         providers: [
             {
-                provide: exports.DRIZZLE,
+                provide: 'PG_POOL',
                 inject: [config_1.ConfigService],
-                useFactory: async (configService) => {
-                    const databaseURL = configService.get('DATABASE_URL');
-                    const pool = new pg_1.Pool({
-                        connectionString: databaseURL,
-                        ssl: true,
-                    });
-                    return (0, node_postgres_1.drizzle)(pool, { schema });
+                useFactory: (config) => {
+                    const databaseURL = config.get('DATABASE_URL');
+                    if (!databaseURL)
+                        throw new Error('DATABASE_URL is not set');
+                    const g = globalThis;
+                    if (!g.__PG_POOL__) {
+                        g.__PG_POOL__ = new pg_1.Pool({
+                            connectionString: databaseURL,
+                            ssl: process.env.NODE_ENV === 'production'
+                                ?
+                                    { rejectUnauthorized: false }
+                                : false,
+                            max: Number(process.env.PG_POOL_MAX || 10),
+                            idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30_000),
+                            connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 5_000),
+                            statement_timeout: Number(process.env.PG_STMT_TIMEOUT_MS || 30_000),
+                            application_name: process.env.PG_APP_NAME || 'nest-drizzle',
+                            keepAlive: true,
+                            maxUses: Number(process.env.PG_MAX_USES || 7_500),
+                        });
+                        g.__PG_POOL__.on('connect', () => console.log('[PG] new connection established'));
+                    }
+                    return g.__PG_POOL__;
                 },
+            },
+            {
+                provide: exports.DRIZZLE,
+                inject: ['PG_POOL'],
+                useFactory: (pool) => {
+                    const db = (0, node_postgres_1.drizzle)(pool, { schema });
+                    return db;
+                },
+            },
+            {
+                provide: 'DB_SHUTDOWN_HOOK',
+                inject: ['PG_POOL'],
+                useFactory: (pool) => ({
+                    async onApplicationShutdown() {
+                        if (process.env.NODE_ENV === 'production') {
+                            await pool.end();
+                            console.log('[PG] pool closed');
+                        }
+                    },
+                }),
             },
         ],
         exports: [exports.DRIZZLE],

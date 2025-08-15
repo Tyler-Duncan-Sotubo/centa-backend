@@ -21,43 +21,163 @@ export class PayGroupsService {
     private readonly companySettings: CompanySettingsService,
   ) {}
 
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  private async getCompanyIdByEmployeeId(employeeId: string): Promise<string> {
+    const [row] = await this.db
+      .select({ companyId: employees.companyId })
+      .from(employees)
+      .where(eq(employees.id, employeeId))
+      .limit(1)
+      .execute();
+
+    if (!row?.companyId) {
+      throw new BadRequestException('Employee not found');
+    }
+    return row.companyId;
+  }
+
+  private async getCompanyIdByGroupId(groupId: string): Promise<string> {
+    const [row] = await this.db
+      .select({ companyId: payGroups.companyId })
+      .from(payGroups)
+      .where(eq(payGroups.id, groupId))
+      .limit(1)
+      .execute();
+
+    if (!row?.companyId) {
+      throw new BadRequestException('Pay group not found');
+    }
+    return row.companyId;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Reads (versioned cache)
+  // ---------------------------------------------------------------------------
+
   async findOneEmployee(employeeId: string) {
-    const cacheKey = `employee_${employeeId}`;
+    const companyId = await this.getCompanyIdByEmployeeId(employeeId);
 
-    return this.cacheService.getOrSetCache(cacheKey, async () => {
-      const [employee] = await this.db
-        .select({ id: employees.id })
-        .from(employees)
-        .where(eq(employees.id, employeeId))
-        .execute();
+    return this.cacheService.getOrSetVersioned(
+      companyId,
+      ['employee', 'byId', employeeId],
+      async () => {
+        const [employee] = await this.db
+          .select({ id: employees.id })
+          .from(employees)
+          .where(eq(employees.id, employeeId))
+          .execute();
 
-      if (!employee) {
-        throw new BadRequestException('Employee not found');
-      }
-
-      return employee;
-    });
+        if (!employee) {
+          throw new BadRequestException('Employee not found');
+        }
+        return employee;
+      },
+      {
+        tags: [
+          'employees',
+          `company:${companyId}:employees`,
+          `employee:${employeeId}`,
+        ],
+      },
+    );
   }
 
   async findAll(companyId: string) {
-    return this.db
-      .select({
-        id: payGroups.id,
-        name: payGroups.name,
-        pay_schedule_id: payGroups.payScheduleId,
-        apply_nhf: payGroups.applyNhf,
-        apply_pension: payGroups.applyPension,
-        apply_paye: payGroups.applyPaye,
-        payFrequency: paySchedules.payFrequency,
-        createdAt: payGroups.createdAt,
-      })
-      .from(payGroups)
-      .innerJoin(paySchedules, eq(payGroups.payScheduleId, paySchedules.id))
-      .where(
-        and(eq(payGroups.companyId, companyId), eq(payGroups.isDeleted, false)),
-      )
-      .execute();
+    return this.cacheService.getOrSetVersioned(
+      companyId,
+      ['payGroups', 'list'],
+      async () => {
+        return this.db
+          .select({
+            id: payGroups.id,
+            name: payGroups.name,
+            pay_schedule_id: payGroups.payScheduleId,
+            apply_nhf: payGroups.applyNhf,
+            apply_pension: payGroups.applyPension,
+            apply_paye: payGroups.applyPaye,
+            payFrequency: paySchedules.payFrequency,
+            createdAt: payGroups.createdAt,
+          })
+          .from(payGroups)
+          .innerJoin(paySchedules, eq(payGroups.payScheduleId, paySchedules.id))
+          .where(
+            and(
+              eq(payGroups.companyId, companyId),
+              eq(payGroups.isDeleted, false),
+            ),
+          )
+          .execute();
+      },
+      { tags: ['payGroups', `company:${companyId}:payGroups`] },
+    );
   }
+
+  async findOne(groupId: string) {
+    const companyId = await this.getCompanyIdByGroupId(groupId);
+
+    return this.cacheService.getOrSetVersioned(
+      companyId,
+      ['payGroups', 'byId', groupId],
+      async () => {
+        const [group] = await this.db
+          .select()
+          .from(payGroups)
+          .where(eq(payGroups.id, groupId))
+          .execute();
+
+        if (!group) {
+          throw new BadRequestException('Pay group not found');
+        }
+        return group;
+      },
+      {
+        tags: [
+          'payGroups',
+          `company:${companyId}:payGroups`,
+          `payGroup:${groupId}`,
+        ],
+      },
+    );
+  }
+
+  async findEmployeesInGroup(groupId: string) {
+    const companyId = await this.getCompanyIdByGroupId(groupId);
+
+    return this.cacheService.getOrSetVersioned(
+      companyId,
+      ['payGroups', 'members', groupId],
+      async () => {
+        const employeesList = await this.db
+          .select({
+            id: employees.id,
+            first_name: employees.firstName,
+            last_name: employees.lastName,
+          })
+          .from(employees)
+          .where(eq(employees.payGroupId, groupId))
+          .execute();
+
+        if (!employeesList.length) {
+          throw new BadRequestException('No employees found in this group');
+        }
+        return employeesList;
+      },
+      {
+        tags: [
+          'payGroups',
+          `company:${companyId}:payGroups`,
+          `payGroup:${groupId}:members`,
+        ],
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Writes (bump version + invalidate tags)
+  // ---------------------------------------------------------------------------
 
   async create(user: User, dto: CreatePayGroupDto, ip: string) {
     // Check if pay schedule exists
@@ -115,21 +235,16 @@ export class PayGroupsService {
       true,
     );
 
+    // Invalidate cached views for this company
+    await this.cacheService.bumpCompanyVersion(user.companyId);
+    await this.cacheService.invalidateTags([
+      'payGroups',
+      `company:${user.companyId}:payGroups`,
+      `payGroup:${newGroup.id}`,
+      `payGroup:${newGroup.id}:members`,
+    ]);
+
     return newGroup;
-  }
-
-  async findOne(groupId: string) {
-    const [group] = await this.db
-      .select()
-      .from(payGroups)
-      .where(eq(payGroups.id, groupId))
-      .execute();
-
-    if (!group) {
-      throw new BadRequestException('Pay group not found');
-    }
-
-    return group;
   }
 
   async update(
@@ -138,7 +253,7 @@ export class PayGroupsService {
     user: User,
     ip: string,
   ) {
-    await this.findOne(groupId); // Validate existence
+    await this.findOne(groupId); // Validate existence (cached)
 
     await this.db
       .update(payGroups)
@@ -161,11 +276,20 @@ export class PayGroupsService {
       },
     });
 
+    // Invalidate caches
+    await this.cacheService.bumpCompanyVersion(user.companyId);
+    await this.cacheService.invalidateTags([
+      'payGroups',
+      `company:${user.companyId}:payGroups`,
+      `payGroup:${groupId}`,
+      `payGroup:${groupId}:members`,
+    ]);
+
     return { message: 'Pay group updated successfully' };
   }
 
   async remove(groupId: string, user: any, ip: string) {
-    console.log('Removing pay group with ID:', groupId);
+    // ensure no employees assigned
     const employeesInGroup = await this.db
       .select({ id: employees.id })
       .from(employees)
@@ -199,25 +323,16 @@ export class PayGroupsService {
       },
     });
 
+    // Invalidate caches
+    await this.cacheService.bumpCompanyVersion(user.companyId);
+    await this.cacheService.invalidateTags([
+      'payGroups',
+      `company:${user.companyId}:payGroups`,
+      `payGroup:${groupId}`,
+      `payGroup:${groupId}:members`,
+    ]);
+
     return { message: 'Pay group deleted successfully' };
-  }
-
-  async findEmployeesInGroup(groupId: string) {
-    const employeesList = await this.db
-      .select({
-        id: employees.id,
-        first_name: employees.firstName,
-        last_name: employees.lastName,
-      })
-      .from(employees)
-      .where(eq(employees.payGroupId, groupId))
-      .execute();
-
-    if (!employeesList.length) {
-      throw new BadRequestException('No employees found in this group');
-    }
-
-    return employeesList;
   }
 
   async addEmployeesToGroup(
@@ -259,6 +374,15 @@ export class PayGroupsService {
       },
     });
 
+    // Invalidate caches (company + group members)
+    await this.cacheService.bumpCompanyVersion(user.companyId);
+    await this.cacheService.invalidateTags([
+      'payGroups',
+      `company:${user.companyId}:payGroups`,
+      `payGroup:${groupId}`,
+      `payGroup:${groupId}:members`,
+    ]);
+
     return {
       message: `${idsArray.length} employees added to group ${groupId}`,
     };
@@ -270,6 +394,21 @@ export class PayGroupsService {
     ip: string,
   ) {
     const idsArray = Array.isArray(employeeIds) ? employeeIds : [employeeIds];
+
+    // Find the distinct groupIds these employees currently belong to (for targeted invalidation)
+    const currentGroups = await this.db
+      .select({ groupId: employees.payGroupId })
+      .from(employees)
+      .where(inArray(employees.id, idsArray))
+      .execute();
+
+    const distinctGroupIds = Array.from(
+      new Set(
+        currentGroups
+          .map((g) => g.groupId)
+          .filter((g): g is string => Boolean(g)),
+      ),
+    );
 
     const [deleted] = await this.db
       .update(employees)
@@ -291,6 +430,15 @@ export class PayGroupsService {
         employeeIds: idsArray,
       },
     });
+
+    // Invalidate caches (company + each affected group's member list)
+    await this.cacheService.bumpCompanyVersion(user.companyId);
+    await this.cacheService.invalidateTags([
+      'payGroups',
+      `company:${user.companyId}:payGroups`,
+      ...distinctGroupIds.map((g) => `payGroup:${g}:members`),
+      ...distinctGroupIds.map((g) => `payGroup:${g}`),
+    ]);
 
     return {
       message: `${idsArray.length} employees removed from group successfully`,

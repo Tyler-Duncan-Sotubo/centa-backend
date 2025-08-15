@@ -8,7 +8,6 @@ export declare class RoleCompetencyExpectationService {
     private readonly db;
     private readonly auditService;
     private readonly cache;
-    private readonly ttlSeconds;
     constructor(db: db, auditService: AuditService, cache: CacheService);
     private ns;
     private tags;

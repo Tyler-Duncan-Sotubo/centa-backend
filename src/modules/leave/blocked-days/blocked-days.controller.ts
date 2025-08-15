@@ -43,8 +43,8 @@ export class BlockedDaysController extends BaseController {
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['leave.blocked_days.read'])
-  findOne(@Param('id') id: string) {
-    return this.blockedDaysService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.blockedDaysService.findOne(id, user.companyId);
   }
 
   @Patch(':id')
@@ -61,7 +61,7 @@ export class BlockedDaysController extends BaseController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['leave.blocked_days.manage'])
-  remove(@Param('id') id: string) {
-    return this.blockedDaysService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.blockedDaysService.remove(id, user);
   }
 }

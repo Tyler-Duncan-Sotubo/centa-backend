@@ -22,8 +22,6 @@ import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class AppraisalsService {
-  private readonly ttlSeconds = 10 * 60; // 10 min
-
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
@@ -35,10 +33,7 @@ export class AppraisalsService {
     return [`company:${companyId}:appraisals`];
   }
   private async invalidate(companyId: string) {
-    // Single, cheap knob that invalidates every versioned cache for this company
     await this.cache.bumpCompanyVersion(companyId);
-    // (Optional) if your CacheService supports tag sets:
-    // await this.cache.invalidateTags(this.tags(companyId));
   }
 
   async create(
@@ -123,201 +118,184 @@ export class AppraisalsService {
 
   async findAll(companyId: string, cycleId: string) {
     const cacheKey = ['appraisals', 'list', cycleId];
-    return this.cache.getOrSetVersioned(
-      companyId,
-      cacheKey,
-      async () => {
-        const emp = alias(employees, 'emp') as unknown as typeof employees;
-        const mgr = alias(employees, 'mgr') as unknown as typeof employees;
+    return this.cache.getOrSetVersioned(companyId, cacheKey, async () => {
+      const emp = alias(employees, 'emp') as unknown as typeof employees;
+      const mgr = alias(employees, 'mgr') as unknown as typeof employees;
 
-        return this.db
-          .select({
-            id: appraisals.id,
-            employeeName: sql<string>`CONCAT(${emp.firstName}, ' ', ${emp.lastName})`,
-            managerName: sql<string>`CONCAT(${mgr.firstName}, ' ', ${mgr.lastName})`,
-            submittedByEmployee: appraisals.submittedByEmployee,
-            submittedByManager: appraisals.submittedByManager,
-            finalized: appraisals.finalized,
-            finalScore: appraisals.finalScore,
-            departmentName: departments.name,
-            jobRoleName: jobRoles.title,
-          })
-          .from(appraisals)
-          .leftJoin(emp, eq(appraisals.employeeId, emp.id))
-          .leftJoin(mgr, eq(appraisals.managerId, mgr.id))
-          .leftJoin(departments, eq(emp.departmentId, departments.id))
-          .leftJoin(jobRoles, eq(emp.jobRoleId, jobRoles.id))
-          .where(
-            and(
-              eq(appraisals.companyId, companyId),
-              eq(appraisals.cycleId, cycleId),
-            ),
-          )
-          .orderBy(desc(appraisals.createdAt));
-      },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
-    );
+      return this.db
+        .select({
+          id: appraisals.id,
+          employeeName: sql<string>`CONCAT(${emp.firstName}, ' ', ${emp.lastName})`,
+          managerName: sql<string>`CONCAT(${mgr.firstName}, ' ', ${mgr.lastName})`,
+          submittedByEmployee: appraisals.submittedByEmployee,
+          submittedByManager: appraisals.submittedByManager,
+          finalized: appraisals.finalized,
+          finalScore: appraisals.finalScore,
+          departmentName: departments.name,
+          jobRoleName: jobRoles.title,
+        })
+        .from(appraisals)
+        .leftJoin(emp, eq(appraisals.employeeId, emp.id))
+        .leftJoin(mgr, eq(appraisals.managerId, mgr.id))
+        .leftJoin(departments, eq(emp.departmentId, departments.id))
+        .leftJoin(jobRoles, eq(emp.jobRoleId, jobRoles.id))
+        .where(
+          and(
+            eq(appraisals.companyId, companyId),
+            eq(appraisals.cycleId, cycleId),
+          ),
+        )
+        .orderBy(desc(appraisals.createdAt));
+    });
   }
 
   async findDashboardForEmployee(companyId: string, employeeId: string) {
     const cacheKey = ['appraisals', 'dashboard', employeeId];
-    return this.cache.getOrSetVersioned(
-      companyId,
-      cacheKey,
-      async () => {
-        // Active cycle
-        const [activeCycle] = await this.db
-          .select({
-            id: performanceAppraisalCycles.id,
-            name: performanceAppraisalCycles.name,
-            startDate: performanceAppraisalCycles.startDate,
-            endDate: performanceAppraisalCycles.endDate,
-            status: performanceAppraisalCycles.status,
-          })
-          .from(performanceAppraisalCycles)
-          .where(
-            and(
-              eq(performanceAppraisalCycles.companyId, companyId),
-              eq(performanceAppraisalCycles.status, 'active'),
-            ),
-          )
-          .limit(1);
+    return this.cache.getOrSetVersioned(companyId, cacheKey, async () => {
+      // Active cycle
+      const [activeCycle] = await this.db
+        .select({
+          id: performanceAppraisalCycles.id,
+          name: performanceAppraisalCycles.name,
+          startDate: performanceAppraisalCycles.startDate,
+          endDate: performanceAppraisalCycles.endDate,
+          status: performanceAppraisalCycles.status,
+        })
+        .from(performanceAppraisalCycles)
+        .where(
+          and(
+            eq(performanceAppraisalCycles.companyId, companyId),
+            eq(performanceAppraisalCycles.status, 'active'),
+          ),
+        )
+        .limit(1);
 
-        const emp = alias(employees, 'emp') as unknown as typeof employees;
-        const mgr = alias(employees, 'mgr') as unknown as typeof employees;
+      const emp = alias(employees, 'emp') as unknown as typeof employees;
+      const mgr = alias(employees, 'mgr') as unknown as typeof employees;
 
-        const rows = await this.db
+      const rows = await this.db
+        .select({
+          id: appraisals.id,
+          cycleId: appraisals.cycleId,
+          cycleName: performanceAppraisalCycles.name,
+          createdAt: appraisals.createdAt,
+          submittedByEmployee: appraisals.submittedByEmployee,
+          submittedByManager: appraisals.submittedByManager,
+          finalized: appraisals.finalized,
+          finalScore: appraisals.finalScore,
+          employeeName: sql<string>`concat(${emp.firstName}, ' ', ${emp.lastName})`,
+          managerName: sql<string>`concat(${mgr.firstName}, ' ', ${mgr.lastName})`,
+          departmentName: departments.name,
+          jobRoleName: jobRoles.title,
+        })
+        .from(appraisals)
+        .leftJoin(
+          performanceAppraisalCycles,
+          eq(performanceAppraisalCycles.id, appraisals.cycleId),
+        )
+        .leftJoin(emp, eq(emp.id, appraisals.employeeId))
+        .leftJoin(mgr, eq(mgr.id, appraisals.managerId))
+        .leftJoin(departments, eq(departments.id, emp.departmentId))
+        .leftJoin(jobRoles, eq(jobRoles.id, emp.jobRoleId))
+        .where(
+          and(
+            eq(appraisals.companyId, companyId),
+            eq(appraisals.employeeId, employeeId),
+          ),
+        )
+        .orderBy(desc(appraisals.createdAt));
+
+      let currentCycleAppraisal: {
+        id: string;
+        submittedByEmployee: boolean | null;
+        submittedByManager: boolean | null;
+        finalized: boolean | null;
+        finalScore: number | null;
+      } | null = null;
+
+      if (activeCycle) {
+        const [curr] = await this.db
           .select({
             id: appraisals.id,
-            cycleId: appraisals.cycleId,
-            cycleName: performanceAppraisalCycles.name,
-            createdAt: appraisals.createdAt,
             submittedByEmployee: appraisals.submittedByEmployee,
             submittedByManager: appraisals.submittedByManager,
             finalized: appraisals.finalized,
             finalScore: appraisals.finalScore,
-            employeeName: sql<string>`concat(${emp.firstName}, ' ', ${emp.lastName})`,
-            managerName: sql<string>`concat(${mgr.firstName}, ' ', ${mgr.lastName})`,
-            departmentName: departments.name,
-            jobRoleName: jobRoles.title,
           })
           .from(appraisals)
-          .leftJoin(
-            performanceAppraisalCycles,
-            eq(performanceAppraisalCycles.id, appraisals.cycleId),
-          )
-          .leftJoin(emp, eq(emp.id, appraisals.employeeId))
-          .leftJoin(mgr, eq(mgr.id, appraisals.managerId))
-          .leftJoin(departments, eq(departments.id, emp.departmentId))
-          .leftJoin(jobRoles, eq(jobRoles.id, emp.jobRoleId))
           .where(
             and(
               eq(appraisals.companyId, companyId),
               eq(appraisals.employeeId, employeeId),
+              eq(appraisals.cycleId, activeCycle.id),
             ),
           )
-          .orderBy(desc(appraisals.createdAt));
+          .limit(1);
+        currentCycleAppraisal = curr ?? null;
+      }
 
-        let currentCycleAppraisal: {
-          id: string;
-          submittedByEmployee: boolean | null;
-          submittedByManager: boolean | null;
-          finalized: boolean | null;
-          finalScore: number | null;
-        } | null = null;
-
-        if (activeCycle) {
-          const [curr] = await this.db
-            .select({
-              id: appraisals.id,
-              submittedByEmployee: appraisals.submittedByEmployee,
-              submittedByManager: appraisals.submittedByManager,
-              finalized: appraisals.finalized,
-              finalScore: appraisals.finalScore,
-            })
-            .from(appraisals)
-            .where(
-              and(
-                eq(appraisals.companyId, companyId),
-                eq(appraisals.employeeId, employeeId),
-                eq(appraisals.cycleId, activeCycle.id),
-              ),
-            )
-            .limit(1);
-          currentCycleAppraisal = curr ?? null;
-        }
-
-        return {
-          currentCycle: activeCycle
-            ? {
-                id: activeCycle.id,
-                name: activeCycle.name,
-                startDate: activeCycle.startDate,
-                endDate: activeCycle.endDate,
-                status: activeCycle.status,
-              }
-            : null,
-          currentCycleAppraisal,
-          history: rows.map((r) => ({
-            id: r.id,
-            cycleId: r.cycleId,
-            cycleName: r.cycleName ?? null,
-            createdAt: r.createdAt,
-            submittedByEmployee: r.submittedByEmployee,
-            submittedByManager: r.submittedByManager,
-            finalized: r.finalized,
-            finalScore: r.finalScore,
-            employeeName: r.employeeName,
-            managerName: r.managerName ?? null,
-            departmentName: r.departmentName ?? null,
-            jobRoleName: r.jobRoleName ?? null,
-          })),
-        };
-      },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
-    );
+      return {
+        currentCycle: activeCycle
+          ? {
+              id: activeCycle.id,
+              name: activeCycle.name,
+              startDate: activeCycle.startDate,
+              endDate: activeCycle.endDate,
+              status: activeCycle.status,
+            }
+          : null,
+        currentCycleAppraisal,
+        history: rows.map((r) => ({
+          id: r.id,
+          cycleId: r.cycleId,
+          cycleName: r.cycleName ?? null,
+          createdAt: r.createdAt,
+          submittedByEmployee: r.submittedByEmployee,
+          submittedByManager: r.submittedByManager,
+          finalized: r.finalized,
+          finalScore: r.finalScore,
+          employeeName: r.employeeName,
+          managerName: r.managerName ?? null,
+          departmentName: r.departmentName ?? null,
+          jobRoleName: r.jobRoleName ?? null,
+        })),
+      };
+    });
   }
 
   async findOne(id: string, companyId: string) {
     const cacheKey = ['appraisals', 'one', id];
-    return this.cache.getOrSetVersioned(
-      companyId,
-      cacheKey,
-      async () => {
-        const emp = alias(employees, 'emp') as unknown as typeof employees;
-        const mgr = alias(employees, 'mgr') as unknown as typeof employees;
-        const [record] = await this.db
-          .select({
-            id: appraisals.id,
-            cycleId: appraisals.cycleId,
-            employeeName: sql<string>`CONCAT(${emp.firstName}, ' ', ${emp.lastName})`,
-            managerName: sql<string>`CONCAT(${mgr.firstName}, ' ', ${mgr.lastName})`,
-            submittedByEmployee: appraisals.submittedByEmployee,
-            submittedByManager: appraisals.submittedByManager,
-            finalized: appraisals.finalized,
-            recommendation: appraisals.promotionRecommendation,
-            finalNote: appraisals.finalNote,
-            finalScore: appraisals.finalScore,
-            departmentName: departments.name,
-            jobRoleName: jobRoles.title,
-          })
-          .from(appraisals)
-          .leftJoin(emp, eq(appraisals.employeeId, emp.id))
-          .leftJoin(mgr, eq(appraisals.managerId, mgr.id))
-          .leftJoin(departments, eq(emp.departmentId, departments.id))
-          .leftJoin(jobRoles, eq(emp.jobRoleId, jobRoles.id))
-          .where(
-            and(eq(appraisals.companyId, companyId), eq(appraisals.id, id)),
-          )
-          .orderBy(desc(appraisals.createdAt));
+    return this.cache.getOrSetVersioned(companyId, cacheKey, async () => {
+      const emp = alias(employees, 'emp') as unknown as typeof employees;
+      const mgr = alias(employees, 'mgr') as unknown as typeof employees;
+      const [record] = await this.db
+        .select({
+          id: appraisals.id,
+          cycleId: appraisals.cycleId,
+          employeeName: sql<string>`CONCAT(${emp.firstName}, ' ', ${emp.lastName})`,
+          managerName: sql<string>`CONCAT(${mgr.firstName}, ' ', ${mgr.lastName})`,
+          submittedByEmployee: appraisals.submittedByEmployee,
+          submittedByManager: appraisals.submittedByManager,
+          finalized: appraisals.finalized,
+          recommendation: appraisals.promotionRecommendation,
+          finalNote: appraisals.finalNote,
+          finalScore: appraisals.finalScore,
+          departmentName: departments.name,
+          jobRoleName: jobRoles.title,
+        })
+        .from(appraisals)
+        .leftJoin(emp, eq(appraisals.employeeId, emp.id))
+        .leftJoin(mgr, eq(appraisals.managerId, mgr.id))
+        .leftJoin(departments, eq(emp.departmentId, departments.id))
+        .leftJoin(jobRoles, eq(emp.jobRoleId, jobRoles.id))
+        .where(and(eq(appraisals.companyId, companyId), eq(appraisals.id, id)))
+        .orderBy(desc(appraisals.createdAt));
 
-        if (!record) {
-          throw new NotFoundException(`Appraisal with ID ${id} not found`);
-        }
-        return record;
-      },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
-    );
+      if (!record) {
+        throw new NotFoundException(`Appraisal with ID ${id} not found`);
+      }
+      return record;
+    });
   }
 
   async updateManager(appraisalId: string, newManagerId: string, user: User) {

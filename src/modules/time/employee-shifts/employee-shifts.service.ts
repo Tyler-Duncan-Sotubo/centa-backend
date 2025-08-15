@@ -43,7 +43,6 @@ export class EmployeeShiftsService {
     private readonly cache: CacheService,
   ) {}
 
-  private ttlSeconds = 60 * 10; // 10 minutes
   private tags(companyId: string) {
     return [
       `company:${companyId}:attendance`,
@@ -412,7 +411,6 @@ export class EmployeeShiftsService {
             ),
           )
           .execute(),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 
@@ -488,7 +486,6 @@ export class EmployeeShiftsService {
           },
         };
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 
@@ -512,7 +509,6 @@ export class EmployeeShiftsService {
         }
         return rec;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 
@@ -530,7 +526,6 @@ export class EmployeeShiftsService {
             ),
           )
           .execute(),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 
@@ -576,7 +571,6 @@ export class EmployeeShiftsService {
 
         return shiftRec || null;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 
@@ -594,7 +588,6 @@ export class EmployeeShiftsService {
             ),
           )
           .execute(),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 
@@ -695,7 +688,6 @@ export class EmployeeShiftsService {
 
         return camelCasedGroupedEvents;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 }

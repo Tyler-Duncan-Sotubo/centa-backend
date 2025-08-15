@@ -18,32 +18,45 @@ const drizzle_module_1 = require("../../../drizzle/drizzle.module");
 const drizzle_orm_1 = require("drizzle-orm");
 const audit_service_1 = require("../../audit/audit.service");
 const schema_1 = require("../schema");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let ScorecardTemplateService = class ScorecardTemplateService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
+    }
+    tags(scope) {
+        return [
+            `company:${scope}:scorecards`,
+            `company:${scope}:scorecards:templates`,
+        ];
     }
     async getAllTemplates(companyId) {
-        const templates = await this.db
-            .select({
-            id: schema_1.scorecard_templates.id,
-            name: schema_1.scorecard_templates.name,
-            description: schema_1.scorecard_templates.description,
-            isSystem: schema_1.scorecard_templates.isSystem,
-            createdAt: schema_1.scorecard_templates.createdAt,
-            criteria: (0, drizzle_orm_1.sql) `json_agg(json_build_object(
-          'id', ${schema_1.scorecard_criteria.id},
-          'name', ${schema_1.scorecard_criteria.label},
-          'maxScore', ${schema_1.scorecard_criteria.maxScore},
-          'description', ${schema_1.scorecard_criteria.description}
-        ))`.as('criteria'),
-        })
-            .from(schema_1.scorecard_templates)
-            .leftJoin(schema_1.scorecard_criteria, (0, drizzle_orm_1.eq)(schema_1.scorecard_templates.id, schema_1.scorecard_criteria.templateId))
-            .where((0, drizzle_orm_1.or)((0, drizzle_orm_1.isNull)(schema_1.scorecard_templates.companyId), (0, drizzle_orm_1.eq)(schema_1.scorecard_templates.companyId, companyId)))
-            .groupBy(schema_1.scorecard_templates.id)
-            .orderBy(schema_1.scorecard_templates.createdAt);
-        return templates;
+        return this.cache.getOrSetVersioned(companyId, ['scorecards', 'templates', 'all'], async () => {
+            const templates = await this.db
+                .select({
+                id: schema_1.scorecard_templates.id,
+                name: schema_1.scorecard_templates.name,
+                description: schema_1.scorecard_templates.description,
+                isSystem: schema_1.scorecard_templates.isSystem,
+                createdAt: schema_1.scorecard_templates.createdAt,
+                criteria: (0, drizzle_orm_1.sql) `json_agg(json_build_object(
+              'id', ${schema_1.scorecard_criteria.id},
+              'name', ${schema_1.scorecard_criteria.label},
+              'maxScore', ${schema_1.scorecard_criteria.maxScore},
+              'description', ${schema_1.scorecard_criteria.description}
+            ))`.as('criteria'),
+            })
+                .from(schema_1.scorecard_templates)
+                .leftJoin(schema_1.scorecard_criteria, (0, drizzle_orm_1.eq)(schema_1.scorecard_templates.id, schema_1.scorecard_criteria.templateId))
+                .where((0, drizzle_orm_1.or)((0, drizzle_orm_1.isNull)(schema_1.scorecard_templates.companyId), (0, drizzle_orm_1.eq)(schema_1.scorecard_templates.companyId, companyId)))
+                .groupBy(schema_1.scorecard_templates.id)
+                .orderBy((0, drizzle_orm_1.asc)(schema_1.scorecard_templates.createdAt))
+                .execute();
+            return templates;
+        }, {
+            tags: [...this.tags(companyId), ...this.tags('global')],
+        });
     }
     async create(user, dto) {
         const { companyId, id } = user;
@@ -81,6 +94,7 @@ let ScorecardTemplateService = class ScorecardTemplateService {
                 })),
             },
         });
+        await this.cache.bumpCompanyVersion(companyId);
         return template;
     }
     async cloneTemplate(templateId, user) {
@@ -88,7 +102,8 @@ let ScorecardTemplateService = class ScorecardTemplateService {
         const [template] = await this.db
             .select()
             .from(schema_1.scorecard_templates)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.scorecard_templates.id, templateId), (0, drizzle_orm_1.isNull)(schema_1.scorecard_templates.companyId)));
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.scorecard_templates.id, templateId), (0, drizzle_orm_1.isNull)(schema_1.scorecard_templates.companyId)))
+            .execute();
         if (!template)
             throw new common_1.NotFoundException('System template not found');
         const [cloned] = await this.db
@@ -111,6 +126,7 @@ let ScorecardTemplateService = class ScorecardTemplateService {
                 description: cloned.description,
             },
         });
+        await this.cache.bumpCompanyVersion(companyId);
         return cloned;
     }
     async seedSystemTemplates() {
@@ -224,6 +240,7 @@ let ScorecardTemplateService = class ScorecardTemplateService {
             }));
             await this.db.insert(schema_1.scorecard_criteria).values(criteria);
         }
+        await this.cache.bumpCompanyVersion('global');
         return { success: true };
     }
     async deleteTemplate(templateId, user) {
@@ -231,12 +248,10 @@ let ScorecardTemplateService = class ScorecardTemplateService {
         const template = await this.db.query.scorecard_templates.findFirst({
             where: (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.scorecard_templates.id, templateId), (0, drizzle_orm_1.or)((0, drizzle_orm_1.isNull)(schema_1.scorecard_templates.companyId), (0, drizzle_orm_1.eq)(schema_1.scorecard_templates.companyId, companyId))),
         });
-        if (!template) {
+        if (!template)
             throw new common_1.NotFoundException(`Template not found`);
-        }
-        if (template.isSystem) {
+        if (template.isSystem)
             throw new common_1.BadRequestException(`System templates cannot be deleted`);
-        }
         const isInUse = await this.db.query.interviewInterviewers.findFirst({
             where: (0, drizzle_orm_1.eq)(schema_1.interviewInterviewers.scorecardTemplateId, templateId),
         });
@@ -257,6 +272,7 @@ let ScorecardTemplateService = class ScorecardTemplateService {
                 description: template.description,
             },
         });
+        await this.cache.bumpCompanyVersion(companyId);
         return { message: 'Template deleted successfully' };
     }
 };
@@ -264,6 +280,7 @@ exports.ScorecardTemplateService = ScorecardTemplateService;
 exports.ScorecardTemplateService = ScorecardTemplateService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], ScorecardTemplateService);
 //# sourceMappingURL=scorecard.service.js.map

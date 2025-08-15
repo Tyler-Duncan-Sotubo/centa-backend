@@ -41,7 +41,6 @@ let CompanySettingsService = class CompanySettingsService {
             { key: 'default_manager_id', value: 'UUID-of-super-admin-or-lead' },
             { key: 'two_factor_auth', value: true },
         ];
-        this.ttlSeconds = 60 * 60;
     }
     tagCompany(companyId) {
         return [`company:${companyId}:settings`];
@@ -57,7 +56,6 @@ let CompanySettingsService = class CompanySettingsService {
                 .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.eq)(index_schema_1.companySettings.key, key)));
             return setting[0] ? setting[0].value : null;
         }, {
-            ttlSeconds: this.ttlSeconds,
             tags: [
                 ...this.tagCompany(companyId),
                 ...this.tagGroup(companyId, key.split('.')[0] ?? 'root'),
@@ -71,7 +69,7 @@ let CompanySettingsService = class CompanySettingsService {
                 .from(index_schema_1.companySettings)
                 .where((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId))
                 .execute();
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tagCompany(companyId) });
+        }, { tags: this.tagCompany(companyId) });
     }
     async getSettingsOrDefaults(companyId, key, defaultValue) {
         const value = await this.getSetting(companyId, key);
@@ -114,7 +112,6 @@ let CompanySettingsService = class CompanySettingsService {
             }
             return settings;
         }, {
-            ttlSeconds: this.ttlSeconds,
             tags: [
                 ...this.tagCompany(companyId),
                 ...this.tagGroup(companyId, prefix),
@@ -248,7 +245,6 @@ let CompanySettingsService = class CompanySettingsService {
                 return acc;
             }, {});
         }, {
-            ttlSeconds: this.ttlSeconds,
             tags: [
                 ...this.tagCompany(companyId),
                 ...Array.from(new Set(sorted.map((k) => k.split('.')[0] ?? 'root'))).map((g) => `company:${companyId}:settings:group:${g}`),

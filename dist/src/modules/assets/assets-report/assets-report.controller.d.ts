@@ -9,10 +9,10 @@ export declare class AssetsReportController extends BaseController {
         id: string;
         updatedAt: Date | null;
         companyId: string;
-        status: string | null;
         description: string;
         employeeId: string;
         documentUrl: string | null;
+        status: string | null;
         assetId: string;
         reportType: string;
         reportedAt: Date | null;
@@ -45,19 +45,7 @@ export declare class AssetsReportController extends BaseController {
         status: string | null;
         assetStatus: string | null;
     })[]>;
-    findOne(id: string): Promise<{
-        id: string;
-        employeeId: string;
-        companyId: string;
-        assetId: string;
-        reportType: string;
-        description: string;
-        documentUrl: string | null;
-        status: string | null;
-        reportedAt: Date | null;
-        resolvedAt: Date | null;
-        updatedAt: Date | null;
-    }>;
+    findOne(id: string): Promise<any>;
     update(id: string, user: User, status: string, assetStatus?: string): Promise<{
         id: string;
         employeeId: string;

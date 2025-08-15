@@ -42,7 +42,6 @@ export class CompanySettingsService {
   private tagGroup(companyId: string, group: string) {
     return [`company:${companyId}:settings:group:${group}`];
   }
-  private ttlSeconds = 60 * 60; // 1h cache for reads (tune as needed)
 
   // ---------------------------------
   // Single setting (read w/ cache)
@@ -64,7 +63,6 @@ export class CompanySettingsService {
         return setting[0] ? setting[0].value : null;
       },
       {
-        ttlSeconds: this.ttlSeconds,
         tags: [
           ...this.tagCompany(companyId),
           ...this.tagGroup(companyId, key.split('.')[0] ?? 'root'),
@@ -87,7 +85,7 @@ export class CompanySettingsService {
           .where(eq(companySettings.companyId, companyId))
           .execute();
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tagCompany(companyId) },
+      { tags: this.tagCompany(companyId) },
     );
   }
 
@@ -168,7 +166,6 @@ export class CompanySettingsService {
         return settings;
       },
       {
-        ttlSeconds: this.ttlSeconds,
         tags: [
           ...this.tagCompany(companyId),
           ...this.tagGroup(companyId, prefix),
@@ -351,7 +348,6 @@ export class CompanySettingsService {
         }, {});
       },
       {
-        ttlSeconds: this.ttlSeconds,
         // tag each group represented in the subset so tag invalidation remains targeted
         tags: [
           ...this.tagCompany(companyId),

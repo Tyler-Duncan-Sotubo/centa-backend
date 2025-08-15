@@ -17,7 +17,6 @@ let PayrollSettingsService = class PayrollSettingsService {
     constructor(companySettingsService, cache) {
         this.companySettingsService = companySettingsService;
         this.cache = cache;
-        this.ttlSeconds = 60 * 60;
     }
     tags(companyId) {
         return [
@@ -36,22 +35,22 @@ let PayrollSettingsService = class PayrollSettingsService {
                 }
             }
             return payrollSettings;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async payrollSettings(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['payroll', 'config'], () => this.companySettingsService.getPayrollConfig(companyId), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        return this.cache.getOrSetVersioned(companyId, ['payroll', 'config'], () => this.companySettingsService.getPayrollConfig(companyId), { tags: this.tags(companyId) });
     }
     async allowanceSettings(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['payroll', 'allowance'], () => this.companySettingsService.getAllowanceConfig(companyId), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        return this.cache.getOrSetVersioned(companyId, ['payroll', 'allowance'], () => this.companySettingsService.getAllowanceConfig(companyId), { tags: this.tags(companyId) });
     }
     async getApprovalAndProrationSettings(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['payroll', 'approval_proration'], () => this.companySettingsService.getApprovalAndProrationSettings(companyId), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        return this.cache.getOrSetVersioned(companyId, ['payroll', 'approval_proration'], () => this.companySettingsService.getApprovalAndProrationSettings(companyId), { tags: this.tags(companyId) });
     }
     async getThirteenthMonthSettings(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['payroll', '13th_month'], () => this.companySettingsService.getThirteenthMonthSettings(companyId), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        return this.cache.getOrSetVersioned(companyId, ['payroll', '13th_month'], () => this.companySettingsService.getThirteenthMonthSettings(companyId), { tags: this.tags(companyId) });
     }
     async getLoanSettings(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['payroll', 'loan'], () => this.companySettingsService.getLoanSettings(companyId), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        return this.cache.getOrSetVersioned(companyId, ['payroll', 'loan'], () => this.companySettingsService.getLoanSettings(companyId), { tags: this.tags(companyId) });
     }
     async updatePayrollSetting(companyId, key, value) {
         const settingKey = `payroll.${key}`;

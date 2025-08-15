@@ -15,14 +15,14 @@ export declare class AnnouncementController extends BaseController {
     constructor(announcementService: AnnouncementService, commentService: CommentService, reactionService: ReactionService, categoryService: CategoryService);
     create(createAnnouncementDto: CreateAnnouncementDto, user: User): Promise<{
         id: string;
-        link: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
+        link: string | null;
         companyId: string;
+        createdBy: string;
         departmentId: string | null;
         title: string;
         locationId: string | null;
-        createdBy: string;
         body: string;
         image: string | null;
         publishedAt: Date | null;
@@ -118,13 +118,7 @@ export declare class AnnouncementController extends BaseController {
     reactToComment(id: string, reactionType: string, user: User): Promise<{
         reacted: boolean;
     }>;
-    likeAnnouncement(id: string, reactionType: string, user: User): Promise<{
-        id: string;
-        createdAt: Date | null;
-        createdBy: string;
-        announcementId: string;
-        reactionType: string;
-    } | undefined>;
+    likeAnnouncement(id: string, reactionType: string, user: User): Promise<any>;
     createCategory(name: string, user: User): Promise<{
         id: string;
         name: string;

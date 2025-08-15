@@ -9,7 +9,6 @@ export class AttendanceSettingsService {
     private readonly cache: CacheService,
   ) {}
 
-  private ttlSeconds = 60 * 60; // 1 hour cache
   private tags(companyId: string) {
     return [
       `company:${companyId}:settings`,
@@ -39,7 +38,6 @@ export class AttendanceSettingsService {
         }
         return attendanceSettings;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 
@@ -88,7 +86,6 @@ export class AttendanceSettingsService {
           halfDayDuration: Number(rows['attendance.half_day_duration']) || 4,
         };
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 

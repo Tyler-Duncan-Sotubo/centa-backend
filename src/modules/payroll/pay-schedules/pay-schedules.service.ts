@@ -17,6 +17,7 @@ import {
 import { User } from 'src/common/types/user.type';
 import { payGroups } from '../schema/pay-groups.schema';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class PaySchedulesService {
@@ -24,115 +25,162 @@ export class PaySchedulesService {
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
     private readonly companySettings: CompanySettingsService,
+    private readonly cache: CacheService,
   ) {}
 
+  // ---------------------------------------------------------------------------
+  // Reads (cached, versioned)
+  // ---------------------------------------------------------------------------
+
   async findOne(scheduleId: string) {
-    const paySchedule = await this.db
-      .select()
+    // First, get the companyId for versioning
+    const [owner] = await this.db
+      .select({ companyId: paySchedules.companyId })
       .from(paySchedules)
       .where(eq(paySchedules.id, scheduleId))
+      .limit(1)
       .execute();
 
-    if (paySchedule.length === 0) {
+    if (!owner?.companyId) {
       throw new BadRequestException('Pay schedule not found');
     }
 
-    return paySchedule[0];
+    return this.cache.getOrSetVersioned(
+      owner.companyId,
+      ['paySchedule', 'byId', scheduleId],
+      async () => {
+        const rows = await this.db
+          .select()
+          .from(paySchedules)
+          .where(eq(paySchedules.id, scheduleId))
+          .execute();
+
+        if (!rows.length) {
+          throw new BadRequestException('Pay schedule not found');
+        }
+        return rows[0];
+      },
+      {
+        tags: [
+          'paySchedules',
+          `company:${owner.companyId}:paySchedules`,
+          `paySchedule:${scheduleId}`,
+        ],
+      },
+    );
   }
 
   async getCompanyPaySchedule(companyId: string) {
-    const payFrequency = await this.db
-      .select()
-      .from(paySchedules)
-      .where(eq(paySchedules.companyId, companyId))
-      .execute();
-
-    return payFrequency;
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['paySchedules', 'full'],
+      async () => {
+        return await this.db
+          .select()
+          .from(paySchedules)
+          .where(eq(paySchedules.companyId, companyId))
+          .execute();
+      },
+      { tags: ['paySchedules', `company:${companyId}:paySchedules`] },
+    );
   }
 
   async getNextPayDate(companyId: string) {
-    const paySchedulesData = await this.db
-      .select({
-        paySchedule: paySchedules.paySchedule,
-      })
-      .from(paySchedules)
-      .where(eq(paySchedules.companyId, companyId))
-      .execute();
+    // Derive from schedules; cache the derived value too
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['paySchedules', 'nextPayDate'],
+      async () => {
+        const paySchedulesData = await this.db
+          .select({ paySchedule: paySchedules.paySchedule })
+          .from(paySchedules)
+          .where(eq(paySchedules.companyId, companyId))
+          .execute();
 
-    if (paySchedulesData.length === 0) {
-      throw new BadRequestException('No pay schedules found for this company');
-    }
+        if (paySchedulesData.length === 0) {
+          throw new BadRequestException(
+            'No pay schedules found for this company',
+          );
+        }
 
-    const today = new Date();
+        const today = new Date();
+        const allPayDates = paySchedulesData
+          .flatMap((s) => s.paySchedule)
+          .map((d) => new Date(d as string | number | Date))
+          .filter((d) => d > today)
+          .sort((a, b) => a.getTime() - b.getTime());
 
-    const allPayDates = paySchedulesData
-      .flatMap((schedule) => schedule.paySchedule)
-      .map((date) => new Date(date as string | number | Date))
-      .filter((date) => date > today)
-      .sort((a, b) => a.getTime() - b.getTime());
-
-    return allPayDates.length > 0 ? allPayDates[0] : null;
+        return allPayDates.length > 0 ? allPayDates[0] : null;
+      },
+      { tags: ['paySchedules', `company:${companyId}:paySchedules`] },
+    );
   }
 
   async listPaySchedulesForCompany(companyId: string) {
-    const payFrequency = await this.db
-      .select({
-        payFrequency: paySchedules.payFrequency,
-        paySchedules: paySchedules.paySchedule,
-        id: paySchedules.id,
-      })
-      .from(paySchedules)
-      .where(eq(paySchedules.companyId, companyId))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['paySchedules', 'list'],
+      async () => {
+        const rows = await this.db
+          .select({
+            payFrequency: paySchedules.payFrequency,
+            paySchedules: paySchedules.paySchedule,
+            id: paySchedules.id,
+          })
+          .from(paySchedules)
+          .where(eq(paySchedules.companyId, companyId))
+          .execute();
 
-    if (payFrequency.length === 0) {
-      throw new BadRequestException('No pay schedules found for this company');
-    }
-
-    return payFrequency;
+        if (!rows.length) {
+          throw new BadRequestException(
+            'No pay schedules found for this company',
+          );
+        }
+        return rows;
+      },
+      { tags: ['paySchedules', `company:${companyId}:paySchedules`] },
+    );
   }
+
+  // ---------------------------------------------------------------------------
+  // Helpers (holidays & schedule generation)
+  // ---------------------------------------------------------------------------
 
   private async isPublicHoliday(
     date: Date,
     countryCode: string,
   ): Promise<boolean> {
-    const formattedDate = date.toISOString().split('T')[0]; // Convert to YYYY-MM-DD
-
+    const formattedDate = date.toISOString().split('T')[0];
     const url = `https://date.nager.at/api/v3/publicholidays/${date.getFullYear()}/${countryCode}`;
     try {
-      const response = await axios.get(url);
-      const holidays = response.data;
-      return holidays.some((holiday: any) => holiday.date === formattedDate);
-    } catch (error) {
+      const { data } = await axios.get(url);
+      return (
+        Array.isArray(data) && data.some((h: any) => h?.date === formattedDate)
+      );
+    } catch (error: any) {
       throw new BadRequestException(error.message);
     }
   }
 
-  /**
-   * Adjust pay date if it falls on a weekend or public holiday
-   */
   private async adjustForWeekendAndHoliday(
     date: Date,
     countryCode: string,
   ): Promise<Date> {
-    let adjustedDate = new Date(date); // Create a mutable copy
+    let adjusted = new Date(date);
 
-    // Step 1: Adjust for weekend
-    while (isSaturday(adjustedDate) || isSunday(adjustedDate)) {
-      adjustedDate = addDays(adjustedDate, -1);
+    // Weekend -> go backwards
+    while (isSaturday(adjusted) || isSunday(adjusted)) {
+      adjusted = addDays(adjusted, -1);
     }
 
-    // Step 2: Adjust for public holiday (also backwards only)
-    while (await this.isPublicHoliday(adjustedDate, countryCode)) {
-      adjustedDate = addDays(adjustedDate, -1);
+    // Holiday -> go backwards
+    while (await this.isPublicHoliday(adjusted, countryCode)) {
+      adjusted = addDays(adjusted, -1);
     }
 
-    return adjustedDate;
+    return adjusted;
   }
 
-  /**
-   * Generate Pay Schedule based on pay frequency, ensuring it avoids weekends & holidays
-   */
   private async generatePaySchedule(
     startDate: Date,
     frequency: string,
@@ -153,15 +201,15 @@ export class PaySchedulesService {
           payDate = addDays(startDate, i * 14);
           break;
 
-        case 'semi-monthly':
+        case 'semi-monthly': {
           const firstHalf = startOfMonth(addMonths(startDate, i));
           const secondHalf = addDays(firstHalf, 14);
-
           schedule.push(
             await this.adjustForWeekendAndHoliday(firstHalf, countryCode),
             await this.adjustForWeekendAndHoliday(secondHalf, countryCode),
           );
           continue;
+        }
 
         case 'monthly':
           payDate = endOfMonth(addMonths(startDate, i));
@@ -179,6 +227,10 @@ export class PaySchedulesService {
     return schedule;
   }
 
+  // ---------------------------------------------------------------------------
+  // Writes (bump version + invalidate tags)
+  // ---------------------------------------------------------------------------
+
   async createPayFrequency(companyId: string, dto: CreatePayScheduleDto) {
     const schedule = await this.generatePaySchedule(
       new Date(dto.startDate),
@@ -188,11 +240,10 @@ export class PaySchedulesService {
     );
 
     try {
-      // **Create a new schedule if none exists**
-      const paySchedule = await this.db
+      const inserted = await this.db
         .insert(paySchedules)
         .values({
-          companyId: companyId,
+          companyId,
           payFrequency: dto.payFrequency,
           paySchedule: schedule,
           startDate: dto.startDate,
@@ -204,22 +255,25 @@ export class PaySchedulesService {
         .returning()
         .execute();
 
-      // make onboarding step complete
       await this.companySettings.setSetting(
         companyId,
         'onboarding_pay_frequency',
         true,
       );
 
-      return paySchedule;
-    } catch (error) {
+      // Invalidate company pay-schedule caches
+      await this.cache.bumpCompanyVersion(companyId);
+      await this.cache.invalidateTags([
+        'paySchedules',
+        `company:${companyId}:paySchedules`,
+      ]);
+
+      return inserted;
+    } catch (error: any) {
       throw new BadRequestException(error.message);
     }
   }
 
-  /**
-   * Update a company's pay frequency and generate a new pay schedule
-   */
   async updatePayFrequency(
     user: User,
     dto: CreatePayScheduleDto,
@@ -251,7 +305,6 @@ export class PaySchedulesService {
         )
         .execute();
 
-      //log audit trail
       await this.auditService.logAction({
         action: 'update',
         entity: 'pay_schedule',
@@ -267,17 +320,25 @@ export class PaySchedulesService {
         },
       });
 
+      // Invalidate caches
+      await this.cache.bumpCompanyVersion(user.companyId);
+      await this.cache.invalidateTags([
+        'paySchedules',
+        `company:${user.companyId}:paySchedules`,
+        `paySchedule:${payFrequencyId}`,
+      ]);
+
       return 'Pay frequency updated successfully';
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException(error.message);
     }
   }
 
   async deletePaySchedule(scheduleId: string, user: User, ip: string) {
-    // check if the pay schedule exists
+    // ensure exists (cached path will throw if not)
     await this.findOne(scheduleId);
 
-    // check if pay group is using the pay schedule
+    // ensure no pay group uses it
     const payGroup = await this.db
       .select()
       .from(payGroups)
@@ -297,9 +358,7 @@ export class PaySchedulesService {
 
     await this.db
       .update(paySchedules)
-      .set({
-        isDeleted: true,
-      })
+      .set({ isDeleted: true })
       .where(
         and(
           eq(paySchedules.companyId, user.companyId),
@@ -308,7 +367,6 @@ export class PaySchedulesService {
       )
       .execute();
 
-    //log audit trail
     await this.auditService.logAction({
       action: 'delete',
       entity: 'pay_schedule',
@@ -317,6 +375,14 @@ export class PaySchedulesService {
       details: 'Pay schedule deleted',
       ipAddress: ip,
     });
+
+    // Invalidate caches
+    await this.cache.bumpCompanyVersion(user.companyId);
+    await this.cache.invalidateTags([
+      'paySchedules',
+      `company:${user.companyId}:paySchedules`,
+      `paySchedule:${scheduleId}`,
+    ]);
 
     return 'Pay frequency deleted successfully';
   }

@@ -2,10 +2,12 @@ import { CreateFinanceDto } from './dto/create-finance.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { ConfigService } from '@nestjs/config';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class FinanceService {
     private readonly db;
     private readonly auditService;
     private readonly config;
+    private readonly cache;
     protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "employee_financials";
         schema: undefined;
@@ -216,7 +218,8 @@ export declare class FinanceService {
         };
         dialect: "pg";
     }>;
-    constructor(db: db, auditService: AuditService, config: ConfigService);
+    constructor(db: db, auditService: AuditService, config: ConfigService, cache: CacheService);
+    private tags;
     upsert(employeeId: string, dto: CreateFinanceDto, userId: string, ip: string): Promise<{
         createdAt: Date;
         updatedAt: Date;
@@ -235,5 +238,5 @@ export declare class FinanceService {
         deleted: boolean;
         id: string;
     }>;
-    verifyBankAccount(accountNumber: any, bankCode: any): Promise<unknown>;
+    verifyBankAccount(accountNumber: string, bankCode: string): Promise<unknown>;
 }

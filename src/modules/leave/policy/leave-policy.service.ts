@@ -16,22 +16,32 @@ import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { BulkCreateLeavePolicyDto } from './dto/create-bulk-policy.dto';
 import { leaveTypes } from '../schema/leave-types.schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class LeavePolicyService {
   protected readonly table = leavePolicies;
+
   constructor(
     private readonly auditService: AuditService,
     @Inject(DRIZZLE) private readonly db: db,
+    private readonly cache: CacheService,
   ) {}
 
+  private tags(companyId: string) {
+    return [
+      `company:${companyId}:leave`,
+      `company:${companyId}:leave:policies`,
+    ];
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // BULK CREATE
+  // ───────────────────────────────────────────────────────────────────────────
   async bulkCreateLeavePolicies(companyId: string, rows: any[]) {
     // 1) Build leave type name → ID map
     const leaveTypesList = await this.db
-      .select({
-        id: leaveTypes.id,
-        name: leaveTypes.name,
-      })
+      .select({ id: leaveTypes.id, name: leaveTypes.name })
       .from(leaveTypes)
       .where(eq(leaveTypes.companyId, companyId))
       .execute();
@@ -49,7 +59,6 @@ export class LeavePolicyService {
         ''
       ).toLowerCase();
       const leaveTypeId = leaveTypeMap.get(leaveTypeName);
-
       if (!leaveTypeId) {
         throw new BadRequestException(
           `Leave type "${leaveTypeName}" not found.`,
@@ -58,7 +67,6 @@ export class LeavePolicyService {
 
       const normalizeBool = (val: any) => String(val).toLowerCase() === 'true';
 
-      // Build eligibilityRules from flattened fields
       const eligibilityRules: Record<string, any> = {};
       if (row['MinTenureMonths']) {
         eligibilityRules.minTenureMonths = Number(row['MinTenureMonths']);
@@ -119,9 +127,15 @@ export class LeavePolicyService {
       return trx.insert(leavePolicies).values(values).returning().execute();
     });
 
+    // Invalidate all versioned policy reads for this company
+    await this.cache.bumpCompanyVersion(companyId);
+
     return inserted;
   }
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // CREATE
+  // ───────────────────────────────────────────────────────────────────────────
   async create(
     leaveTypeId: string,
     dto: CreateLeavePolicyDto,
@@ -129,8 +143,9 @@ export class LeavePolicyService {
     ip: string,
   ) {
     const { companyId, id } = user;
-    // 1. Check if leave policy already exists
-    const existingLeavePolicy = await this.db
+
+    // 1. Duplicate check (company + leaveType)
+    const existing = await this.db
       .select()
       .from(this.table)
       .where(
@@ -141,24 +156,20 @@ export class LeavePolicyService {
       )
       .execute();
 
-    if (existingLeavePolicy.length > 0) {
-      throw new NotFoundException(
+    if (existing.length > 0) {
+      throw new BadRequestException(
         `Leave policy for leave type ${leaveTypeId} already exists`,
       );
     }
 
-    // 2. Create leave policy
+    // 2. Create
     const [leavePolicy] = await this.db
       .insert(this.table)
-      .values({
-        leaveTypeId,
-        companyId,
-        ...dto,
-      })
+      .values({ leaveTypeId, companyId, ...dto })
       .returning()
       .execute();
 
-    // 3. Create audit record
+    // 3. Audit
     await this.auditService.logAction({
       action: 'create',
       entity: 'leave_policy',
@@ -166,104 +177,145 @@ export class LeavePolicyService {
       details: 'Created new leave policy',
       userId: id,
       ipAddress: ip,
-      changes: {
-        leaveTypeId,
-        companyId,
-        ...dto,
-      },
+      changes: { leaveTypeId, companyId, ...dto },
     });
+
+    // 4. Invalidate
+    await this.cache.bumpCompanyVersion(companyId);
 
     return leavePolicy;
   }
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // READS (CACHED)
+  // ───────────────────────────────────────────────────────────────────────────
   async findAll(companyId: string) {
-    return this.db
-      .select({
-        id: leavePolicies.id,
-        leaveTypeId: leavePolicies.leaveTypeId,
-        accrualEnabled: leavePolicies.accrualEnabled,
-        accrualFrequency: leavePolicies.accrualFrequency,
-        accrualAmount: leavePolicies.accrualAmount,
-        maxBalance: leavePolicies.maxBalance,
-        allowCarryover: leavePolicies.allowCarryover,
-        carryoverLimit: leavePolicies.carryoverLimit,
-        onlyConfirmedEmployees: leavePolicies.onlyConfirmedEmployees,
-        eligibilityRules: leavePolicies.eligibilityRules,
-        genderEligibility: leavePolicies.genderEligibility,
-        isSplittable: leavePolicies.isSplittable,
-        leaveTypeName: leaveTypes.name,
-      })
-      .from(this.table)
-      .innerJoin(leaveTypes, eq(leavePolicies.leaveTypeId, leaveTypes.id))
-      .where(eq(this.table.companyId, companyId))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['leave', 'policies', 'list'],
+      async () => {
+        return this.db
+          .select({
+            id: leavePolicies.id,
+            leaveTypeId: leavePolicies.leaveTypeId,
+            accrualEnabled: leavePolicies.accrualEnabled,
+            accrualFrequency: leavePolicies.accrualFrequency,
+            accrualAmount: leavePolicies.accrualAmount,
+            maxBalance: leavePolicies.maxBalance,
+            allowCarryover: leavePolicies.allowCarryover,
+            carryoverLimit: leavePolicies.carryoverLimit,
+            onlyConfirmedEmployees: leavePolicies.onlyConfirmedEmployees,
+            eligibilityRules: leavePolicies.eligibilityRules,
+            genderEligibility: leavePolicies.genderEligibility,
+            isSplittable: leavePolicies.isSplittable,
+            leaveTypeName: leaveTypes.name,
+          })
+          .from(this.table)
+          .innerJoin(leaveTypes, eq(leavePolicies.leaveTypeId, leaveTypes.id))
+          .where(eq(this.table.companyId, companyId))
+          .execute();
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
   async findLeavePoliciesByLeaveTypeId(companyId: string, leaveTypeId: string) {
-    try {
-      const leavePolicy = await this.db
-        .select()
-        .from(this.table)
-        .where(
-          and(
-            eq(this.table.leaveTypeId, leaveTypeId),
-            eq(this.table.companyId, companyId),
-          ),
-        )
-        .execute();
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['leave', 'policies', 'by-leave-type', leaveTypeId],
+      async () => {
+        const rows = await this.db
+          .select()
+          .from(this.table)
+          .where(
+            and(
+              eq(this.table.leaveTypeId, leaveTypeId),
+              eq(this.table.companyId, companyId),
+            ),
+          )
+          .execute();
 
-      if (leavePolicy.length === 0) {
-        throw new NotFoundException(
-          `Leave policy with leave type id ${leaveTypeId} not found`,
-        );
-      }
-      return leavePolicy[0];
-    } catch (error) {
-      console.error('Error fetching leave policy:', error);
-      throw new NotFoundException(
-        `Leave policy with leave type id ${leaveTypeId} not found`,
-      );
-    }
+        if (rows.length === 0) {
+          throw new NotFoundException(
+            `Leave policy with leave type id ${leaveTypeId} not found`,
+          );
+        }
+        return rows[0];
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
   async findOne(companyId: string, leavePolicyId: string) {
-    // 1. Fetch leave policy
-    const leavePolicy = await this.db
-      .select()
-      .from(this.table)
-      .where(
-        and(
-          eq(this.table.companyId, companyId),
-          eq(this.table.id, leavePolicyId),
-        ),
-      )
-      .execute();
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['leave', 'policies', 'one', leavePolicyId],
+      async () => {
+        const rows = await this.db
+          .select()
+          .from(this.table)
+          .where(
+            and(
+              eq(this.table.companyId, companyId),
+              eq(this.table.id, leavePolicyId),
+            ),
+          )
+          .execute();
 
-    if (leavePolicy.length === 0) {
-      throw new NotFoundException(
-        `Leave policy with id ${leavePolicyId} not found`,
-      );
-    }
-
-    return leavePolicy[0];
+        if (rows.length === 0) {
+          throw new NotFoundException(
+            `Leave policy with id ${leavePolicyId} not found`,
+          );
+        }
+        return rows[0];
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
-  async findAllAccrualPolicies() {
-    return this.db
-      .select()
-      .from(this.table)
-      .where(and(eq(this.table.accrualEnabled, true)))
-      .execute();
+  async findAllAccrualPolicies(companyId: string) {
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['leave', 'policies', 'accrual-enabled'],
+      async () => {
+        return this.db
+          .select()
+          .from(this.table)
+          .where(
+            and(
+              eq(this.table.accrualEnabled, true),
+              eq(this.table.companyId, companyId),
+            ),
+          )
+          .execute();
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
-  findAllNonAccrualPolicies() {
-    return this.db
-      .select()
-      .from(leavePolicies)
-      .where(eq(leavePolicies.accrualEnabled, false))
-      .execute();
+  async findAllNonAccrualPolicies(companyId: string) {
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['leave', 'policies', 'accrual-disabled'],
+      async () => {
+        return this.db
+          .select()
+          .from(this.table)
+          .where(
+            and(
+              eq(this.table.accrualEnabled, false),
+              eq(this.table.companyId, companyId),
+            ),
+          )
+          .execute();
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // UPDATE / DELETE (invalidate)
+  // ───────────────────────────────────────────────────────────────────────────
   async update(
     leavePolicyId: string,
     dto: UpdateLeavePolicyDto,
@@ -272,10 +324,9 @@ export class LeavePolicyService {
   ) {
     const { companyId, id } = user;
 
-    // 1. Check if leave policy exists
+    // ensure exists
     await this.findOne(companyId, leavePolicyId);
 
-    // 2. Update leave policy
     const [leavePolicy] = await this.db
       .update(this.table)
       .set(dto)
@@ -288,7 +339,6 @@ export class LeavePolicyService {
       .returning()
       .execute();
 
-    // 3. Create audit record
     await this.auditService.logAction({
       action: 'update',
       entity: 'leave_policy',
@@ -296,19 +346,20 @@ export class LeavePolicyService {
       details: 'Updated leave policy',
       userId: id,
       ipAddress: ip,
-      changes: {
-        ...dto,
-      },
+      changes: { ...dto },
     });
+
+    await this.cache.bumpCompanyVersion(companyId);
+
     return leavePolicy;
   }
 
   async remove(leavePolicyId: string, user: User, ip: string) {
     const { companyId, id } = user;
-    // 1. Check if leave policy exists
+
+    // ensure exists
     await this.findOne(companyId, leavePolicyId);
 
-    // 2. Delete leave policy
     await this.db
       .delete(this.table)
       .where(
@@ -319,7 +370,6 @@ export class LeavePolicyService {
       )
       .execute();
 
-    // 3. Create audit record
     await this.auditService.logAction({
       action: 'delete',
       entity: 'leave_policy',
@@ -328,5 +378,7 @@ export class LeavePolicyService {
       userId: id,
       ipAddress: ip,
     });
+
+    await this.cache.bumpCompanyVersion(companyId);
   }
 }

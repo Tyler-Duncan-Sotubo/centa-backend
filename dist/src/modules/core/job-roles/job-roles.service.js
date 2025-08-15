@@ -30,7 +30,6 @@ let JobRolesService = class JobRolesService extends base_crud_service_1.BaseCrud
         this.companySettings = companySettings;
         this.cache = cache;
         this.table = schema_1.jobRoles;
-        this.ttlSeconds = 60 * 60;
     }
     tags(companyId) {
         return [`company:${companyId}:job-roles`];
@@ -107,7 +106,7 @@ let JobRolesService = class JobRolesService extends base_crud_service_1.BaseCrud
             .from(schema_1.jobRoles)
             .where((0, drizzle_orm_1.eq)(schema_1.jobRoles.companyId, companyId))
             .orderBy(schema_1.jobRoles.title)
-            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+            .execute(), { tags: this.tags(companyId) });
     }
     async findOne(companyId, id) {
         return this.cache.getOrSetVersioned(companyId, ['job-roles', 'one', id], async () => {
@@ -120,7 +119,7 @@ let JobRolesService = class JobRolesService extends base_crud_service_1.BaseCrud
                 throw new common_1.NotFoundException('Job role not found');
             }
             return rows[0];
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async update(companyId, id, dto, userId, ip) {
         const result = await this.updateWithAudit(companyId, id, { title: dto.title, level: dto.level, description: dto.description }, {

@@ -8,6 +8,7 @@ import { eq, and, desc, inArray, count } from 'drizzle-orm';
 import { groupMemberships, groups } from '../schema/group.schema';
 import { User } from 'src/common/types/user.type';
 import { employees } from '../schema/employee.schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class GroupsService {
@@ -17,10 +18,22 @@ export class GroupsService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
+
+  private tags(scope: string) {
+    // scope is companyId or "employee:<id>" for employee-based reads
+    return [
+      `company:${scope}:groups`,
+      `company:${scope}:groups:list`,
+      `company:${scope}:groups:detail`,
+      `company:${scope}:groups:members`,
+    ];
+  }
 
   async create(createGroupDto: CreateGroupDto, user: User, ip: string) {
     const { companyId, id } = user;
+
     // check if group exists
     const [group] = await this.db
       .select()
@@ -32,6 +45,7 @@ export class GroupsService {
         ),
       )
       .execute();
+
     if (group) {
       throw new BadRequestException(
         `Group with name ${createGroupDto.name} already exists`,
@@ -41,19 +55,15 @@ export class GroupsService {
     // create new group
     const [newGroup] = await this.db
       .insert(this.table)
-      .values({
-        ...createGroupDto,
-        companyId,
-      })
+      .values({ ...createGroupDto, companyId })
       .returning()
       .execute();
 
-    //Add members to group
+    // Add members to group
     const members = createGroupDto.employeeIds.map((employeeId) => ({
       groupId: newGroup.id,
       employeeId,
     }));
-
     await this.db.insert(this.tableMembers).values(members).execute();
 
     // log action
@@ -69,6 +79,10 @@ export class GroupsService {
         companyId: { before: null, after: newGroup.companyId },
       },
     });
+
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(companyId);
+
     return newGroup;
   }
 
@@ -80,7 +94,7 @@ export class GroupsService {
   ) {
     const { id } = user;
     // Check if the group exists
-    await this.findGroup(groupId);
+    const group = await this.findGroup(groupId);
 
     const members = employeeIds.memberIds.map((employeeId) => ({
       groupId,
@@ -116,76 +130,100 @@ export class GroupsService {
       userId: id,
       entityId: groupId,
       ipAddress: ip,
-      changes: {
-        members: { before: null, after: employeeIds },
-      },
+      changes: { members: { before: null, after: employeeIds } },
     });
 
-    return {
-      message: 'Members added successfully',
-      members,
-    };
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(group.companyId);
+
+    return { message: 'Members added successfully', members };
   }
 
+  // READ (cached per company)
   async findAll(companyId: string) {
-    return this.db
-      .select({
-        id: this.table.id,
-        name: this.table.name,
-        createdAt: this.table.createdAt,
-        members: count(this.tableMembers.groupId).as('memberCount'),
-      })
-      .from(this.table)
-      .leftJoin(this.tableMembers, eq(this.tableMembers.groupId, this.table.id))
-      .where(eq(this.table.companyId, companyId))
-      .groupBy(this.table.id)
-      .orderBy(desc(this.table.createdAt))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['groups', 'list', 'all'],
+      async () => {
+        const rows = await this.db
+          .select({
+            id: this.table.id,
+            name: this.table.name,
+            createdAt: this.table.createdAt,
+            members: count(this.tableMembers.groupId).as('memberCount'),
+          })
+          .from(this.table)
+          .leftJoin(
+            this.tableMembers,
+            eq(this.tableMembers.groupId, this.table.id),
+          )
+          .where(eq(this.table.companyId, companyId))
+          .groupBy(this.table.id)
+          .orderBy(desc(this.table.createdAt))
+          .execute();
+
+        return rows;
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
+  // READ (cached per company; we derive companyId via findGroup)
   async findOne(id: string) {
-    // Check if the group exists
-    const group = await this.findGroup(id);
+    const base = await this.findGroup(id); // contains companyId
 
-    // Get group members
-    const members = await this.db
-      .select()
-      .from(this.tableMembers)
-      .where(eq(this.tableMembers.groupId, id))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      base.companyId,
+      ['groups', 'detail', id],
+      async () => {
+        // Get group members
+        const members = await this.db
+          .select()
+          .from(this.tableMembers)
+          .where(eq(this.tableMembers.groupId, id))
+          .execute();
 
-    const memberIds = members.map((member) => member.employeeId);
+        const memberIds = members.map((m) => m.employeeId);
 
-    // Get employee details
-    const employeesDetails = await this.db
-      .select({
-        id: employees.id,
-        firstName: employees.firstName,
-        lastName: employees.lastName,
-        email: employees.email,
-      })
-      .from(employees)
-      .where(inArray(employees.id, memberIds))
-      .execute();
+        // Get employee details
+        const employeesDetails = memberIds.length
+          ? await this.db
+              .select({
+                id: employees.id,
+                firstName: employees.firstName,
+                lastName: employees.lastName,
+                email: employees.email,
+              })
+              .from(employees)
+              .where(inArray(employees.id, memberIds))
+              .execute()
+          : [];
 
-    // Combine group and employee details
-    const groupWithMembers = {
-      ...group,
-      members: employeesDetails,
-    };
-
-    return groupWithMembers;
+        return { ...base, members: employeesDetails };
+      },
+      { tags: this.tags(base.companyId) },
+    );
   }
 
+  // (Optional caching) Employee groups; cached under employee scope
   async findEmployeesGroups(employeeId: string) {
-    return this.db
-      .select({
-        id: this.table.id,
-        name: this.table.name,
-      })
-      .from(this.tableMembers)
-      .innerJoin(this.table, eq(this.tableMembers.employeeId, employeeId))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      employeeId,
+      ['groups', 'byEmployee', employeeId],
+      async () => {
+        const rows = await this.db
+          .select({
+            id: this.table.id,
+            name: this.table.name,
+          })
+          .from(this.tableMembers)
+          .innerJoin(this.table, eq(this.tableMembers.employeeId, employeeId))
+          .execute();
+
+        return rows;
+      },
+      { tags: this.tags(employeeId) },
+    );
   }
 
   async update(
@@ -255,12 +293,16 @@ export class GroupsService {
         companyId: { before: null, after: updatedGroup.companyId },
       },
     });
+
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(companyId);
+
     return updatedGroup;
   }
 
   async remove(id: string) {
     // Check if the group exists
-    await this.findGroup(id); //
+    const group = await this.findGroup(id);
 
     // Delete group
     await this.db
@@ -268,6 +310,9 @@ export class GroupsService {
       .where(eq(this.table.id, id))
       .returning()
       .execute();
+
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(group.companyId);
 
     return 'Group deleted successfully';
   }
@@ -280,7 +325,7 @@ export class GroupsService {
   ) {
     const { id } = user;
     // Check if the group exists
-    await this.findGroup(groupId);
+    const group = await this.findGroup(groupId);
 
     // Check if the members exist
     const existingMembers = await this.db
@@ -317,19 +362,16 @@ export class GroupsService {
       userId: id,
       entityId: groupId,
       ipAddress: ip,
-      changes: {
-        members: { before: null, after: employeeId },
-      },
+      changes: { members: { before: null, after: employeeId } },
     });
 
-    return {
-      message: 'Members removed successfully',
-      members: employeeId,
-    };
+    // Invalidate company-scoped caches
+    await this.cache.bumpCompanyVersion(group.companyId);
+
+    return { message: 'Members removed successfully', members: employeeId };
   }
 
   private async findGroup(id: string) {
-    // Check if the group exists
     const [group] = await this.db
       .select({
         id: this.table.id,

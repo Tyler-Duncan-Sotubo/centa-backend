@@ -29,7 +29,6 @@ let FeedbackService = class FeedbackService {
         this.db = db;
         this.auditService = auditService;
         this.cache = cache;
-        this.ttlSeconds = 5 * 60;
     }
     tags(companyId) {
         return [`company:${companyId}:feedback`];
@@ -243,7 +242,7 @@ let FeedbackService = class FeedbackService {
                 departmentId: f.departmentId,
                 isArchived: f.isArchived,
             }));
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async findAllByEmployeeId(companyId, employeeId, filters) {
         return this.cache.getOrSetVersioned(companyId, ['feedback', 'by-employee', employeeId, filters?.type ?? 'all'], async () => {
@@ -302,7 +301,7 @@ let FeedbackService = class FeedbackService {
                 departmentId: f.departmentId,
                 isArchived: f.isArchived,
             }));
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async findOne(id, user) {
         const [item] = await this.db
@@ -357,7 +356,7 @@ let FeedbackService = class FeedbackService {
                 senderName,
                 responses,
             };
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(item.companyId) });
+        }, { tags: this.tags(item.companyId) });
         return payload;
     }
     async update(id, updateFeedbackDto, user) {

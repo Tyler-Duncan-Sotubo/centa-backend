@@ -19,12 +19,22 @@ const audit_service_1 = require("../../../audit/audit.service");
 const drizzle_orm_1 = require("drizzle-orm");
 const group_schema_1 = require("../schema/group.schema");
 const employee_schema_1 = require("../schema/employee.schema");
+const cache_service_1 = require("../../../../common/cache/cache.service");
 let GroupsService = class GroupsService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
         this.table = group_schema_1.groups;
         this.tableMembers = group_schema_1.groupMemberships;
+    }
+    tags(scope) {
+        return [
+            `company:${scope}:groups`,
+            `company:${scope}:groups:list`,
+            `company:${scope}:groups:detail`,
+            `company:${scope}:groups:members`,
+        ];
     }
     async create(createGroupDto, user, ip) {
         const { companyId, id } = user;
@@ -38,10 +48,7 @@ let GroupsService = class GroupsService {
         }
         const [newGroup] = await this.db
             .insert(this.table)
-            .values({
-            ...createGroupDto,
-            companyId,
-        })
+            .values({ ...createGroupDto, companyId })
             .returning()
             .execute();
         const members = createGroupDto.employeeIds.map((employeeId) => ({
@@ -61,11 +68,12 @@ let GroupsService = class GroupsService {
                 companyId: { before: null, after: newGroup.companyId },
             },
         });
+        await this.cache.bumpCompanyVersion(companyId);
         return newGroup;
     }
     async addMembers(groupId, employeeIds, user, ip) {
         const { id } = user;
-        await this.findGroup(groupId);
+        const group = await this.findGroup(groupId);
         const members = employeeIds.memberIds.map((employeeId) => ({
             groupId,
             employeeId,
@@ -86,63 +94,65 @@ let GroupsService = class GroupsService {
             userId: id,
             entityId: groupId,
             ipAddress: ip,
-            changes: {
-                members: { before: null, after: employeeIds },
-            },
+            changes: { members: { before: null, after: employeeIds } },
         });
-        return {
-            message: 'Members added successfully',
-            members,
-        };
+        await this.cache.bumpCompanyVersion(group.companyId);
+        return { message: 'Members added successfully', members };
     }
     async findAll(companyId) {
-        return this.db
-            .select({
-            id: this.table.id,
-            name: this.table.name,
-            createdAt: this.table.createdAt,
-            members: (0, drizzle_orm_1.count)(this.tableMembers.groupId).as('memberCount'),
-        })
-            .from(this.table)
-            .leftJoin(this.tableMembers, (0, drizzle_orm_1.eq)(this.tableMembers.groupId, this.table.id))
-            .where((0, drizzle_orm_1.eq)(this.table.companyId, companyId))
-            .groupBy(this.table.id)
-            .orderBy((0, drizzle_orm_1.desc)(this.table.createdAt))
-            .execute();
+        return this.cache.getOrSetVersioned(companyId, ['groups', 'list', 'all'], async () => {
+            const rows = await this.db
+                .select({
+                id: this.table.id,
+                name: this.table.name,
+                createdAt: this.table.createdAt,
+                members: (0, drizzle_orm_1.count)(this.tableMembers.groupId).as('memberCount'),
+            })
+                .from(this.table)
+                .leftJoin(this.tableMembers, (0, drizzle_orm_1.eq)(this.tableMembers.groupId, this.table.id))
+                .where((0, drizzle_orm_1.eq)(this.table.companyId, companyId))
+                .groupBy(this.table.id)
+                .orderBy((0, drizzle_orm_1.desc)(this.table.createdAt))
+                .execute();
+            return rows;
+        }, { tags: this.tags(companyId) });
     }
     async findOne(id) {
-        const group = await this.findGroup(id);
-        const members = await this.db
-            .select()
-            .from(this.tableMembers)
-            .where((0, drizzle_orm_1.eq)(this.tableMembers.groupId, id))
-            .execute();
-        const memberIds = members.map((member) => member.employeeId);
-        const employeesDetails = await this.db
-            .select({
-            id: employee_schema_1.employees.id,
-            firstName: employee_schema_1.employees.firstName,
-            lastName: employee_schema_1.employees.lastName,
-            email: employee_schema_1.employees.email,
-        })
-            .from(employee_schema_1.employees)
-            .where((0, drizzle_orm_1.inArray)(employee_schema_1.employees.id, memberIds))
-            .execute();
-        const groupWithMembers = {
-            ...group,
-            members: employeesDetails,
-        };
-        return groupWithMembers;
+        const base = await this.findGroup(id);
+        return this.cache.getOrSetVersioned(base.companyId, ['groups', 'detail', id], async () => {
+            const members = await this.db
+                .select()
+                .from(this.tableMembers)
+                .where((0, drizzle_orm_1.eq)(this.tableMembers.groupId, id))
+                .execute();
+            const memberIds = members.map((m) => m.employeeId);
+            const employeesDetails = memberIds.length
+                ? await this.db
+                    .select({
+                    id: employee_schema_1.employees.id,
+                    firstName: employee_schema_1.employees.firstName,
+                    lastName: employee_schema_1.employees.lastName,
+                    email: employee_schema_1.employees.email,
+                })
+                    .from(employee_schema_1.employees)
+                    .where((0, drizzle_orm_1.inArray)(employee_schema_1.employees.id, memberIds))
+                    .execute()
+                : [];
+            return { ...base, members: employeesDetails };
+        }, { tags: this.tags(base.companyId) });
     }
     async findEmployeesGroups(employeeId) {
-        return this.db
-            .select({
-            id: this.table.id,
-            name: this.table.name,
-        })
-            .from(this.tableMembers)
-            .innerJoin(this.table, (0, drizzle_orm_1.eq)(this.tableMembers.employeeId, employeeId))
-            .execute();
+        return this.cache.getOrSetVersioned(employeeId, ['groups', 'byEmployee', employeeId], async () => {
+            const rows = await this.db
+                .select({
+                id: this.table.id,
+                name: this.table.name,
+            })
+                .from(this.tableMembers)
+                .innerJoin(this.table, (0, drizzle_orm_1.eq)(this.tableMembers.employeeId, employeeId))
+                .execute();
+            return rows;
+        }, { tags: this.tags(employeeId) });
     }
     async update(groupId, updateGroupDto, user, ip) {
         const { companyId, id } = user;
@@ -187,20 +197,22 @@ let GroupsService = class GroupsService {
                 companyId: { before: null, after: updatedGroup.companyId },
             },
         });
+        await this.cache.bumpCompanyVersion(companyId);
         return updatedGroup;
     }
     async remove(id) {
-        await this.findGroup(id);
+        const group = await this.findGroup(id);
         await this.db
             .delete(this.table)
             .where((0, drizzle_orm_1.eq)(this.table.id, id))
             .returning()
             .execute();
+        await this.cache.bumpCompanyVersion(group.companyId);
         return 'Group deleted successfully';
     }
     async removeMembers(groupId, employeeId, user, ip) {
         const { id } = user;
-        await this.findGroup(groupId);
+        const group = await this.findGroup(groupId);
         const existingMembers = await this.db
             .select()
             .from(this.tableMembers)
@@ -220,14 +232,10 @@ let GroupsService = class GroupsService {
             userId: id,
             entityId: groupId,
             ipAddress: ip,
-            changes: {
-                members: { before: null, after: employeeId },
-            },
+            changes: { members: { before: null, after: employeeId } },
         });
-        return {
-            message: 'Members removed successfully',
-            members: employeeId,
-        };
+        await this.cache.bumpCompanyVersion(group.companyId);
+        return { message: 'Members removed successfully', members: employeeId };
     }
     async findGroup(id) {
         const [group] = await this.db
@@ -249,6 +257,7 @@ exports.GroupsService = GroupsService;
 exports.GroupsService = GroupsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], GroupsService);
 //# sourceMappingURL=groups.service.js.map

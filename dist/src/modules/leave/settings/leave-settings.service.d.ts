@@ -4,7 +4,6 @@ export declare class LeaveSettingsService {
     private readonly companySettingsService;
     private readonly cache;
     constructor(companySettingsService: CompanySettingsService, cache: CacheService);
-    private ttlSeconds;
     private tags;
     getAllLeaveSettings(companyId: string): Promise<Record<string, any>>;
     getSettingOrDefault<T = any>(companyId: string, key: string, defaultValue: T): Promise<T>;

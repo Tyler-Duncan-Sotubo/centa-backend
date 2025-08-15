@@ -18,10 +18,12 @@ const drizzle_module_1 = require("../../../drizzle/drizzle.module");
 const drizzle_orm_1 = require("drizzle-orm");
 const payroll_overrides_schema_1 = require("../schema/payroll-overrides.schema");
 const audit_service_1 = require("../../audit/audit.service");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let PayrollOverridesService = class PayrollOverridesService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
     }
     async create(dto, user) {
         const [created] = await this.db
@@ -29,11 +31,12 @@ let PayrollOverridesService = class PayrollOverridesService {
             .values({
             companyId: user.companyId,
             employeeId: dto.employeeId,
-            payrollDate: new Date(dto.payrollDate).toDateString(),
+            payrollDate: new Date(dto.payrollDate).toISOString(),
             forceInclude: dto.forceInclude ?? false,
             notes: dto.notes ?? '',
         })
-            .returning();
+            .returning()
+            .execute();
         await this.auditService.logAction({
             action: 'create',
             entity: 'payrollOverride',
@@ -43,30 +46,48 @@ let PayrollOverridesService = class PayrollOverridesService {
             changes: {
                 employeeId: dto.employeeId,
                 payrollDate: dto.payrollDate,
-                forceInclude: dto.forceInclude,
-                notes: dto.notes,
+                forceInclude: dto.forceInclude ?? false,
+                notes: dto.notes ?? '',
             },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
+        await this.cache.invalidateTags([
+            'payrollOverrides',
+            `company:${user.companyId}:payrollOverrides`,
+            `payrollOverride:${created.id}`,
+        ]);
         return created;
     }
     async findAll(companyId) {
-        return this.db
-            .select()
-            .from(payroll_overrides_schema_1.payrollOverrides)
-            .where((0, drizzle_orm_1.eq)(payroll_overrides_schema_1.payrollOverrides.companyId, companyId));
+        return this.cache.getOrSetVersioned(companyId, ['payrollOverrides', 'list'], async () => {
+            return this.db
+                .select()
+                .from(payroll_overrides_schema_1.payrollOverrides)
+                .where((0, drizzle_orm_1.eq)(payroll_overrides_schema_1.payrollOverrides.companyId, companyId))
+                .execute();
+        }, { tags: ['payrollOverrides', `company:${companyId}:payrollOverrides`] });
     }
     async findOne(id, companyId) {
-        const [record] = await this.db
-            .select()
-            .from(payroll_overrides_schema_1.payrollOverrides)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_overrides_schema_1.payrollOverrides.id, id), (0, drizzle_orm_1.eq)(payroll_overrides_schema_1.payrollOverrides.companyId, companyId)));
-        if (!record)
-            throw new common_1.NotFoundException('Override not found');
-        return record;
+        return this.cache.getOrSetVersioned(companyId, ['payrollOverrides', 'byId', id], async () => {
+            const [record] = await this.db
+                .select()
+                .from(payroll_overrides_schema_1.payrollOverrides)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_overrides_schema_1.payrollOverrides.id, id), (0, drizzle_orm_1.eq)(payroll_overrides_schema_1.payrollOverrides.companyId, companyId)))
+                .execute();
+            if (!record)
+                throw new common_1.NotFoundException('Override not found');
+            return record;
+        }, {
+            tags: [
+                'payrollOverrides',
+                `company:${companyId}:payrollOverrides`,
+                `payrollOverride:${id}`,
+            ],
+        });
     }
     async update(id, dto, user) {
         await this.findOne(id, user.companyId);
-        const result = await this.db
+        const [updated] = await this.db
             .update(payroll_overrides_schema_1.payrollOverrides)
             .set({
             forceInclude: dto.forceInclude,
@@ -75,8 +96,12 @@ let PayrollOverridesService = class PayrollOverridesService {
                 ? new Date(dto.payrollDate).toISOString()
                 : undefined,
         })
-            .where((0, drizzle_orm_1.eq)(payroll_overrides_schema_1.payrollOverrides.id, id))
-            .returning();
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_overrides_schema_1.payrollOverrides.id, id), (0, drizzle_orm_1.eq)(payroll_overrides_schema_1.payrollOverrides.companyId, user.companyId)))
+            .returning()
+            .execute();
+        if (!updated) {
+            throw new common_1.BadRequestException('Unable to update payroll override');
+        }
         await this.auditService.logAction({
             action: 'update',
             entity: 'payrollOverride',
@@ -89,13 +114,20 @@ let PayrollOverridesService = class PayrollOverridesService {
                 payrollDate: dto.payrollDate,
             },
         });
-        return result[0];
+        await this.cache.bumpCompanyVersion(user.companyId);
+        await this.cache.invalidateTags([
+            'payrollOverrides',
+            `company:${user.companyId}:payrollOverrides`,
+            `payrollOverride:${id}`,
+        ]);
+        return updated;
     }
 };
 exports.PayrollOverridesService = PayrollOverridesService;
 exports.PayrollOverridesService = PayrollOverridesService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], PayrollOverridesService);
 //# sourceMappingURL=payroll-overrides.service.js.map

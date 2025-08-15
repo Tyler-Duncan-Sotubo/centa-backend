@@ -11,6 +11,8 @@ export declare class PayGroupsService {
     private readonly auditService;
     private readonly companySettings;
     constructor(db: db, cacheService: CacheService, auditService: AuditService, companySettings: CompanySettingsService);
+    private getCompanyIdByEmployeeId;
+    private getCompanyIdByGroupId;
     findOneEmployee(employeeId: string): Promise<{
         id: any;
     } | {
@@ -26,18 +28,6 @@ export declare class PayGroupsService {
         payFrequency: string;
         createdAt: Date | null;
     }[]>;
-    create(user: User, dto: CreatePayGroupDto, ip: string): Promise<{
-        id: string;
-        name: string;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-        companyId: string;
-        applyPaye: boolean | null;
-        applyPension: boolean | null;
-        applyNhf: boolean | null;
-        isDeleted: boolean | null;
-        payScheduleId: string;
-    }>;
     findOne(groupId: string): Promise<{
         id: string;
         name: string;
@@ -50,12 +40,6 @@ export declare class PayGroupsService {
         updatedAt: Date | null;
         isDeleted: boolean | null;
     }>;
-    update(groupId: string, dto: UpdatePayGroupDto, user: User, ip: string): Promise<{
-        message: string;
-    }>;
-    remove(groupId: string, user: any, ip: string): Promise<{
-        message: string;
-    }>;
     findEmployeesInGroup(groupId: string): Promise<({
         id: any;
         first_name: any;
@@ -65,6 +49,24 @@ export declare class PayGroupsService {
         first_name: any;
         last_name: any;
     })[]>;
+    create(user: User, dto: CreatePayGroupDto, ip: string): Promise<{
+        id: string;
+        name: string;
+        createdAt: Date | null;
+        updatedAt: Date | null;
+        companyId: string;
+        applyPaye: boolean | null;
+        applyPension: boolean | null;
+        applyNhf: boolean | null;
+        isDeleted: boolean | null;
+        payScheduleId: string;
+    }>;
+    update(groupId: string, dto: UpdatePayGroupDto, user: User, ip: string): Promise<{
+        message: string;
+    }>;
+    remove(groupId: string, user: any, ip: string): Promise<{
+        message: string;
+    }>;
     addEmployeesToGroup(employeeIds: string[] | string, groupId: string, user: User, ip: string): Promise<{
         message: string;
     }>;

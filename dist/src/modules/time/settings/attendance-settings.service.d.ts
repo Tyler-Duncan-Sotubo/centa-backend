@@ -4,7 +4,6 @@ export declare class AttendanceSettingsService {
     private readonly companySettingsService;
     private readonly cache;
     constructor(companySettingsService: CompanySettingsService, cache: CacheService);
-    private ttlSeconds;
     private tags;
     getAllAttendanceSettings(companyId: string): Promise<Record<string, any>>;
     getAttendanceSettings(companyId: string): Promise<{

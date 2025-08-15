@@ -30,7 +30,6 @@ let CostCentersService = class CostCentersService extends base_crud_service_1.Ba
         this.companySettings = companySettings;
         this.cache = cache;
         this.table = schema_1.costCenters;
-        this.ttlSeconds = 60 * 60;
     }
     tags(companyId) {
         return [`company:${companyId}:cost-centers`];
@@ -102,7 +101,7 @@ let CostCentersService = class CostCentersService extends base_crud_service_1.Ba
         })
             .from(schema_1.costCenters)
             .where((0, drizzle_orm_1.eq)(schema_1.costCenters.companyId, companyId))
-            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+            .execute(), { tags: this.tags(companyId) });
     }
     async findOne(companyId, id) {
         return this.cache.getOrSetVersioned(companyId, ['cost-centers', 'one', id], async () => {
@@ -119,7 +118,7 @@ let CostCentersService = class CostCentersService extends base_crud_service_1.Ba
             if (!cc)
                 throw new common_1.NotFoundException(`Cost center ${id} not found`);
             return cc;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async update(companyId, id, dto, userId, ip) {
         const result = await this.updateWithAudit(companyId, id, { code: dto.code, name: dto.name, budget: dto.budget }, {

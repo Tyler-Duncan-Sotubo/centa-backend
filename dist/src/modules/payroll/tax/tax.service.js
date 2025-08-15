@@ -34,17 +34,16 @@ let TaxService = class TaxService {
         this.pusher = pusher;
         this.deductions = deductions;
         this.getCompany = async (company_id) => {
-            const cacheKey = `company_id_${company_id}`;
-            return this.cache.getOrSetCache(cacheKey, async () => {
+            return this.cache.getOrSetVersioned(company_id, ['company', 'meta'], async () => {
                 const company = await this.db
                     .select()
                     .from(schema_1.companies)
                     .where((0, drizzle_orm_1.eq)(schema_1.companies.id, company_id))
                     .execute();
-                if (!company)
+                if (!company?.[0])
                     throw new common_1.BadRequestException('Company not found');
                 return company[0].id;
-            });
+            }, { tags: ['company', `company:${company_id}`] });
         };
     }
     async onPayrollApproval(company_id, payrollMonth, payrollRunId) {
@@ -132,55 +131,75 @@ let TaxService = class TaxService {
             await this.db.insert(tax_schema_1.taxFilingDetails).values(details).execute();
         }
         await this.deductions.processVoluntaryDeductionsFromPayroll(payrollRecords, payrollRunId, company_id);
+        await this.cache.bumpCompanyVersion(company_id);
+        await this.cache.invalidateTags([
+            'tax:filings',
+            `company:${company_id}:tax_filings`,
+            `company:${company_id}:voluntary_deductions`,
+        ]);
         await this.pusher.createNotification(company_id, `Your tax filings have been created successfully for the month of ${payrollMonth}`, 'tax');
         return { message: 'Tax filings created successfully' };
     }
     async getCompanyTaxFilings(user_id) {
         const company_id = await this.getCompany(user_id);
-        const statutoryFilings = await this.db
-            .select({
-            id: tax_schema_1.taxFilings.id,
-            tax_type: tax_schema_1.taxFilings.taxType,
-            total_deductions: (0, drizzle_orm_1.sql) `SUM(
-          CASE 
-            WHEN tax_filings.tax_type = 'Pension'
-            THEN ${tax_schema_1.taxFilingDetails.contributionAmount} + ${tax_schema_1.taxFilingDetails.employerContribution}
-            WHEN tax_filings.tax_type != 'Pension'
-            THEN ${tax_schema_1.taxFilingDetails.contributionAmount}
-            ELSE 0
-          END
-        )`.as('total_deductions'),
-            status: tax_schema_1.taxFilings.status,
-            month: tax_schema_1.taxFilings.payrollMonth,
-        })
-            .from(tax_schema_1.taxFilings)
-            .innerJoin(tax_schema_1.taxFilingDetails, (0, drizzle_orm_1.eq)(tax_schema_1.taxFilings.id, tax_schema_1.taxFilingDetails.taxFilingId))
-            .where((0, drizzle_orm_1.eq)(tax_schema_1.taxFilings.companyId, company_id))
-            .groupBy(tax_schema_1.taxFilings.taxType, tax_schema_1.taxFilings.status, tax_schema_1.taxFilings.id)
-            .execute();
-        const voluntaryFilings = await this.db
-            .select({
-            id: (0, drizzle_orm_1.sql) `CONCAT('voluntary_', ${deduction_schema_1.filingVoluntaryDeductions.payrollId}, '_', ${deduction_schema_1.filingVoluntaryDeductions.deductionName})`.as('id'),
-            tax_type: deduction_schema_1.filingVoluntaryDeductions.deductionName,
-            total_deductions: (0, drizzle_orm_1.sql) `SUM(${deduction_schema_1.filingVoluntaryDeductions.amount})`.as('total_deductions'),
-            status: deduction_schema_1.filingVoluntaryDeductions.status,
-            month: deduction_schema_1.filingVoluntaryDeductions.payrollMonth,
-        })
-            .from(deduction_schema_1.filingVoluntaryDeductions)
-            .where((0, drizzle_orm_1.eq)(deduction_schema_1.filingVoluntaryDeductions.companyId, company_id))
-            .groupBy(deduction_schema_1.filingVoluntaryDeductions.deductionName, deduction_schema_1.filingVoluntaryDeductions.payrollMonth, deduction_schema_1.filingVoluntaryDeductions.payrollId, deduction_schema_1.filingVoluntaryDeductions.status)
-            .execute();
-        return [...statutoryFilings, ...voluntaryFilings];
+        return this.cache.getOrSetVersioned(company_id, ['tax', 'filings', 'summary'], async () => {
+            const statutoryFilings = await this.db
+                .select({
+                id: tax_schema_1.taxFilings.id,
+                tax_type: tax_schema_1.taxFilings.taxType,
+                total_deductions: (0, drizzle_orm_1.sql) `SUM(
+              CASE 
+                WHEN tax_filings.tax_type = 'Pension'
+                THEN ${tax_schema_1.taxFilingDetails.contributionAmount} + ${tax_schema_1.taxFilingDetails.employerContribution}
+                WHEN tax_filings.tax_type != 'Pension'
+                THEN ${tax_schema_1.taxFilingDetails.contributionAmount}
+                ELSE 0
+              END
+            )`.as('total_deductions'),
+                status: tax_schema_1.taxFilings.status,
+                month: tax_schema_1.taxFilings.payrollMonth,
+            })
+                .from(tax_schema_1.taxFilings)
+                .innerJoin(tax_schema_1.taxFilingDetails, (0, drizzle_orm_1.eq)(tax_schema_1.taxFilings.id, tax_schema_1.taxFilingDetails.taxFilingId))
+                .where((0, drizzle_orm_1.eq)(tax_schema_1.taxFilings.companyId, company_id))
+                .groupBy(tax_schema_1.taxFilings.taxType, tax_schema_1.taxFilings.status, tax_schema_1.taxFilings.id)
+                .execute();
+            const voluntaryFilings = await this.db
+                .select({
+                id: (0, drizzle_orm_1.sql) `CONCAT('voluntary_', ${deduction_schema_1.filingVoluntaryDeductions.payrollId}, '_', ${deduction_schema_1.filingVoluntaryDeductions.deductionName})`.as('id'),
+                tax_type: deduction_schema_1.filingVoluntaryDeductions.deductionName,
+                total_deductions: (0, drizzle_orm_1.sql) `SUM(${deduction_schema_1.filingVoluntaryDeductions.amount})`.as('total_deductions'),
+                status: deduction_schema_1.filingVoluntaryDeductions.status,
+                month: deduction_schema_1.filingVoluntaryDeductions.payrollMonth,
+            })
+                .from(deduction_schema_1.filingVoluntaryDeductions)
+                .where((0, drizzle_orm_1.eq)(deduction_schema_1.filingVoluntaryDeductions.companyId, company_id))
+                .groupBy(deduction_schema_1.filingVoluntaryDeductions.deductionName, deduction_schema_1.filingVoluntaryDeductions.payrollMonth, deduction_schema_1.filingVoluntaryDeductions.payrollId, deduction_schema_1.filingVoluntaryDeductions.status)
+                .execute();
+            return [...statutoryFilings, ...voluntaryFilings];
+        }, {
+            tags: [
+                'tax:filings',
+                `company:${company_id}:tax_filings`,
+                `company:${company_id}:voluntary_deductions`,
+            ],
+        });
     }
     async updateCompanyTaxFilings(tax_filing_id, status) {
-        const res = await this.db
+        const [updated] = await this.db
             .update(tax_schema_1.taxFilings)
-            .set({
-            status,
-        })
+            .set({ status })
             .where((0, drizzle_orm_1.eq)(tax_schema_1.taxFilings.id, tax_filing_id))
+            .returning({ companyId: tax_schema_1.taxFilings.companyId })
             .execute();
-        return res;
+        if (updated?.companyId) {
+            await this.cache.bumpCompanyVersion(updated.companyId);
+            await this.cache.invalidateTags([
+                'tax:filings',
+                `company:${updated.companyId}:tax_filings`,
+            ]);
+        }
+        return { success: true };
     }
     async generateTaxFilingExcel(tax_filing_id) {
         const taxFiling = await this.db

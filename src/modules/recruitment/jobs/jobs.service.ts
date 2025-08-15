@@ -28,6 +28,7 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { PublicJobsDto } from './dto/public-jobs.dto';
 import { companies } from 'src/drizzle/schema';
 import { CompanyJobsDto } from './dto/company-job.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class JobsService {
@@ -35,7 +36,17 @@ export class JobsService {
     @Inject(DRIZZLE) private readonly db: db,
     private readonly pipelineSeederService: PipelineSeederService,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
+
+  private tags(scope: string) {
+    // scope is companyId or "global"
+    return [
+      `company:${scope}:jobs`,
+      `company:${scope}:jobs:list`,
+      `company:${scope}:jobs:public`,
+    ];
+  }
 
   // Create a job and optionally clone a pipeline template into it
   async create(
@@ -54,7 +65,8 @@ export class JobsService {
             eq(job_postings.externalJobId, createDto.externalJobId),
             eq(job_postings.companyId, companyId),
           ),
-        );
+        )
+        .execute();
 
       if (exists.length > 0) {
         throw new BadRequestException(
@@ -84,6 +96,7 @@ export class JobsService {
         job.id,
       );
     }
+
     // Step 4: Audit the job creation
     await this.auditService.logAction({
       action: 'create',
@@ -106,6 +119,10 @@ export class JobsService {
       },
     });
 
+    // Invalidate caches (company + global public views)
+    await this.cache.bumpCompanyVersion(companyId);
+    await this.cache.bumpCompanyVersion('global');
+
     return job;
   }
 
@@ -120,7 +137,8 @@ export class JobsService {
           eq(job_postings.id, jobId),
           eq(job_postings.companyId, user.companyId),
         ),
-      );
+      )
+      .execute();
 
     if (!job) throw new NotFoundException('Job not found');
 
@@ -128,6 +146,7 @@ export class JobsService {
     if (job.status === 'open') {
       throw new BadRequestException('Job is already posted');
     }
+
     // Step 3: Update the job status to 'posted'
     await this.db
       .update(job_postings)
@@ -153,41 +172,67 @@ export class JobsService {
         postedAt: new Date(),
       },
     });
+
+    // Invalidate caches (company + global public views)
+    await this.cache.bumpCompanyVersion(user.companyId);
+    await this.cache.bumpCompanyVersion('global');
   }
 
-  // Fetch all jobs for a company
+  // Fetch all jobs for a company (cached)
   async findAll(companyId: string) {
-    return this.db
-      .select({
-        id: job_postings.id,
-        title: job_postings.title,
-        description: job_postings.description,
-        status: job_postings.status,
-        jobType: job_postings.jobType,
-        employmentType: job_postings.employmentType,
-        deadlineDate: job_postings.deadlineDate,
-      })
-      .from(job_postings)
-      .where(eq(job_postings.companyId, companyId))
-      .orderBy(asc(job_postings.createdAt));
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['jobs', 'list', 'all'],
+      async () => {
+        const rows = await this.db
+          .select({
+            id: job_postings.id,
+            title: job_postings.title,
+            description: job_postings.description,
+            status: job_postings.status,
+            jobType: job_postings.jobType,
+            employmentType: job_postings.employmentType,
+            deadlineDate: job_postings.deadlineDate,
+          })
+          .from(job_postings)
+          .where(eq(job_postings.companyId, companyId))
+          .orderBy(asc(job_postings.createdAt))
+          .execute();
+
+        return rows;
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
-  // Get a single job (scoped to company)
+  // Get a single job (scoped to company) (cached)
   async findOne(jobId: string, companyId: string) {
-    const [job] = await this.db
-      .select()
-      .from(job_postings)
-      .where(
-        and(eq(job_postings.id, jobId), eq(job_postings.companyId, companyId)),
-      );
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['jobs', 'detail', jobId],
+      async () => {
+        const [job] = await this.db
+          .select()
+          .from(job_postings)
+          .where(
+            and(
+              eq(job_postings.id, jobId),
+              eq(job_postings.companyId, companyId),
+            ),
+          )
+          .execute();
 
-    if (!job) throw new NotFoundException('Job not found');
-    return job;
+        if (!job) throw new NotFoundException('Job not found');
+        return job;
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
   // Update a job (basic fields only)
   async update(jobId: string, user: User, dto: UpdateJobDto) {
     const { companyId, id } = user;
+
     const [updated] = await this.db
       .update(job_postings)
       .set({ ...dto })
@@ -211,18 +256,24 @@ export class JobsService {
       },
     });
 
+    // Invalidate caches (company + global public views)
+    await this.cache.bumpCompanyVersion(companyId);
+    await this.cache.bumpCompanyVersion('global');
+
     return updated;
   }
 
-  // Delete a job
+  // Delete (archive) a job
   async remove(jobId: string, user: User) {
     const { companyId, id } = user;
+
     await this.db
       .update(job_postings)
       .set({ isArchived: true }) // Soft delete by archiving
       .where(
         and(eq(job_postings.id, jobId), eq(job_postings.companyId, companyId)),
-      );
+      )
+      .execute();
 
     // log the deletion action
     await this.auditService.logAction({
@@ -237,203 +288,268 @@ export class JobsService {
       },
     });
 
+    // Invalidate caches (company + global public views)
+    await this.cache.bumpCompanyVersion(companyId);
+    await this.cache.bumpCompanyVersion('global');
+
     return { message: 'Job archived successfully' };
   }
 
+  // Public: list jobs (cached under global scope; key includes filters)
   async publicJobs(options: PublicJobsDto) {
-    const {
-      search,
-      limit = 10,
-      offset = 0,
-      sortBy = 'createdAt',
-      sortDirection = 'asc',
-      jobType,
-      employmentType,
-      experienceLevel,
-      location,
-      status,
-      salaryMin,
-      salaryMax,
-    } = options;
+    const key = [
+      'jobs',
+      'public',
+      'list',
+      // serialize the filter options so different queries get different cache entries
+      JSON.stringify({
+        ...options,
+        // normalize defaults to keep key stable
+        limit: options.limit ?? 10,
+        offset: options.offset ?? 0,
+        sortBy: options.sortBy ?? 'createdAt',
+        sortDirection: options.sortDirection ?? 'asc',
+      }),
+    ];
 
-    const sortColumnMap: Record<string, any> = {
-      title: job_postings.title,
-      createdAt: job_postings.createdAt,
-      deadlineDate: job_postings.deadlineDate,
-    };
+    return this.cache.getOrSetVersioned(
+      'global',
+      key,
+      async () => {
+        const {
+          search,
+          limit = 10,
+          offset = 0,
+          sortBy = 'createdAt',
+          sortDirection = 'asc',
+          jobType,
+          employmentType,
+          experienceLevel,
+          location,
+          status,
+          salaryMin,
+          salaryMax,
+        } = options;
 
-    const sortColumn = sortColumnMap[sortBy] || job_postings.createdAt;
-    const sortFn = sortDirection === 'desc' ? desc : asc;
+        const sortColumnMap: Record<string, any> = {
+          title: job_postings.title,
+          createdAt: job_postings.createdAt,
+          deadlineDate: job_postings.deadlineDate,
+        };
 
-    const conditions: SQL[] = [];
+        const sortColumn = sortColumnMap[sortBy] || job_postings.createdAt;
+        const sortFn = sortDirection === 'desc' ? desc : asc;
 
-    const condition = search
-      ? or(
-          ilike(job_postings.title, `%${search}%`),
-          ilike(job_postings.description, `%${search}%`),
-        )
-      : undefined;
+        const conditions: SQL[] = [];
 
-    if (condition) conditions.push(condition); // ✅ Prevent undefined push
+        const condition = search
+          ? or(
+              ilike(job_postings.title, `%${search}%`),
+              ilike(job_postings.description, `%${search}%`),
+            )
+          : undefined;
 
-    if (status) {
-      const allowedStatuses = ['draft', 'open', 'closed', 'archived'] as const;
-      if ((allowedStatuses as readonly string[]).includes(status)) {
-        conditions.push(
-          eq(job_postings.status, status as (typeof allowedStatuses)[number]),
-        );
-      }
-    }
+        if (condition) conditions.push(condition); // ✅ Prevent undefined push
 
-    if (jobType?.length) {
-      // Ensure only allowed enum values are passed
-      const allowedJobTypes = ['onsite', 'remote', 'hybrid'] as const;
-      const filteredJobTypes = jobType.filter(
-        (jt): jt is (typeof allowedJobTypes)[number] =>
-          allowedJobTypes.includes(jt as any),
-      );
-      if (filteredJobTypes.length) {
-        conditions.push(inArray(job_postings.jobType, filteredJobTypes));
-      }
-    }
+        if (status) {
+          const allowedStatuses = [
+            'draft',
+            'open',
+            'closed',
+            'archived',
+          ] as const;
+          if ((allowedStatuses as readonly string[]).includes(status)) {
+            conditions.push(
+              eq(
+                job_postings.status,
+                status as (typeof allowedStatuses)[number],
+              ),
+            );
+          }
+        }
 
-    if (employmentType?.length) {
-      // Ensure only allowed enum values are passed
-      const allowedEmploymentTypes = [
-        'permanent',
-        'temporary',
-        'contract',
-        'internship',
-        'freelance',
-        'part_time',
-        'full_time',
-      ] as const;
-      const filteredEmploymentTypes = employmentType.filter(
-        (et): et is (typeof allowedEmploymentTypes)[number] =>
-          allowedEmploymentTypes.includes(et as any),
-      );
-      if (filteredEmploymentTypes.length) {
-        conditions.push(
-          inArray(job_postings.employmentType, filteredEmploymentTypes),
-        );
-      }
-    }
+        if (jobType?.length) {
+          const allowedJobTypes = ['onsite', 'remote', 'hybrid'] as const;
+          const filteredJobTypes = jobType.filter(
+            (jt): jt is (typeof allowedJobTypes)[number] =>
+              allowedJobTypes.includes(jt as any),
+          );
+          if (filteredJobTypes.length) {
+            conditions.push(inArray(job_postings.jobType, filteredJobTypes));
+          }
+        }
 
-    if (experienceLevel?.length) {
-      conditions.push(inArray(job_postings.experienceLevel, experienceLevel));
-    }
+        if (employmentType?.length) {
+          const allowedEmploymentTypes = [
+            'permanent',
+            'temporary',
+            'contract',
+            'internship',
+            'freelance',
+            'part_time',
+            'full_time',
+          ] as const;
+          const filteredEmploymentTypes = employmentType.filter(
+            (et): et is (typeof allowedEmploymentTypes)[number] =>
+              allowedEmploymentTypes.includes(et as any),
+          );
+          if (filteredEmploymentTypes.length) {
+            conditions.push(
+              inArray(job_postings.employmentType, filteredEmploymentTypes),
+            );
+          }
+        }
 
-    if (location?.trim()) {
-      conditions.push(ilike(job_postings.city, `%${location.toLowerCase()}%`));
-    }
+        if (experienceLevel?.length) {
+          conditions.push(
+            inArray(job_postings.experienceLevel, experienceLevel),
+          );
+        }
 
-    if (salaryMin !== undefined) {
-      conditions.push(gte(job_postings.salaryRangeTo, salaryMin));
-    }
+        if (location?.trim()) {
+          conditions.push(
+            ilike(job_postings.city, `%${location.toLowerCase()}%`),
+          );
+        }
 
-    if (salaryMax !== undefined) {
-      conditions.push(lte(job_postings.salaryRangeFrom, salaryMax));
-    }
+        if (salaryMin !== undefined) {
+          conditions.push(gte(job_postings.salaryRangeTo, salaryMin));
+        }
 
-    const today = new Date().toISOString(); // or new Date() if using date comparisons directly
+        if (salaryMax !== undefined) {
+          conditions.push(lte(job_postings.salaryRangeFrom, salaryMax));
+        }
 
-    conditions.push(eq(job_postings.status, 'open'));
-    conditions.push(gt(job_postings.deadlineDate, today));
+        const today = new Date().toISOString();
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+        conditions.push(eq(job_postings.status, 'open'));
+        conditions.push(gt(job_postings.deadlineDate, today));
 
-    const rows = await this.db
-      .select({
-        id: job_postings.id,
-        title: job_postings.title,
-        description: job_postings.description,
-        status: job_postings.status,
-        jobType: job_postings.jobType,
-        employmentType: job_postings.employmentType,
-        deadlineDate: job_postings.deadlineDate,
-        createdAt: job_postings.createdAt,
-        salaryRangeFrom: job_postings.salaryRangeFrom,
-        salaryRangeTo: job_postings.salaryRangeTo,
-        experiences: job_postings.experienceLevel,
-        location: job_postings.city,
-        companyName: companies.name,
-        companyLogo: companies.logo_url,
-        companyId: job_postings.companyId,
-      })
-      .from(job_postings)
-      .innerJoin(companies, eq(job_postings.companyId, companies.id))
-      .where(whereClause)
-      .orderBy(sortFn(sortColumn))
-      .limit(limit)
-      .offset(offset);
+        const whereClause =
+          conditions.length > 0 ? and(...conditions) : undefined;
 
-    return rows;
+        const rows = await this.db
+          .select({
+            id: job_postings.id,
+            title: job_postings.title,
+            description: job_postings.description,
+            status: job_postings.status,
+            jobType: job_postings.jobType,
+            employmentType: job_postings.employmentType,
+            deadlineDate: job_postings.deadlineDate,
+            createdAt: job_postings.createdAt,
+            salaryRangeFrom: job_postings.salaryRangeFrom,
+            salaryRangeTo: job_postings.salaryRangeTo,
+            experiences: job_postings.experienceLevel,
+            location: job_postings.city,
+            companyName: companies.name,
+            companyLogo: companies.logo_url,
+            companyId: job_postings.companyId,
+          })
+          .from(job_postings)
+          .innerJoin(companies, eq(job_postings.companyId, companies.id))
+          .where(whereClause)
+          .orderBy(sortFn(sortColumn))
+          .limit(limit)
+          .offset(offset)
+          .execute();
+
+        return rows;
+      },
+      { tags: this.tags('global') },
+    );
   }
 
+  // Public: single job (cached under global scope)
   async publicJob(jobId: string) {
-    const [job] = await this.db
-      .select()
-      .from(job_postings)
-      .where(eq(job_postings.id, jobId));
+    return this.cache.getOrSetVersioned(
+      'global',
+      ['jobs', 'public', 'detail', jobId],
+      async () => {
+        const [job] = await this.db
+          .select()
+          .from(job_postings)
+          .where(eq(job_postings.id, jobId))
+          .execute();
 
-    if (!job) throw new NotFoundException('Job not found');
-    return job;
+        if (!job) throw new NotFoundException('Job not found');
+        return job;
+      },
+      { tags: this.tags('global') },
+    );
   }
 
+  // Public: company jobs (cached under company scope)
   async publicCompanyJobs(options: CompanyJobsDto) {
     const { companyId, search, location } = options;
-
-    console.log('Fetching company jobs for:', companyId);
 
     if (!companyId) {
       throw new Error('companyId is required');
     }
 
-    const conditions: SQL[] = [];
+    const key = [
+      'jobs',
+      'public',
+      'company',
+      companyId,
+      JSON.stringify({ search: search ?? '', location: location ?? '' }),
+    ];
 
-    const condition = search
-      ? or(
-          ilike(job_postings.title, `%${search}%`),
-          ilike(job_postings.description, `%${search}%`),
-        )
-      : undefined;
+    return this.cache.getOrSetVersioned(
+      companyId,
+      key,
+      async () => {
+        const conditions: SQL[] = [];
 
-    if (condition) conditions.push(condition); // ✅ Prevent undefined push
+        const condition = search
+          ? or(
+              ilike(job_postings.title, `%${search}%`),
+              ilike(job_postings.description, `%${search}%`),
+            )
+          : undefined;
 
-    // Location filter
-    if (location?.trim()) {
-      conditions.push(ilike(job_postings.city, `%${location.toLowerCase()}%`));
-    }
+        if (condition) conditions.push(condition); // ✅ Prevent undefined push
 
-    // Always filter for active, visible jobs
-    const today = new Date().toISOString();
+        // Location filter
+        if (location?.trim()) {
+          conditions.push(
+            ilike(job_postings.city, `%${location.toLowerCase()}%`),
+          );
+        }
 
-    conditions.push(eq(job_postings.companyId, companyId));
-    conditions.push(eq(job_postings.status, 'open'));
-    conditions.push(gt(job_postings.deadlineDate, today));
+        // Always filter for active, visible jobs
+        const today = new Date().toISOString();
 
-    const rows = await this.db
-      .select({
-        id: job_postings.id,
-        title: job_postings.title,
-        description: job_postings.description,
-        status: job_postings.status,
-        jobType: job_postings.jobType,
-        employmentType: job_postings.employmentType,
-        deadlineDate: job_postings.deadlineDate,
-        createdAt: job_postings.createdAt,
-        salaryRangeFrom: job_postings.salaryRangeFrom,
-        salaryRangeTo: job_postings.salaryRangeTo,
-        experiences: job_postings.experienceLevel,
-        location: job_postings.city,
-        companyName: companies.name,
-        companyLogo: companies.logo_url,
-      })
-      .from(job_postings)
-      .innerJoin(companies, eq(job_postings.companyId, companies.id))
-      .where(and(...conditions))
-      .orderBy(desc(job_postings.createdAt));
+        conditions.push(eq(job_postings.companyId, companyId));
+        conditions.push(eq(job_postings.status, 'open'));
+        conditions.push(gt(job_postings.deadlineDate, today));
 
-    return rows;
+        const rows = await this.db
+          .select({
+            id: job_postings.id,
+            title: job_postings.title,
+            description: job_postings.description,
+            status: job_postings.status,
+            jobType: job_postings.jobType,
+            employmentType: job_postings.employmentType,
+            deadlineDate: job_postings.deadlineDate,
+            createdAt: job_postings.createdAt,
+            salaryRangeFrom: job_postings.salaryRangeFrom,
+            salaryRangeTo: job_postings.salaryRangeTo,
+            experiences: job_postings.experienceLevel,
+            location: job_postings.city,
+            companyName: companies.name,
+            companyLogo: companies.logo_url,
+          })
+          .from(job_postings)
+          .innerJoin(companies, eq(job_postings.companyId, companies.id))
+          .where(and(...conditions))
+          .orderBy(desc(job_postings.createdAt))
+          .execute();
+
+        return rows;
+      },
+      { tags: [...this.tags(companyId), ...this.tags('global')] },
+    );
   }
 }

@@ -311,8 +311,27 @@ export declare class CompanyService {
     constructor(db: db, cache: CacheService, audit: AuditService, departmentService: DepartmentService, payGroupService: PayGroupsService, locationService: LocationsService, jobRoleService: JobRolesService, costCenterService: CostCentersService, payrollReport: ReportService, attendanceReport: AttendanceReportService, awsService: AwsService, permissionsService: PermissionsService, onboardingSeederService: OnboardingSeederService, leaveBalanceService: LeaveBalanceService, companySettingsService: CompanySettingsService);
     private ttlCompany;
     private ttlSummary;
+    private ttlElements;
+    private ttlAllCompanies;
     private tags;
     update(companyId: string, dto: UpdateCompanyDto, userId: string, ip: string): Promise<string>;
+    softDelete(id: string): Promise<{
+        id: string;
+        name: string;
+        domain: string;
+        isActive: boolean;
+        country: string;
+        currency: "NGN" | "USD" | "EUR" | "GBP";
+        regNo: string;
+        logo_url: string;
+        primaryContactName: string | null;
+        primaryContactEmail: string | null;
+        primaryContactPhone: string | null;
+        subscriptionPlan: "free" | "pro" | "enterprise";
+        trialEndsAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
     findOne(id: string): Promise<{
         id: string;
         name: string;
@@ -339,23 +358,6 @@ export declare class CompanyService {
         confirmed: any;
         gender: string | null;
     })[]>;
-    softDelete(id: string): Promise<{
-        id: string;
-        name: string;
-        domain: string;
-        isActive: boolean;
-        country: string;
-        currency: "NGN" | "USD" | "EUR" | "GBP";
-        regNo: string;
-        logo_url: string;
-        primaryContactName: string | null;
-        primaryContactEmail: string | null;
-        primaryContactPhone: string | null;
-        subscriptionPlan: "free" | "pro" | "enterprise";
-        trialEndsAt: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
-    }>;
     getCompanySummary(companyId: string): Promise<{
         companyName: string;
         allHolidays: {

@@ -1,4 +1,9 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateBlockedDayDto } from './dto/create-blocked-day.dto';
 import { UpdateBlockedDayDto } from './dto/update-blocked-day.dto';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
@@ -8,28 +13,41 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { and, eq, sql } from 'drizzle-orm';
 import { User } from 'src/common/types/user.type';
 import { users } from 'src/drizzle/schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class BlockedDaysService {
   constructor(
     @Inject(DRIZZLE) private db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
 
+  private tags(companyId: string) {
+    return [
+      `company:${companyId}:leave`,
+      `company:${companyId}:leave:blocked-days`,
+    ];
+  }
+
   async create(dto: CreateBlockedDayDto, user: User) {
-    // Check if the date is already blocked
+    // Uniqueness per company + date
     const existingBlockedDay = await this.db
       .select()
       .from(blockedLeaveDays)
-      .where(eq(blockedLeaveDays.date, dto.date))
+      .where(
+        and(
+          eq(blockedLeaveDays.date, dto.date),
+          eq(blockedLeaveDays.companyId, user.companyId),
+        ),
+      )
       .execute();
 
     if (existingBlockedDay.length > 0) {
       throw new BadRequestException('This date is already blocked.');
     }
 
-    // Create a new blocked day
-    const blockedDay = await this.db
+    const [blockedDay] = await this.db
       .insert(blockedLeaveDays)
       .values({
         ...dto,
@@ -39,62 +57,106 @@ export class BlockedDaysService {
       .returning()
       .execute();
 
-    // Log the creation of the blocked day
     await this.auditService.logAction({
       action: 'create',
       entity: 'blockedLeaveDays',
-      entityId: blockedDay[0].id, // Assuming the ID is returned in the first element
-      userId: user.id, // Assuming you have a userId in the DTO
+      entityId: blockedDay.id,
+      userId: user.id,
       details: 'Blocked day created',
-      changes: JSON.stringify(dto),
+      changes: { ...dto, companyId: user.companyId },
     });
+
+    // Invalidate all versioned keys under this company
+    await this.cache.bumpCompanyVersion(user.companyId);
 
     return blockedDay;
   }
 
   async getBlockedDates(companyId: string): Promise<string[]> {
-    const result = await this.db
-      .select({ date: blockedLeaveDays.date })
-      .from(blockedLeaveDays)
-      .where(eq(blockedLeaveDays.companyId, companyId))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['leave', 'blocked-days', 'dates'],
+      async () => {
+        const result = (await this.db
+          .select({ date: blockedLeaveDays.date })
+          .from(blockedLeaveDays)
+          .where(eq(blockedLeaveDays.companyId, companyId))
+          .execute()) as { date: string | Date }[];
 
-    return result.map((r) => r.date.toString().split('T')[0]);
+        return result.map(
+          (r) =>
+            (typeof r.date === 'string' ? r.date : r.date.toISOString()).split(
+              'T',
+            )[0],
+        );
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
   async findAll(companyId: string) {
-    const blockedDays = await this.db
-      .select({
-        id: blockedLeaveDays.id,
-        date: blockedLeaveDays.date,
-        reason: blockedLeaveDays.reason,
-        createdAt: blockedLeaveDays.createdAt,
-        createdBy: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
-        name: blockedLeaveDays.name,
-      })
-      .from(blockedLeaveDays)
-      .innerJoin(users, eq(users.id, blockedLeaveDays.createdBy))
-      .where(eq(blockedLeaveDays.companyId, companyId))
-      .execute();
-
-    return blockedDays;
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['leave', 'blocked-days', 'list'],
+      async () => {
+        return this.db
+          .select({
+            id: blockedLeaveDays.id,
+            date: blockedLeaveDays.date,
+            reason: blockedLeaveDays.reason,
+            createdAt: blockedLeaveDays.createdAt,
+            createdBy: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
+            name: blockedLeaveDays.name,
+          })
+          .from(blockedLeaveDays)
+          .innerJoin(users, eq(users.id, blockedLeaveDays.createdBy))
+          .where(eq(blockedLeaveDays.companyId, companyId))
+          .execute();
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
-  async findOne(id: string) {
-    const [blockedDay] = await this.db
-      .select()
-      .from(blockedLeaveDays)
-      .where(eq(blockedLeaveDays.id, id))
-      .execute();
+  async findOne(id: string, companyId: string) {
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['leave', 'blocked-days', 'one', id],
+      async () => {
+        const [blockedDay] = await this.db
+          .select()
+          .from(blockedLeaveDays)
+          .where(
+            and(
+              eq(blockedLeaveDays.id, id),
+              eq(blockedLeaveDays.companyId, companyId),
+            ),
+          )
+          .execute();
 
-    if (!blockedDay) {
-      throw new BadRequestException('Blocked day not found');
-    }
-    return blockedDay;
+        if (!blockedDay) {
+          throw new NotFoundException('Blocked day not found');
+        }
+        return blockedDay;
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
   async update(id: string, dto: UpdateBlockedDayDto, user: User) {
-    const blockedDay = await this.db
+    // Ensure it exists & belongs to company
+    const [existing] = await this.db
+      .select()
+      .from(blockedLeaveDays)
+      .where(
+        and(
+          eq(blockedLeaveDays.id, id),
+          eq(blockedLeaveDays.companyId, user.companyId),
+        ),
+      )
+      .execute();
+    if (!existing) throw new NotFoundException('Blocked day not found');
+
+    const [updated] = await this.db
       .update(blockedLeaveDays)
       .set(dto)
       .where(
@@ -106,25 +168,53 @@ export class BlockedDaysService {
       .returning()
       .execute();
 
-    // Log the update of the blocked day
     await this.auditService.logAction({
       action: 'update',
       entity: 'blockedLeaveDays',
       entityId: id,
-      userId: user.id, // Assuming you have a userId in the DTO
+      userId: user.id,
       details: 'Blocked day updated',
-      changes: JSON.stringify(dto),
+      changes: { before: existing, after: updated },
     });
 
-    return blockedDay;
+    await this.cache.bumpCompanyVersion(user.companyId);
+    return updated;
   }
 
-  async remove(id: string) {
-    // Check if the blocked day exists
-    await this.findOne(id);
-    return this.db
-      .delete(blockedLeaveDays)
-      .where(eq(blockedLeaveDays.id, id))
+  async remove(id: string, user: User) {
+    // Ensure it exists & belongs to company
+    const [existing] = await this.db
+      .select()
+      .from(blockedLeaveDays)
+      .where(
+        and(
+          eq(blockedLeaveDays.id, id),
+          eq(blockedLeaveDays.companyId, user.companyId),
+        ),
+      )
       .execute();
+    if (!existing) throw new NotFoundException('Blocked day not found');
+
+    await this.db
+      .delete(blockedLeaveDays)
+      .where(
+        and(
+          eq(blockedLeaveDays.id, id),
+          eq(blockedLeaveDays.companyId, user.companyId),
+        ),
+      )
+      .execute();
+
+    await this.auditService.logAction({
+      action: 'delete',
+      entity: 'blockedLeaveDays',
+      entityId: id,
+      userId: user.id,
+      details: 'Blocked day deleted',
+      changes: { id, companyId: user.companyId },
+    });
+
+    await this.cache.bumpCompanyVersion(user.companyId);
+    return { message: 'Blocked day deleted successfully' };
   }
 }

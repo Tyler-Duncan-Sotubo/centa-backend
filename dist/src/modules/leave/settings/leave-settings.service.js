@@ -17,7 +17,6 @@ let LeaveSettingsService = class LeaveSettingsService {
     constructor(companySettingsService, cache) {
         this.companySettingsService = companySettingsService;
         this.cache = cache;
-        this.ttlSeconds = 60 * 60;
     }
     tags(companyId) {
         return [
@@ -36,7 +35,7 @@ let LeaveSettingsService = class LeaveSettingsService {
                 }
             }
             return leaveSettings;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async getSettingOrDefault(companyId, key, defaultValue) {
         const setting = await this.companySettingsService.getSetting(companyId, `leave.${key}`);
@@ -52,10 +51,10 @@ let LeaveSettingsService = class LeaveSettingsService {
                 throw new common_1.BadRequestException(`Invalid leave approver setting: ${approver}`);
             }
             return approver;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async isMultiLevelApproval(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['leave', 'multi_level_approval'], () => this.getSettingOrDefault(companyId, 'multi_level_approval', false), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'multi_level_approval'], () => this.getSettingOrDefault(companyId, 'multi_level_approval', false), { tags: this.tags(companyId) });
     }
     async getApprovalChain(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['leave', 'approver_chain'], async () => {
@@ -64,7 +63,7 @@ let LeaveSettingsService = class LeaveSettingsService {
                 throw new common_1.BadRequestException('Approval chain must be a non-empty array.');
             }
             return chain;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async getAutoApproveAfterDays(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['leave', 'auto_approve_after_days'], async () => {
@@ -73,13 +72,13 @@ let LeaveSettingsService = class LeaveSettingsService {
                 throw new common_1.BadRequestException('Auto-approve days must be >= 0.');
             }
             return days;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async allowNegativeBalance(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['leave', 'allow_negative_balance'], () => this.getSettingOrDefault(companyId, 'allow_negative_balance', false), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'allow_negative_balance'], () => this.getSettingOrDefault(companyId, 'allow_negative_balance', false), { tags: this.tags(companyId) });
     }
     async allowUnconfirmedLeave(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['leave', 'allow_unconfirmed_leave'], () => this.getSettingOrDefault(companyId, 'allow_unconfirmed_leave', false), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'allow_unconfirmed_leave'], () => this.getSettingOrDefault(companyId, 'allow_unconfirmed_leave', false), { tags: this.tags(companyId) });
     }
     async allowedLeaveTypesForUnconfirmed(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['leave', 'allowed_leave_types_for_unconfirmed'], async () => {
@@ -88,22 +87,22 @@ let LeaveSettingsService = class LeaveSettingsService {
                 throw new common_1.BadRequestException('Allowed leave types for unconfirmed employees must be an array.');
             }
             return allowed;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async excludeWeekends(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['leave', 'exclude_weekends'], () => this.getSettingOrDefault(companyId, 'exclude_weekends', true), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'exclude_weekends'], () => this.getSettingOrDefault(companyId, 'exclude_weekends', true), { tags: this.tags(companyId) });
     }
     async getWeekendDays(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['leave', 'weekend_days'], () => this.getSettingOrDefault(companyId, 'weekend_days', [
             'Saturday',
             'Sunday',
-        ]), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        ]), { tags: this.tags(companyId) });
     }
     async excludePublicHolidays(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['leave', 'exclude_public_holidays'], () => this.getSettingOrDefault(companyId, 'exclude_public_holidays', true), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'exclude_public_holidays'], () => this.getSettingOrDefault(companyId, 'exclude_public_holidays', true), { tags: this.tags(companyId) });
     }
     async getBlockedDays(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['leave', 'blocked_days'], () => this.getSettingOrDefault(companyId, 'blocked_days', []), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'blocked_days'], () => this.getSettingOrDefault(companyId, 'blocked_days', []), { tags: this.tags(companyId) });
     }
     async getNotificationTargets(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['leave', 'notifications'], async () => {
@@ -122,7 +121,7 @@ let LeaveSettingsService = class LeaveSettingsService {
                 throw new common_1.BadRequestException('Invalid notification settings structure.');
             }
             return targets;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async getLeaveApprovalSettings(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['leave', 'approval'], async () => {
@@ -139,7 +138,7 @@ let LeaveSettingsService = class LeaveSettingsService {
                 approverChain: rows['leave.approver_chain'] ?? [],
                 autoApproveAfterDays: Number(rows['leave.auto_approve_after_days'] ?? 0),
             };
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async getLeaveEntitlementSettings(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['leave', 'entitlement'], async () => {
@@ -156,7 +155,7 @@ let LeaveSettingsService = class LeaveSettingsService {
                 carryoverLimit: Number(rows['leave.carryover_limit'] ?? 0),
                 allowNegativeBalance: Boolean(rows['leave.allow_negative_balance']),
             };
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async getLeaveEligibilitySettings(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['leave', 'eligibility'], async () => {
@@ -177,7 +176,7 @@ let LeaveSettingsService = class LeaveSettingsService {
                 excludePublicHolidays: Boolean(rows['leave.exclude_public_holidays']),
                 blockedDays: rows['leave.blocked_days'] ?? [],
             };
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async getLeaveNotificationSettings(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['leave', 'notification_settings'], async () => {
@@ -192,7 +191,7 @@ let LeaveSettingsService = class LeaveSettingsService {
                     notificationChannels: ['email'],
                 },
             };
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async updateLeaveSetting(companyId, key, value) {
         const settingKey = `leave.${key}`;
@@ -205,7 +204,7 @@ let LeaveSettingsService = class LeaveSettingsService {
                 throw new common_1.BadRequestException('Minimum notice days must be >= 0.');
             }
             return days;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async getMaxConsecutiveLeaveDays(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['leave', 'max_consecutive_days'], async () => {
@@ -214,7 +213,7 @@ let LeaveSettingsService = class LeaveSettingsService {
                 throw new common_1.BadRequestException('Max consecutive leave days must be > 0.');
             }
             return days;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
 };
 exports.LeaveSettingsService = LeaveSettingsService;

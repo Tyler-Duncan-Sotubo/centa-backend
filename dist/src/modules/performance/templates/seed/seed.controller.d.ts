@@ -17,8 +17,8 @@ export declare class SeedController extends BaseController {
     createCompetency(user: User, dto: CreateCompetencyDto): Promise<{
         id: string;
         name: string;
-        isActive: boolean | null;
         createdAt: Date | null;
+        isActive: boolean | null;
         companyId: string | null;
         description: string | null;
         isGlobal: boolean | null;
@@ -110,12 +110,12 @@ export declare class SeedController extends BaseController {
     }>;
     createQuestion(user: User, dto: CreateQuestionsDto): Promise<{
         id: string;
-        isActive: boolean | null;
         createdAt: Date | null;
+        isActive: boolean | null;
         companyId: string | null;
         type: string;
-        question: string;
         isGlobal: boolean | null;
+        question: string;
         competencyId: string | null;
         isMandatory: boolean | null;
         allowNotes: boolean | null;

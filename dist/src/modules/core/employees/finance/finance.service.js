@@ -21,12 +21,17 @@ const finance_schema_1 = require("../schema/finance.schema");
 const crypto_util_1 = require("../../../../utils/crypto.util");
 const https = require('https');
 const config_1 = require("@nestjs/config");
+const cache_service_1 = require("../../../../common/cache/cache.service");
 let FinanceService = class FinanceService {
-    constructor(db, auditService, config) {
+    constructor(db, auditService, config, cache) {
         this.db = db;
         this.auditService = auditService;
         this.config = config;
+        this.cache = cache;
         this.table = finance_schema_1.employeeFinancials;
+    }
+    tags(scope) {
+        return [`employee:${scope}:finance`, `employee:${scope}:finance:detail`];
     }
     async upsert(employeeId, dto, userId, ip) {
         const [employee] = await this.db
@@ -45,9 +50,8 @@ let FinanceService = class FinanceService {
             for (const key of Object.keys(dto)) {
                 const before = employee[key];
                 const after = dto[key];
-                if (before !== after) {
+                if (before !== after)
                     changes[key] = { before, after };
-                }
             }
             if (Object.keys(changes).length) {
                 await this.auditService.logAction({
@@ -60,6 +64,8 @@ let FinanceService = class FinanceService {
                     changes,
                 });
             }
+            await this.cache.bumpCompanyVersion(employeeId);
+            await this.cache.bumpCompanyVersion('global');
             return updated;
         }
         else {
@@ -77,31 +83,36 @@ let FinanceService = class FinanceService {
                 ipAddress: ip,
                 changes: { ...dto },
             });
+            await this.cache.bumpCompanyVersion(employeeId);
+            await this.cache.bumpCompanyVersion('global');
             return created;
         }
     }
     async findOne(employeeId) {
-        const [finance] = await this.db
-            .select()
-            .from(finance_schema_1.employeeFinancials)
-            .where((0, drizzle_orm_1.eq)(finance_schema_1.employeeFinancials.employeeId, employeeId))
-            .execute();
-        if (!finance) {
+        const raw = await this.cache.getOrSetVersioned(employeeId, ['finance', 'detail', employeeId], async () => {
+            const [finance] = await this.db
+                .select()
+                .from(finance_schema_1.employeeFinancials)
+                .where((0, drizzle_orm_1.eq)(finance_schema_1.employeeFinancials.employeeId, employeeId))
+                .execute();
+            return finance ?? {};
+        }, { tags: this.tags(employeeId) });
+        if (!raw || Object.keys(raw).length === 0) {
             return {};
         }
         return {
-            ...finance,
-            bankAccountName: finance.bankAccountName
-                ? (0, crypto_util_1.decrypt)(finance.bankAccountName)
+            ...raw,
+            bankAccountName: raw.bankAccountName
+                ? (0, crypto_util_1.decrypt)(raw.bankAccountName)
                 : null,
-            bankName: finance.bankName ? (0, crypto_util_1.decrypt)(finance.bankName) : null,
-            bankAccountNumber: finance.bankAccountNumber
-                ? (0, crypto_util_1.decrypt)(finance.bankAccountNumber)
+            bankName: raw.bankName ? (0, crypto_util_1.decrypt)(raw.bankName) : null,
+            bankAccountNumber: raw.bankAccountNumber
+                ? (0, crypto_util_1.decrypt)(raw.bankAccountNumber)
                 : null,
-            bankBranch: finance.bankBranch ? (0, crypto_util_1.decrypt)(finance.bankBranch) : null,
-            tin: finance.tin ? (0, crypto_util_1.decrypt)(finance.tin) : null,
-            pensionPin: finance.pensionPin ? (0, crypto_util_1.decrypt)(finance.pensionPin) : null,
-            nhfNumber: finance.nhfNumber ? (0, crypto_util_1.decrypt)(finance.nhfNumber) : null,
+            bankBranch: raw.bankBranch ? (0, crypto_util_1.decrypt)(raw.bankBranch) : null,
+            tin: raw.tin ? (0, crypto_util_1.decrypt)(raw.tin) : null,
+            pensionPin: raw.pensionPin ? (0, crypto_util_1.decrypt)(raw.pensionPin) : null,
+            nhfNumber: raw.nhfNumber ? (0, crypto_util_1.decrypt)(raw.nhfNumber) : null,
         };
     }
     async remove(employeeId) {
@@ -113,6 +124,8 @@ let FinanceService = class FinanceService {
         if (!result.length) {
             throw new common_1.NotFoundException(`Profile for employee ${employeeId} not found`);
         }
+        await this.cache.bumpCompanyVersion(employeeId);
+        await this.cache.bumpCompanyVersion('global');
         return { deleted: true, id: result[0].id };
     }
     async verifyBankAccount(accountNumber, bankCode) {
@@ -159,6 +172,7 @@ exports.FinanceService = FinanceService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
-        config_1.ConfigService])
+        config_1.ConfigService,
+        cache_service_1.CacheService])
 ], FinanceService);
 //# sourceMappingURL=finance.service.js.map

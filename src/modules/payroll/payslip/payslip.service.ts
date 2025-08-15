@@ -21,7 +21,44 @@ export class PayslipService {
     @InjectQueue('payrollQueue') private payrollQueue: Queue,
     private pusher: PusherService,
   ) {}
-  // Employee Payslips
+
+  // ---------------------------------------------------------------------------
+  // Helpers with versioned cache
+  // ---------------------------------------------------------------------------
+  private getCompany = async (company_id: string) => {
+    return this.cache.getOrSetVersioned(
+      company_id,
+      ['company', 'byId', company_id],
+      async () => {
+        const company = await this.db
+          .select()
+          .from(companies)
+          .where(eq(companies.id, company_id))
+          .execute();
+
+        if (!company?.length)
+          throw new BadRequestException('Company not found');
+
+        return company[0].id;
+      },
+      { tags: ['companies', `company:${company_id}`] },
+    );
+  };
+
+  private async getEmployeeCompanyId(employeeId: string): Promise<string> {
+    // small helper so we can version caches by company
+    const [row] = await this.db
+      .select({ companyId: employees.companyId })
+      .from(employees)
+      .where(eq(employees.id, employeeId))
+      .execute();
+    if (!row) throw new BadRequestException('Employee not found');
+    return row.companyId;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Employee Payslips (creates)
+  // ---------------------------------------------------------------------------
   async createPayslip(employee_id: string, payrollMonth: string) {
     // Check if payslip already exists for the month
     const existingPayslip = await this.db
@@ -46,7 +83,7 @@ export class PayslipService {
       .where(
         and(
           eq(payroll.employeeId, employee_id),
-          eq(paySlips.payrollMonth, payrollMonth),
+          eq(payroll.payrollMonth, payrollMonth),
         ),
       )
       .limit(1)
@@ -59,37 +96,32 @@ export class PayslipService {
     }
 
     // Insert new payslip
-    const payslip = await this.db
+    const [payslip] = await this.db
       .insert(paySlips)
       .values({
         payrollId: payrollRecord[0].id,
         employeeId: employee_id,
         companyId: payrollRecord[0].companyId,
-        payrollMonth: payrollMonth,
+        payrollMonth,
         issuedAt: new Date().toISOString().split('T')[0],
         employerRemarks: 'Generated automatically',
         slipStatus: 'issued',
       })
-      .returning();
+      .returning()
+      .execute();
+
+    // cache invalidation: bump company version + tags
+    await this.cache.bumpCompanyVersion(payrollRecord[0].companyId);
+    await this.cache.invalidateTags([
+      'payslips',
+      `company:${payrollRecord[0].companyId}:payslips`,
+      `employee:${employee_id}:payslips`,
+      `payslip:${payslip.id}`,
+      `payrollRun:${payrollRecord[0].payrollRunId}:payslips`,
+    ]);
 
     return payslip;
   }
-
-  private getCompany = async (company_id: string) => {
-    const cacheKey = `company_id_${company_id}`;
-
-    return this.cache.getOrSetCache(cacheKey, async () => {
-      const company = await this.db
-        .select()
-        .from(companies)
-        .where(eq(companies.id, company_id))
-        .execute();
-
-      if (!company) throw new BadRequestException('Company not found');
-
-      return company[0].id;
-    });
-  };
 
   async generatePayslipsForCompany(company_id: string, payrollMonth: string) {
     // Get all payroll records for the company in the specified month
@@ -115,7 +147,7 @@ export class PayslipService {
       payrollId: record.id,
       employeeId: record.employeeId,
       companyId: record.companyId,
-      payrollMonth: payrollMonth,
+      payrollMonth,
       issuedAt: new Date().toISOString().split('T')[0],
       employerRemarks: 'Auto-generated',
       slipStatus: 'issued',
@@ -126,83 +158,129 @@ export class PayslipService {
     }
 
     // Insert all new payslips in one query (batch insert)
-    const payslips = await this.db.insert(paySlips).values(newPayslips);
+    const inserted = await this.db
+      .insert(paySlips)
+      .values(newPayslips)
+      .returning()
+      .execute();
 
-    return payslips;
+    // cache invalidation: bump company version + tags
+    await this.cache.bumpCompanyVersion(company_id);
+    await this.cache.invalidateTags([
+      'payslips',
+      `company:${company_id}:payslips`,
+      ...newPayslips.map((p) => `employee:${p.employeeId}:payslips`),
+    ]);
+
+    return inserted;
   }
 
+  // ---------------------------------------------------------------------------
+  // Company/Run-scoped reads (versioned)
+  // ---------------------------------------------------------------------------
   async getCompanyPayslipsById(user_id: string, payroll_run_id: string) {
     const company_id = await this.getCompany(user_id);
 
-    const companyPayslips = this.db
-      .select({
-        payslip_id: paySlips.id,
-        payroll_run_id: payroll.payrollRunId,
-        gross_salary: payroll.grossSalary,
-        net_salary: payroll.netSalary,
-        paye_tax: payroll.payeTax,
-        pension_contribution: payroll.pensionContribution,
-        employer_pension_contribution: payroll.employerPensionContribution,
-        nhf_contribution: payroll.nhfContribution,
-        additionalDeductions: payroll.customDeductions,
-        payroll_month: payroll.payrollMonth,
-        first_name: employees.firstName,
-        last_name: employees.lastName,
-        status: payroll.approvalStatus,
-        payment_status: payroll.paymentStatus,
-        payment_date: payroll.paymentDate,
-        taxable_income: payroll.taxableIncome,
-        payslip_pdf_url: paySlips.pdfUrl,
-        salaryAdvance: payroll.salaryAdvance,
-      })
-      .from(paySlips)
-      .where(
-        and(
-          eq(payroll.payrollRunId, payroll_run_id),
-          eq(employees.companyId, company_id),
-        ),
-      )
-      .innerJoin(payroll, eq(paySlips.payrollId, payroll.id))
-      .innerJoin(employees, eq(payroll.employeeId, employees.id))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      company_id,
+      ['payslips', 'byPayrollRun', payroll_run_id],
+      async () => {
+        const companyPayslips = await this.db
+          .select({
+            payslip_id: paySlips.id,
+            payroll_run_id: payroll.payrollRunId,
+            gross_salary: payroll.grossSalary,
+            net_salary: payroll.netSalary,
+            paye_tax: payroll.payeTax,
+            pension_contribution: payroll.pensionContribution,
+            employer_pension_contribution: payroll.employerPensionContribution,
+            nhf_contribution: payroll.nhfContribution,
+            additionalDeductions: payroll.customDeductions,
+            payroll_month: payroll.payrollMonth,
+            first_name: employees.firstName,
+            last_name: employees.lastName,
+            status: payroll.approvalStatus,
+            payment_status: payroll.paymentStatus,
+            payment_date: payroll.paymentDate,
+            taxable_income: payroll.taxableIncome,
+            payslip_pdf_url: paySlips.pdfUrl,
+            salaryAdvance: payroll.salaryAdvance,
+          })
+          .from(paySlips)
+          .innerJoin(payroll, eq(paySlips.payrollId, payroll.id))
+          .innerJoin(employees, eq(payroll.employeeId, employees.id))
+          .where(
+            and(
+              eq(payroll.payrollRunId, payroll_run_id),
+              eq(employees.companyId, company_id),
+            ),
+          )
+          .execute();
 
-    return companyPayslips;
+        return companyPayslips;
+      },
+      {
+        tags: [
+          'payslips',
+          `company:${company_id}:payslips`,
+          `payrollRun:${payroll_run_id}:payslips`,
+        ],
+      },
+    );
   }
 
+  // ---------------------------------------------------------------------------
+  // Employee-scoped reads (versioned)
+  // ---------------------------------------------------------------------------
   async getEmployeePayslipSummary(employee_id: string) {
-    const paystubs = await this.db
-      .select({
-        payslip_id: paySlips.id,
-        payroll_date: payroll.payrollMonth,
-        gross_salary: payroll.grossSalary,
-        net_salary: payroll.netSalary,
-        totalDeduction: payroll.totalDeductions,
-        taxableIncome: payroll.taxableIncome,
-        paye: payroll.payeTax,
-        pensionContribution: payroll.pensionContribution,
-        nhfContribution: payroll.nhfContribution,
-        salaryAdvance: payroll.salaryAdvance,
-        payslip_pdf_url: paySlips.pdfUrl,
-        paymentStatus: payroll.paymentStatus,
-        basic: payroll.basic,
-        housing: payroll.housing,
-        transport: payroll.transport,
-        voluntaryDeductions: payroll.voluntaryDeductions,
-      })
-      .from(paySlips)
-      .innerJoin(payroll, eq(paySlips.payrollId, payroll.id))
-      .where(eq(paySlips.employeeId, employee_id))
-      .orderBy(asc(paySlips.issuedAt))
-      .limit(4)
-      .execute();
+    const companyId = await this.getEmployeeCompanyId(employee_id);
 
-    return paystubs;
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['payslips', 'employeeSummary', employee_id],
+      async () => {
+        const paystubs = await this.db
+          .select({
+            payslip_id: paySlips.id,
+            payroll_date: payroll.payrollMonth,
+            gross_salary: payroll.grossSalary,
+            net_salary: payroll.netSalary,
+            totalDeduction: payroll.totalDeductions,
+            taxableIncome: payroll.taxableIncome,
+            paye: payroll.payeTax,
+            pensionContribution: payroll.pensionContribution,
+            nhfContribution: payroll.nhfContribution,
+            salaryAdvance: payroll.salaryAdvance,
+            payslip_pdf_url: paySlips.pdfUrl,
+            paymentStatus: payroll.paymentStatus,
+            basic: payroll.basic,
+            housing: payroll.housing,
+            transport: payroll.transport,
+            voluntaryDeductions: payroll.voluntaryDeductions,
+          })
+          .from(paySlips)
+          .innerJoin(payroll, eq(paySlips.payrollId, payroll.id))
+          .where(eq(paySlips.employeeId, employee_id))
+          .orderBy(asc(paySlips.issuedAt))
+          .limit(4)
+          .execute();
+
+        return paystubs;
+      },
+      {
+        tags: [
+          'payslips',
+          `company:${companyId}:payslips`,
+          `employee:${employee_id}:payslips`,
+        ],
+      },
+    );
   }
 
   async getEmployeePayslip(payslip_id: string) {
-    const currentYear = new Date().getFullYear();
-
-    const result = await this.db
+    // fetch and cache by the payslip's company version
+    // we also pluck companyId to version the cache correctly
+    const row = await this.db
       .select({
         id: paySlips.id,
         issued_at: paySlips.issuedAt,
@@ -223,6 +301,7 @@ export class PayslipService {
         last_name: employees.lastName,
         email: employees.email,
         employeeId: employees.id,
+        companyId: companies.id,
         company_name: companies.name,
         companyLogo: companies.logo_url,
         company_email: companies.primaryContactEmail,
@@ -237,32 +316,56 @@ export class PayslipService {
       .where(eq(paySlips.id, payslip_id))
       .execute();
 
-    const ytdTotals = await this.db
-      .select({
-        ytdPension: sql<number>`SUM(${payrollYtd.pension})`.as('ytdPension'),
-        ytdNhf: sql<number>`SUM(${payrollYtd.nhf})`.as('ytdNhf'),
-        ytdPaye: sql<number>`SUM(${payrollYtd.PAYE})`.as('ytdPaye'),
-        ytdGross: sql<number>`SUM(${payrollYtd.grossSalary})`.as('ytdGross'),
-        ytdNet: sql<number>`SUM(${payrollYtd.netSalary})`.as('ytdNet'),
-        ytdBasic: sql<number>`SUM(${payrollYtd.basic})`.as('ytdBasic'),
-        ytdHousing: sql<number>`SUM(${payrollYtd.housing})`.as('ytdHousing'),
-        ytdTransport: sql<number>`SUM(${payrollYtd.transport})`.as(
-          'ytdTransport',
-        ),
-      })
-      .from(payrollYtd)
-      .innerJoin(payroll, eq(payrollYtd.payrollId, payroll.id))
-      .where(
-        and(
-          eq(payrollYtd.employeeId, result[0].employeeId),
-          like(payroll.payrollMonth, `${currentYear}-%`), // only for this year
-        ),
-      )
-      .execute();
+    if (!row?.length) throw new BadRequestException('Payslip not found');
 
-    return {
-      ...result[0],
-      ...ytdTotals[0],
-    };
+    const companyId = row[0].companyId;
+    const currentYear = new Date().getFullYear();
+
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['payslips', 'byId', payslip_id],
+      async () => {
+        const ytdTotals = await this.db
+          .select({
+            ytdPension: sql<number>`SUM(${payrollYtd.pension})`.as(
+              'ytdPension',
+            ),
+            ytdNhf: sql<number>`SUM(${payrollYtd.nhf})`.as('ytdNhf'),
+            ytdPaye: sql<number>`SUM(${payrollYtd.PAYE})`.as('ytdPaye'),
+            ytdGross: sql<number>`SUM(${payrollYtd.grossSalary})`.as(
+              'ytdGross',
+            ),
+            ytdNet: sql<number>`SUM(${payrollYtd.netSalary})`.as('ytdNet'),
+            ytdBasic: sql<number>`SUM(${payrollYtd.basic})`.as('ytdBasic'),
+            ytdHousing: sql<number>`SUM(${payrollYtd.housing})`.as(
+              'ytdHousing',
+            ),
+            ytdTransport: sql<number>`SUM(${payrollYtd.transport})`.as(
+              'ytdTransport',
+            ),
+          })
+          .from(payrollYtd)
+          .innerJoin(payroll, eq(payrollYtd.payrollId, payroll.id))
+          .where(
+            and(
+              eq(payrollYtd.employeeId, row[0].employeeId),
+              like(payroll.payrollMonth, `${currentYear}-%`),
+            ),
+          )
+          .execute();
+
+        return {
+          ...row[0],
+          ...ytdTotals[0],
+        };
+      },
+      {
+        tags: [
+          'payslips',
+          `company:${companyId}:payslips`,
+          `payslip:${payslip_id}`,
+        ],
+      },
+    );
   }
 }

@@ -7,11 +7,11 @@ export declare class ProfileController extends BaseController {
     constructor(profileService: ProfileService);
     create(employeeId: string, dto: CreateProfileDto, user: User, ip: string): Promise<{
         id: string;
-        country: string | null;
         createdAt: Date;
         updatedAt: Date;
-        employeeId: string;
+        country: string | null;
         state: string | null;
+        employeeId: string;
         dateOfBirth: string | null;
         gender: string | null;
         maritalStatus: string | null;
@@ -20,7 +20,21 @@ export declare class ProfileController extends BaseController {
         emergencyName: string | null;
         emergencyPhone: string | null;
     }>;
-    findOne(id: string): Promise<{}>;
+    findOne(id: string): Promise<{
+        id: string;
+        dateOfBirth: string | null;
+        gender: string | null;
+        maritalStatus: string | null;
+        address: string | null;
+        state: string | null;
+        country: string | null;
+        phone: string | null;
+        emergencyName: string | null;
+        emergencyPhone: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        employeeId: string;
+    }>;
     remove(id: string): Promise<{
         deleted: boolean;
         id: string;

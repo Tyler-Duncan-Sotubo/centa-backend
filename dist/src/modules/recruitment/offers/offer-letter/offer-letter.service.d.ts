@@ -3,10 +3,13 @@ import { CreateOfferTemplateDto } from './dto/create-offer-template.dto';
 import { UpdateOfferTemplateDto } from './dto/update-offer-template.dto';
 import { User } from 'src/common/types/user.type';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class OfferLetterService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private tags;
     seedSystemOfferLetterTemplates(): Promise<void>;
     cloneCompanyTemplate(user: User, templateId: string): Promise<{
         id: string;

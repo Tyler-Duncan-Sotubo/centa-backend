@@ -144,7 +144,6 @@ export declare class JobRolesService extends BaseCrudService<{
         dialect: "pg";
     }>;
     constructor(db: db, audit: AuditService, companySettings: CompanySettingsService, cache: CacheService);
-    private ttlSeconds;
     private tags;
     create(companyId: string, dto: CreateJobRoleDto): Promise<{
         id: string;

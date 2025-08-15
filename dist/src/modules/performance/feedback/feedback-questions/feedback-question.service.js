@@ -23,7 +23,6 @@ let FeedbackQuestionService = class FeedbackQuestionService {
     constructor(db, cache) {
         this.db = db;
         this.cache = cache;
-        this.ttlSeconds = 10 * 60;
     }
     tags(companyId) {
         return [`company:${companyId}:feedback-questions`];
@@ -52,7 +51,7 @@ let FeedbackQuestionService = class FeedbackQuestionService {
             .from(performance_feedback_questions_schema_1.feedbackQuestions)
             .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.companyId, companyId))
             .orderBy((0, drizzle_orm_1.asc)(performance_feedback_questions_schema_1.feedbackQuestions.type), (0, drizzle_orm_1.asc)(performance_feedback_questions_schema_1.feedbackQuestions.order))
-            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+            .execute(), { tags: this.tags(companyId) });
     }
     async findByType(companyId, type) {
         return this.cache.getOrSetVersioned(companyId, ['feedback-questions', 'type', type], async () => this.db
@@ -61,7 +60,7 @@ let FeedbackQuestionService = class FeedbackQuestionService {
             .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.companyId, companyId) &&
             (0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.type, type))
             .orderBy((0, drizzle_orm_1.asc)(performance_feedback_questions_schema_1.feedbackQuestions.order))
-            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+            .execute(), { tags: this.tags(companyId) });
     }
     async findOne(companyId, id) {
         return this.cache.getOrSetVersioned(companyId, ['feedback-questions', 'one', id], async () => {
@@ -75,7 +74,7 @@ let FeedbackQuestionService = class FeedbackQuestionService {
                 throw new common_1.NotFoundException('Question not found');
             }
             return question;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async update(companyId, id, dto) {
         await this.findOne(companyId, id);

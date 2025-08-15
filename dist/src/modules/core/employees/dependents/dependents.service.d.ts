@@ -2,9 +2,11 @@ import { CreateDependentDto } from './dto/create-dependent.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { UpdateDependentDto } from './dto/update-dependent.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class DependentsService {
     private readonly db;
     private readonly auditService;
+    private readonly cache;
     protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "employee_dependents";
         schema: undefined;
@@ -131,7 +133,8 @@ export declare class DependentsService {
         };
         dialect: "pg";
     }>;
-    constructor(db: db, auditService: AuditService);
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private tags;
     create(employeeId: string, dto: CreateDependentDto, userId: string, ip: string): Promise<{
         id: string;
         name: string;
@@ -159,7 +162,7 @@ export declare class DependentsService {
         dateOfBirth: string;
         isBeneficiary: boolean | null;
         createdAt: Date;
-    } | undefined>;
+    }>;
     remove(dependentId: string): Promise<{
         deleted: boolean;
         id: string;

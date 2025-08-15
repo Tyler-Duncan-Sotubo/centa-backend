@@ -38,8 +38,6 @@ import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class AssessmentsService {
-  private readonly ttlSeconds = 10 * 60; // 10 minutes
-
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly clockInOutService: ClockInOutService,
@@ -251,105 +249,98 @@ export class AssessmentsService {
       this.serializeFilters(filters),
     ];
 
-    return this.cache.getOrSetVersioned(
-      companyId,
-      cacheKeyParts,
-      async () => {
-        const whereClauses = [eq(performanceAssessments.companyId, companyId)];
+    return this.cache.getOrSetVersioned(companyId, cacheKeyParts, async () => {
+      const whereClauses = [eq(performanceAssessments.companyId, companyId)];
 
-        if (filters?.status && filters.status !== 'all') {
-          whereClauses.push(
-            eq(
-              performanceAssessments.status,
-              filters.status as 'not_started' | 'in_progress' | 'submitted',
-            ),
-          );
-        }
-        if (filters?.type && filters.type !== 'all') {
-          whereClauses.push(
-            eq(
-              performanceAssessments.type,
-              filters.type as 'self' | 'manager' | 'peer',
-            ),
-          );
-        }
-        if (filters?.cycleId && filters.cycleId !== 'all') {
-          whereClauses.push(
-            eq(performanceAssessments.cycleId, filters.cycleId),
-          );
-        }
-        if (filters?.reviewerId && filters.reviewerId !== 'all') {
-          whereClauses.push(
-            eq(performanceAssessments.reviewerId, filters.reviewerId),
-          );
-        }
-        if (filters?.departmentId && filters.departmentId !== 'all') {
-          whereClauses.push(eq(departments.id, filters.departmentId));
-        }
+      if (filters?.status && filters.status !== 'all') {
+        whereClauses.push(
+          eq(
+            performanceAssessments.status,
+            filters.status as 'not_started' | 'in_progress' | 'submitted',
+          ),
+        );
+      }
+      if (filters?.type && filters.type !== 'all') {
+        whereClauses.push(
+          eq(
+            performanceAssessments.type,
+            filters.type as 'self' | 'manager' | 'peer',
+          ),
+        );
+      }
+      if (filters?.cycleId && filters.cycleId !== 'all') {
+        whereClauses.push(eq(performanceAssessments.cycleId, filters.cycleId));
+      }
+      if (filters?.reviewerId && filters.reviewerId !== 'all') {
+        whereClauses.push(
+          eq(performanceAssessments.reviewerId, filters.reviewerId),
+        );
+      }
+      if (filters?.departmentId && filters.departmentId !== 'all') {
+        whereClauses.push(eq(departments.id, filters.departmentId));
+      }
 
-        const assessments = await this.db
-          .select({
-            id: performanceAssessments.id,
-            type: performanceAssessments.type,
-            status: performanceAssessments.status,
-            createdAt: performanceAssessments.createdAt,
-            submittedAt: performanceAssessments.submittedAt,
-            cycleId: performanceAssessments.cycleId,
-            dueDate: performanceCycles.endDate,
-            templateId: performanceAssessments.templateId,
-            revieweeId: performanceAssessments.revieweeId,
-            revieweeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
-            departmentId: employees.departmentId,
-            departmentName: departments.name,
-            jobRoleName: jobRoles.title,
-            score: assessmentConclusions.finalScore,
-            reviewerId: performanceAssessments.reviewerId,
-            reviewerName: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
-          })
-          .from(performanceAssessments)
-          .leftJoin(
-            performanceCycles,
-            eq(performanceCycles.id, performanceAssessments.cycleId),
-          )
-          .leftJoin(
-            assessmentConclusions,
-            eq(assessmentConclusions.assessmentId, performanceAssessments.id),
-          )
-          .leftJoin(
-            employees,
-            eq(employees.id, performanceAssessments.revieweeId),
-          )
-          .leftJoin(users, eq(users.id, performanceAssessments.reviewerId))
-          .leftJoin(departments, eq(departments.id, employees.departmentId))
-          .leftJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
-          .where(and(...whereClauses));
+      const assessments = await this.db
+        .select({
+          id: performanceAssessments.id,
+          type: performanceAssessments.type,
+          status: performanceAssessments.status,
+          createdAt: performanceAssessments.createdAt,
+          submittedAt: performanceAssessments.submittedAt,
+          cycleId: performanceAssessments.cycleId,
+          dueDate: performanceCycles.endDate,
+          templateId: performanceAssessments.templateId,
+          revieweeId: performanceAssessments.revieweeId,
+          revieweeName: sql<string>`concat(${employees.firstName}, ' ', ${employees.lastName})`,
+          departmentId: employees.departmentId,
+          departmentName: departments.name,
+          jobRoleName: jobRoles.title,
+          score: assessmentConclusions.finalScore,
+          reviewerId: performanceAssessments.reviewerId,
+          reviewerName: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
+        })
+        .from(performanceAssessments)
+        .leftJoin(
+          performanceCycles,
+          eq(performanceCycles.id, performanceAssessments.cycleId),
+        )
+        .leftJoin(
+          assessmentConclusions,
+          eq(assessmentConclusions.assessmentId, performanceAssessments.id),
+        )
+        .leftJoin(
+          employees,
+          eq(employees.id, performanceAssessments.revieweeId),
+        )
+        .leftJoin(users, eq(users.id, performanceAssessments.reviewerId))
+        .leftJoin(departments, eq(departments.id, employees.departmentId))
+        .leftJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
+        .where(and(...whereClauses));
 
-        // Optional fuzzy search (employee name)
-        let filtered = assessments;
-        if (filters?.search?.trim()) {
-          const keyword = filters.search.toLowerCase();
-          filtered = assessments.filter((a) =>
-            a.revieweeName?.toLowerCase().includes(keyword),
-          );
-        }
+      // Optional fuzzy search (employee name)
+      let filtered = assessments;
+      if (filters?.search?.trim()) {
+        const keyword = filters.search.toLowerCase();
+        filtered = assessments.filter((a) =>
+          a.revieweeName?.toLowerCase().includes(keyword),
+        );
+      }
 
-        return filtered.map((a) => ({
-          id: a.id,
-          type: a.type,
-          status: a.status,
-          reviewer: a.reviewerName,
-          employee: a.revieweeName,
-          departmentName: a.departmentName,
-          jobRoleName: a.jobRoleName,
-          createdAt: a.createdAt,
-          submittedAt: a.submittedAt,
-          progress: this.calculateProgress(a.status ?? ''),
-          dueDate: a.dueDate,
-          score: a.score ?? null,
-        }));
-      },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
-    );
+      return filtered.map((a) => ({
+        id: a.id,
+        type: a.type,
+        status: a.status,
+        reviewer: a.reviewerName,
+        employee: a.revieweeName,
+        departmentName: a.departmentName,
+        jobRoleName: a.jobRoleName,
+        createdAt: a.createdAt,
+        submittedAt: a.submittedAt,
+        progress: this.calculateProgress(a.status ?? ''),
+        dueDate: a.dueDate,
+        score: a.score ?? null,
+      }));
+    });
   }
 
   async getAssessmentById(assessmentId: string) {
@@ -587,7 +578,6 @@ export class AssessmentsService {
 
         return result;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(meta.companyId) },
     );
   }
 
@@ -689,7 +679,6 @@ export class AssessmentsService {
 
         return summary;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
     );
   }
 

@@ -9,7 +9,6 @@ export declare class ShiftsService {
     private readonly db;
     private readonly cache;
     constructor(auditService: AuditService, db: db, cache: CacheService);
-    private ttlSeconds;
     private tags;
     bulkCreate(companyId: string, rows: any[]): Promise<{
         id: string;

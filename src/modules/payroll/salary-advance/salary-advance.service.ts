@@ -32,7 +32,6 @@ export class SalaryAdvanceService {
   ) {}
 
   async createLoanNumber(companyId: string) {
-    // --- 1) Sequence logic for employeeNumber (as before) ---
     const [seqRow] = await this.db
       .select({ next: loanSequences.nextNumber })
       .from(loanSequences)
@@ -54,50 +53,87 @@ export class SalaryAdvanceService {
         .execute();
     }
 
-    const empNum = `LOAN-${String(seq).padStart(3, '0')}`; // Format as LOAN001, LOAN002, etc.
-    return empNum;
+    return `LOAN-${String(seq).padStart(3, '0')}`;
   }
 
-  // Get Employee
-  private async getEmployee(employee_id: string) {
-    const cacheKey = `employee:${employee_id}`;
-
-    return this.cache.getOrSetCache(cacheKey, async () => {
-      const employee = await this.db
-        .select({
-          id: employees.id,
-          firstName: employees.firstName,
-          lastName: employees.lastName,
-          companyId: employees.companyId,
-        })
-        .from(employees)
-        .where(eq(employees.id, employee_id))
-        .execute();
-
-      return employee[0];
-    });
-  }
-
-  async getUnpaidAdvanceDeductions(employee_id: string) {
-    return await this.db
-      .select({
-        loanId: salaryAdvance.id,
-        monthlyDeduction: salaryAdvance.preferredMonthlyPayment,
-      })
-      .from(salaryAdvance)
-      .where(
-        and(
-          eq(salaryAdvance.employeeId, employee_id),
-          eq(salaryAdvance.status, 'approved'),
-          not(eq(salaryAdvance.status, 'paid')),
-        ),
-      )
-      .limit(1)
+  // Small helper to fetch companyId for an employee (for versioned cache keys)
+  private async getEmployeeCompanyId(employeeId: string): Promise<string> {
+    const [row] = await this.db
+      .select({ companyId: employees.companyId })
+      .from(employees)
+      .where(eq(employees.id, employeeId))
       .execute();
+    if (!row) throw new BadRequestException('Employee not found');
+    return row.companyId;
+  }
+
+  // Get Employee (versioned cache)
+  private async getEmployee(employee_id: string) {
+    const companyId = await this.getEmployeeCompanyId(employee_id);
+
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['employees', 'byId', employee_id],
+      async () => {
+        const [employee] = await this.db
+          .select({
+            id: employees.id,
+            firstName: employees.firstName,
+            lastName: employees.lastName,
+            companyId: employees.companyId,
+          })
+          .from(employees)
+          .where(eq(employees.id, employee_id))
+          .execute();
+
+        if (!employee) throw new BadRequestException('Employee not found');
+        return employee;
+      },
+      {
+        tags: [
+          'employees',
+          `company:${companyId}:employees`,
+          `employee:${employee_id}`,
+        ],
+      },
+    );
+  }
+
+  // Unpaid advance deductions (versioned cache)
+  async getUnpaidAdvanceDeductions(employee_id: string) {
+    const companyId = await this.getEmployeeCompanyId(employee_id);
+
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['loans', 'unpaidDeduction', employee_id],
+      async () => {
+        return await this.db
+          .select({
+            loanId: salaryAdvance.id,
+            monthlyDeduction: salaryAdvance.preferredMonthlyPayment,
+          })
+          .from(salaryAdvance)
+          .where(
+            and(
+              eq(salaryAdvance.employeeId, employee_id),
+              eq(salaryAdvance.status, 'approved'),
+              not(eq(salaryAdvance.status, 'paid')),
+            ),
+          )
+          .limit(1)
+          .execute();
+      },
+      {
+        tags: [
+          'loans',
+          `company:${companyId}:loans`,
+          `employee:${employee_id}:loans`,
+        ],
+      },
+    );
   }
 
   // Loan Request
-
   async salaryAdvanceRequest(
     dto: CreateSalaryAdvanceDto,
     employee_id: string,
@@ -214,55 +250,110 @@ export class SalaryAdvanceService {
       return loan;
     });
 
+    // bump & invalidate caches related to loans
+    await this.cache.bumpCompanyVersion(employee.companyId);
+    await this.cache.invalidateTags([
+      'loans',
+      `company:${employee.companyId}:loans`,
+      `employee:${employee_id}:loans`,
+      `loan:${newLoan.id}`,
+      'employees', // some screens show embedded employee+loan lists
+    ]);
+
     return newLoan;
   }
 
-  // Get Loans by Company
+  // Get Loans by Company (versioned)
   async getAdvances(company_id: string) {
-    const allLoans = await this.db
-      .select({
-        name: salaryAdvance.name,
-        loanId: salaryAdvance.id,
-        amount: salaryAdvance.amount,
-        status: salaryAdvance.status,
-        totalPaid: salaryAdvance.totalPaid,
-        tenureMonths: salaryAdvance.tenureMonths,
-        preferredMonthlyPayment: salaryAdvance.preferredMonthlyPayment,
-        employeeName: sql`${employees.firstName} || ' ' || ${employees.lastName}`,
-        outstandingBalance:
-          sql<number>`(${salaryAdvance.amount} - ${salaryAdvance.totalPaid})`.as(
-            'outstandingBalance',
-          ),
-        loanNumber: salaryAdvance.loanNumber,
-      })
-      .from(salaryAdvance)
-      .innerJoin(employees, eq(salaryAdvance.employeeId, employees.id))
-      .where(eq(salaryAdvance.companyId, company_id))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      company_id,
+      ['loans', 'byCompany'],
+      async () => {
+        const allLoans = await this.db
+          .select({
+            name: salaryAdvance.name,
+            loanId: salaryAdvance.id,
+            amount: salaryAdvance.amount,
+            status: salaryAdvance.status,
+            totalPaid: salaryAdvance.totalPaid,
+            tenureMonths: salaryAdvance.tenureMonths,
+            preferredMonthlyPayment: salaryAdvance.preferredMonthlyPayment,
+            employeeName: sql`${employees.firstName} || ' ' || ${employees.lastName}`,
+            outstandingBalance:
+              sql<number>`(${salaryAdvance.amount} - ${salaryAdvance.totalPaid})`.as(
+                'outstandingBalance',
+              ),
+            loanNumber: salaryAdvance.loanNumber,
+          })
+          .from(salaryAdvance)
+          .innerJoin(employees, eq(salaryAdvance.employeeId, employees.id))
+          .where(eq(salaryAdvance.companyId, company_id))
+          .execute();
 
-    return allLoans;
+        return allLoans;
+      },
+      { tags: ['loans', `company:${company_id}:loans`] },
+    );
   }
 
-  // Get Loans by Employee
+  // Get Loans by Employee (versioned)
   async getAdvancesByEmployee(employee_id: string) {
-    const allLoans = await this.db
-      .select()
-      .from(salaryAdvance)
-      .where(eq(salaryAdvance.employeeId, employee_id))
-      .execute();
+    const companyId = await this.getEmployeeCompanyId(employee_id);
 
-    return allLoans;
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['loans', 'byEmployee', employee_id],
+      async () => {
+        return await this.db
+          .select()
+          .from(salaryAdvance)
+          .where(eq(salaryAdvance.employeeId, employee_id))
+          .execute();
+      },
+      {
+        tags: [
+          'loans',
+          `company:${companyId}:loans`,
+          `employee:${employee_id}:loans`,
+        ],
+      },
+    );
   }
 
-  // Get Loan by ID
+  // Get Loan by ID (versioned)
   async getAdvanceById(loan_id: string) {
-    const loan = await this.db
-      .select()
+    // fetch minimal to learn company & employee for versioning/tags
+    const [meta] = await this.db
+      .select({
+        companyId: salaryAdvance.companyId,
+        employeeId: salaryAdvance.employeeId,
+      })
       .from(salaryAdvance)
       .where(eq(salaryAdvance.id, loan_id))
       .execute();
 
-    return loan[0];
+    if (!meta) return undefined;
+
+    return this.cache.getOrSetVersioned(
+      meta.companyId,
+      ['loans', 'byId', loan_id],
+      async () => {
+        const [loan] = await this.db
+          .select()
+          .from(salaryAdvance)
+          .where(eq(salaryAdvance.id, loan_id))
+          .execute();
+        return loan;
+      },
+      {
+        tags: [
+          'loans',
+          `company:${meta.companyId}:loans`,
+          `employee:${meta.employeeId}:loans`,
+          `loan:${loan_id}`,
+        ],
+      },
+    );
   }
 
   // Update Loan Status
@@ -272,49 +363,45 @@ export class SalaryAdvanceService {
     user_id: string,
   ) {
     // Fetch the existing loan
-    const loan = await this.db
+    const [loan] = await this.db
       .select()
       .from(salaryAdvance)
       .where(eq(salaryAdvance.id, loan_id))
       .execute();
 
-    if (!loan.length) {
+    if (!loan) {
       throw new BadRequestException('Loan not found');
     }
 
-    // Use transaction to ensure atomicity
     const updatedLoan = await this.db.transaction(async (tx) => {
-      // Update loan status
       const [updated] = await tx
         .update(salaryAdvance)
         .set({ ...dto })
         .where(eq(salaryAdvance.id, loan_id))
-        .returning(); // Return updated loan
+        .returning();
 
-      // Insert into loan history
       await tx.insert(salaryAdvanceHistory).values({
         salaryAdvanceId: loan_id,
         companyId: updated.companyId,
-        action: dto.status, // "approved", "rejected", etc.
-        reason: dto.reason || null, // Optional reason
-        actionBy: user_id, // Admin who performed the update
+        action: dto.status,
+        reason: dto.reason || null,
+        actionBy: user_id,
         createdAt: new Date(),
       });
 
       await this.pusher.createNotification(
-        loan[0].companyId,
+        loan.companyId,
         `New loan request updated to ${updated.status}`,
         'loan',
       );
 
       await this.pusher.createEmployeeNotification(
-        loan[0].companyId,
-        loan[0].employeeId,
-        `Your loan request ${loan[0].loanNumber} has been ${updated.status}`,
+        loan.companyId,
+        loan.employeeId,
+        `Your loan request ${loan.loanNumber} has been ${updated.status}`,
         'loan',
       );
 
-      // Audit log
       await this.auditService.logAction({
         action: 'update',
         entity: 'salary_advance',
@@ -322,7 +409,7 @@ export class SalaryAdvanceService {
         userId: user_id,
         details: `Loan status updated to ${dto.status} by user ${user_id}`,
         changes: {
-          status: { before: loan[0].status, after: dto.status },
+          status: { before: loan.status, after: dto.status },
           reason: { before: null, after: dto.reason },
         },
       });
@@ -330,143 +417,197 @@ export class SalaryAdvanceService {
       return updated;
     });
 
+    // bump & invalidate caches
+    await this.cache.bumpCompanyVersion(loan.companyId);
+    await this.cache.invalidateTags([
+      'loans',
+      `company:${loan.companyId}:loans`,
+      `employee:${loan.employeeId}:loans`,
+      `loan:${loan_id}`,
+    ]);
+
     return updatedLoan;
   }
 
   // Repayments ---------------------------------------------
   async repayAdvance(loan_id: string, amount: number) {
     const loan = await this.getAdvanceById(loan_id);
+    if (!loan) throw new BadRequestException('Loan not found');
 
-    if (!loan) {
-      throw new BadRequestException('Loan not found');
-    }
-
-    // Convert values to Decimal
     const loanAmount = new Decimal(loan.amount);
     const previousTotalPaid = new Decimal(loan.totalPaid || 0);
     const repaymentAmount = new Decimal(amount);
     const newTotalPaid = previousTotalPaid.plus(repaymentAmount);
 
-    // Prevent overpayment
     if (newTotalPaid.gt(loanAmount)) {
-      return;
-    } else {
-      const newRepayment = await this.db.transaction(async (tx) => {
-        // 1. Insert repayment record
-        const [repayment] = await tx
-          .insert(repayments)
-          .values({
-            salaryAdvanceId: loan_id,
-            amountPaid: repaymentAmount.toFixed(2), // precise decimal
-          })
-          .returning();
-
-        // 2. Update loan record
-        await tx
-          .update(salaryAdvance)
-          .set({
-            totalPaid: newTotalPaid.toFixed(2),
-            status: newTotalPaid.eq(loanAmount) ? 'paid' : loan.status,
-            paymentStatus: newTotalPaid.eq(loanAmount) ? 'closed' : loan.status,
-          })
-          .where(eq(salaryAdvance.id, loan_id))
-          .execute();
-
-        // 3. Audit history
-        await tx.insert(salaryAdvanceHistory).values({
-          salaryAdvanceId: loan_id,
-          companyId: loan.companyId,
-          action: 'repayment',
-          reason: `Paid ₦${repaymentAmount.toFixed(2)}`,
-          createdAt: new Date(),
-        });
-
-        return repayment;
-      });
-      return newRepayment;
+      return; // silently ignore overpayment for now
     }
 
-    // Proceed with transactional update
+    const newRepayment = await this.db.transaction(async (tx) => {
+      const [repayment] = await tx
+        .insert(repayments)
+        .values({
+          salaryAdvanceId: loan_id,
+          amountPaid: repaymentAmount.toFixed(2),
+        })
+        .returning();
+
+      await tx
+        .update(salaryAdvance)
+        .set({
+          totalPaid: newTotalPaid.toFixed(2),
+          status: newTotalPaid.eq(loanAmount) ? 'paid' : loan.status,
+          paymentStatus: newTotalPaid.eq(loanAmount) ? 'closed' : loan.status,
+        })
+        .where(eq(salaryAdvance.id, loan_id))
+        .execute();
+
+      await tx.insert(salaryAdvanceHistory).values({
+        salaryAdvanceId: loan_id,
+        companyId: loan.companyId,
+        action: 'repayment',
+        reason: `Paid ₦${repaymentAmount.toFixed(2)}`,
+        createdAt: new Date(),
+      });
+
+      return repayment;
+    });
+
+    // bump & invalidate caches
+    await this.cache.bumpCompanyVersion(loan.companyId);
+    await this.cache.invalidateTags([
+      'loans',
+      `company:${loan.companyId}:loans`,
+      `employee:${loan.employeeId}:loans`,
+      `loan:${loan_id}`,
+    ]);
+
+    return newRepayment;
   }
 
   async getAdvancesAndRepaymentsByEmployee(employee_id: string) {
-    const loansWithRepayments = await this.db
-      .select({
-        loanId: salaryAdvance.id,
-        amount: salaryAdvance.amount,
-        status: salaryAdvance.status,
-        totalPaid: salaryAdvance.totalPaid,
-        tenureMonths: salaryAdvance.tenureMonths,
-        preferredMonthlyPayment: salaryAdvance.preferredMonthlyPayment,
-        name: salaryAdvance.name,
-        paymentStatus: salaryAdvance.paymentStatus,
-        createAt: salaryAdvance.createdAt,
-        outstandingBalance:
-          sql<number>`(${salaryAdvance.amount} - ${salaryAdvance.totalPaid})`.as(
-            'outstandingBalance',
-          ),
-        loanNumber: salaryAdvance.loanNumber,
-      })
-      .from(salaryAdvance)
-      .where(eq(salaryAdvance.employeeId, employee_id)) // Filter by employee
-      .execute();
+    const companyId = await this.getEmployeeCompanyId(employee_id);
 
-    return loansWithRepayments;
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['loans', 'summaryByEmployee', employee_id],
+      async () => {
+        const loansWithRepayments = await this.db
+          .select({
+            loanId: salaryAdvance.id,
+            amount: salaryAdvance.amount,
+            status: salaryAdvance.status,
+            totalPaid: salaryAdvance.totalPaid,
+            tenureMonths: salaryAdvance.tenureMonths,
+            preferredMonthlyPayment: salaryAdvance.preferredMonthlyPayment,
+            name: salaryAdvance.name,
+            paymentStatus: salaryAdvance.paymentStatus,
+            createAt: salaryAdvance.createdAt,
+            outstandingBalance:
+              sql<number>`(${salaryAdvance.amount} - ${salaryAdvance.totalPaid})`.as(
+                'outstandingBalance',
+              ),
+            loanNumber: salaryAdvance.loanNumber,
+          })
+          .from(salaryAdvance)
+          .where(eq(salaryAdvance.employeeId, employee_id))
+          .execute();
+
+        return loansWithRepayments;
+      },
+      {
+        tags: [
+          'loans',
+          `company:${companyId}:loans`,
+          `employee:${employee_id}:loans`,
+        ],
+      },
+    );
   }
 
-  // Get Repayments by Loan
+  // Get Repayments by Loan (versioned)
   async getRepaymentByLoan(loan_id: string) {
-    const repayment = await this.db
-      .select()
-      .from(repayments)
-      .where(eq(repayments.salaryAdvanceId, loan_id))
-      .execute();
+    const loan = await this.getAdvanceById(loan_id);
+    if (!loan) return undefined;
 
-    return repayment[0];
+    return this.cache.getOrSetVersioned(
+      loan.companyId,
+      ['loans', 'repaymentsByLoan', loan_id],
+      async () => {
+        const rep = await this.db
+          .select()
+          .from(repayments)
+          .where(eq(repayments.salaryAdvanceId, loan_id))
+          .execute();
+        return rep[0];
+      },
+      { tags: ['loans', `company:${loan.companyId}:loans`, `loan:${loan_id}`] },
+    );
   }
 
   // Loan History ---------------------------------------------
 
-  // Get Loan History by Employee
+  // Get Loan History by Employee (versioned)
   async getAdvanceHistoryByEmployee(employee_id: string) {
-    return await this.db
-      .select()
-      .from(salaryAdvanceHistory)
-      .innerJoin(
-        salaryAdvance,
-        eq(salaryAdvanceHistory.salaryAdvanceId, salaryAdvance.id),
-      )
-      .where(eq(salaryAdvance.employeeId, employee_id))
-      .execute();
+    const companyId = await this.getEmployeeCompanyId(employee_id);
+
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['loans', 'historyByEmployee', employee_id],
+      async () => {
+        return await this.db
+          .select()
+          .from(salaryAdvanceHistory)
+          .innerJoin(
+            salaryAdvance,
+            eq(salaryAdvanceHistory.salaryAdvanceId, salaryAdvance.id),
+          )
+          .where(eq(salaryAdvance.employeeId, employee_id))
+          .execute();
+      },
+      {
+        tags: [
+          'loans',
+          `company:${companyId}:loans`,
+          `employee:${employee_id}:loans`,
+        ],
+      },
+    );
   }
 
-  // Get Loan History by Company
+  // Get Loan History by Company (versioned)
   async getAdvancesHistoryByCompany(company_id: string) {
-    const history = await this.db
-      .select({
-        action: salaryAdvanceHistory.action,
-        reason: salaryAdvanceHistory.reason,
-        role: companyRoles.name,
-        createdAt: salaryAdvanceHistory.createdAt,
-        employee:
-          sql`${employees.firstName} || ' ' || ${employees.lastName}`.as(
-            'employee',
-          ),
-      })
-      .from(salaryAdvanceHistory)
-      .innerJoin(users, eq(salaryAdvanceHistory.actionBy, users.id))
-      .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
-      .innerJoin(
-        salaryAdvance,
-        eq(salaryAdvanceHistory.salaryAdvanceId, salaryAdvance.id),
-      )
-      .innerJoin(employees, eq(salaryAdvance.employeeId, employees.id))
+    return this.cache.getOrSetVersioned(
+      company_id,
+      ['loans', 'historyByCompany'],
+      async () => {
+        const history = await this.db
+          .select({
+            action: salaryAdvanceHistory.action,
+            reason: salaryAdvanceHistory.reason,
+            role: companyRoles.name,
+            createdAt: salaryAdvanceHistory.createdAt,
+            employee:
+              sql`${employees.firstName} || ' ' || ${employees.lastName}`.as(
+                'employee',
+              ),
+          })
+          .from(salaryAdvanceHistory)
+          .innerJoin(users, eq(salaryAdvanceHistory.actionBy, users.id))
+          .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
+          .innerJoin(
+            salaryAdvance,
+            eq(salaryAdvanceHistory.salaryAdvanceId, salaryAdvance.id),
+          )
+          .innerJoin(employees, eq(salaryAdvance.employeeId, employees.id))
+          .where(eq(salaryAdvanceHistory.companyId, company_id))
+          .limit(10)
+          .orderBy(desc(salaryAdvanceHistory.createdAt))
+          .execute();
 
-      .where(eq(salaryAdvanceHistory.companyId, company_id))
-      .limit(10) // Limit to 10 records
-      .orderBy(desc(salaryAdvanceHistory.createdAt)) // Order by created_at in descending order
-      .execute();
-
-    return history;
+        return history;
+      },
+      { tags: ['loans', `company:${company_id}:loans`] },
+    );
   }
 }

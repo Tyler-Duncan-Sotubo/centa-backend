@@ -55,14 +55,17 @@ let CompanyService = class CompanyService {
         this.leaveBalanceService = leaveBalanceService;
         this.companySettingsService = companySettingsService;
         this.table = schema_1.companies;
-        this.ttlCompany = 60 * 60;
-        this.ttlSummary = 5 * 60;
+        this.ttlCompany = 120 * 60;
+        this.ttlSummary = 60 * 60;
+        this.ttlElements = 60 * 60;
+        this.ttlAllCompanies = 60 * 60;
     }
     tags(companyId) {
         return [
             `company:${companyId}:company`,
             `company:${companyId}:summary`,
             `company:${companyId}:employees`,
+            `company:${companyId}:elements`,
         ];
     }
     async update(companyId, dto, userId, ip) {
@@ -116,6 +119,21 @@ let CompanyService = class CompanyService {
         await this.cache.bumpCompanyVersion(companyId);
         return 'Company updated successfully';
     }
+    async softDelete(id) {
+        const result = await this.db.transaction(async (tx) => {
+            const [company] = await tx
+                .update(schema_1.companies)
+                .set({ isActive: false })
+                .where((0, drizzle_orm_1.eq)(schema_1.companies.id, id))
+                .returning()
+                .execute();
+            if (!company)
+                throw new Error('Company not found');
+            return company;
+        });
+        await this.cache.bumpCompanyVersion(id);
+        return result;
+    }
     async findOne(id) {
         return this.cache.getOrSetVersioned(id, ['company', 'one'], async () => {
             const rows = await this.db
@@ -141,21 +159,6 @@ let CompanyService = class CompanyService {
                 .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(schema_1.employees.employmentStatus, 'active')))
                 .execute();
         }, { ttlSeconds: this.ttlCompany, tags: this.tags(companyId) });
-    }
-    async softDelete(id) {
-        const result = await this.db.transaction(async (tx) => {
-            const [company] = await tx
-                .update(schema_1.companies)
-                .set({ isActive: false })
-                .where((0, drizzle_orm_1.eq)(schema_1.companies.id, id))
-                .returning()
-                .execute();
-            if (!company)
-                throw new Error('Company not found');
-            return company;
-        });
-        await this.cache.bumpCompanyVersion(id);
-        return result;
     }
     async getCompanySummary(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['company', 'summary'], async () => {
@@ -352,27 +355,29 @@ let CompanyService = class CompanyService {
         }, { ttlSeconds: this.ttlSummary, tags: this.tags(companyId) });
     }
     async getCompanyElements(companyId) {
-        const [departmentsRes, payGroups, locations, jobRolesRes, costCenters, roles, templates,] = await Promise.all([
-            this.departmentService.findAll(companyId),
-            this.payGroupService.findAll(companyId),
-            this.locationService.findAll(companyId),
-            this.jobRoleService.findAll(companyId),
-            this.costCenterService.findAll(companyId),
-            this.permissionsService.getRolesByCompany(companyId),
-            this.onboardingSeederService.getTemplatesByCompanySummaries(companyId),
-        ]);
-        return {
-            departments: departmentsRes,
-            payGroups,
-            locations,
-            jobRoles: jobRolesRes,
-            costCenters,
-            roles,
-            templates,
-        };
+        return this.cache.getOrSetVersioned(companyId, ['company', 'elements'], async () => {
+            const [departmentsRes, payGroups, locations, jobRolesRes, costCenters, roles, templates,] = await Promise.all([
+                this.departmentService.findAll(companyId),
+                this.payGroupService.findAll(companyId),
+                this.locationService.findAll(companyId),
+                this.jobRoleService.findAll(companyId),
+                this.costCenterService.findAll(companyId),
+                this.permissionsService.getRolesByCompany(companyId),
+                this.onboardingSeederService.getTemplatesByCompanySummaries(companyId),
+            ]);
+            return {
+                departments: departmentsRes,
+                payGroups,
+                locations,
+                jobRoles: jobRolesRes,
+                costCenters,
+                roles,
+                templates,
+            };
+        }, { ttlSeconds: this.ttlElements, tags: this.tags(companyId) });
     }
     async getAllCompanies() {
-        return this.db.select().from(schema_1.companies).execute();
+        return this.cache.getOrSetCache('global:companies:all', async () => this.db.select().from(schema_1.companies).execute(), { ttlSeconds: this.ttlAllCompanies });
     }
 };
 exports.CompanyService = CompanyService;

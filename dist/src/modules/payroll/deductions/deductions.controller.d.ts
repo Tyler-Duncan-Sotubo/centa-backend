@@ -28,8 +28,8 @@ export declare class DeductionsController extends BaseController {
         id: string;
         isActive: boolean;
         startDate: string;
-        endDate: string | null;
         employeeId: string;
+        endDate: string | null;
         metadata: unknown;
         deductionTypeId: string;
         rateType: "fixed" | "percentage";

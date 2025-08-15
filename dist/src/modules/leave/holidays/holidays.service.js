@@ -23,32 +23,48 @@ const create_holiday_dto_1 = require("./dto/create-holiday.dto");
 const audit_service_1 = require("../../audit/audit.service");
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let HolidaysService = class HolidaysService {
-    constructor(configService, auditService, db) {
+    constructor(configService, auditService, db, cache) {
         this.configService = configService;
         this.auditService = auditService;
         this.db = db;
+        this.cache = cache;
     }
-    async getPublicHolidaysForYear(year, countryCode) {
-        const publicHolidays = [];
+    tags(companyId) {
+        return [
+            `company:${companyId}:holidays`,
+            `company:${companyId}:holidays:list`,
+            `company:${companyId}:holidays:range`,
+            `company:${companyId}:holidays:upcoming`,
+        ];
+    }
+    async fetchCalendarificHolidays(year, countryCode) {
         const apiKey = this.configService.get('CALENDARIFIC_API_KEY');
-        const url = `https://calendarific.com/api/v2/holidays?country=${countryCode}&year=${year}&api_key=${apiKey}`;
-        try {
-            const response = await axios_1.default.get(url);
-            const holidays = response.data.response.holidays;
-            holidays.forEach((holiday) => {
-                const holidayDate = new Date(holiday.date.iso);
-                publicHolidays.push({
-                    date: holidayDate.toISOString().split('T')[0],
-                    name: holiday.name,
-                    type: holiday.primary_type,
-                });
-            });
-        }
-        catch (error) {
-            console.error('Error fetching public holidays:', error);
-        }
-        return publicHolidays;
+        if (!apiKey)
+            return [];
+        const key = [
+            'public-holidays',
+            'calendarific',
+            countryCode,
+            String(year),
+        ].join(':');
+        return this.cache.getOrSetCache(key, async () => {
+            const url = `https://calendarific.com/api/v2/holidays?country=${countryCode}&year=${year}&api_key=${apiKey}`;
+            try {
+                const response = await axios_1.default.get(url);
+                const items = response.data?.response?.holidays ?? [];
+                return items.map((h) => ({
+                    date: new Date(h.date.iso).toISOString().split('T')[0],
+                    name: h.name,
+                    type: h.primary_type,
+                }));
+            }
+            catch (error) {
+                console.error('Error fetching public holidays:', error);
+                return [];
+            }
+        });
     }
     removeDuplicateDates(dates) {
         const seen = new Set();
@@ -63,7 +79,7 @@ let HolidaysService = class HolidaysService {
     }
     async getNonWorkingDaysForYear(year, countryCode) {
         const nonWorkingDays = [];
-        const publicHolidays = await this.getPublicHolidaysForYear(year, countryCode);
+        const publicHolidays = await this.fetchCalendarificHolidays(year, countryCode);
         publicHolidays.forEach((holiday) => {
             nonWorkingDays.push({
                 date: holiday.date,
@@ -71,17 +87,16 @@ let HolidaysService = class HolidaysService {
                 type: holiday.type,
             });
         });
-        const uniqueNonWorkingDays = this.removeDuplicateDates(nonWorkingDays.map((day) => ({ ...day, date: day.date })));
-        return uniqueNonWorkingDays;
+        return this.removeDuplicateDates(nonWorkingDays);
     }
-    async insertHolidaysForCurrentYear(countryCode) {
+    async insertHolidaysForCurrentYear(countryCode, companyId) {
         const currentYear = new Date().getFullYear();
         const allHolidays = await this.getNonWorkingDaysForYear(currentYear, countryCode);
-        const existingHolidays = await this.db
+        const existing = await this.db
             .select({ date: holidays_schema_1.holidays.date })
             .from(holidays_schema_1.holidays);
-        const existingDates = new Set(existingHolidays.map((h) => h.date));
-        const newHolidays = allHolidays.filter((holiday) => !existingDates.has(holiday.date));
+        const existingDates = new Set(existing.map((h) => h.date));
+        const newHolidays = allHolidays.filter((h) => !existingDates.has(h.date));
         const countryCodeMap = {
             NG: 'Nigeria',
             US: 'United States',
@@ -90,48 +105,25 @@ let HolidaysService = class HolidaysService {
             CA: 'Canada',
         };
         if (newHolidays.length > 0) {
-            await this.db.insert(holidays_schema_1.holidays).values(newHolidays.map((holiday) => ({
-                name: holiday.name,
-                date: holiday.date,
-                type: holiday.type,
-                countryCode: countryCode,
+            await this.db
+                .insert(holidays_schema_1.holidays)
+                .values(newHolidays.map((h) => ({
+                name: h.name,
+                date: h.date,
+                type: h.type,
+                countryCode,
                 country: countryCodeMap[countryCode] || 'Unknown',
-                year: currentYear.toString(),
+                year: String(currentYear),
                 source: 'system_default',
-            })));
+                companyId: null,
+                isWorkingDayOverride: false,
+            })))
+                .execute();
+        }
+        if (companyId) {
+            await this.cache.bumpCompanyVersion(companyId);
         }
         return 'Holidays for the current year have been inserted successfully.';
-    }
-    async getUpcomingPublicHolidays(countryCode, companyId) {
-        const currentDate = new Date();
-        const currentYear = currentDate.getFullYear();
-        const upcomingHolidays = await this.db
-            .select()
-            .from(holidays_schema_1.holidays)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.countryCode, countryCode), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.year, currentYear.toString()), (0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.type, 'Public Holiday'), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.isWorkingDayOverride, true)), (0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.companyId, companyId), (0, drizzle_orm_1.isNull)(holidays_schema_1.holidays.companyId))))
-            .execute();
-        const filteredHolidays = upcomingHolidays.filter((holiday) => {
-            const holidayDate = new Date(holiday.date);
-            return holidayDate > currentDate;
-        });
-        const nonWeekendHolidays = filteredHolidays.filter((holiday) => holiday.name !== 'Weekend');
-        nonWeekendHolidays.sort((a, b) => {
-            const dateA = new Date(a.date);
-            const dateB = new Date(b.date);
-            return dateA.getTime() - dateB.getTime();
-        });
-        return nonWeekendHolidays.map((holiday) => ({
-            name: holiday.name,
-            date: holiday.date,
-            type: holiday.type,
-        }));
-    }
-    async listHolidaysInRange(companyId, startDate, endDate) {
-        return this.db
-            .select()
-            .from(holidays_schema_1.holidays)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.companyId, companyId), (0, drizzle_orm_1.isNull)(holidays_schema_1.holidays.companyId)), (0, drizzle_orm_1.gte)(holidays_schema_1.holidays.date, startDate), (0, drizzle_orm_1.lte)(holidays_schema_1.holidays.date, endDate), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.type, 'Public Holiday'), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.isWorkingDayOverride, false)))
-            .execute();
     }
     async bulkCreateHolidays(companyId, rows) {
         const dtos = [];
@@ -160,19 +152,21 @@ let HolidaysService = class HolidaysService {
                 country: d.country,
                 countryCode: d.countryCode,
                 isWorkingDayOverride: true,
+                source: 'manual',
             }));
             return trx.insert(holidays_schema_1.holidays).values(values).returning().execute();
         });
+        await this.cache.bumpCompanyVersion(companyId);
         return inserted;
     }
     async createHoliday(dto, user) {
         const { name, date, year, type } = dto;
-        const existingHoliday = await this.db
+        const existing = await this.db
             .select()
             .from(holidays_schema_1.holidays)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.name, name), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.date, date), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.year, year), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.type, type), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.companyId, user.companyId)))
             .execute();
-        if (existingHoliday.length > 0) {
+        if (existing.length > 0) {
             throw new Error('Holiday already exists');
         }
         const [holiday] = await this.db
@@ -201,30 +195,18 @@ let HolidaysService = class HolidaysService {
                 source: holiday.source,
             },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
         return holiday;
     }
-    async findOne(id, user) {
-        const holiday = await this.db
+    async update(id, dto, user) {
+        const found = await this.db
             .select()
             .from(holidays_schema_1.holidays)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.id, id), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.companyId, user.companyId)))
             .execute();
-        if (holiday.length === 0) {
-            throw new Error('Holiday not found');
-        }
-    }
-    async findAll(companyId) {
-        const holidaysList = await this.db
-            .select()
-            .from(holidays_schema_1.holidays)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.companyId, companyId), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.isWorkingDayOverride, true)))
-            .orderBy((0, drizzle_orm_1.asc)(holidays_schema_1.holidays.date))
-            .execute();
-        return holidaysList;
-    }
-    async update(id, dto, user) {
-        await this.findOne(id, user);
-        const updatedHoliday = await this.db
+        if (found.length === 0)
+            throw new common_1.NotFoundException('Holiday not found');
+        const updated = await this.db
             .update(holidays_schema_1.holidays)
             .set({
             ...dto,
@@ -248,10 +230,17 @@ let HolidaysService = class HolidaysService {
                 source: 'manual',
             },
         });
-        return updatedHoliday;
+        await this.cache.bumpCompanyVersion(user.companyId);
+        return updated;
     }
     async delete(id, user) {
-        await this.findOne(id, user);
+        const found = await this.db
+            .select()
+            .from(holidays_schema_1.holidays)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.id, id), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.companyId, user.companyId)))
+            .execute();
+        if (found.length === 0)
+            throw new common_1.NotFoundException('Holiday not found');
         await this.db.delete(holidays_schema_1.holidays).where((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.id, id)).execute();
         await this.auditService.logAction({
             action: 'delete',
@@ -266,7 +255,59 @@ let HolidaysService = class HolidaysService {
                 source: 'manual',
             },
         });
+        await this.cache.bumpCompanyVersion(user.companyId);
         return { message: 'Holiday deleted successfully' };
+    }
+    async findOne(id, user) {
+        return this.cache.getOrSetVersioned(user.companyId, ['holidays', 'one', id], async () => {
+            const rows = await this.db
+                .select()
+                .from(holidays_schema_1.holidays)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.id, id), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.companyId, user.companyId)))
+                .execute();
+            if (rows.length === 0)
+                throw new common_1.NotFoundException('Holiday not found');
+            return rows[0];
+        }, { tags: this.tags(user.companyId) });
+    }
+    async findAll(companyId) {
+        return this.cache.getOrSetVersioned(companyId, ['holidays', 'list'], async () => {
+            return this.db
+                .select()
+                .from(holidays_schema_1.holidays)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.companyId, companyId), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.isWorkingDayOverride, true)))
+                .orderBy((0, drizzle_orm_1.asc)(holidays_schema_1.holidays.date))
+                .execute();
+        }, { tags: this.tags(companyId) });
+    }
+    async getUpcomingPublicHolidays(countryCode, companyId) {
+        const now = new Date();
+        return this.cache.getOrSetVersioned(companyId, ['holidays', 'upcoming', countryCode, String(now.getFullYear())], async () => {
+            const currentYear = now.getFullYear();
+            const upcoming = await this.db
+                .select()
+                .from(holidays_schema_1.holidays)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.countryCode, countryCode), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.year, currentYear.toString()), (0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.type, 'Public Holiday'), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.isWorkingDayOverride, true)), (0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.companyId, companyId), (0, drizzle_orm_1.isNull)(holidays_schema_1.holidays.companyId))))
+                .execute();
+            const filtered = upcoming
+                .filter((h) => new Date(h.date) > now)
+                .filter((h) => h.name !== 'Weekend')
+                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            return filtered.map((h) => ({
+                name: h.name,
+                date: h.date,
+                type: h.type,
+            }));
+        }, { tags: this.tags(companyId) });
+    }
+    async listHolidaysInRange(companyId, startDate, endDate) {
+        return this.cache.getOrSetVersioned(companyId, ['holidays', 'range', startDate, endDate], async () => {
+            return this.db
+                .select()
+                .from(holidays_schema_1.holidays)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.companyId, companyId), (0, drizzle_orm_1.isNull)(holidays_schema_1.holidays.companyId)), (0, drizzle_orm_1.gte)(holidays_schema_1.holidays.date, startDate), (0, drizzle_orm_1.lte)(holidays_schema_1.holidays.date, endDate), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.type, 'Public Holiday'), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.isWorkingDayOverride, false)))
+                .execute();
+        }, { tags: this.tags(companyId) });
     }
 };
 exports.HolidaysService = HolidaysService;
@@ -274,6 +315,6 @@ exports.HolidaysService = HolidaysService = __decorate([
     (0, common_1.Injectable)(),
     __param(2, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [config_1.ConfigService,
-        audit_service_1.AuditService, Object])
+        audit_service_1.AuditService, Object, cache_service_1.CacheService])
 ], HolidaysService);
 //# sourceMappingURL=holidays.service.js.map

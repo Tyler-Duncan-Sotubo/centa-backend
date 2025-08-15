@@ -31,7 +31,6 @@ let AppraisalsService = class AppraisalsService {
         this.auditService = auditService;
         this.companySettingsService = companySettingsService;
         this.cache = cache;
-        this.ttlSeconds = 10 * 60;
     }
     tags(companyId) {
         return [`company:${companyId}:appraisals`];
@@ -113,7 +112,7 @@ let AppraisalsService = class AppraisalsService {
                 .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(emp.jobRoleId, schema_1.jobRoles.id))
                 .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, companyId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.cycleId, cycleId)))
                 .orderBy((0, drizzle_orm_1.desc)(performance_appraisals_schema_1.appraisals.createdAt));
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
     async findDashboardForEmployee(companyId, employeeId) {
         const cacheKey = ['appraisals', 'dashboard', employeeId];
@@ -195,7 +194,7 @@ let AppraisalsService = class AppraisalsService {
                     jobRoleName: r.jobRoleName ?? null,
                 })),
             };
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
     async findOne(id, companyId) {
         const cacheKey = ['appraisals', 'one', id];
@@ -228,7 +227,7 @@ let AppraisalsService = class AppraisalsService {
                 throw new common_1.NotFoundException(`Appraisal with ID ${id} not found`);
             }
             return record;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
     async updateManager(appraisalId, newManagerId, user) {
         const { id: userId, companyId } = user;

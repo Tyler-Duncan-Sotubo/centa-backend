@@ -18,23 +18,28 @@ const drizzle_module_1 = require("../../../../drizzle/drizzle.module");
 const audit_service_1 = require("../../../audit/audit.service");
 const profile_schema_1 = require("../schema/profile.schema");
 const drizzle_orm_1 = require("drizzle-orm");
+const cache_service_1 = require("../../../../common/cache/cache.service");
 let ProfileService = class ProfileService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
         this.table = profile_schema_1.employeeProfiles;
+    }
+    tags(scope) {
+        return [`employee:${scope}:profile`, `employee:${scope}:profile:detail`];
     }
     async upsert(employeeId, dto, userId, ip) {
         const [employee] = await this.db
             .select()
-            .from(profile_schema_1.employeeProfiles)
-            .where((0, drizzle_orm_1.eq)(profile_schema_1.employeeProfiles.employeeId, employeeId))
+            .from(this.table)
+            .where((0, drizzle_orm_1.eq)(this.table.employeeId, employeeId))
             .execute();
         if (employee) {
             const [updated] = await this.db
-                .update(profile_schema_1.employeeProfiles)
+                .update(this.table)
                 .set({ ...dto })
-                .where((0, drizzle_orm_1.eq)(profile_schema_1.employeeProfiles.employeeId, employeeId))
+                .where((0, drizzle_orm_1.eq)(this.table.employeeId, employeeId))
                 .returning()
                 .execute();
             const changes = {};
@@ -56,11 +61,13 @@ let ProfileService = class ProfileService {
                     changes,
                 });
             }
+            await this.cache.bumpCompanyVersion(employeeId);
+            await this.cache.bumpCompanyVersion('global');
             return updated;
         }
         else {
             const [created] = await this.db
-                .insert(profile_schema_1.employeeProfiles)
+                .insert(this.table)
                 .values({ employeeId, ...dto })
                 .returning()
                 .execute();
@@ -73,29 +80,32 @@ let ProfileService = class ProfileService {
                 ipAddress: ip,
                 changes: { ...dto },
             });
+            await this.cache.bumpCompanyVersion(employeeId);
+            await this.cache.bumpCompanyVersion('global');
             return created;
         }
     }
     async findOne(employeeId) {
-        const [profile] = await this.db
-            .select()
-            .from(profile_schema_1.employeeProfiles)
-            .where((0, drizzle_orm_1.eq)(profile_schema_1.employeeProfiles.employeeId, employeeId))
-            .execute();
-        if (!profile) {
-            return {};
-        }
-        return profile;
+        return this.cache.getOrSetVersioned(employeeId, ['profile', 'detail', employeeId], async () => {
+            const [profile] = await this.db
+                .select()
+                .from(this.table)
+                .where((0, drizzle_orm_1.eq)(this.table.employeeId, employeeId))
+                .execute();
+            return profile ?? {};
+        }, { tags: this.tags(employeeId) });
     }
     async remove(employeeId) {
         const result = await this.db
-            .delete(profile_schema_1.employeeProfiles)
-            .where((0, drizzle_orm_1.eq)(profile_schema_1.employeeProfiles.employeeId, employeeId))
-            .returning({ id: profile_schema_1.employeeProfiles.id })
+            .delete(this.table)
+            .where((0, drizzle_orm_1.eq)(this.table.employeeId, employeeId))
+            .returning({ id: this.table.id })
             .execute();
         if (!result.length) {
             throw new common_1.NotFoundException(`Profile for employee ${employeeId} not found`);
         }
+        await this.cache.bumpCompanyVersion(employeeId);
+        await this.cache.bumpCompanyVersion('global');
         return { deleted: true, id: result[0].id };
     }
 };
@@ -103,6 +113,7 @@ exports.ProfileService = ProfileService;
 exports.ProfileService = ProfileService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], ProfileService);
 //# sourceMappingURL=profile.service.js.map

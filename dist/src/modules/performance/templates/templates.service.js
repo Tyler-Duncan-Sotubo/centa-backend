@@ -24,7 +24,6 @@ let PerformanceTemplatesService = class PerformanceTemplatesService {
         this.db = db;
         this.auditService = auditService;
         this.cache = cache;
-        this.ttlSeconds = 60 * 5;
         this.lookupQuestionIds = async (dbConn, questions, companyId) => {
             const rows = await dbConn.query.performanceReviewQuestions.findMany({
                 where: (q, { and, eq, isNull }) => and(companyId ? eq(q.companyId, companyId) : isNull(q.companyId), eq(q.isGlobal, true)),
@@ -114,7 +113,7 @@ let PerformanceTemplatesService = class PerformanceTemplatesService {
             .from(schema_1.performanceReviewTemplates)
             .where((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.companyId, companyId))
             .orderBy((0, drizzle_orm_1.asc)(schema_1.performanceReviewTemplates.name))
-            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+            .execute(), { tags: this.tags(companyId) });
     }
     async findOne(id, companyId) {
         const key = [...this.ns(), 'one', id];
@@ -143,7 +142,7 @@ let PerformanceTemplatesService = class PerformanceTemplatesService {
                 .orderBy(schema_1.performanceTemplateQuestions.order)
                 .execute();
             return { template, questions };
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
         if (!data)
             throw new common_1.NotFoundException('Template not found');
         return { ...data.template, questions: data.questions };

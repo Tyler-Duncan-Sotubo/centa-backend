@@ -6,13 +6,16 @@ import { AuditService } from '../audit/audit.service';
 import { CommentService } from './comment.service';
 import { ReactionService } from './reaction.service';
 import { AwsService } from 'src/common/aws/aws.service';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class AnnouncementService {
     private readonly db;
     private readonly auditService;
     private readonly commentService;
     private readonly reactionService;
     private readonly awsService;
-    constructor(db: db, auditService: AuditService, commentService: CommentService, reactionService: ReactionService, awsService: AwsService);
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, commentService: CommentService, reactionService: ReactionService, awsService: AwsService, cache: CacheService);
+    private tags;
     create(dto: CreateAnnouncementDto, user: User): Promise<{
         id: string;
         createdAt: Date | null;

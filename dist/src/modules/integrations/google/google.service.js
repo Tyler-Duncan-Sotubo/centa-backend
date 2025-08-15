@@ -24,7 +24,6 @@ let GoogleService = class GoogleService {
         this.db = db;
         this.auditService = auditService;
         this.cache = cache;
-        this.ttlSeconds = 60 * 60;
     }
     tags(companyId) {
         return [
@@ -105,7 +104,7 @@ let GoogleService = class GoogleService {
                 throw new common_1.NotFoundException(`Google integration for company #${companyId} not found`);
             }
             return result[0];
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async update(user, updateGoogleDto) {
         const { companyId, id: userId } = user;

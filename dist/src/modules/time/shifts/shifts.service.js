@@ -28,7 +28,6 @@ let ShiftsService = class ShiftsService {
         this.auditService = auditService;
         this.db = db;
         this.cache = cache;
-        this.ttlSeconds = 60 * 10;
     }
     tags(companyId) {
         return [
@@ -181,7 +180,7 @@ let ShiftsService = class ShiftsService {
                 .leftJoin(schema_1.companyLocations, (0, drizzle_orm_1.eq)(shifts_schema_1.shifts.locationId, schema_1.companyLocations.id))
                 .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(shifts_schema_1.shifts.companyId, companyId), (0, drizzle_orm_1.eq)(shifts_schema_1.shifts.isDeleted, false)))
                 .execute();
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
     async findOne(id, companyId) {
         return this.cache.getOrSetVersioned(companyId, ['attendance', 'shifts', 'one', id], async () => {
@@ -194,7 +193,7 @@ let ShiftsService = class ShiftsService {
                 throw new common_1.BadRequestException(`Shift ${id} not found.`);
             }
             return shift;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        });
     }
     async update(id, dto, user, ip) {
         const before = await this.findOne(id, user.companyId);

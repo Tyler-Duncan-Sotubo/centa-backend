@@ -20,11 +20,19 @@ const drizzle_orm_1 = require("drizzle-orm");
 const audit_service_1 = require("../../audit/audit.service");
 const schema_1 = require("../../../drizzle/schema");
 const leave_types_schema_1 = require("../schema/leave-types.schema");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let LeaveBalanceService = class LeaveBalanceService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
         this.table = leave_balance_schema_1.leaveBalances;
+    }
+    tags(companyId) {
+        return [
+            `company:${companyId}:leave`,
+            `company:${companyId}:leave:balances`,
+        ];
     }
     async create(leaveTypeId, companyId, employeeId, year, entitlement, used, balance) {
         const leaveBalance = await this.db
@@ -40,70 +48,86 @@ let LeaveBalanceService = class LeaveBalanceService {
         })
             .returning()
             .execute();
+        await this.cache.bumpCompanyVersion(companyId);
         return leaveBalance;
     }
     async findAll(companyId) {
-        const results = await this.db
-            .select({
-            employeeId: this.table.employeeId,
-            companyId: schema_1.employees.companyId,
-            name: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
-            department: schema_1.departments.name,
-            jobRole: schema_1.jobRoles.title,
-            totalBalance: (0, drizzle_orm_1.sql) `SUM(${this.table.balance})`,
-        })
-            .from(this.table)
-            .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(this.table.employeeId, schema_1.employees.id))
-            .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
-            .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
-            .where((0, drizzle_orm_1.eq)(this.table.companyId, companyId))
-            .groupBy(this.table.employeeId, schema_1.employees.companyId, schema_1.employees.firstName, schema_1.employees.lastName, schema_1.departments.name, schema_1.jobRoles.title)
-            .execute();
-        return results;
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'balances', 'all'], async () => {
+            return this.db
+                .select({
+                employeeId: this.table.employeeId,
+                companyId: schema_1.employees.companyId,
+                name: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
+                department: schema_1.departments.name,
+                jobRole: schema_1.jobRoles.title,
+                totalBalance: (0, drizzle_orm_1.sql) `SUM(${this.table.balance})`,
+            })
+                .from(this.table)
+                .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(this.table.employeeId, schema_1.employees.id))
+                .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
+                .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
+                .where((0, drizzle_orm_1.eq)(this.table.companyId, companyId))
+                .groupBy(this.table.employeeId, schema_1.employees.companyId, schema_1.employees.firstName, schema_1.employees.lastName, schema_1.departments.name, schema_1.jobRoles.title)
+                .execute();
+        }, { tags: this.tags(companyId) });
     }
     async findByEmployeeId(employeeId) {
         const currentYear = new Date().getFullYear();
-        const results = await this.db
-            .select({
-            leaveTypeId: leave_types_schema_1.leaveTypes.id,
-            leaveTypeName: leave_types_schema_1.leaveTypes.name,
-            year: this.table.year,
-            entitlement: this.table.entitlement,
-            used: this.table.used,
-            balance: this.table.balance,
-        })
-            .from(this.table)
-            .innerJoin(leave_types_schema_1.leaveTypes, (0, drizzle_orm_1.eq)(this.table.leaveTypeId, leave_types_schema_1.leaveTypes.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.employeeId, employeeId), (0, drizzle_orm_1.eq)(this.table.year, currentYear)))
-            .orderBy(leave_types_schema_1.leaveTypes.name)
+        const [emp] = await this.db
+            .select({ companyId: schema_1.employees.companyId })
+            .from(schema_1.employees)
+            .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId))
             .execute();
-        return results;
+        const companyId = emp?.companyId ?? 'unknown';
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'balances', 'by-employee', employeeId, String(currentYear)], async () => {
+            return this.db
+                .select({
+                leaveTypeId: leave_types_schema_1.leaveTypes.id,
+                leaveTypeName: leave_types_schema_1.leaveTypes.name,
+                year: this.table.year,
+                entitlement: this.table.entitlement,
+                used: this.table.used,
+                balance: this.table.balance,
+            })
+                .from(this.table)
+                .innerJoin(leave_types_schema_1.leaveTypes, (0, drizzle_orm_1.eq)(this.table.leaveTypeId, leave_types_schema_1.leaveTypes.id))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.employeeId, employeeId), (0, drizzle_orm_1.eq)(this.table.year, currentYear)))
+                .orderBy(leave_types_schema_1.leaveTypes.name)
+                .execute();
+        }, { tags: this.tags(companyId) });
     }
     async findBalanceByLeaveType(companyId, employeeId, leaveTypeId, currentYear) {
-        const [balance] = await this.db
-            .select()
-            .from(this.table)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.companyId, companyId), (0, drizzle_orm_1.eq)(this.table.leaveTypeId, leaveTypeId), (0, drizzle_orm_1.eq)(this.table.year, Number(currentYear)), (0, drizzle_orm_1.eq)(this.table.employeeId, employeeId)));
-        if (!balance) {
-            return null;
-        }
-        return balance;
+        return this.cache.getOrSetVersioned(companyId, [
+            'leave',
+            'balances',
+            'one',
+            employeeId,
+            leaveTypeId,
+            String(currentYear),
+        ], async () => {
+            const [balance] = await this.db
+                .select()
+                .from(this.table)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.companyId, companyId), (0, drizzle_orm_1.eq)(this.table.leaveTypeId, leaveTypeId), (0, drizzle_orm_1.eq)(this.table.year, Number(currentYear)), (0, drizzle_orm_1.eq)(this.table.employeeId, employeeId)))
+                .execute();
+            return balance ?? null;
+        }, { tags: this.tags(companyId) });
     }
     async update(balanceId, dto) {
-        const existingLeaveBalance = await this.db
-            .select()
+        const [existing] = await this.db
+            .select({ id: this.table.id, companyId: this.table.companyId })
             .from(this.table)
             .where((0, drizzle_orm_1.eq)(this.table.id, balanceId))
             .execute();
-        if (existingLeaveBalance.length === 0) {
+        if (!existing)
             throw new common_1.NotFoundException(`Leave balance not found`);
-        }
         const [updatedLeaveBalance] = await this.db
             .update(this.table)
             .set(dto)
             .where((0, drizzle_orm_1.eq)(this.table.id, balanceId))
             .returning()
             .execute();
+        await this.cache.bumpCompanyVersion(existing.companyId);
         return updatedLeaveBalance;
     }
     async updateLeaveBalanceOnLeaveApproval(leaveTypeId, employeeId, year, totalLeaveDays, userId) {
@@ -115,13 +139,13 @@ let LeaveBalanceService = class LeaveBalanceService {
         if (!leaveBalance) {
             throw new common_1.NotFoundException(`Leave balance not found`);
         }
-        const updatedUsed = Number(leaveBalance.used) + Number(totalLeaveDays);
-        const updatedBalance = Number(leaveBalance.balance) - Number(totalLeaveDays);
-        const updatedLeaveBalance = await this.db
+        const usedNum = Number(leaveBalance.used) + Number(totalLeaveDays);
+        const balNum = Number(leaveBalance.balance) - Number(totalLeaveDays);
+        const [updatedLeaveBalance] = await this.db
             .update(this.table)
             .set({
-            used: updatedUsed.toFixed(2),
-            balance: updatedBalance.toFixed(2),
+            used: usedNum.toFixed(2),
+            balance: balNum.toFixed(2),
         })
             .where((0, drizzle_orm_1.eq)(this.table.id, leaveBalance.id))
             .returning()
@@ -133,10 +157,17 @@ let LeaveBalanceService = class LeaveBalanceService {
             details: `Leave balance updated for employee ${employeeId} for leave type ${leaveTypeId} for year ${year}`,
             userId,
             changes: {
-                used: leaveBalance.used + totalLeaveDays,
-                balance: (Number(leaveBalance.balance) - Number(totalLeaveDays)).toString(),
+                before: {
+                    used: leaveBalance.used,
+                    balance: leaveBalance.balance,
+                },
+                after: {
+                    used: updatedLeaveBalance.used,
+                    balance: updatedLeaveBalance.balance,
+                },
             },
         });
+        await this.cache.bumpCompanyVersion(leaveBalance.companyId);
         return updatedLeaveBalance;
     }
 };
@@ -144,6 +175,7 @@ exports.LeaveBalanceService = LeaveBalanceService;
 exports.LeaveBalanceService = LeaveBalanceService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], LeaveBalanceService);
 //# sourceMappingURL=leave-balance.service.js.map

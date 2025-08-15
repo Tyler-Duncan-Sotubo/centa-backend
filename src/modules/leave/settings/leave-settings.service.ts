@@ -9,8 +9,6 @@ export class LeaveSettingsService {
     private readonly cache: CacheService,
   ) {}
 
-  private ttlSeconds = 60 * 60; // tune as needed
-
   private tags(companyId: string) {
     return [
       `company:${companyId}:settings`,
@@ -37,7 +35,7 @@ export class LeaveSettingsService {
         }
         return leaveSettings;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -79,7 +77,7 @@ export class LeaveSettingsService {
         }
         return approver;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -88,7 +86,7 @@ export class LeaveSettingsService {
       companyId,
       ['leave', 'multi_level_approval'],
       () => this.getSettingOrDefault(companyId, 'multi_level_approval', false),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -109,7 +107,7 @@ export class LeaveSettingsService {
         }
         return chain;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -128,7 +126,7 @@ export class LeaveSettingsService {
         }
         return days;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -141,7 +139,7 @@ export class LeaveSettingsService {
       ['leave', 'allow_negative_balance'],
       () =>
         this.getSettingOrDefault(companyId, 'allow_negative_balance', false),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -151,7 +149,7 @@ export class LeaveSettingsService {
       ['leave', 'allow_unconfirmed_leave'],
       () =>
         this.getSettingOrDefault(companyId, 'allow_unconfirmed_leave', false),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -172,7 +170,7 @@ export class LeaveSettingsService {
         }
         return allowed;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -181,7 +179,7 @@ export class LeaveSettingsService {
       companyId,
       ['leave', 'exclude_weekends'],
       () => this.getSettingOrDefault(companyId, 'exclude_weekends', true),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -194,7 +192,7 @@ export class LeaveSettingsService {
           'Saturday',
           'Sunday',
         ]),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -204,7 +202,7 @@ export class LeaveSettingsService {
       ['leave', 'exclude_public_holidays'],
       () =>
         this.getSettingOrDefault(companyId, 'exclude_public_holidays', true),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -213,7 +211,7 @@ export class LeaveSettingsService {
       companyId,
       ['leave', 'blocked_days'],
       () => this.getSettingOrDefault(companyId, 'blocked_days', []),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -259,7 +257,7 @@ export class LeaveSettingsService {
 
         return targets;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -290,7 +288,7 @@ export class LeaveSettingsService {
           ),
         };
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -318,7 +316,7 @@ export class LeaveSettingsService {
           allowNegativeBalance: Boolean(rows['leave.allow_negative_balance']),
         };
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -349,7 +347,7 @@ export class LeaveSettingsService {
           blockedDays: rows['leave.blocked_days'] ?? [],
         };
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -373,7 +371,7 @@ export class LeaveSettingsService {
           },
         };
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -407,7 +405,7 @@ export class LeaveSettingsService {
         }
         return days;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -428,7 +426,7 @@ export class LeaveSettingsService {
         }
         return days;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 }

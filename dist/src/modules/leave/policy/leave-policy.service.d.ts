@@ -3,9 +3,11 @@ import { db } from 'src/drizzle/types/drizzle';
 import { User } from 'src/common/types/user.type';
 import { CreateLeavePolicyDto } from './dto/create-leave-policy.dto';
 import { UpdateLeavePolicyDto } from './dto/update-leave-policy.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class LeavePolicyService {
     private readonly auditService;
     private readonly db;
+    private readonly cache;
     protected readonly table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "leave_policies";
         schema: undefined;
@@ -306,7 +308,8 @@ export declare class LeavePolicyService {
         };
         dialect: "pg";
     }>;
-    constructor(auditService: AuditService, db: db);
+    constructor(auditService: AuditService, db: db, cache: CacheService);
+    private tags;
     bulkCreateLeavePolicies(companyId: string, rows: any[]): Promise<{
         id: string;
         createdAt: Date | null;
@@ -398,7 +401,7 @@ export declare class LeavePolicyService {
         createdAt: Date | null;
         updatedAt: Date | null;
     }>;
-    findAllAccrualPolicies(): Promise<{
+    findAllAccrualPolicies(companyId: string): Promise<{
         id: string;
         companyId: string;
         leaveTypeId: string;
@@ -417,7 +420,7 @@ export declare class LeavePolicyService {
         createdAt: Date | null;
         updatedAt: Date | null;
     }[]>;
-    findAllNonAccrualPolicies(): Promise<{
+    findAllNonAccrualPolicies(companyId: string): Promise<{
         id: string;
         companyId: string;
         leaveTypeId: string;

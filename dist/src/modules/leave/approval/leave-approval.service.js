@@ -21,24 +21,35 @@ const audit_service_1 = require("../../audit/audit.service");
 const leave_balance_service_1 = require("../balance/leave-balance.service");
 const leave_settings_service_1 = require("../settings/leave-settings.service");
 const pusher_service_1 = require("../../notification/services/pusher.service");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let LeaveApprovalService = class LeaveApprovalService {
-    constructor(db, auditService, leaveBalanceService, leaveSettingsService, pusher) {
+    constructor(db, auditService, leaveBalanceService, leaveSettingsService, pusher, cache) {
         this.db = db;
         this.auditService = auditService;
         this.leaveBalanceService = leaveBalanceService;
         this.leaveSettingsService = leaveSettingsService;
         this.pusher = pusher;
+        this.cache = cache;
+    }
+    tags(companyId) {
+        return [
+            `company:${companyId}:leave`,
+            `company:${companyId}:leave:requests`,
+            `company:${companyId}:leave:approvals`,
+        ];
     }
     async findOneById(leaveRequestId, companyId) {
-        const [leaveRequest] = await this.db
-            .select()
-            .from(leave_requests_schema_1.leaveRequests)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.id, leaveRequestId), (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.companyId, companyId)))
-            .execute();
-        if (!leaveRequest) {
-            throw new common_1.NotFoundException('Leave request not found');
-        }
-        return leaveRequest;
+        return this.cache.getOrSetVersioned(companyId, ['leave', 'request', 'one', leaveRequestId], async () => {
+            const [leaveRequest] = await this.db
+                .select()
+                .from(leave_requests_schema_1.leaveRequests)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.id, leaveRequestId), (0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.companyId, companyId)))
+                .execute();
+            if (!leaveRequest) {
+                throw new common_1.NotFoundException('Leave request not found');
+            }
+            return leaveRequest;
+        }, { tags: this.tags(companyId) });
     }
     async approveLeaveRequest(leaveRequestId, dto, user, ip) {
         const isMultiLevel = await this.leaveSettingsService.isMultiLevelApproval(user.companyId);
@@ -54,21 +65,16 @@ let LeaveApprovalService = class LeaveApprovalService {
                 ? leaveRequest.approvalChain
                 : [];
             const currentApprover = approvalChain.find((level) => level.status === 'pending');
-            if (!currentApprover) {
+            if (!currentApprover)
                 throw new common_1.BadRequestException('No pending approver found.');
-            }
             if (currentApprover.approverId !== user.id) {
                 throw new common_1.BadRequestException('You are not authorized to approve this request.');
             }
             currentApprover.status = 'approved';
             currentApprover.actionedAt = new Date().toISOString();
             const stillPending = approvalChain.some((level) => level.status === 'pending');
-            let newStatus = 'pending';
-            let approvedAt = null;
-            if (!stillPending) {
-                newStatus = 'approved';
-                approvedAt = new Date();
-            }
+            const newStatus = stillPending ? 'pending' : 'approved';
+            const approvedAt = stillPending ? null : new Date();
             const updatedLeaveRequest = await this.db
                 .update(leave_requests_schema_1.leaveRequests)
                 .set({
@@ -93,17 +99,23 @@ let LeaveApprovalService = class LeaveApprovalService {
                 ipAddress: ip,
                 changes: { status: newStatus },
             });
+            await this.cache.bumpCompanyVersion(user.companyId);
             return updatedLeaveRequest;
         }
         else {
             const updatedLeaveRequest = await this.db
                 .update(leave_requests_schema_1.leaveRequests)
-                .set({ status: 'approved' })
+                .set({
+                status: 'approved',
+                approvedAt: new Date(),
+                approverId: user.id,
+                updatedAt: new Date(),
+            })
                 .where((0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.id, leaveRequestId))
                 .returning()
                 .execute();
             await this.leaveBalanceService.updateLeaveBalanceOnLeaveApproval(leaveRequest.leaveTypeId, leaveRequest.employeeId, new Date().getFullYear(), leaveRequest.totalDays, user.id);
-            await this.pusher.createEmployeeNotification(updatedLeaveRequest[0].companyId, updatedLeaveRequest[0].employeeId, `Your loan request has been approved!`, 'leave');
+            await this.pusher.createEmployeeNotification(updatedLeaveRequest[0].companyId, updatedLeaveRequest[0].employeeId, `Your leave request has been approved!`, 'leave');
             await this.auditService.logAction({
                 action: 'approve',
                 entity: 'leave_request',
@@ -113,6 +125,7 @@ let LeaveApprovalService = class LeaveApprovalService {
                 ipAddress: ip,
                 changes: { status: 'approved' },
             });
+            await this.cache.bumpCompanyVersion(user.companyId);
             return updatedLeaveRequest;
         }
     }
@@ -127,43 +140,63 @@ let LeaveApprovalService = class LeaveApprovalService {
                 ? leaveRequest.approvalChain
                 : [];
             const currentApprover = approvalChain.find((level) => level.status === 'pending');
-            if (!currentApprover) {
+            if (!currentApprover)
                 throw new common_1.BadRequestException('No pending approver found.');
-            }
             if (currentApprover.approverId !== user.id) {
                 throw new common_1.BadRequestException('You are not authorized to reject this request.');
             }
             currentApprover.status = 'rejected';
             currentApprover.actionedAt = new Date().toISOString();
+            const updatedLeaveRequest = await this.db
+                .update(leave_requests_schema_1.leaveRequests)
+                .set({
+                approvalChain,
+                status: 'rejected',
+                rejectionReason: dto.rejectionReason,
+                approverId: user.id,
+                updatedAt: new Date(),
+            })
+                .where((0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.id, leaveRequestId))
+                .returning()
+                .execute();
+            await this.auditService.logAction({
+                action: 'reject',
+                entity: 'leave_request',
+                details: 'Leave request rejected',
+                entityId: leaveRequestId,
+                userId: user.id,
+                ipAddress: ip,
+                changes: { status: 'rejected' },
+            });
+            await this.pusher.createEmployeeNotification(updatedLeaveRequest[0].companyId, updatedLeaveRequest[0].employeeId, `Your leave request has been rejected!`, 'leave');
+            await this.cache.bumpCompanyVersion(user.companyId);
+            return updatedLeaveRequest;
         }
         else {
-            if (leaveRequest.approverId !== user.id) {
-                throw new common_1.BadRequestException('You are not authorized to reject this request.');
-            }
+            const updatedLeaveRequest = await this.db
+                .update(leave_requests_schema_1.leaveRequests)
+                .set({
+                status: 'rejected',
+                rejectionReason: dto.rejectionReason,
+                approverId: user.id,
+                updatedAt: new Date(),
+            })
+                .where((0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.id, leaveRequestId))
+                .returning()
+                .execute();
+            await this.auditService.logAction({
+                action: 'reject',
+                entity: 'leave_request',
+                details: 'Leave request rejected',
+                entityId: leaveRequestId,
+                userId: user.id,
+                ipAddress: ip,
+                changes: { status: 'rejected' },
+            });
+            await this.pusher.createEmployeeNotification(updatedLeaveRequest[0].companyId, updatedLeaveRequest[0].employeeId, `Your leave request has been rejected!`, 'leave');
+            await this.cache.bumpCompanyVersion(user.companyId);
+            return updatedLeaveRequest;
         }
-        const updatedLeaveRequest = await this.db
-            .update(leave_requests_schema_1.leaveRequests)
-            .set({
-            approvalChain: leaveRequest.approvalChain,
-            status: 'rejected',
-            rejectionReason: dto.rejectionReason,
-            approverId: user.id,
-            updatedAt: new Date(),
-        })
-            .where((0, drizzle_orm_1.eq)(leave_requests_schema_1.leaveRequests.id, leaveRequestId))
-            .returning()
-            .execute();
-        await this.auditService.logAction({
-            action: 'reject',
-            entity: 'leave_request',
-            details: 'Leave request rejected',
-            entityId: leaveRequestId,
-            userId: user.id,
-            ipAddress: ip,
-            changes: { status: 'rejected' },
-        });
-        await this.pusher.createEmployeeNotification(updatedLeaveRequest[0].companyId, updatedLeaveRequest[0].employeeId, `Your loan request has been rejected!`, 'leave');
-        return updatedLeaveRequest;
     }
 };
 exports.LeaveApprovalService = LeaveApprovalService;
@@ -173,6 +206,7 @@ exports.LeaveApprovalService = LeaveApprovalService = __decorate([
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
         leave_balance_service_1.LeaveBalanceService,
         leave_settings_service_1.LeaveSettingsService,
-        pusher_service_1.PusherService])
+        pusher_service_1.PusherService,
+        cache_service_1.CacheService])
 ], LeaveApprovalService);
 //# sourceMappingURL=leave-approval.service.js.map

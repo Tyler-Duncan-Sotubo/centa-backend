@@ -18,11 +18,20 @@ const drizzle_module_1 = require("../../../../drizzle/drizzle.module");
 const audit_service_1 = require("../../../audit/audit.service");
 const drizzle_orm_1 = require("drizzle-orm");
 const dependents_schema_1 = require("../schema/dependents.schema");
+const cache_service_1 = require("../../../../common/cache/cache.service");
 let DependentsService = class DependentsService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
         this.table = dependents_schema_1.employeeDependents;
+    }
+    tags(scope) {
+        return [
+            `employee:${scope}:dependents`,
+            `employee:${scope}:dependents:list`,
+            `employee:${scope}:dependents:detail`,
+        ];
     }
     async create(employeeId, dto, userId, ip) {
         const [created] = await this.db
@@ -39,25 +48,32 @@ let DependentsService = class DependentsService {
             ipAddress: ip,
             changes: { ...dto },
         });
+        await this.cache.bumpCompanyVersion(employeeId);
+        await this.cache.bumpCompanyVersion('global');
         return created;
     }
     findAll(employeeId) {
-        return this.db
-            .select()
-            .from(this.table)
-            .where((0, drizzle_orm_1.eq)(this.table.employeeId, employeeId))
-            .execute();
+        return this.cache.getOrSetVersioned(employeeId, ['dependents', 'list', employeeId], async () => {
+            const rows = await this.db
+                .select()
+                .from(this.table)
+                .where((0, drizzle_orm_1.eq)(this.table.employeeId, employeeId))
+                .execute();
+            return rows;
+        }, { tags: this.tags(employeeId) });
     }
     async findOne(dependentId) {
-        const [dependent] = await this.db
-            .select()
-            .from(this.table)
-            .where((0, drizzle_orm_1.eq)(this.table.id, dependentId))
-            .execute();
-        if (!dependent) {
-            return {};
-        }
-        return dependent;
+        return this.cache.getOrSetVersioned('global', ['dependents', 'detail', dependentId], async () => {
+            const [dependent] = await this.db
+                .select()
+                .from(this.table)
+                .where((0, drizzle_orm_1.eq)(this.table.id, dependentId))
+                .execute();
+            if (!dependent) {
+                return {};
+            }
+            return dependent;
+        }, { tags: this.tags('global') });
     }
     async update(dependentId, dto, userId, ip) {
         const [dependant] = await this.db
@@ -68,36 +84,41 @@ let DependentsService = class DependentsService {
         if (!dependant) {
             throw new common_1.NotFoundException(`Dependent for employee ${dependentId} not found`);
         }
-        if (dependant) {
-            const [updated] = await this.db
-                .update(this.table)
-                .set({ ...dto })
-                .where((0, drizzle_orm_1.eq)(this.table.id, dependentId))
-                .returning()
-                .execute();
-            const changes = {};
-            for (const key of Object.keys(dto)) {
-                const before = dependant[key];
-                const after = dto[key];
-                if (before !== after) {
-                    changes[key] = { before, after };
-                }
+        const [updated] = await this.db
+            .update(this.table)
+            .set({ ...dto })
+            .where((0, drizzle_orm_1.eq)(this.table.id, dependentId))
+            .returning()
+            .execute();
+        const changes = {};
+        for (const key of Object.keys(dto)) {
+            const before = dependant[key];
+            const after = dto[key];
+            if (before !== after) {
+                changes[key] = { before, after };
             }
-            if (Object.keys(changes).length) {
-                await this.auditService.logAction({
-                    action: 'update',
-                    entity: 'Employee Dependent',
-                    details: 'Updated employee dependent',
-                    userId,
-                    entityId: dependentId,
-                    ipAddress: ip,
-                    changes,
-                });
-            }
-            return updated;
         }
+        if (Object.keys(changes).length) {
+            await this.auditService.logAction({
+                action: 'update',
+                entity: 'Employee Dependent',
+                details: 'Updated employee dependent',
+                userId,
+                entityId: dependentId,
+                ipAddress: ip,
+                changes,
+            });
+        }
+        await this.cache.bumpCompanyVersion(dependant.employeeId);
+        await this.cache.bumpCompanyVersion('global');
+        return updated;
     }
     async remove(dependentId) {
+        const [existing] = await this.db
+            .select()
+            .from(this.table)
+            .where((0, drizzle_orm_1.eq)(this.table.id, dependentId))
+            .execute();
         const result = await this.db
             .delete(this.table)
             .where((0, drizzle_orm_1.eq)(this.table.id, dependentId))
@@ -106,6 +127,10 @@ let DependentsService = class DependentsService {
         if (!result.length) {
             throw new common_1.NotFoundException(`Profile for employee ${dependentId} not found`);
         }
+        if (existing?.employeeId) {
+            await this.cache.bumpCompanyVersion(existing.employeeId);
+        }
+        await this.cache.bumpCompanyVersion('global');
         return { deleted: true, id: result[0].id };
     }
 };
@@ -113,6 +138,7 @@ exports.DependentsService = DependentsService;
 exports.DependentsService = DependentsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], DependentsService);
 //# sourceMappingURL=dependents.service.js.map

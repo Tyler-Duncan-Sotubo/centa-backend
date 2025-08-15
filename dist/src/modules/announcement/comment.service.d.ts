@@ -2,10 +2,15 @@ import { User } from 'src/common/types/user.type';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from '../audit/audit.service';
 import { CreateAnnouncementCommentDto } from './dto/create-announcement-comments.dto';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class CommentService {
     private readonly db;
     private readonly auditService;
-    constructor(db: db, auditService: AuditService);
+    private readonly cache;
+    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private tags;
+    private getCompanyIdForAnnouncement;
+    private getCompanyIdForComment;
     createComment(dto: CreateAnnouncementCommentDto, announcementId: string, user: User): Promise<{
         id: string;
         createdAt: Date | null;

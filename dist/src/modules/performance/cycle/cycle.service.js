@@ -24,7 +24,6 @@ let CycleService = class CycleService {
         this.auditService = auditService;
         this.db = db;
         this.cache = cache;
-        this.ttlSeconds = 10 * 60;
     }
     tags(companyId) {
         return [`company:${companyId}:performance-cycles`];
@@ -85,7 +84,7 @@ let CycleService = class CycleService {
             .from(performance_cycles_schema_1.performanceCycles)
             .where((0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.companyId, companyId))
             .orderBy((0, drizzle_orm_1.desc)(performance_cycles_schema_1.performanceCycles.startDate))
-            .execute(), { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+            .execute(), { tags: this.tags(companyId) });
     }
     async findCurrent(companyId) {
         const today = new Date();
@@ -99,7 +98,7 @@ let CycleService = class CycleService {
                 .limit(1)
                 .execute();
             return rows[0] ?? null;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async findOne(id) {
         const [cycle] = await this.db
@@ -123,7 +122,7 @@ let CycleService = class CycleService {
                 throw new common_1.NotFoundException(`Performance cycle with ID ${id} not found.`);
             }
             return cycle;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async getLastCycle(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['performance-cycles', 'last'], async () => {
@@ -135,7 +134,7 @@ let CycleService = class CycleService {
                 .limit(1)
                 .execute();
             return lastCycle ?? null;
-        }, { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) });
+        }, { tags: this.tags(companyId) });
     }
     async update(id, updateCycleDto, user) {
         const { id: userId, companyId } = user;

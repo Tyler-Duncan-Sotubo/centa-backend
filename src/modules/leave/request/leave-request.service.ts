@@ -21,6 +21,7 @@ import { departments, employees, jobRoles } from 'src/drizzle/schema';
 import { leaveTypes } from '../schema/leave-types.schema';
 import { BlockedDaysService } from '../blocked-days/blocked-days.service';
 import { ReservedDaysService } from '../reserved-days/reserved-days.service';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class LeaveRequestService {
@@ -34,7 +35,16 @@ export class LeaveRequestService {
     private readonly holidayService: HolidaysService,
     private readonly blockedDaysService: BlockedDaysService,
     private readonly reservedDaysService: ReservedDaysService,
+    private readonly cache: CacheService,
   ) {}
+
+  /** Common cache tags for this domain */
+  private tags(companyId: string) {
+    return [
+      `company:${companyId}:leave`,
+      `company:${companyId}:leave:requests`,
+    ];
+  }
 
   async applyForLeave(dto: CreateLeaveRequestDto, user: User, ip: string) {
     const { companyId } = user;
@@ -188,7 +198,6 @@ export class LeaveRequestService {
 
         level++;
       }
-      // Set first approver
       approverId = approvalChain[0].approverId;
     } else {
       const approverSetting =
@@ -200,11 +209,10 @@ export class LeaveRequestService {
       );
     }
 
-    // 9. check Blocked Days FIRST
+    // 9. Blocked Days
     const requestedDates = this.listDatesBetween(dto.startDate, dto.endDate);
     const blockedDays =
       await this.blockedDaysService.getBlockedDates(companyId);
-
     const blockedDate = requestedDates.find((date) =>
       blockedDays.includes(date),
     );
@@ -214,12 +222,11 @@ export class LeaveRequestService {
       );
     }
 
-    // 9b Reserved Days Check
+    // 9b Reserved Days
     const reservedDays = await this.reservedDaysService.getReservedDates(
       companyId,
       employee.id,
     );
-
     const reservedDate = requestedDates.find((date) =>
       reservedDays.includes(date),
     );
@@ -229,7 +236,7 @@ export class LeaveRequestService {
       );
     }
 
-    // 10 Check Weekend and Public Holidays Rules
+    // 10. Weekend/Public Holidays rules
     const excludeWeekends =
       await this.leaveSettingsService.excludeWeekends(companyId);
     const weekendDays =
@@ -252,22 +259,19 @@ export class LeaveRequestService {
       );
     }
 
-    // 11. Check Leave Balance
+    // 11. Balance
     const leaveBalance = await this.leaveBalanceService.findBalanceByLeaveType(
       companyId,
       employee.id,
       dto.leaveTypeId,
       new Date().getFullYear(),
     );
-
     if (!leaveBalance) {
       throw new BadRequestException(
         'No leave balance found for this leave type.',
       );
     }
-
     const availableBalance = Number(leaveBalance.balance);
-
     const allowNegativeBalance =
       await this.leaveSettingsService.allowNegativeBalance(companyId);
 
@@ -277,7 +281,7 @@ export class LeaveRequestService {
       );
     }
 
-    // 12. Create Leave Request
+    // 12. Create Leave Request (WRITE → invalidate)
     const [leaveRequest] = await this.db
       .insert(leaveRequests)
       .values({
@@ -296,9 +300,9 @@ export class LeaveRequestService {
       })
       .returning();
 
-    // 13. (Optional) Trigger Notifications here
+    // 13. Notifications (optional)
 
-    // 14. Create Audit Record
+    // 14. Audit
     await this.auditService.logAction({
       action: 'create',
       entity: 'leave_request',
@@ -317,6 +321,9 @@ export class LeaveRequestService {
         approverId,
       },
     });
+
+    // 15. Invalidate all cached leave-requests for this company
+    await this.cache.bumpCompanyVersion(companyId);
 
     return leaveRequest;
   }
@@ -341,7 +348,6 @@ export class LeaveRequestService {
     throw new BadRequestException(`Unsupported approver role: ${role}`);
   }
 
-  // Helper: Check if leave is split
   private leaveIsSplit(startDate: string, endDate: string) {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -349,7 +355,6 @@ export class LeaveRequestService {
     return diffDays < 0;
   }
 
-  // Helper: Check if enough notice is given
   private isEnoughNotice(startDate: string, minNoticeDays: number) {
     const start = new Date(startDate);
     const now = new Date();
@@ -357,34 +362,30 @@ export class LeaveRequestService {
     return diffDays >= minNoticeDays;
   }
 
-  // Helper: Calculate leave duration
   private calculateDurationInDays(startDate: string, endDate: string) {
     const start = new Date(startDate);
     const end = new Date(endDate);
     const diffDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
-    return diffDays + 1; // +1 to count both start and end dates inclusive
+    return diffDays + 1;
   }
 
   private listDatesBetween(start: string, end: string): string[] {
     const startDate = new Date(start);
     const endDate = new Date(end);
-
     const dates: string[] = [];
-
     for (
       let d = new Date(startDate);
       d <= endDate;
       d.setDate(d.getDate() + 1)
     ) {
-      dates.push(d.toISOString().substring(0, 10)); // Format YYYY-MM-DD
+      dates.push(d.toISOString().substring(0, 10));
     }
-
     return dates;
   }
 
   private async calculateEffectiveLeaveDays(
     companyId: string,
-    requestedDates: string[], // already list of 'YYYY-MM-DD'
+    requestedDates: string[],
     excludeWeekends: boolean,
     weekendDays: string[],
     excludePublicHolidays: boolean,
@@ -392,10 +393,9 @@ export class LeaveRequestService {
   ): Promise<number> {
     let effectiveDates = [...requestedDates];
 
-    // Step 1: Exclude weekends if setting is enabled
+    // Exclude weekends if enabled
     if (excludeWeekends) {
-      const weekendSet = new Set(weekendDays.map((day) => day.toLowerCase()));
-
+      const weekendSet = new Set(weekendDays.map((d) => d.toLowerCase()));
       effectiveDates = effectiveDates.filter((dateStr) => {
         const date = new Date(dateStr);
         const dayName = date
@@ -405,114 +405,124 @@ export class LeaveRequestService {
       });
     }
 
-    // Step 2: Exclude public holidays if setting is enabled
+    // Exclude public holidays if enabled
     if (excludePublicHolidays) {
       const startDate = requestedDates[0];
       const end = requestedDates[requestedDates.length - 1];
-
       const holidaysInRange = await this.holidayService.listHolidaysInRange(
         companyId,
         startDate,
         end,
       );
-
-      const holidayDates = new Set(
-        holidaysInRange.map((holiday) => holiday.date),
-      );
-
-      effectiveDates = effectiveDates.filter((date) => !holidayDates.has(date));
+      const holidayDates = new Set(holidaysInRange.map((h) => h.date));
+      effectiveDates = effectiveDates.filter((d) => !holidayDates.has(d));
     }
 
     let totalDays = effectiveDates.length;
 
-    // Step 3: Handle Partial Day
+    // Half-day handling
     if (partialDay && totalDays === 1) {
-      // Only allow half-day if only one day is selected
       totalDays = 0.5;
     }
 
     return totalDays;
   }
 
-  // Get Approved Leave Request for Company
+  // ───────────────────────────────────────────────────────────────────────────
+  // READS — cached & versioned per company
+  // ───────────────────────────────────────────────────────────────────────────
+
   async findAll(companyId: string) {
-    const leaveRequestsData = await this.db
-      .select({
-        employeeId: leaveRequests.employeeId,
-        requestId: leaveRequests.id,
-        employeeName: sql<string>`CONCAT(${employees.firstName}, ' ', ${employees.lastName})`,
-        leaveType: leaveTypes.name,
-        startDate: leaveRequests.startDate,
-        endDate: leaveRequests.endDate,
-        status: leaveRequests.status,
-        reason: leaveRequests.reason,
-        department: departments.name,
-        jobRole: jobRoles.title,
-        totalDays: leaveRequests.totalDays,
-      })
-      .from(leaveRequests)
-      .innerJoin(employees, eq(leaveRequests.employeeId, employees.id))
-      .leftJoin(departments, eq(employees.departmentId, departments.id))
-      .leftJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
-      .innerJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
-      .where(and(eq(leaveRequests.companyId, companyId)))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['leave', 'requests', 'list'],
+      async () => {
+        const rows = await this.db
+          .select({
+            employeeId: leaveRequests.employeeId,
+            requestId: leaveRequests.id,
+            employeeName: sql<string>`CONCAT(${employees.firstName}, ' ', ${employees.lastName})`,
+            leaveType: leaveTypes.name,
+            startDate: leaveRequests.startDate,
+            endDate: leaveRequests.endDate,
+            status: leaveRequests.status,
+            reason: leaveRequests.reason,
+            department: departments.name,
+            jobRole: jobRoles.title,
+            totalDays: leaveRequests.totalDays,
+          })
+          .from(leaveRequests)
+          .innerJoin(employees, eq(leaveRequests.employeeId, employees.id))
+          .leftJoin(departments, eq(employees.departmentId, departments.id))
+          .leftJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
+          .innerJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
+          .where(and(eq(leaveRequests.companyId, companyId)))
+          .execute();
 
-    if (!leaveRequestsData) {
-      throw new NotFoundException('Leave requests not found');
-    }
-
-    return leaveRequestsData;
+        if (!rows) throw new NotFoundException('Leave requests not found');
+        return rows;
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
-  // Get Leave Requests by Employee ID
   async findAllByEmployeeId(employeeId: string, companyId: string) {
-    const leaveRequestsData = await this.db
-      .select({
-        requestId: leaveRequests.id,
-        employeeId: leaveRequests.employeeId,
-        leaveType: leaveTypes.name,
-        startDate: leaveRequests.startDate,
-        endDate: leaveRequests.endDate,
-        status: leaveRequests.status,
-        reason: leaveRequests.reason,
-      })
-      .from(leaveRequests)
-      .innerJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
-      .where(
-        and(
-          eq(leaveRequests.employeeId, employeeId),
-          eq(leaveRequests.companyId, companyId),
-        ),
-      )
-      .execute();
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['leave', 'requests', 'by-employee', employeeId],
+      async () => {
+        const rows = await this.db
+          .select({
+            requestId: leaveRequests.id,
+            employeeId: leaveRequests.employeeId,
+            leaveType: leaveTypes.name,
+            startDate: leaveRequests.startDate,
+            endDate: leaveRequests.endDate,
+            status: leaveRequests.status,
+            reason: leaveRequests.reason,
+          })
+          .from(leaveRequests)
+          .innerJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
+          .where(
+            and(
+              eq(leaveRequests.employeeId, employeeId),
+              eq(leaveRequests.companyId, companyId),
+            ),
+          )
+          .execute();
 
-    if (!leaveRequestsData) {
-      throw new NotFoundException('Leave requests not found');
-    }
-
-    return leaveRequestsData;
+        if (!rows) throw new NotFoundException('Leave requests not found');
+        return rows;
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 
   async findOneById(leaveRequestId: string, companyId: string) {
-    const [leaveRequest] = await this.db
-      .select({
-        requestId: leaveRequests.id,
-        status: leaveRequests.status,
-      })
-      .from(leaveRequests)
-      .where(
-        and(
-          eq(leaveRequests.id, leaveRequestId),
-          eq(leaveRequests.companyId, companyId),
-        ),
-      )
-      .execute();
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['leave', 'requests', 'one', leaveRequestId],
+      async () => {
+        const [row] = await this.db
+          .select({
+            requestId: leaveRequests.id,
+            status: leaveRequests.status,
+          })
+          .from(leaveRequests)
+          .where(
+            and(
+              eq(leaveRequests.id, leaveRequestId),
+              eq(leaveRequests.companyId, companyId),
+            ),
+          )
+          .execute();
 
-    if (!leaveRequest) {
-      throw new NotFoundException('Leave request not found');
-    }
-
-    return leaveRequest;
+        if (!row) {
+          throw new NotFoundException('Leave request not found');
+        }
+        return row;
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 }

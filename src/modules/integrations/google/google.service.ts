@@ -17,7 +17,6 @@ export class GoogleService {
     private readonly cache: CacheService,
   ) {}
 
-  private ttlSeconds = 60 * 60; // cache Google integration reads for 1 hour
   private tags(companyId: string) {
     return [
       `company:${companyId}:integrations`,
@@ -116,7 +115,7 @@ export class GoogleService {
 
         return result[0];
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 

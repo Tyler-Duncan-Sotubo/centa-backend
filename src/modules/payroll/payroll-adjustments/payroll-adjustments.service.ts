@@ -1,27 +1,37 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { CreatePayrollAdjustmentDto } from './dto/create-payroll-adjustment.dto';
 import { UpdatePayrollAdjustmentDto } from './dto/update-payroll-adjustment.dto';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
-import { eq, and } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { payrollAdjustments } from '../schema/payroll-adjustments.schema';
 import { User } from 'src/common/types/user.type';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class PayrollAdjustmentsService {
   constructor(
     @Inject(DRIZZLE) private db: db,
     private auditService: AuditService,
+    private cache: CacheService,
   ) {}
 
+  // ---------------------------------------------------------------------------
+  // Create
+  // ---------------------------------------------------------------------------
   async create(dto: CreatePayrollAdjustmentDto, user: User) {
     const [created] = await this.db
       .insert(payrollAdjustments)
       .values({
         companyId: user.companyId,
         employeeId: dto.employeeId,
-        payrollDate: new Date(dto.payrollDate).toDateString(),
+        payrollDate: new Date(dto.payrollDate).toISOString(),
         amount: dto.amount,
         type: dto.type,
         label: dto.label,
@@ -31,9 +41,9 @@ export class PayrollAdjustmentsService {
         notes: dto.notes ?? '',
         createdBy: user.id,
       })
-      .returning();
+      .returning()
+      .execute();
 
-    // Audit the creation
     await this.auditService.logAction({
       action: 'create',
       entity: 'payrollAdjustment',
@@ -46,44 +56,91 @@ export class PayrollAdjustmentsService {
         amount: dto.amount,
         type: dto.type,
         label: dto.label,
-        taxable: dto.taxable,
-        proratable: dto.proratable,
-        recurring: dto.recurring,
-        notes: dto.notes,
+        taxable: dto.taxable ?? true,
+        proratable: dto.proratable ?? false,
+        recurring: dto.recurring ?? false,
+        notes: dto.notes ?? '',
       },
     });
+
+    // Invalidate/bump cache
+    await this.cache.bumpCompanyVersion(user.companyId);
+    await this.cache.invalidateTags([
+      'payrollAdjustments',
+      `company:${user.companyId}:payrollAdjustments`,
+      `payrollAdjustment:${created.id}`,
+    ]);
 
     return created;
   }
 
+  // ---------------------------------------------------------------------------
+  // Read: list (versioned cache)
+  // ---------------------------------------------------------------------------
   async findAll(companyId: string) {
-    return this.db
-      .select()
-      .from(payrollAdjustments)
-      .where(eq(payrollAdjustments.companyId, companyId));
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['payrollAdjustments', 'list'],
+      async () => {
+        return this.db
+          .select()
+          .from(payrollAdjustments)
+          .where(
+            and(
+              eq(payrollAdjustments.companyId, companyId),
+              eq(payrollAdjustments.isDeleted, false),
+            ),
+          )
+          .execute();
+      },
+      {
+        tags: ['payrollAdjustments', `company:${companyId}:payrollAdjustments`],
+      },
+    );
   }
 
+  // ---------------------------------------------------------------------------
+  // Read: single (versioned cache)
+  // ---------------------------------------------------------------------------
   async findOne(id: string, companyId: string) {
-    const [record] = await this.db
-      .select()
-      .from(payrollAdjustments)
-      .where(
-        and(
-          eq(payrollAdjustments.id, id),
-          eq(payrollAdjustments.companyId, companyId),
-        ),
-      );
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['payrollAdjustments', 'byId', id],
+      async () => {
+        const [record] = await this.db
+          .select()
+          .from(payrollAdjustments)
+          .where(
+            and(
+              eq(payrollAdjustments.id, id),
+              eq(payrollAdjustments.companyId, companyId),
+              eq(payrollAdjustments.isDeleted, false),
+            ),
+          )
+          .execute();
 
-    if (!record) throw new NotFoundException('Payroll adjustment not found');
-    return record;
+        if (!record)
+          throw new NotFoundException('Payroll adjustment not found');
+        return record;
+      },
+      {
+        tags: [
+          'payrollAdjustments',
+          `company:${companyId}:payrollAdjustments`,
+          `payrollAdjustment:${id}`,
+        ],
+      },
+    );
   }
 
+  // ---------------------------------------------------------------------------
+  // Update
+  // ---------------------------------------------------------------------------
   async update(id: string, dto: UpdatePayrollAdjustmentDto, user: User) {
-    // Check if the record exists
+    // Warm/validate
     await this.findOne(id, user.companyId);
 
-    // Update the record
-    const result = await this.db
+    const [updated] = await this.db
       .update(payrollAdjustments)
       .set({
         amount: dto.amount,
@@ -97,10 +154,18 @@ export class PayrollAdjustmentsService {
           ? new Date(dto.payrollDate).toISOString()
           : undefined,
       })
-      .where(eq(payrollAdjustments.id, id))
-      .returning();
+      .where(
+        and(
+          eq(payrollAdjustments.id, id),
+          eq(payrollAdjustments.companyId, user.companyId),
+        ),
+      )
+      .returning()
+      .execute();
 
-    // Audit the update
+    if (!updated)
+      throw new BadRequestException('Unable to update payroll adjustment');
+
     await this.auditService.logAction({
       action: 'update',
       entity: 'payrollAdjustment',
@@ -119,19 +184,27 @@ export class PayrollAdjustmentsService {
       },
     });
 
-    return result[0];
+    // Invalidate/bump cache
+    await this.cache.bumpCompanyVersion(user.companyId);
+    await this.cache.invalidateTags([
+      'payrollAdjustments',
+      `company:${user.companyId}:payrollAdjustments`,
+      `payrollAdjustment:${id}`,
+    ]);
+
+    return updated;
   }
 
+  // ---------------------------------------------------------------------------
+  // Remove (soft delete)
+  // ---------------------------------------------------------------------------
   async remove(id: string, user: User) {
-    // Check if the record exists
+    // Warm/validate
     await this.findOne(id, user.companyId);
 
-    // soft delete
-    const result = await this.db
+    const [result] = await this.db
       .update(payrollAdjustments)
-      .set({
-        isDeleted: true,
-      })
+      .set({ isDeleted: true })
       .where(
         and(
           eq(payrollAdjustments.id, id),
@@ -141,6 +214,23 @@ export class PayrollAdjustmentsService {
       .returning()
       .execute();
 
-    return result[0];
+    await this.auditService.logAction({
+      action: 'delete',
+      entity: 'payrollAdjustment',
+      entityId: id,
+      userId: user.id,
+      details: 'Soft-deleted payroll adjustment',
+      changes: { isDeleted: true },
+    });
+
+    // Invalidate/bump cache
+    await this.cache.bumpCompanyVersion(user.companyId);
+    await this.cache.invalidateTags([
+      'payrollAdjustments',
+      `company:${user.companyId}:payrollAdjustments`,
+      `payrollAdjustment:${id}`,
+    ]);
+
+    return result;
   }
 }

@@ -22,14 +22,14 @@ export declare class BenefitGroupsController extends BaseController {
         rules: unknown;
         createdAt: Date | null;
     }[]>;
-    findOne(id: string): Promise<{
+    findOne(id: string, user: User): Promise<{
         id: string;
         companyId: string;
         name: string;
         description: string | null;
         rules: unknown;
         createdAt: Date | null;
-    }[]>;
+    }>;
     update(id: string, dto: UpdateBenefitGroupDto, user: User): Promise<{
         id: string;
         companyId: string;

@@ -9,17 +9,13 @@ export declare class ClockInOutController extends BaseController {
     clockIn(dto: CreateClockInOutDto, user: User): Promise<string>;
     clockOut(dto: CreateClockInOutDto, user: User): Promise<string>;
     getAttendanceStatus(user: User, employeeId: string): Promise<{
-        status: string;
+        status: "absent";
         checkInTime?: undefined;
         checkOutTime?: undefined;
     } | {
-        status: string;
+        status: "present";
         checkInTime: Date;
-        checkOutTime: Date;
-    } | {
-        status: string;
-        checkInTime: Date;
-        checkOutTime: null;
+        checkOutTime: Date | null;
     }>;
     getDailyDashboardStatsByDate(user: User, date: string): Promise<{
         summaryList: {

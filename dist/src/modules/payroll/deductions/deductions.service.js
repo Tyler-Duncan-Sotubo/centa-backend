@@ -20,27 +20,57 @@ const drizzle_orm_1 = require("drizzle-orm");
 const audit_service_1 = require("../../audit/audit.service");
 const deduction_schema_1 = require("../schema/deduction.schema");
 const decimal_js_1 = require("decimal.js");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let DeductionsService = class DeductionsService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
+    }
+    async getCompanyIdByEmployeeId(employeeId) {
+        const [row] = await this.db
+            .select({ companyId: schema_1.employees.companyId })
+            .from(schema_1.employees)
+            .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId))
+            .limit(1)
+            .execute();
+        if (!row?.companyId) {
+            throw new common_1.BadRequestException('Employee not found');
+        }
+        return row.companyId;
+    }
+    async getCompanyIdByEmployeeDeductionId(id) {
+        const [row] = await this.db
+            .select({
+            employeeId: deduction_schema_1.employeeDeductions.employeeId,
+        })
+            .from(deduction_schema_1.employeeDeductions)
+            .where((0, drizzle_orm_1.eq)(deduction_schema_1.employeeDeductions.id, id))
+            .limit(1)
+            .execute();
+        if (!row?.employeeId) {
+            throw new common_1.BadRequestException('Deduction not found');
+        }
+        const companyId = await this.getCompanyIdByEmployeeId(row.employeeId);
+        return { companyId, employeeId: row.employeeId };
     }
     async getDeductionTypes() {
-        const allDeductionTypes = await this.db
-            .select()
-            .from(deduction_schema_1.deductionTypes)
-            .execute();
-        return allDeductionTypes;
+        return this.cache.getOrSetVersioned('global', ['deductionTypes', 'all'], async () => {
+            return await this.db.select().from(deduction_schema_1.deductionTypes).execute();
+        }, { tags: ['deductionTypes'] });
     }
     async findDeductionType(id) {
-        const deductionType = await this.db
-            .select()
-            .from(deduction_schema_1.deductionTypes)
-            .where((0, drizzle_orm_1.eq)(deduction_schema_1.deductionTypes.id, id))
-            .execute();
-        if (!deductionType)
-            throw new common_1.BadRequestException('Deduction type not found');
-        return deductionType[0];
+        return this.cache.getOrSetVersioned('global', ['deductionType', id], async () => {
+            const rows = await this.db
+                .select()
+                .from(deduction_schema_1.deductionTypes)
+                .where((0, drizzle_orm_1.eq)(deduction_schema_1.deductionTypes.id, id))
+                .execute();
+            if (!rows.length) {
+                throw new common_1.BadRequestException('Deduction type not found');
+            }
+            return rows[0];
+        }, { tags: ['deductionTypes', `deductionType:${id}`] });
     }
     async createDeductionType(dto, user) {
         const [created] = await this.db
@@ -57,7 +87,7 @@ let DeductionsService = class DeductionsService {
             code: deduction_schema_1.deductionTypes.code,
         })
             .execute();
-        if (user && user.id) {
+        if (user?.id) {
             await this.auditService.logAction({
                 action: 'create',
                 entity: 'deduction_type',
@@ -72,6 +102,8 @@ let DeductionsService = class DeductionsService {
                 },
             });
         }
+        await this.cache.bumpCompanyVersion('global');
+        await this.cache.invalidateTags(['deductionTypes']);
         return created;
     }
     async updateDeductionType(user, dto, id) {
@@ -104,15 +136,15 @@ let DeductionsService = class DeductionsService {
                 requiresMembership: dto.requiresMembership,
             },
         });
+        await this.cache.bumpCompanyVersion('global');
+        await this.cache.invalidateTags(['deductionTypes', `deductionType:${id}`]);
         return updated;
     }
     async deleteDeductionType(id, userId) {
         await this.findDeductionType(id);
         const [deleted] = await this.db
             .update(deduction_schema_1.deductionTypes)
-            .set({
-            systemDefined: false,
-        })
+            .set({ systemDefined: false })
             .where((0, drizzle_orm_1.eq)(deduction_schema_1.deductionTypes.id, id))
             .returning({
             id: deduction_schema_1.deductionTypes.id,
@@ -126,32 +158,28 @@ let DeductionsService = class DeductionsService {
             entityId: deleted.id,
             userId,
             details: `Deduction type with ID ${id} was deleted.`,
-            changes: {
-                systemDefined: false,
-            },
+            changes: { systemDefined: false },
         });
+        await this.cache.bumpCompanyVersion('global');
+        await this.cache.invalidateTags(['deductionTypes', `deductionType:${id}`]);
         return 'Deduction type deleted successfully';
     }
     async getEmployeeDeductions(employeeId) {
-        const deductions = await this.db
-            .select()
-            .from(deduction_schema_1.employeeDeductions)
-            .where((0, drizzle_orm_1.eq)(deduction_schema_1.employeeDeductions.employeeId, employeeId))
-            .execute();
-        if (deductions.length === 0) {
+        const companyId = await this.getCompanyIdByEmployeeId(employeeId);
+        const list = await this.cache.getOrSetVersioned(companyId, ['employee', employeeId, 'deductions', 'all'], async () => {
+            return await this.db
+                .select()
+                .from(deduction_schema_1.employeeDeductions)
+                .where((0, drizzle_orm_1.eq)(deduction_schema_1.employeeDeductions.employeeId, employeeId))
+                .execute();
+        }, { tags: [`employee:${employeeId}:deductions`, 'deductions:company'] });
+        if (!list.length) {
             throw new common_1.BadRequestException('No deductions found for this employee');
         }
-        return deductions;
+        return list;
     }
     async assignDeductionToEmployee(user, dto) {
-        const [deductionType] = await this.db
-            .select()
-            .from(deduction_schema_1.deductionTypes)
-            .where((0, drizzle_orm_1.eq)(deduction_schema_1.deductionTypes.id, dto.deductionTypeId))
-            .execute();
-        if (!deductionType) {
-            throw new common_1.BadRequestException('Deduction type does not exist');
-        }
+        await this.findDeductionType(dto.deductionTypeId);
         const [created] = await this.db
             .insert(deduction_schema_1.employeeDeductions)
             .values({
@@ -174,6 +202,12 @@ let DeductionsService = class DeductionsService {
             details: `Employee deduction assigned to ${dto.employeeId}`,
             changes: dto,
         });
+        const companyId = await this.getCompanyIdByEmployeeId(dto.employeeId);
+        await this.cache.bumpCompanyVersion(companyId);
+        await this.cache.invalidateTags([
+            'deductions:company',
+            `employee:${dto.employeeId}:deductions`,
+        ]);
         return created;
     }
     async updateEmployeeDeduction(user, id, dto) {
@@ -205,6 +239,12 @@ let DeductionsService = class DeductionsService {
             details: `Updated employee deduction ${updated.id}`,
             changes: dto,
         });
+        const { companyId, employeeId } = await this.getCompanyIdByEmployeeDeductionId(id);
+        await this.cache.bumpCompanyVersion(companyId);
+        await this.cache.invalidateTags([
+            'deductions:company',
+            `employee:${employeeId}:deductions`,
+        ]);
         return updated;
     }
     async removeEmployeeDeduction(id, userId) {
@@ -224,35 +264,39 @@ let DeductionsService = class DeductionsService {
             details: `Deactivated deduction ${id}`,
             changes: { isActive: false },
         });
+        const { companyId, employeeId } = await this.getCompanyIdByEmployeeDeductionId(id);
+        await this.cache.bumpCompanyVersion(companyId);
+        await this.cache.invalidateTags([
+            'deductions:company',
+            `employee:${employeeId}:deductions`,
+        ]);
         return { message: 'Employee deduction deactivated successfully' };
     }
     async getAllEmployeeDeductionsForCompany(companyId) {
-        const result = await this.db
-            .select({
-            id: deduction_schema_1.employeeDeductions.id,
-            employeeId: deduction_schema_1.employeeDeductions.employeeId,
-            rateType: deduction_schema_1.employeeDeductions.rateType,
-            rateValue: deduction_schema_1.employeeDeductions.rateValue,
-            deductionTypeName: deduction_schema_1.deductionTypes.name,
-            isActive: deduction_schema_1.employeeDeductions.isActive,
-            startDate: deduction_schema_1.employeeDeductions.startDate,
-            endDate: deduction_schema_1.employeeDeductions.endDate,
-            employeeName: (0, drizzle_orm_1.sql) `CONCAT(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
-        })
-            .from(deduction_schema_1.employeeDeductions)
-            .leftJoin(deduction_schema_1.deductionTypes, (0, drizzle_orm_1.eq)(deduction_schema_1.employeeDeductions.deductionTypeId, deduction_schema_1.deductionTypes.id))
-            .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(deduction_schema_1.employeeDeductions.employeeId, schema_1.employees.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(deduction_schema_1.employeeDeductions.isActive, true)))
-            .execute();
-        return result;
+        return this.cache.getOrSetVersioned(companyId, ['company', 'deductions', 'active', 'allEmployees'], async () => {
+            return await this.db
+                .select({
+                id: deduction_schema_1.employeeDeductions.id,
+                employeeId: deduction_schema_1.employeeDeductions.employeeId,
+                rateType: deduction_schema_1.employeeDeductions.rateType,
+                rateValue: deduction_schema_1.employeeDeductions.rateValue,
+                deductionTypeName: deduction_schema_1.deductionTypes.name,
+                isActive: deduction_schema_1.employeeDeductions.isActive,
+                startDate: deduction_schema_1.employeeDeductions.startDate,
+                endDate: deduction_schema_1.employeeDeductions.endDate,
+                employeeName: (0, drizzle_orm_1.sql) `CONCAT(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
+            })
+                .from(deduction_schema_1.employeeDeductions)
+                .leftJoin(deduction_schema_1.deductionTypes, (0, drizzle_orm_1.eq)(deduction_schema_1.employeeDeductions.deductionTypeId, deduction_schema_1.deductionTypes.id))
+                .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(deduction_schema_1.employeeDeductions.employeeId, schema_1.employees.id))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(deduction_schema_1.employeeDeductions.isActive, true)))
+                .execute();
+        }, { tags: ['deductions:company'] });
     }
     async processVoluntaryDeductionsFromPayroll(payrollRecords, payrollRunId, companyId) {
-        const deductionType = await this.db
-            .select({ id: deduction_schema_1.deductionTypes.id, name: deduction_schema_1.deductionTypes.name })
-            .from(deduction_schema_1.deductionTypes)
-            .execute();
+        const types = await this.getDeductionTypes();
         const deductionTypeMap = new Map();
-        for (const dt of deductionType) {
+        for (const dt of types) {
             deductionTypeMap.set(dt.id, dt.name);
         }
         const allRows = [];
@@ -272,7 +316,7 @@ let DeductionsService = class DeductionsService {
                     employeeName: `${record.firstName} ${record.lastName}`,
                     deductionName,
                     payrollId: payrollRunId,
-                    payrollMonth: record.payrollMonth.toString(),
+                    payrollMonth: String(record.payrollMonth),
                     amount: amt.toFixed(2),
                     companyId,
                 });
@@ -281,6 +325,13 @@ let DeductionsService = class DeductionsService {
         if (allRows.length > 0) {
             await this.db.insert(deduction_schema_1.filingVoluntaryDeductions).values(allRows).execute();
         }
+        await this.cache.bumpCompanyVersion(companyId);
+        const tags = new Set(['deductions:company', 'voluntary:company']);
+        for (const row of allRows) {
+            tags.add(`employee:${row.employeeId}:deductions`);
+            tags.add(`employee:${row.employeeId}:voluntary`);
+        }
+        await this.cache.invalidateTags(Array.from(tags));
         return { inserted: allRows.length };
     }
 };
@@ -288,6 +339,7 @@ exports.DeductionsService = DeductionsService;
 exports.DeductionsService = DeductionsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], DeductionsService);
 //# sourceMappingURL=deductions.service.js.map

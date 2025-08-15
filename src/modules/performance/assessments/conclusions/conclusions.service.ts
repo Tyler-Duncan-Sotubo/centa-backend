@@ -17,8 +17,6 @@ import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class AssessmentConclusionsService {
-  private readonly ttlSeconds = 10 * 60; // cache for 10 minutes
-
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly cache: CacheService,
@@ -131,7 +129,6 @@ export class AssessmentConclusionsService {
         if (!conclusion) throw new NotFoundException('Conclusion not found');
         return conclusion;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(assessment.companyId) },
     );
   }
 

@@ -306,7 +306,6 @@ export declare class LocationsService {
         dialect: "pg";
     }>;
     constructor(db: db, audit: AuditService, companySettings: CompanySettingsService, cache: CacheService);
-    private ttlSeconds;
     private tags;
     checkCompany(companyId: string): Promise<{
         id: string;
@@ -328,10 +327,10 @@ export declare class LocationsService {
     create(dto: CreateLocationDto, user: User, ip: string): Promise<{
         id: string;
         name: string;
-        isActive: boolean | null;
-        country: string | null;
         createdAt: Date;
         updatedAt: Date;
+        isActive: boolean | null;
+        country: string | null;
         companyId: string;
         isPrimary: boolean | null;
         street: string | null;

@@ -19,19 +19,28 @@ const drizzle_orm_1 = require("drizzle-orm");
 const audit_service_1 = require("../../audit/audit.service");
 const interview_email_templates_schema_1 = require("./schema/interview-email-templates.schema");
 const interviews_schema_1 = require("./schema/interviews.schema");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let InterviewEmailTemplateService = class InterviewEmailTemplateService {
-    constructor(db, auditService) {
+    constructor(db, auditService, cache) {
         this.db = db;
         this.auditService = auditService;
+        this.cache = cache;
+    }
+    tags(scope) {
+        return [`company:${scope}:emails`, `company:${scope}:emails:templates`];
     }
     async getAllTemplates(companyId) {
-        const templates = await this.db
-            .select()
-            .from(interview_email_templates_schema_1.interviewEmailTemplates)
-            .where((0, drizzle_orm_1.or)((0, drizzle_orm_1.isNull)(interview_email_templates_schema_1.interviewEmailTemplates.companyId), (0, drizzle_orm_1.eq)(interview_email_templates_schema_1.interviewEmailTemplates.companyId, companyId)))
-            .groupBy(interview_email_templates_schema_1.interviewEmailTemplates.id)
-            .orderBy(interview_email_templates_schema_1.interviewEmailTemplates.createdAt);
-        return templates;
+        return this.cache.getOrSetVersioned(companyId, ['emails', 'templates', 'all'], async () => {
+            const templates = await this.db
+                .select()
+                .from(interview_email_templates_schema_1.interviewEmailTemplates)
+                .where((0, drizzle_orm_1.or)((0, drizzle_orm_1.isNull)(interview_email_templates_schema_1.interviewEmailTemplates.companyId), (0, drizzle_orm_1.eq)(interview_email_templates_schema_1.interviewEmailTemplates.companyId, companyId)))
+                .orderBy((0, drizzle_orm_1.asc)(interview_email_templates_schema_1.interviewEmailTemplates.createdAt))
+                .execute();
+            return templates;
+        }, {
+            tags: [...this.tags(companyId), ...this.tags('global')],
+        });
     }
     async create(user, dto) {
         const { companyId, id } = user;
@@ -39,7 +48,7 @@ let InterviewEmailTemplateService = class InterviewEmailTemplateService {
             .insert(interview_email_templates_schema_1.interviewEmailTemplates)
             .values({
             ...dto,
-            companyId: companyId,
+            companyId,
             isGlobal: false,
             createdBy: id,
         })
@@ -61,6 +70,7 @@ let InterviewEmailTemplateService = class InterviewEmailTemplateService {
                 updatedAt: template.updatedAt,
             },
         });
+        await this.cache.bumpCompanyVersion(companyId);
         return template;
     }
     async cloneTemplate(templateId, user) {
@@ -68,7 +78,8 @@ let InterviewEmailTemplateService = class InterviewEmailTemplateService {
         const [template] = await this.db
             .select()
             .from(interview_email_templates_schema_1.interviewEmailTemplates)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(interview_email_templates_schema_1.interviewEmailTemplates.id, templateId), (0, drizzle_orm_1.isNull)(interview_email_templates_schema_1.interviewEmailTemplates.companyId)));
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(interview_email_templates_schema_1.interviewEmailTemplates.id, templateId), (0, drizzle_orm_1.isNull)(interview_email_templates_schema_1.interviewEmailTemplates.companyId)))
+            .execute();
         if (!template)
             throw new common_1.NotFoundException('System template not found');
         const [cloned] = await this.db
@@ -97,6 +108,7 @@ let InterviewEmailTemplateService = class InterviewEmailTemplateService {
                 createdBy: cloned.createdBy,
             },
         });
+        await this.cache.bumpCompanyVersion(companyId);
         return cloned;
     }
     async deleteTemplate(templateId, user) {
@@ -134,6 +146,7 @@ let InterviewEmailTemplateService = class InterviewEmailTemplateService {
                 createdBy: template.createdBy,
             },
         });
+        await this.cache.bumpCompanyVersion(companyId);
         return { message: 'Template deleted successfully' };
     }
     async seedSystemEmailTemplates() {
@@ -143,52 +156,52 @@ let InterviewEmailTemplateService = class InterviewEmailTemplateService {
                 subject: 'Interview Invitation at {{companyName}}',
                 body: `Dear {{candidateName}},
   
-  We’re pleased to invite you to the {{stage}} interview for the {{jobTitle}} position at {{companyName}}.
-  
-  📅 Scheduled Date: {{interviewDate}}
-  🕒 Time: {{interviewTime}}
-  💬 Mode: {{interviewMode}}
-  🔗 Meeting Link: {{meetingLink}}
-  
-  If you have any questions, feel free to reply to this email.
-  
-  Best regards,  
-  {{recruiterName}}  
-  {{companyName}} Recruitment Team`,
+We’re pleased to invite you to the {{stage}} interview for the {{jobTitle}} position at {{companyName}}.
+
+📅 Scheduled Date: {{interviewDate}}
+🕒 Time: {{interviewTime}}
+💬 Mode: {{interviewMode}}
+🔗 Meeting Link: {{meetingLink}}
+
+If you have any questions, feel free to reply to this email.
+
+Best regards,
+{{recruiterName}}
+{{companyName}} Recruitment Team`,
             },
             {
                 name: 'Interview Reschedule Notice',
                 subject: 'Your Interview Has Been Rescheduled',
                 body: `Hi {{candidateName}},
-  
-  Your interview for the {{jobTitle}} role has been rescheduled.
-  
-  📅 New Date: {{interviewDate}}  
-  🕒 Time: {{interviewTime}}  
-  🔗 Updated Link: {{meetingLink}}
-  
-  Sorry for any inconvenience, and thank you for your flexibility.
-  
-  Regards,  
-  {{recruiterName}}  
-  {{companyName}}`,
+
+Your interview for the {{jobTitle}} role has been rescheduled.
+
+📅 New Date: {{interviewDate}}
+🕒 Time: {{interviewTime}}
+🔗 Updated Link: {{meetingLink}}
+
+Sorry for any inconvenience, and thank you for your flexibility.
+
+Regards,
+{{recruiterName}}
+{{companyName}}`,
             },
             {
                 name: 'Onsite Interview Preparation',
                 subject: 'Preparing for Your Onsite Interview',
                 body: `Hi {{candidateName}},
-  
-  We’re excited to host you for the upcoming onsite interview at {{companyName}} for the {{jobTitle}} role.
-  
-  📍 Location: {{onsiteLocation}}  
-  📅 Date: {{interviewDate}}  
-  🕒 Time: {{interviewTime}}
-  
-  Kindly bring along a valid ID and any relevant materials. Let us know if you need directions or assistance.
-  
-  Best,  
-  {{recruiterName}}  
-  Talent Team – {{companyName}}`,
+
+We’re excited to host you for the upcoming onsite interview at {{companyName}} for the {{jobTitle}} role.
+
+📍 Location: {{onsiteLocation}}
+📅 Date: {{interviewDate}}
+🕒 Time: {{interviewTime}}
+
+Kindly bring along a valid ID and any relevant materials. Let us know if you need directions or assistance.
+
+Best,
+{{recruiterName}}
+Talent Team – {{companyName}}`,
             },
         ];
         for (const tmpl of templates) {
@@ -199,6 +212,7 @@ let InterviewEmailTemplateService = class InterviewEmailTemplateService {
                 isGlobal: true,
             });
         }
+        await this.cache.bumpCompanyVersion('global');
         return { success: true };
     }
 };
@@ -206,6 +220,7 @@ exports.InterviewEmailTemplateService = InterviewEmailTemplateService;
 exports.InterviewEmailTemplateService = InterviewEmailTemplateService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService])
 ], InterviewEmailTemplateService);
 //# sourceMappingURL=email-templates.service.js.map

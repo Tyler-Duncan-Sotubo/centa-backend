@@ -107,6 +107,7 @@ export declare class PayslipController extends BaseController {
         last_name: any;
         email: any;
         employeeId: any;
+        companyId: string;
         company_name: string;
         companyLogo: string;
         company_email: string | null;
@@ -140,6 +141,7 @@ export declare class PayslipController extends BaseController {
         last_name: any;
         email: any;
         employeeId: any;
+        companyId: string;
         company_name: string;
         companyLogo: string;
         company_email: string | null;

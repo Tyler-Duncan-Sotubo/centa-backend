@@ -9,8 +9,6 @@ export class PayrollSettingsService {
     private readonly cache: CacheService,
   ) {}
 
-  private ttlSeconds = 60 * 60; // tune per your needs
-
   private tags(companyId: string) {
     return [
       `company:${companyId}:settings`,
@@ -38,7 +36,7 @@ export class PayrollSettingsService {
         }
         return payrollSettings;
       },
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -51,7 +49,7 @@ export class PayrollSettingsService {
       companyId,
       ['payroll', 'config'],
       () => this.companySettingsService.getPayrollConfig(companyId),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -64,7 +62,7 @@ export class PayrollSettingsService {
       companyId,
       ['payroll', 'allowance'],
       () => this.companySettingsService.getAllowanceConfig(companyId),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -78,7 +76,7 @@ export class PayrollSettingsService {
       ['payroll', 'approval_proration'],
       () =>
         this.companySettingsService.getApprovalAndProrationSettings(companyId),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -91,7 +89,7 @@ export class PayrollSettingsService {
       companyId,
       ['payroll', '13th_month'],
       () => this.companySettingsService.getThirteenthMonthSettings(companyId),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 
@@ -104,7 +102,7 @@ export class PayrollSettingsService {
       companyId,
       ['payroll', 'loan'],
       () => this.companySettingsService.getLoanSettings(companyId),
-      { ttlSeconds: this.ttlSeconds, tags: this.tags(companyId) },
+      { tags: this.tags(companyId) },
     );
   }
 

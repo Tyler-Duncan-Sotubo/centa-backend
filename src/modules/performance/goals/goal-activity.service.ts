@@ -15,7 +15,6 @@ import { companyFileFolders } from 'src/drizzle/schema';
 import { S3StorageService } from 'src/common/aws/s3-storage.service';
 import { UploadGoalAttachmentDto } from './dto/upload-goal-attachment.dto';
 import { UpdateGoalAttachmentDto } from './dto/update-goal-attachment.dto';
-import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class GoalActivityService {
@@ -23,16 +22,7 @@ export class GoalActivityService {
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
     private readonly s3Service: S3StorageService,
-    private readonly cache: CacheService,
   ) {}
-
-  private async invalidateGoals(companyId: string) {
-    // Option A: bump version (works for all stores)
-    await this.cache.bumpCompanyVersion(companyId);
-
-    // Option B (alternative): tag invalidation (works only with native Redis)
-    // await this.cache.invalidateTags([`company:${companyId}:goals`]);
-  }
 
   async addProgressUpdate(goalId: string, dto: AddGoalProgressDto, user: User) {
     const { id: userId, companyId } = user;
@@ -42,7 +32,7 @@ export class GoalActivityService {
       throw new BadRequestException('Progress must be between 0 and 100');
     }
 
-    // 1) Ensure the goal exists
+    // 1. Ensure the goal exists
     const [goal] = await this.db
       .select()
       .from(performanceGoals)
@@ -50,42 +40,42 @@ export class GoalActivityService {
         and(
           eq(performanceGoals.id, goalId),
           eq(performanceGoals.companyId, companyId),
-          eq(performanceGoals.isArchived, false),
+          eq(performanceGoals.isArchived, false), // Ensure goal is not archived
         ),
-      )
-      .execute();
+      );
 
     if (!goal) {
       throw new BadRequestException('Goal not found');
     }
 
-    // 2) Get latest progress
+    // 2. Get latest progress
     const [latestUpdate] = await this.db
       .select()
       .from(performanceGoalUpdates)
       .where(eq(performanceGoalUpdates.goalId, goalId))
       .orderBy(desc(performanceGoalUpdates.createdAt))
-      .limit(1)
-      .execute();
+      .limit(1);
 
     const lastProgress = latestUpdate?.progress ?? 0;
 
-    // 3) Prevent downgrade or duplicate 100% updates
+    // 3. Prevent downgrade or duplicate 100% updates
     if (lastProgress >= 100) {
       throw new BadRequestException('Goal has already been completed');
     }
+
     if (progress < lastProgress) {
       throw new BadRequestException(
         `Cannot set progress to a lower value (${progress} < ${lastProgress})`,
       );
     }
+
     if (progress === lastProgress) {
       throw new BadRequestException(
         'This progress value has already been recorded',
       );
     }
 
-    // 4) Insert new progress update
+    // 4. Insert new progress update
     const [update] = await this.db
       .insert(performanceGoalUpdates)
       .values({
@@ -95,25 +85,19 @@ export class GoalActivityService {
         createdAt: new Date(),
         createdBy: userId,
       })
-      .returning()
-      .execute();
-
-    // Invalidate goals caches (affects findAll/ findOne)
-    await this.invalidateGoals(companyId);
+      .returning();
 
     return update;
   }
 
   async updateNote(goalId: string, note: string, user: User) {
-    const { id: userId, companyId } = user;
+    const { id: userId } = user;
 
-    // ⚠️ This checks an update record by id==goalId in your original code.
-    // Keeping intent but adding .execute(); adjust if you meant goal record.
+    // 1. Ensure the goal exists
     const [goalUpdate] = await this.db
       .select()
       .from(performanceGoalUpdates)
-      .where(eq(performanceGoalUpdates.id, goalId))
-      .execute();
+      .where(eq(performanceGoalUpdates.id, goalId));
 
     if (!goalUpdate) {
       throw new BadRequestException('Goal not found');
@@ -125,13 +109,14 @@ export class GoalActivityService {
       );
     }
 
+    // 2. Update the note
     const [updatedGoal] = await this.db
       .update(performanceGoals)
-      .set({ note, updatedAt: new Date(), updatedBy: userId as any })
+      .set({ note, updatedAt: new Date(), updatedBy: userId })
       .where(eq(performanceGoals.id, goalId))
-      .returning()
-      .execute();
+      .returning();
 
+    // 3. Log the update in audit
     await this.auditService.logAction({
       action: 'update',
       entity: 'performance_goal',
@@ -141,14 +126,13 @@ export class GoalActivityService {
       changes: { note },
     });
 
-    await this.invalidateGoals(companyId);
-
     return updatedGoal;
   }
 
   async addComment(goalId: string, user: User, dto: AddGoalCommentDto) {
     const { id: userId, companyId } = user;
 
+    // 1. Ensure the goal exists
     const [goal] = await this.db
       .select()
       .from(performanceGoals)
@@ -156,10 +140,9 @@ export class GoalActivityService {
         and(
           eq(performanceGoals.id, goalId),
           eq(performanceGoals.companyId, companyId),
-          eq(performanceGoals.isArchived, false),
+          eq(performanceGoals.isArchived, false), // Ensure goal is not archived
         ),
-      )
-      .execute();
+      );
 
     if (!goal) {
       throw new BadRequestException('Goal not found');
@@ -167,40 +150,38 @@ export class GoalActivityService {
 
     await this.db
       .insert(goalComments)
-      .values({ ...dto, authorId: userId, goalId })
-      .execute();
-
-    await this.invalidateGoals(companyId);
+      .values({ ...dto, authorId: userId, goalId });
 
     return { message: 'Comment added successfully' };
   }
 
   async updateComment(commentId: string, user: User, content: string) {
-    const { id: userId, companyId } = user;
+    const { id: userId } = user;
 
+    // 1. Ensure the comment exists
     const [comment] = await this.db
       .select()
       .from(goalComments)
       .where(
         and(
           eq(goalComments.id, commentId),
-          eq(goalComments.authorId, userId),
-          eq(goalComments.isPrivate, false),
+          eq(goalComments.authorId, userId), // Ensure the user is the author
+          eq(goalComments.isPrivate, false), // Ensure the comment is not private
         ),
-      )
-      .execute();
+      );
 
     if (!comment) {
       throw new BadRequestException('Comment not found or inaccessible');
     }
 
+    // 2. Update the comment
     const [updatedComment] = await this.db
       .update(goalComments)
       .set({ comment: content, updatedAt: new Date() })
       .where(eq(goalComments.id, commentId))
-      .returning()
-      .execute();
+      .returning();
 
+    // 3. Log the update in audit
     await this.auditService.logAction({
       action: 'update',
       entity: 'goal_comment',
@@ -210,25 +191,22 @@ export class GoalActivityService {
       changes: { content },
     });
 
-    await this.invalidateGoals(companyId);
-
     return updatedComment;
   }
 
   async deleteComment(commentId: string, user: User) {
-    const { id: userId, companyId } = user;
-
+    const { id: userId } = user;
+    // 1. Ensure the comment exists
     const [comment] = await this.db
       .select()
       .from(goalComments)
       .where(
         and(
           eq(goalComments.id, commentId),
-          eq(goalComments.authorId, userId),
-          eq(goalComments.isPrivate, false),
+          eq(goalComments.authorId, userId), // Ensure the user is the author
+          eq(goalComments.isPrivate, false), // Ensure the comment is not private
         ),
-      )
-      .execute();
+      );
 
     if (!comment) {
       throw new BadRequestException('Comment not found or inaccessible');
@@ -237,9 +215,9 @@ export class GoalActivityService {
     await this.db
       .delete(goalComments)
       .where(eq(goalComments.id, commentId))
-      .returning()
-      .execute();
+      .returning();
 
+    // 2.log the deletion in audit
     await this.auditService.logAction({
       action: 'delete',
       entity: 'goal_comment',
@@ -247,8 +225,6 @@ export class GoalActivityService {
       userId: user.id,
       details: `Deleted comment on goal ${comment.goalId} by user ${userId}`,
     });
-
-    await this.invalidateGoals(companyId);
 
     return { message: 'Comment deleted successfully' };
   }
@@ -261,9 +237,11 @@ export class GoalActivityService {
     const { id: userId, companyId } = user;
     const { file, comment } = dto;
 
+    // 1. Get or create "Goal Attachments" folder
     const folderName = 'Goal Attachments';
     const folder = await this.getOrCreateGoalFolder(companyId, folderName);
 
+    // 2. Parse file
     const [meta, base64Data] = file.base64.split(',');
     const mimeMatch = meta.match(/data:(.*);base64/);
     const mimeType = mimeMatch?.[1];
@@ -274,6 +252,7 @@ export class GoalActivityService {
     const buffer = Buffer.from(base64Data, 'base64');
     const key = `company-files/${companyId}/${folder.id}/${Date.now()}-${file.name}`;
 
+    // 3. Upload to S3
     const { url } = await this.s3Service.uploadBuffer(
       buffer,
       key,
@@ -283,6 +262,7 @@ export class GoalActivityService {
       mimeType,
     );
 
+    // 4. Insert into performance_goal_attachments table
     const [attachment] = await this.db
       .insert(goalAttachments)
       .values({
@@ -293,19 +273,20 @@ export class GoalActivityService {
         comment,
         createdAt: new Date(),
       })
-      .returning()
-      .execute();
+      .returning();
 
+    // 5. Log action
     await this.auditService.logAction({
       action: 'upload',
       entity: 'goal_attachment',
       entityId: attachment.id,
       userId,
       details: `Uploaded attachment for goal ${goalId}`,
-      changes: { fileName: file.name, url },
+      changes: {
+        fileName: file.name,
+        url,
+      },
     });
-
-    await this.invalidateGoals(companyId);
 
     return attachment;
   }
@@ -318,15 +299,16 @@ export class GoalActivityService {
     const { id: userId, companyId } = user;
     const { file, comment } = dto;
 
+    // 1. Ensure the attachment exists
     const [attachment] = await this.db
       .select()
       .from(goalAttachments)
-      .where(eq(goalAttachments.id, attachmentId))
-      .execute();
+      .where(eq(goalAttachments.id, attachmentId));
     if (!attachment) {
       throw new BadRequestException('Attachment not found');
     }
 
+    // 2. Ensure the user has permission to update it
     if (attachment.uploadedById !== userId) {
       throw new BadRequestException(
         'You do not have permission to update this attachment',
@@ -334,6 +316,7 @@ export class GoalActivityService {
     }
 
     if (file) {
+      // 3. Parse file
       const [meta, base64Data] = file.base64.split(',');
       const mimeMatch = meta.match(/data:(.*);base64/);
       const mimeType = mimeMatch?.[1];
@@ -344,6 +327,7 @@ export class GoalActivityService {
       const buffer = Buffer.from(base64Data, 'base64');
       const key = `company-files/${companyId}/Goal Attachments/${Date.now()}-${file.name}`;
 
+      // 4. Upload to S3
       const { url } = await this.s3Service.uploadBuffer(
         buffer,
         key,
@@ -353,6 +337,7 @@ export class GoalActivityService {
         mimeType,
       );
 
+      // 5. Update the attachment in the database
       const [updatedAttachment] = await this.db
         .update(goalAttachments)
         .set({
@@ -362,13 +347,11 @@ export class GoalActivityService {
           updatedAt: new Date(),
         })
         .where(eq(goalAttachments.id, attachmentId))
-        .returning()
-        .execute();
-
-      await this.invalidateGoals(companyId);
+        .returning();
 
       return updatedAttachment;
     } else {
+      // 6. Update only the comment if no file is provided
       const [updatedAttachment] = await this.db
         .update(goalAttachments)
         .set({
@@ -376,24 +359,20 @@ export class GoalActivityService {
           updatedAt: new Date(),
         })
         .where(eq(goalAttachments.id, attachmentId))
-        .returning()
-        .execute();
-
-      await this.invalidateGoals(companyId);
+        .returning();
 
       return updatedAttachment;
     }
   }
 
   async deleteAttachment(attachmentId: string, user: User) {
-    const { companyId } = user;
-
+    // 1. Ensure the attachment exists
     const [attachment] = await this.db
       .select()
       .from(goalAttachments)
-      .where(eq(goalAttachments.id, attachmentId))
-      .execute();
+      .where(eq(goalAttachments.id, attachmentId));
 
+    // 2. Ensure the user has permission to delete it
     if (!attachment) {
       throw new BadRequestException('Attachment not found');
     }
@@ -406,12 +385,13 @@ export class GoalActivityService {
 
     await this.s3Service.deleteFileFromS3(attachment.fileUrl);
 
+    // 3. Delete the attachment
     await this.db
       .delete(goalAttachments)
       .where(eq(goalAttachments.id, attachmentId))
-      .returning()
-      .execute();
+      .returning();
 
+    // 4. Log the deletion in audit
     await this.auditService.logAction({
       action: 'delete',
       entity: 'goal_attachment',
@@ -419,8 +399,6 @@ export class GoalActivityService {
       userId: user.id,
       details: `Deleted attachment for goal ${attachment.goalId} by user ${user.id}`,
     });
-
-    await this.invalidateGoals(companyId);
   }
 
   private async getOrCreateGoalFolder(companyId: string, name: string) {
@@ -432,15 +410,17 @@ export class GoalActivityService {
           eq(companyFileFolders.companyId, companyId),
           eq(companyFileFolders.name, name),
         ),
-      )
-      .execute();
+      );
 
     if (!folder) {
       [folder] = await this.db
         .insert(companyFileFolders)
-        .values({ companyId, name, createdAt: new Date() })
-        .returning()
-        .execute();
+        .values({
+          companyId,
+          name,
+          createdAt: new Date(),
+        })
+        .returning();
     }
 
     return folder;

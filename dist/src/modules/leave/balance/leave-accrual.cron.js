@@ -11,149 +11,172 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var LeaveAccrualCronService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LeaveAccrualCronService = void 0;
 const common_1 = require("@nestjs/common");
 const schedule_1 = require("@nestjs/schedule");
+const drizzle_orm_1 = require("drizzle-orm");
 const leave_policy_service_1 = require("../policy/leave-policy.service");
 const leave_balance_service_1 = require("./leave-balance.service");
 const audit_service_1 = require("../../audit/audit.service");
+const company_service_1 = require("../../core/company/company.service");
 const drizzle_module_1 = require("../../../drizzle/drizzle.module");
 const schema_1 = require("../../auth/schema");
-const drizzle_orm_1 = require("drizzle-orm");
-const company_service_1 = require("../../core/company/company.service");
-let LeaveAccrualCronService = class LeaveAccrualCronService {
+let LeaveAccrualCronService = LeaveAccrualCronService_1 = class LeaveAccrualCronService {
     constructor(leavePolicyService, leaveBalanceService, auditService, companyService, db) {
         this.leavePolicyService = leavePolicyService;
         this.leaveBalanceService = leaveBalanceService;
         this.auditService = auditService;
         this.companyService = companyService;
         this.db = db;
+        this.logger = new common_1.Logger(LeaveAccrualCronService_1.name);
     }
     async handleMonthlyLeaveAccruals() {
         const currentYear = new Date().getFullYear();
-        const policies = await this.leavePolicyService.findAllAccrualPolicies();
-        for (const policy of policies) {
-            if (policy.accrualFrequency !== 'monthly')
-                continue;
-            const employees = await this.companyService.findAllEmployeesInCompany(policy.companyId);
-            if (!employees || employees.length === 0) {
-                continue;
-            }
-            const superAdmin = await this.db
-                .select()
-                .from(schema_1.users)
-                .where((0, drizzle_orm_1.eq)(schema_1.users.companyId, policy.companyId))
-                .limit(1)
-                .execute();
-            if (!superAdmin || superAdmin.length === 0) {
-                continue;
-            }
-            const auditLogs = [];
-            for (const employee of employees) {
-                if (policy.onlyConfirmedEmployees && !employee.confirmed)
+        const companies = await this.companyService.getAllCompanies();
+        if (!companies?.length) {
+            this.logger.log('No companies found; skipping monthly accruals.');
+            return;
+        }
+        for (const company of companies) {
+            const companyId = company.id;
+            try {
+                const policies = await this.leavePolicyService.findAllAccrualPolicies(companyId);
+                const monthlyPolicies = policies.filter((p) => p.accrualFrequency === 'monthly');
+                if (!monthlyPolicies.length) {
+                    this.logger.log(`No monthly accrual policies for company ${companyId}`);
                     continue;
-                const existingBalance = await this.leaveBalanceService.findBalanceByLeaveType(policy.companyId, employee.id, policy.leaveTypeId, currentYear);
-                if (existingBalance) {
-                    const entitlement = Number(existingBalance.entitlement);
-                    const accrual = Number(policy.accrualAmount);
-                    const newEntitlement = entitlement + accrual;
-                    const newBalance = newEntitlement - Number(existingBalance.used);
-                    await this.leaveBalanceService.update(existingBalance.id, {
-                        entitlement: newEntitlement.toFixed(2),
-                        balance: newBalance.toFixed(2),
-                    });
-                    auditLogs.push({
-                        action: 'system accrual update',
-                        entity: 'leave_balance',
-                        entityId: existingBalance.id,
-                        userId: superAdmin[0].id,
-                        changes: {
-                            entitlement: {
-                                oldValue: existingBalance.entitlement,
-                                newValue: newEntitlement,
-                            },
-                            balance: {
-                                oldValue: existingBalance.balance,
-                                newValue: newBalance,
-                            },
-                        },
-                    });
                 }
-                else {
-                    const initialEntitlement = Number(policy.accrualAmount);
-                    const [newBalance] = await this.leaveBalanceService.create(policy.leaveTypeId, policy.companyId, employee.id, currentYear, initialEntitlement.toFixed(2), '0.00', initialEntitlement.toFixed(2));
-                    auditLogs.push({
-                        action: 'system accrual create',
-                        entity: 'leave_balance',
-                        entityId: newBalance.id,
-                        userId: superAdmin[0].id,
-                        changes: {
-                            entitlement: {
-                                oldValue: '0',
-                                newValue: initialEntitlement,
-                            },
-                            balance: {
-                                oldValue: '0',
-                                newValue: initialEntitlement,
-                            },
-                        },
-                    });
+                const employees = await this.companyService.findAllEmployeesInCompany(companyId);
+                if (!employees?.length) {
+                    this.logger.log(`No employees for company ${companyId}`);
+                    continue;
                 }
+                const [actor] = await this.db
+                    .select({ id: schema_1.users.id })
+                    .from(schema_1.users)
+                    .where((0, drizzle_orm_1.eq)(schema_1.users.companyId, companyId))
+                    .limit(1)
+                    .execute();
+                const actorId = actor?.id ?? 'system';
+                const auditLogs = [];
+                for (const policy of monthlyPolicies) {
+                    for (const employee of employees) {
+                        if (policy.onlyConfirmedEmployees && !employee.confirmed)
+                            continue;
+                        const existing = await this.leaveBalanceService.findBalanceByLeaveType(companyId, employee.id, policy.leaveTypeId, currentYear);
+                        if (existing) {
+                            const entitlementNum = Number(existing.entitlement) || 0;
+                            const accrualNum = Number(policy.accrualAmount) || 0;
+                            const newEntitlement = entitlementNum + accrualNum;
+                            const usedNum = Number(existing.used) || 0;
+                            const newBalance = newEntitlement - usedNum;
+                            await this.leaveBalanceService.update(existing.id, {
+                                entitlement: newEntitlement.toFixed(2),
+                                balance: newBalance.toFixed(2),
+                            });
+                            auditLogs.push({
+                                action: 'system accrual update',
+                                entity: 'leave_balance',
+                                entityId: existing.id,
+                                userId: actorId,
+                                changes: {
+                                    entitlement: {
+                                        oldValue: existing.entitlement,
+                                        newValue: newEntitlement,
+                                    },
+                                    balance: { oldValue: existing.balance, newValue: newBalance },
+                                },
+                            });
+                        }
+                        else {
+                            const initial = Number(policy.accrualAmount) || 0;
+                            const [created] = await this.leaveBalanceService.create(policy.leaveTypeId, companyId, employee.id, currentYear, initial.toFixed(2), '0.00', initial.toFixed(2));
+                            auditLogs.push({
+                                action: 'system accrual create',
+                                entity: 'leave_balance',
+                                entityId: created.id,
+                                userId: actorId,
+                                changes: {
+                                    entitlement: { oldValue: '0', newValue: initial },
+                                    balance: { oldValue: '0', newValue: initial },
+                                },
+                            });
+                        }
+                    }
+                }
+                if (auditLogs.length) {
+                    await this.auditService.bulkLogActions(auditLogs);
+                }
+                this.logger.log(`Monthly accruals completed for company ${companyId}`);
             }
-            if (auditLogs.length > 0) {
-                await this.auditService.bulkLogActions(auditLogs);
+            catch (err) {
+                this.logger.error(`Accruals failed for company ${companyId}: ${err.message}`, err.stack);
             }
         }
     }
     async handleNonAccrualBalanceSetup() {
         const currentYear = new Date().getFullYear();
-        const policies = await this.leavePolicyService.findAllNonAccrualPolicies();
-        for (const policy of policies) {
-            const employees = await this.companyService.findAllEmployeesInCompany(policy.companyId);
-            if (!employees || employees.length === 0)
-                continue;
-            const superAdmin = await this.db
-                .select()
-                .from(schema_1.users)
-                .where((0, drizzle_orm_1.eq)(schema_1.users.companyId, policy.companyId))
-                .limit(1)
-                .execute();
-            if (!superAdmin?.[0])
-                continue;
-            const auditLogs = [];
-            for (const employee of employees) {
-                if (policy.onlyConfirmedEmployees && !employee.confirmed)
-                    continue;
-                if (policy.genderEligibility &&
-                    policy.genderEligibility !== 'any' &&
-                    employee.gender !== policy.genderEligibility) {
+        const companies = await this.companyService.getAllCompanies();
+        if (!companies?.length) {
+            this.logger.log('No companies found; skipping non-accrual setup.');
+            return;
+        }
+        for (const company of companies) {
+            const companyId = company.id;
+            try {
+                const policies = await this.leavePolicyService.findAllNonAccrualPolicies(companyId);
+                if (!policies?.length) {
+                    this.logger.log(`No non-accrual policies for company ${companyId}`);
                     continue;
                 }
-                const existingBalance = await this.leaveBalanceService.findBalanceByLeaveType(policy.companyId, employee.id, policy.leaveTypeId, currentYear);
-                if (!existingBalance) {
-                    const defaultEntitlement = Number(policy.maxBalance ?? 0);
-                    const [newBalance] = await this.leaveBalanceService.create(policy.leaveTypeId, policy.companyId, employee.id, currentYear, defaultEntitlement.toFixed(2), '0.00', defaultEntitlement.toFixed(2));
-                    auditLogs.push({
-                        action: 'non-accrual balance create',
-                        entity: 'leave_balance',
-                        entityId: newBalance.id,
-                        userId: superAdmin[0].id,
-                        changes: {
-                            entitlement: {
-                                oldValue: '0',
-                                newValue: defaultEntitlement,
-                            },
-                            balance: {
-                                oldValue: '0',
-                                newValue: defaultEntitlement,
-                            },
-                        },
-                    });
+                const employees = await this.companyService.findAllEmployeesInCompany(companyId);
+                if (!employees?.length) {
+                    this.logger.log(`No employees for company ${companyId}`);
+                    continue;
                 }
+                const [actor] = await this.db
+                    .select({ id: schema_1.users.id })
+                    .from(schema_1.users)
+                    .where((0, drizzle_orm_1.eq)(schema_1.users.companyId, companyId))
+                    .limit(1)
+                    .execute();
+                const actorId = actor?.id ?? 'system';
+                const auditLogs = [];
+                for (const policy of policies) {
+                    for (const employee of employees) {
+                        if (policy.onlyConfirmedEmployees && !employee.confirmed)
+                            continue;
+                        if (policy.genderEligibility &&
+                            policy.genderEligibility !== 'any' &&
+                            employee.gender !== policy.genderEligibility) {
+                            continue;
+                        }
+                        const existing = await this.leaveBalanceService.findBalanceByLeaveType(companyId, employee.id, policy.leaveTypeId, currentYear);
+                        if (!existing) {
+                            const defaultEntitlement = Number(policy.maxBalance ?? 0);
+                            const [created] = await this.leaveBalanceService.create(policy.leaveTypeId, companyId, employee.id, currentYear, defaultEntitlement.toFixed(2), '0.00', defaultEntitlement.toFixed(2));
+                            auditLogs.push({
+                                action: 'non-accrual balance create',
+                                entity: 'leave_balance',
+                                entityId: created.id,
+                                userId: actorId,
+                                changes: {
+                                    entitlement: { oldValue: '0', newValue: defaultEntitlement },
+                                    balance: { oldValue: '0', newValue: defaultEntitlement },
+                                },
+                            });
+                        }
+                    }
+                }
+                if (auditLogs.length) {
+                    await this.auditService.bulkLogActions(auditLogs);
+                }
+                this.logger.log(`Non-accrual balance setup completed for company ${companyId}`);
             }
-            if (auditLogs.length > 0) {
-                await this.auditService.bulkLogActions(auditLogs);
+            catch (err) {
+                this.logger.error(`Non-accrual setup failed for company ${companyId}: ${err.message}`, err.stack);
             }
         }
     }
@@ -171,7 +194,7 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], LeaveAccrualCronService.prototype, "handleNonAccrualBalanceSetup", null);
-exports.LeaveAccrualCronService = LeaveAccrualCronService = __decorate([
+exports.LeaveAccrualCronService = LeaveAccrualCronService = LeaveAccrualCronService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(4, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [leave_policy_service_1.LeavePolicyService,

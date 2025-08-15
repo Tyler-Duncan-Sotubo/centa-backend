@@ -37,6 +37,7 @@ import { CompanySettingsService } from 'src/company-settings/company-settings.se
 @Injectable()
 export class CompanyService {
   protected table = companies;
+
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly cache: CacheService,
@@ -55,16 +56,23 @@ export class CompanyService {
     private readonly companySettingsService: CompanySettingsService,
   ) {}
 
-  private ttlCompany = 60 * 60; // 1h
-  private ttlSummary = 5 * 60; // 5m (dashboard-ish)
+  // ---- TTLs -------------------------------------------------------------
+  private ttlCompany = 120 * 60;
+  private ttlSummary = 60 * 60;
+  private ttlElements = 60 * 60;
+  private ttlAllCompanies = 60 * 60;
+
+  // ---- Tag helper (used for Redis tag invalidation if available) -------
   private tags(companyId: string) {
     return [
       `company:${companyId}:company`,
       `company:${companyId}:summary`,
       `company:${companyId}:employees`,
+      `company:${companyId}:elements`,
     ];
   }
 
+  // ---- Mutations: bump version to invalidate all company-scoped caches --
   async update(
     companyId: string,
     dto: UpdateCompanyDto,
@@ -126,11 +134,30 @@ export class CompanyService {
       });
     });
 
-    // invalidate versioned caches
+    // invalidate versioned caches across the company
     await this.cache.bumpCompanyVersion(companyId);
 
     return 'Company updated successfully';
   }
+
+  async softDelete(id: string) {
+    const result = await this.db.transaction(async (tx) => {
+      const [company] = await tx
+        .update(companies)
+        .set({ isActive: false })
+        .where(eq(companies.id, id))
+        .returning()
+        .execute();
+
+      if (!company) throw new Error('Company not found');
+      return company;
+    });
+
+    await this.cache.bumpCompanyVersion(id);
+    return result;
+  }
+
+  // ---- Reads (all versioned per company) -------------------------------
 
   async findOne(id: string) {
     return this.cache.getOrSetVersioned(
@@ -175,24 +202,6 @@ export class CompanyService {
       },
       { ttlSeconds: this.ttlCompany, tags: this.tags(companyId) },
     );
-  }
-
-  async softDelete(id: string) {
-    const result = await this.db.transaction(async (tx) => {
-      const [company] = await tx
-        .update(companies)
-        .set({ isActive: false })
-        .where(eq(companies.id, id))
-        .returning()
-        .execute();
-
-      if (!company) throw new Error('Company not found');
-      return company;
-    });
-
-    await this.cache.bumpCompanyVersion(id);
-
-    return result;
   }
 
   async getCompanySummary(companyId: string) {
@@ -499,38 +508,53 @@ export class CompanyService {
   }
 
   async getCompanyElements(companyId: string) {
-    // These are all company-scoped and already cached inside their services (after our refactors).
-    const [
-      departmentsRes,
-      payGroups,
-      locations,
-      jobRolesRes,
-      costCenters,
-      roles,
-      templates,
-    ] = await Promise.all([
-      this.departmentService.findAll(companyId),
-      this.payGroupService.findAll(companyId),
-      this.locationService.findAll(companyId),
-      this.jobRoleService.findAll(companyId),
-      this.costCenterService.findAll(companyId),
-      this.permissionsService.getRolesByCompany(companyId),
-      this.onboardingSeederService.getTemplatesByCompanySummaries(companyId),
-    ]);
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['company', 'elements'],
+      async () => {
+        // child services should themselves bump company version on writes
+        const [
+          departmentsRes,
+          payGroups,
+          locations,
+          jobRolesRes,
+          costCenters,
+          roles,
+          templates,
+        ] = await Promise.all([
+          this.departmentService.findAll(companyId),
+          this.payGroupService.findAll(companyId),
+          this.locationService.findAll(companyId),
+          this.jobRoleService.findAll(companyId),
+          this.costCenterService.findAll(companyId),
+          this.permissionsService.getRolesByCompany(companyId),
+          this.onboardingSeederService.getTemplatesByCompanySummaries(
+            companyId,
+          ),
+        ]);
 
-    return {
-      departments: departmentsRes,
-      payGroups,
-      locations,
-      jobRoles: jobRolesRes,
-      costCenters,
-      roles,
-      templates,
-    };
+        return {
+          departments: departmentsRes,
+          payGroups,
+          locations,
+          jobRoles: jobRolesRes,
+          costCenters,
+          roles,
+          templates,
+        };
+      },
+      { ttlSeconds: this.ttlElements, tags: this.tags(companyId) },
+    );
   }
 
+  // ---- Global (non-company-scoped) -------------------------------------
+
   async getAllCompanies() {
-    // Not company-scoped; keep simple (no versioned cache)
-    return this.db.select().from(companies).execute();
+    // cache without versioning (global list rarely changes)
+    return this.cache.getOrSetCache(
+      'global:companies:all',
+      async () => this.db.select().from(companies).execute(),
+      { ttlSeconds: this.ttlAllCompanies },
+    );
   }
 }

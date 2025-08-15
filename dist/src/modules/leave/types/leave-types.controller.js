@@ -44,7 +44,7 @@ let LeaveTypesController = class LeaveTypesController extends base_controller_1.
         return this.leaveType.update(id, dto, user, ip);
     }
     remove(id, user) {
-        return this.leaveType.remove(user.companyId, id);
+        return this.leaveType.remove(user, id);
     }
 };
 exports.LeaveTypesController = LeaveTypesController;

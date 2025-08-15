@@ -10,8 +10,8 @@ export declare class EmployeeShiftsController extends BaseController {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        employeeId: string;
         isDeleted: boolean | null;
+        employeeId: string;
         shiftId: string | null;
         shiftDate: string;
     }>;
@@ -40,8 +40,8 @@ export declare class EmployeeShiftsController extends BaseController {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        employeeId: string;
         isDeleted: boolean | null;
+        employeeId: string;
         shiftId: string | null;
         shiftDate: string;
     }[]>;

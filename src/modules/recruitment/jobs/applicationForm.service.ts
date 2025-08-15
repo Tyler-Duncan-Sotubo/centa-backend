@@ -9,11 +9,25 @@ import { CreateFieldDto } from './dto/create-field.dto';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { User } from 'src/common/types/user.type';
 import { application_field_definitions } from './schema/application-field-definitions.schema';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class ApplicationFormService {
-  constructor(@Inject(DRIZZLE) private readonly db: db) {}
+  constructor(
+    @Inject(DRIZZLE) private readonly db: db,
+    private readonly cache: CacheService,
+  ) {}
 
+  private tags(scope: string) {
+    // scope is companyId or "global"
+    return [
+      `company:${scope}:applications`,
+      `company:${scope}:applications:forms`,
+      `company:${scope}:applications:fields`,
+    ];
+  }
+
+  // WRITE → bump global cache (these are system defaults)
   async seedDefaultFields() {
     await this.db.insert(application_field_definitions).values(
       defaultFields.map((field, index) => ({
@@ -26,17 +40,29 @@ export class ApplicationFormService {
         order: index + 1,
       })),
     );
+
+    await this.cache.bumpCompanyVersion('global');
   }
 
+  // READ (cached, global scope)
   async getDefaultFields() {
-    const fields = await this.db.select().from(application_field_definitions);
-    if (fields.length === 0) {
-      throw new NotFoundException('No default fields found');
-    }
-
-    return fields;
+    return this.cache.getOrSetVersioned(
+      'global',
+      ['applications', 'fields', 'defaults'],
+      async () => {
+        const fields = await this.db
+          .select()
+          .from(application_field_definitions);
+        if (fields.length === 0) {
+          throw new NotFoundException('No default fields found');
+        }
+        return fields;
+      },
+      { tags: this.tags('global') },
+    );
   }
 
+  // WRITE → upsert a job's form, then bump company + global (global used by preview cache below)
   async upsertApplicationForm(
     jobId: string,
     user: User,
@@ -63,8 +89,7 @@ export class ApplicationFormService {
           includeReferences: config.includeReferences ?? false,
         })
         .where(eq(application_form_configs.id, formId));
-
-      // Optionally clear existing fields/questions here if you want a full overwrite
+      // (optional) clear existing fields/questions if doing full overwrite
     } else {
       const [form] = await this.db
         .insert(application_form_configs)
@@ -76,11 +101,9 @@ export class ApplicationFormService {
         .returning();
 
       formId = form.id;
-
-      console.log('Created new application form config:', formId);
+      // console.log('Created new application form config:', formId);
     }
 
-    // Add additional fields/questions if provided
     if (config.customFields?.length) {
       await this.db.insert(application_form_fields).values(
         config.customFields.map((f, i) => ({
@@ -109,39 +132,52 @@ export class ApplicationFormService {
       );
     }
 
+    // Invalidate: company-scoped consumers and any global-scoped previews keyed by jobId
+    await this.cache.bumpCompanyVersion(user.companyId);
+    await this.cache.bumpCompanyVersion('global');
+
     return { formId };
   }
 
+  // READ (cached). We don’t receive companyId here, so cache under "global" scope keyed by jobId
+  // and bump 'global' on writes above to invalidate.
   async getFormPreview(jobId: string) {
-    const [config] = await this.db
-      .select()
-      .from(application_form_configs)
-      .where(eq(application_form_configs.jobId, jobId));
+    return this.cache.getOrSetVersioned(
+      'global',
+      ['applications', 'forms', 'preview', jobId],
+      async () => {
+        const [config] = await this.db
+          .select()
+          .from(application_form_configs)
+          .where(eq(application_form_configs.jobId, jobId));
 
-    if (!config) {
-      throw new NotFoundException(
-        'Application form not configured for this job',
-      );
-    }
+        if (!config) {
+          throw new NotFoundException(
+            'Application form not configured for this job',
+          );
+        }
 
-    const fields = await this.db
-      .select()
-      .from(application_form_fields)
-      .where(eq(application_form_fields.formId, config.id))
-      .orderBy(asc(application_form_fields.order));
+        const fields = await this.db
+          .select()
+          .from(application_form_fields)
+          .where(eq(application_form_fields.formId, config.id))
+          .orderBy(asc(application_form_fields.order));
 
-    const questions = await this.db
-      .select()
-      .from(application_form_questions)
-      .where(eq(application_form_questions.formId, config.id))
-      .orderBy(asc(application_form_questions.order));
+        const questions = await this.db
+          .select()
+          .from(application_form_questions)
+          .where(eq(application_form_questions.formId, config.id))
+          .orderBy(asc(application_form_questions.order));
 
-    return {
-      style: config.style,
-      includeReferences: config.includeReferences,
-      fields,
-      questions,
-    };
+        return {
+          style: config.style,
+          includeReferences: config.includeReferences,
+          fields,
+          questions,
+        };
+      },
+      { tags: this.tags('global') },
+    );
   }
 }
 
@@ -260,10 +296,7 @@ const defaultFields: Array<{
     fieldType: 'date',
     required: false,
   },
-  {
-    section: 'custom',
-    label: 'Skills',
-    fieldType: 'text',
-    required: false,
-  },
+
+  // Custom
+  { section: 'custom', label: 'Skills', fieldType: 'text', required: false },
 ];

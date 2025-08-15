@@ -5,17 +5,25 @@ import { announcementCategories } from './schema/announcements.schema';
 import { eq, and } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service';
 import { User } from 'src/common/types/user.type';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class CategoryService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
+    private readonly cache: CacheService,
   ) {}
+
+  private tags(companyId: string) {
+    return [
+      `company:${companyId}:announcements`,
+      `company:${companyId}:announcement:categories`,
+    ];
+  }
 
   // Create new category
   async createCategory(name: string, user: User) {
-    // Optional: enforce unique code per company
     const [existing] = await this.db
       .select()
       .from(announcementCategories)
@@ -28,19 +36,18 @@ export class CategoryService {
       .execute();
 
     if (existing) {
-      throw new BadRequestException('Category code already exists');
+      throw new BadRequestException('Category name already exists');
     }
 
     const [newCategory] = await this.db
       .insert(announcementCategories)
       .values({
-        companyId: user.companyId, // Assuming user has companyId
+        companyId: user.companyId,
         name,
       })
       .returning()
       .execute();
 
-    // Optionally log the creation in audit service
     await this.auditService.logAction({
       action: 'create',
       entity: 'announcement_category',
@@ -53,12 +60,14 @@ export class CategoryService {
       },
     });
 
+    // Invalidate cached category lists for this company
+    await this.cache.bumpCompanyVersion(user.companyId);
+
     return newCategory;
   }
 
   // Update category
   async updateCategory(id: string, name: string, user: User) {
-    // Optional: validate category exists
     const [existing] = await this.db
       .select()
       .from(announcementCategories)
@@ -71,14 +80,11 @@ export class CategoryService {
 
     const [updated] = await this.db
       .update(announcementCategories)
-      .set({
-        name,
-      })
+      .set({ name })
       .where(eq(announcementCategories.id, id))
       .returning()
       .execute();
 
-    // Log the update in audit service
     await this.auditService.logAction({
       action: 'update',
       entity: 'announcement_category',
@@ -90,6 +96,9 @@ export class CategoryService {
         companyId: updated.companyId,
       },
     });
+
+    // Invalidate
+    await this.cache.bumpCompanyVersion(user.companyId);
 
     return updated;
   }
@@ -111,7 +120,6 @@ export class CategoryService {
       .where(eq(announcementCategories.id, id))
       .execute();
 
-    // Log the deletion in audit service
     await this.auditService.logAction({
       action: 'delete',
       entity: 'announcement_category',
@@ -120,15 +128,25 @@ export class CategoryService {
       details: `Deleted category ${id} for company ${user.companyId}`,
     });
 
+    // Invalidate
+    await this.cache.bumpCompanyVersion(user.companyId);
+
     return { success: true };
   }
 
-  // List categories for a company
+  // List categories for a company (cached)
   async listCategories(companyId: string) {
-    return await this.db
-      .select()
-      .from(announcementCategories)
-      .where(eq(announcementCategories.companyId, companyId))
-      .execute();
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['announcements', 'categories'],
+      async () => {
+        return this.db
+          .select()
+          .from(announcementCategories)
+          .where(eq(announcementCategories.companyId, companyId))
+          .execute();
+      },
+      { tags: this.tags(companyId) },
+    );
   }
 }

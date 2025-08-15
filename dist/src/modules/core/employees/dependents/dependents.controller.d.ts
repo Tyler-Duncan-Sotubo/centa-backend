@@ -33,7 +33,7 @@ export declare class DependentsController extends BaseController {
         dateOfBirth: string;
         isBeneficiary: boolean | null;
         createdAt: Date;
-    } | undefined>;
+    }>;
     remove(id: string): Promise<{
         deleted: boolean;
         id: string;
