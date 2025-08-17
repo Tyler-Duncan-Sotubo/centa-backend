@@ -1,3 +1,4 @@
+// src/common/interceptor/response.interceptor.ts
 import {
   Injectable,
   NestInterceptor,
@@ -9,26 +10,28 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { Observable } from 'rxjs';
+import { Observable, throwError } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { CustomHttpExceptionResponse } from './http-exception-response.interface';
 import { Request } from 'express';
-import * as fs from 'fs';
+import { PinoLogger } from 'nestjs-pino';
+
+const isProd = process.env.NODE_ENV === 'production';
 
 @Injectable()
 export class ResponseInterceptor implements NestInterceptor {
+  constructor(private readonly logger: PinoLogger) {
+    this.logger.setContext(ResponseInterceptor.name);
+  }
+
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const ctx = context.switchToHttp();
     const request = ctx.getRequest<Request>();
 
     return next.handle().pipe(
-      map((data) => {
-        return {
-          status: 'success',
-          data,
-        };
-      }),
+      map((data) => ({ status: 'success', data })),
       catchError((err) => {
+        // map known 4xx
         if (
           err instanceof BadRequestException ||
           err instanceof NotFoundException ||
@@ -42,26 +45,40 @@ export class ResponseInterceptor implements NestInterceptor {
                 ? HttpStatus.NOT_FOUND
                 : HttpStatus.FORBIDDEN;
 
-          throw new HttpException(
-            this.getErrorResponse(
-              statusCode,
-              typeof errorMessage === 'string'
-                ? errorMessage
-                : (errorMessage as any).message,
-            ),
-            statusCode,
+          const message =
+            typeof errorMessage === 'string'
+              ? errorMessage
+              : ((errorMessage as any)?.message ?? err.message);
+
+          // log as warn for 4xx
+          this.logWithPino('warn', request, statusCode, message, err);
+
+          return throwError(
+            () =>
+              new HttpException(
+                this.getErrorResponse(statusCode, message),
+                statusCode,
+              ),
           );
         }
 
-        const errorResponse = this.getErrorResponse(
-          err.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
-          err.message,
+        // everything else -> 5xx (or provided statusCode)
+        const status =
+          Number((err as any)?.statusCode) || HttpStatus.INTERNAL_SERVER_ERROR;
+        const message = err?.message || 'Internal server error';
+
+        const errorResponse = this.getErrorResponse(status, message);
+
+        // structured log with correlation id
+        this.logWithPino(
+          status >= 500 ? 'error' : 'warn',
+          request,
+          status,
+          message,
+          err,
         );
 
-        const errorLog = this.logError(errorResponse, request);
-        this.writeErrorLogToFile(errorLog);
-
-        throw new HttpException(errorResponse, err.statusCode);
+        return throwError(() => new HttpException(errorResponse, status));
       }),
     );
   }
@@ -71,29 +88,43 @@ export class ResponseInterceptor implements NestInterceptor {
     errorMessage: string,
   ): CustomHttpExceptionResponse => ({
     status: 'error',
-    error: {
-      message: errorMessage,
-    },
+    error: { message: errorMessage },
   });
 
-  private logError = (
-    errorResponse: CustomHttpExceptionResponse,
-    request: Request,
-  ): string => {
-    const { error } = errorResponse;
-    const { method, url, cookies } = request;
-    const errorLog =
-      `URL: '${url}'\n` +
-      `Method: ${method}\n` +
-      `Timestamp: '${new Date().toISOString()}'\n` +
-      `User Info: '${cookies.Authentication ? 'User With Auth Token' : 'No user info from cookie'}'\n` +
-      `Error Message: ${error.message}\n\n`;
-    return errorLog;
-  };
+  private logWithPino(
+    level: 'error' | 'warn',
+    req: Request,
+    status: number,
+    message: string,
+    exception: unknown,
+  ) {
+    const payload = {
+      status,
+      req: {
+        id: (req as any).id, // set by pinoHttp.genReqId
+        method: req.method,
+        url: req.url,
+        headers: {
+          host: req.headers?.host,
+          origin: req.headers?.origin,
+        },
+        remoteAddress: req.socket?.remoteAddress,
+      },
+      user: req.cookies?.Authentication ? 'User With Auth Token' : 'Anonymous',
+      error:
+        exception instanceof Error
+          ? {
+              name: exception.name,
+              message: exception.message,
+              ...(isProd ? {} : { stack: exception.stack }),
+            }
+          : exception,
+    };
 
-  private writeErrorLogToFile = (errorLog: string): void => {
-    fs.appendFile('error.log', errorLog, (err) => {
-      if (err) throw err;
-    });
-  };
+    if (level === 'error') {
+      this.logger.error(payload, 'HTTP error');
+    } else {
+      this.logger.warn(payload, 'HTTP client error');
+    }
+  }
 }

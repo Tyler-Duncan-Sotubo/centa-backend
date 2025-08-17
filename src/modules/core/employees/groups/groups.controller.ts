@@ -85,8 +85,8 @@ export class GroupsController extends BaseController {
     getEntityId: (req) => req.params.id,
   })
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.groupsService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.groupsService.remove(id, user);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -28,6 +28,7 @@ const audit_service_1 = require("../../audit/audit.service");
 const performance_feedback_responses_schema_1 = require("../feedback/schema/performance-feedback-responses.schema");
 const performance_assessment_conclusions_schema_1 = require("./schema/performance-assessment-conclusions.schema");
 const cache_service_1 = require("../../../common/cache/cache.service");
+const performance_objectives_schema_1 = require("../goals/schema/performance-objectives.schema");
 let AssessmentsService = class AssessmentsService {
     constructor(db, clockInOutService, auditService, cache) {
         this.db = db;
@@ -336,32 +337,34 @@ let AssessmentsService = class AssessmentsService {
             if (template.includeGoals) {
                 const goals = await this.db
                     .select({
-                    id: schema_1.performanceGoals.id,
-                    title: schema_1.performanceGoals.title,
-                    dueDate: schema_1.performanceGoals.dueDate,
-                    weight: schema_1.performanceGoals.weight,
-                    status: schema_1.performanceGoals.status,
+                    id: performance_objectives_schema_1.objectives.id,
+                    title: performance_objectives_schema_1.objectives.title,
+                    dueDate: performance_objectives_schema_1.objectives.dueDate,
+                    weight: performance_objectives_schema_1.objectives.weight,
+                    status: performance_objectives_schema_1.objectives.status,
                     employee: (0, drizzle_orm_1.sql) `CONCAT(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
                     employeeId: schema_1.employees.id,
                     departmentName: schema_1.departments.name,
                     departmentId: schema_1.departments.id,
                 })
-                    .from(schema_1.performanceGoals)
-                    .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(schema_1.employees.id, schema_1.performanceGoals.employeeId))
+                    .from(performance_objectives_schema_1.objectives)
+                    .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(schema_1.employees.id, performance_objectives_schema_1.objectives.ownerEmployeeId))
                     .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.departments.id, schema_1.employees.departmentId))
-                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceGoals.employeeId, assessment.revieweeId)))
-                    .orderBy((0, drizzle_orm_1.desc)(schema_1.performanceGoals.assignedAt));
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_objectives_schema_1.objectives.ownerEmployeeId, assessment.revieweeId)))
+                    .orderBy((0, drizzle_orm_1.desc)(performance_objectives_schema_1.objectives.assignedAt));
                 const latestProgress = await this.db
                     .select({
-                    goalId: schema_1.performanceGoalUpdates.goalId,
-                    progress: schema_1.performanceGoalUpdates.progress,
+                    goalId: schema_1.performanceGoalUpdates.objectiveId,
+                    progress: schema_1.performanceGoalUpdates.progressPct,
                 })
                     .from(schema_1.performanceGoalUpdates)
-                    .where((0, drizzle_orm_1.inArray)(schema_1.performanceGoalUpdates.goalId, goals.map((g) => g.id)))
-                    .orderBy((0, drizzle_orm_1.desc)(schema_1.performanceGoalUpdates.createdAt));
+                    .where((0, drizzle_orm_1.inArray)(schema_1.performanceGoalUpdates.objectiveId, goals.map((g) => g.id)))
+                    .orderBy((0, drizzle_orm_1.desc)(performance_objectives_schema_1.objectives.assignedAt));
                 const progressMap = new Map();
                 for (const update of latestProgress) {
-                    if (!progressMap.has(update.goalId)) {
+                    if (update.goalId !== null &&
+                        update.progress !== null &&
+                        !progressMap.has(update.goalId)) {
                         progressMap.set(update.goalId, update.progress);
                     }
                 }

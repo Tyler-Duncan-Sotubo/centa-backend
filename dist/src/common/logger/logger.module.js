@@ -10,6 +10,7 @@ exports.LoggerModule = void 0;
 const common_1 = require("@nestjs/common");
 const nestjs_pino_1 = require("nestjs-pino");
 const isProd = process.env.NODE_ENV === 'production';
+const logtailToken = process.env.LOGTAIL_SOURCE_TOKEN;
 let LoggerModule = class LoggerModule {
 };
 exports.LoggerModule = LoggerModule;
@@ -24,30 +25,45 @@ exports.LoggerModule = LoggerModule = __decorate([
                             'req.headers.authorization',
                             'req.headers.cookie',
                             'res.headers["set-cookie"]',
+                            'req.body.password',
+                            'req.body.token',
                         ],
                         remove: true,
                     },
                     genReqId: (req) => req.headers['x-request-id'] || crypto.randomUUID(),
-                    transport: isProd
-                        ? undefined
-                        : {
-                            target: 'pino-pretty',
-                            options: {
-                                singleLine: true,
-                                colorize: true,
-                                translateTime: 'SYS:standard',
-                            },
-                        },
+                    transport: {
+                        targets: [
+                            ...(!isProd
+                                ? [
+                                    {
+                                        target: 'pino-pretty',
+                                        level: 'debug',
+                                        options: {
+                                            singleLine: true,
+                                            colorize: true,
+                                            translateTime: 'SYS:standard',
+                                        },
+                                    },
+                                ]
+                                : []),
+                            ...(logtailToken
+                                ? [
+                                    {
+                                        target: '@logtail/pino',
+                                        level: process.env.LOGTAIL_LEVEL || 'warn',
+                                        options: { sourceToken: logtailToken },
+                                    },
+                                ]
+                                : []),
+                        ],
+                    },
                     serializers: {
                         req(req) {
                             return {
                                 id: req.id,
                                 method: req.method,
                                 url: req.url,
-                                headers: {
-                                    host: req.headers?.host,
-                                    origin: req.headers?.origin,
-                                },
+                                headers: { host: req.headers?.host, origin: req.headers?.origin },
                                 remoteAddress: req.remoteAddress,
                             };
                         },
@@ -58,6 +74,7 @@ exports.LoggerModule = LoggerModule = __decorate([
                 },
             }),
         ],
+        exports: [nestjs_pino_1.LoggerModule],
     })
 ], LoggerModule);
 //# sourceMappingURL=logger.module.js.map

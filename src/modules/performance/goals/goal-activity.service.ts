@@ -1,294 +1,388 @@
+// src/modules/performance/activity/objective-activity.service.ts
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { db } from 'src/drizzle/types/drizzle';
-import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { Inject } from '@nestjs/common';
-import { eq, and, desc } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+
+import { DRIZZLE } from 'src/drizzle/drizzle.module';
+import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
-import { performanceGoals } from './schema/performance-goals.schema';
-import { performanceGoalUpdates } from './schema/performance-goal-updates.schema';
-import { AddGoalProgressDto } from './dto/add-goal-progress.dto';
-import { AddGoalCommentDto } from './dto/add-goal-comment.dto';
-import { goalComments } from './schema/goal-comments.schema';
-import { goalAttachments } from './schema/goal-attachments.schema';
-import { companyFileFolders } from 'src/drizzle/schema';
+
 import { S3StorageService } from 'src/common/aws/s3-storage.service';
+import {
+  companyFileFolders,
+  objectiveAttachments,
+  objectiveComments,
+  performanceGoalUpdates,
+} from 'src/drizzle/schema';
+import { keyResults } from './schema/performance-key-results.schema';
+import { objectives } from './schema/performance-objectives.schema';
+import { AddGoalCommentDto } from './dto/add-goal-comment.dto';
 import { UploadGoalAttachmentDto } from './dto/upload-goal-attachment.dto';
 import { UpdateGoalAttachmentDto } from './dto/update-goal-attachment.dto';
+import { AddKrCheckinDto } from './dto/add-kr-checkin.dto';
+import { AddObjectiveCheckinDto } from './dto/add-objective-checkin.dto';
 
 @Injectable()
 export class GoalActivityService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
-    private readonly auditService: AuditService,
-    private readonly s3Service: S3StorageService,
+    private readonly audit: AuditService,
+    private readonly s3: S3StorageService,
   ) {}
 
-  async addProgressUpdate(goalId: string, dto: AddGoalProgressDto, user: User) {
-    const { id: userId, companyId } = user;
-    const { progress, note } = dto;
+  // --------------------------------------------------------------------------
+  // CHECK-INS
+  // --------------------------------------------------------------------------
 
-    if (progress < 0 || progress > 100) {
-      throw new BadRequestException('Progress must be between 0 and 100');
-    }
+  /** Preferred: record a check-in on a Key Result */
+  async addKrCheckin(krId: string, dto: AddKrCheckinDto, user: User) {
+    const { id: userId } = user;
 
-    // 1. Ensure the goal exists
-    const [goal] = await this.db
-      .select()
-      .from(performanceGoals)
-      .where(
-        and(
-          eq(performanceGoals.id, goalId),
-          eq(performanceGoals.companyId, companyId),
-          eq(performanceGoals.isArchived, false), // Ensure goal is not archived
-        ),
-      );
-
-    if (!goal) {
-      throw new BadRequestException('Goal not found');
-    }
-
-    // 2. Get latest progress
-    const [latestUpdate] = await this.db
-      .select()
-      .from(performanceGoalUpdates)
-      .where(eq(performanceGoalUpdates.goalId, goalId))
-      .orderBy(desc(performanceGoalUpdates.createdAt))
+    // Load KR with objective for recompute
+    const [kr] = await this.db
+      .select({
+        id: keyResults.id,
+        objectiveId: keyResults.objectiveId,
+        type: keyResults.type, // "metric" | "milestone" | "binary"
+        direction: keyResults.direction, // "increase_to" | "decrease_to" | "at_least" | "at_most" | "range"
+        baseline: keyResults.baseline,
+        target: keyResults.target,
+        minRange: keyResults.minRange,
+        maxRange: keyResults.maxRange,
+        current: keyResults.current,
+        progressPct: keyResults.progressPct,
+        isArchived: keyResults.isArchived,
+      })
+      .from(keyResults)
+      .where(eq(keyResults.id, krId))
       .limit(1);
 
-    const lastProgress = latestUpdate?.progress ?? 0;
+    if (!kr || kr.isArchived)
+      throw new BadRequestException('Key Result not found or archived');
 
-    // 3. Prevent downgrade or duplicate 100% updates
-    if (lastProgress >= 100) {
-      throw new BadRequestException('Goal has already been completed');
-    }
+    // Compute progressPct based on KR type/config
+    const { computedCurrent, computedPct } = this.computeKrProgress(kr, dto);
 
-    if (progress < lastProgress) {
+    // Enforce non-decreasing progress unless allowed
+    const lastPct = kr.progressPct ?? 0;
+    if (!dto.allowRegression && computedPct < lastPct) {
       throw new BadRequestException(
-        `Cannot set progress to a lower value (${progress} < ${lastProgress})`,
+        `Cannot decrease progress (${computedPct.toFixed(2)} < ${lastPct.toFixed(2)})`,
       );
     }
 
-    if (progress === lastProgress) {
-      throw new BadRequestException(
-        'This progress value has already been recorded',
-      );
-    }
-
-    // 4. Insert new progress update
+    // Create update row
     const [update] = await this.db
       .insert(performanceGoalUpdates)
       .values({
-        goalId,
-        progress,
-        note,
-        createdAt: new Date(),
+        keyResultId: krId,
+        objectiveId: null,
+        value: computedCurrent !== null ? String(computedCurrent) : null,
+        progressPct: Math.round(computedPct),
+        note: dto.note ?? null,
         createdBy: userId,
+        createdAt: new Date(),
       })
       .returning();
+
+    // Update KR cache
+    await this.db
+      .update(keyResults)
+      .set({
+        current:
+          computedCurrent !== null ? String(computedCurrent) : kr.current,
+        progressPct: Math.round(computedPct),
+        updatedAt: new Date(),
+      })
+      .where(eq(keyResults.id, krId));
+
+    // Recompute objective score (weighted avg of non-archived KRs)
+    await this.recomputeObjectiveScore(kr.objectiveId);
+
+    await this.audit.logAction({
+      action: 'create',
+      entity: 'performance_progress_update',
+      entityId: update.id,
+      userId,
+      details: `KR check-in recorded for KR ${krId}`,
+      changes: { progressPct: update.progressPct, value: update.value },
+    });
 
     return update;
   }
 
-  async updateNote(goalId: string, note: string, user: User) {
+  /** Optional: record a manual check-in at the Objective level (no KR) */
+  async addObjectiveCheckin(
+    objectiveId: string,
+    dto: AddObjectiveCheckinDto,
+    user: User,
+  ) {
     const { id: userId } = user;
 
-    // 1. Ensure the goal exists
-    const [goalUpdate] = await this.db
-      .select()
-      .from(performanceGoalUpdates)
-      .where(eq(performanceGoalUpdates.id, goalId));
+    const [obj] = await this.db
+      .select({
+        id: objectives.id,
+        isArchived: objectives.isArchived,
+        score: objectives.score,
+      })
+      .from(objectives)
+      .where(eq(objectives.id, objectiveId))
+      .limit(1);
 
-    if (!goalUpdate) {
-      throw new BadRequestException('Goal not found');
-    }
+    if (!obj || obj.isArchived)
+      throw new BadRequestException('Objective not found or archived');
 
-    if (goalUpdate.createdBy !== userId) {
+    const pct = dto.progressPct;
+    if (pct < 0 || pct > 100)
+      throw new BadRequestException('progressPct must be 0..100');
+    if (!dto.allowRegression && obj.score != null && pct < obj.score) {
       throw new BadRequestException(
-        'You do not have permission to update this goal',
+        `Cannot decrease progress (${pct} < ${obj.score})`,
       );
     }
 
-    // 2. Update the note
-    const [updatedGoal] = await this.db
-      .update(performanceGoals)
-      .set({ note, updatedAt: new Date(), updatedBy: userId })
-      .where(eq(performanceGoals.id, goalId))
+    const [update] = await this.db
+      .insert(performanceGoalUpdates)
+      .values({
+        objectiveId,
+        keyResultId: null,
+        value: null,
+        progressPct: Math.round(pct),
+        note: dto.note ?? null,
+        createdBy: userId,
+        createdAt: new Date(),
+      })
       .returning();
 
-    // 3. Log the update in audit
-    await this.auditService.logAction({
-      action: 'update',
-      entity: 'performance_goal',
-      entityId: goalId,
+    await this.db
+      .update(objectives)
+      .set({ score: Math.round(pct), updatedAt: new Date() })
+      .where(eq(objectives.id, objectiveId));
+
+    await this.audit.logAction({
+      action: 'create',
+      entity: 'performance_progress_update',
+      entityId: update.id,
       userId,
-      details: `Updated note for goal ${goalId}`,
+      details: `Objective check-in recorded for Objective ${objectiveId}`,
+      changes: { progressPct: update.progressPct },
+    });
+
+    return update;
+  }
+
+  /** Edit the NOTE of a check-in (by its update id) */
+  async updateCheckinNote(updateId: string, note: string, user: User) {
+    const { id: userId } = user;
+
+    const [upd] = await this.db
+      .select({
+        id: performanceGoalUpdates.id,
+        createdBy: performanceGoalUpdates.createdBy,
+      })
+      .from(performanceGoalUpdates)
+      .where(eq(performanceGoalUpdates.id, updateId))
+      .limit(1);
+
+    if (!upd) throw new BadRequestException('Check-in not found');
+    if (upd.createdBy !== userId)
+      throw new BadRequestException(
+        'You do not have permission to update this check-in',
+      );
+
+    const [updated] = await this.db
+      .update(performanceGoalUpdates)
+      .set({ note, createdAt: new Date() }) // keep a simple updatedAt; if you have it, set updatedAt instead
+      .where(eq(performanceGoalUpdates.id, updateId))
+      .returning();
+
+    await this.audit.logAction({
+      action: 'update',
+      entity: 'performance_progress_update',
+      entityId: updateId,
+      userId,
+      details: `Updated check-in note ${updateId}`,
       changes: { note },
     });
 
-    return updatedGoal;
+    return updated;
   }
 
-  async addComment(goalId: string, user: User, dto: AddGoalCommentDto) {
-    const { id: userId, companyId } = user;
+  // --------------------------------------------------------------------------
+  // COMMENTS
+  // --------------------------------------------------------------------------
 
-    // 1. Ensure the goal exists
-    const [goal] = await this.db
-      .select()
-      .from(performanceGoals)
-      .where(
-        and(
-          eq(performanceGoals.id, goalId),
-          eq(performanceGoals.companyId, companyId),
-          eq(performanceGoals.isArchived, false), // Ensure goal is not archived
-        ),
-      );
+  /** Add a comment at either Objective or KR */
+  async addComment(
+    user: User,
+    dto: AddGoalCommentDto & {
+      objectiveId?: string | null;
+      keyResultId?: string | null;
+    },
+  ) {
+    const { id: userId } = user;
+    const { objectiveId, keyResultId, comment, isPrivate } = dto;
 
-    if (!goal) {
-      throw new BadRequestException('Goal not found');
-    }
+    this.assertXorTarget(objectiveId, keyResultId);
 
-    await this.db
-      .insert(goalComments)
-      .values({ ...dto, authorId: userId, goalId });
+    // target existence
+    if (objectiveId) await this.ensureObjectiveExists(objectiveId);
+    if (keyResultId) await this.ensureKrExists(keyResultId);
 
-    return { message: 'Comment added successfully' };
+    const [row] = await this.db
+      .insert(objectiveComments)
+      .values({
+        objectiveId: objectiveId ?? null,
+        keyResultId: keyResultId ?? null,
+        authorId: userId,
+        comment,
+        isPrivate: !!isPrivate,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+
+    await this.audit.logAction({
+      action: 'create',
+      entity: 'objective_comment',
+      entityId: row.id,
+      userId,
+      details: `Added ${isPrivate ? 'private ' : ''}comment`,
+    });
+
+    return row;
   }
 
   async updateComment(commentId: string, user: User, content: string) {
     const { id: userId } = user;
 
-    // 1. Ensure the comment exists
-    const [comment] = await this.db
-      .select()
-      .from(goalComments)
-      .where(
-        and(
-          eq(goalComments.id, commentId),
-          eq(goalComments.authorId, userId), // Ensure the user is the author
-          eq(goalComments.isPrivate, false), // Ensure the comment is not private
-        ),
+    const [row] = await this.db
+      .select({
+        id: objectiveComments.id,
+        authorId: objectiveComments.authorId,
+      })
+      .from(objectiveComments)
+      .where(eq(objectiveComments.id, commentId))
+      .limit(1);
+
+    if (!row) throw new BadRequestException('Comment not found');
+    if (row.authorId !== userId)
+      throw new BadRequestException(
+        'You do not have permission to edit this comment',
       );
 
-    if (!comment) {
-      throw new BadRequestException('Comment not found or inaccessible');
-    }
-
-    // 2. Update the comment
-    const [updatedComment] = await this.db
-      .update(goalComments)
+    const [updated] = await this.db
+      .update(objectiveComments)
       .set({ comment: content, updatedAt: new Date() })
-      .where(eq(goalComments.id, commentId))
+      .where(eq(objectiveComments.id, commentId))
       .returning();
 
-    // 3. Log the update in audit
-    await this.auditService.logAction({
+    await this.audit.logAction({
       action: 'update',
-      entity: 'goal_comment',
+      entity: 'objective_comment',
       entityId: commentId,
       userId,
-      details: `Updated comment on goal ${comment.goalId} by user ${userId}`,
+      details: `Updated comment ${commentId}`,
       changes: { content },
     });
 
-    return updatedComment;
+    return updated;
   }
 
   async deleteComment(commentId: string, user: User) {
     const { id: userId } = user;
-    // 1. Ensure the comment exists
-    const [comment] = await this.db
-      .select()
-      .from(goalComments)
-      .where(
-        and(
-          eq(goalComments.id, commentId),
-          eq(goalComments.authorId, userId), // Ensure the user is the author
-          eq(goalComments.isPrivate, false), // Ensure the comment is not private
-        ),
+
+    const [row] = await this.db
+      .select({
+        id: objectiveComments.id,
+        authorId: objectiveComments.authorId,
+        objectiveId: objectiveComments.objectiveId,
+        keyResultId: objectiveComments.keyResultId,
+      })
+      .from(objectiveComments)
+      .where(eq(objectiveComments.id, commentId))
+      .limit(1);
+
+    if (!row) throw new BadRequestException('Comment not found');
+    if (row.authorId !== userId)
+      throw new BadRequestException(
+        'You do not have permission to delete this comment',
       );
 
-    if (!comment) {
-      throw new BadRequestException('Comment not found or inaccessible');
-    }
-
     await this.db
-      .delete(goalComments)
-      .where(eq(goalComments.id, commentId))
-      .returning();
+      .delete(objectiveComments)
+      .where(eq(objectiveComments.id, commentId));
 
-    // 2.log the deletion in audit
-    await this.auditService.logAction({
+    await this.audit.logAction({
       action: 'delete',
-      entity: 'goal_comment',
+      entity: 'objective_comment',
       entityId: commentId,
-      userId: user.id,
-      details: `Deleted comment on goal ${comment.goalId} by user ${userId}`,
+      userId,
+      details: `Deleted comment ${commentId}`,
     });
 
     return { message: 'Comment deleted successfully' };
   }
 
-  async uploadGoalAttachment(
-    goalId: string,
-    dto: UploadGoalAttachmentDto,
-    user: User,
-  ) {
+  // --------------------------------------------------------------------------
+  // ATTACHMENTS
+  // --------------------------------------------------------------------------
+
+  /** Upload an attachment for an Objective or KR */
+  async uploadAttachment(dto: UploadGoalAttachmentDto, user: User) {
     const { id: userId, companyId } = user;
-    const { file, comment } = dto;
+    const { objectiveId, keyResultId } = dto;
 
-    // 1. Get or create "Goal Attachments" folder
-    const folderName = 'Goal Attachments';
-    const folder = await this.getOrCreateGoalFolder(companyId, folderName);
+    this.assertXorTarget(objectiveId, keyResultId);
+    if (objectiveId) await this.ensureObjectiveExists(objectiveId);
+    if (keyResultId) await this.ensureKrExists(keyResultId);
 
-    // 2. Parse file
-    const [meta, base64Data] = file.base64.split(',');
+    // Folder
+    const folder = await this.getOrCreateFolder(companyId, 'OKR Attachments');
+
+    // Parse file
+    const [meta, base64Data] = dto.file.base64.split(',');
     const mimeMatch = meta.match(/data:(.*);base64/);
     const mimeType = mimeMatch?.[1];
-    if (!mimeType || !base64Data) {
+    if (!mimeType || !base64Data)
       throw new BadRequestException('Invalid file format');
-    }
 
     const buffer = Buffer.from(base64Data, 'base64');
-    const key = `company-files/${companyId}/${folder.id}/${Date.now()}-${file.name}`;
+    const key = `company-files/${companyId}/${folder.id}/${Date.now()}-${dto.file.name}`;
 
-    // 3. Upload to S3
-    const { url } = await this.s3Service.uploadBuffer(
+    const { url } = await this.s3.uploadBuffer(
       buffer,
       key,
       companyId,
-      'goal_attachment',
+      'okr_attachment',
       'attachment',
       mimeType,
     );
 
-    // 4. Insert into performance_goal_attachments table
-    const [attachment] = await this.db
-      .insert(goalAttachments)
+    const [row] = await this.db
+      .insert(objectiveAttachments)
       .values({
-        goalId,
+        objectiveId: objectiveId ?? null,
+        keyResultId: keyResultId ?? null,
         uploadedById: userId,
         fileUrl: url,
-        fileName: file.name,
-        comment,
+        fileName: dto.file.name,
+        comment: dto.comment ?? null,
         createdAt: new Date(),
+        updatedAt: new Date(),
       })
       .returning();
 
-    // 5. Log action
-    await this.auditService.logAction({
+    await this.audit.logAction({
       action: 'upload',
-      entity: 'goal_attachment',
-      entityId: attachment.id,
+      entity: 'objective_attachment',
+      entityId: row.id,
       userId,
-      details: `Uploaded attachment for goal ${goalId}`,
-      changes: {
-        fileName: file.name,
-        url,
-      },
+      details: `Uploaded attachment (${dto.file.name})`,
     });
 
-    return attachment;
+    return row;
   }
 
   async updateAttachment(
@@ -297,111 +391,275 @@ export class GoalActivityService {
     dto: UpdateGoalAttachmentDto,
   ) {
     const { id: userId, companyId } = user;
-    const { file, comment } = dto;
 
-    // 1. Ensure the attachment exists
-    const [attachment] = await this.db
-      .select()
-      .from(goalAttachments)
-      .where(eq(goalAttachments.id, attachmentId));
-    if (!attachment) {
-      throw new BadRequestException('Attachment not found');
-    }
+    const [att] = await this.db
+      .select({
+        id: objectiveAttachments.id,
+        uploadedById: objectiveAttachments.uploadedById,
+        fileUrl: objectiveAttachments.fileUrl,
+        fileName: objectiveAttachments.fileName,
+      })
+      .from(objectiveAttachments)
+      .where(eq(objectiveAttachments.id, attachmentId))
+      .limit(1);
 
-    // 2. Ensure the user has permission to update it
-    if (attachment.uploadedById !== userId) {
+    if (!att) throw new BadRequestException('Attachment not found');
+    if (att.uploadedById !== userId)
       throw new BadRequestException(
         'You do not have permission to update this attachment',
       );
-    }
 
-    if (file) {
-      // 3. Parse file
-      const [meta, base64Data] = file.base64.split(',');
+    let fileName = att.fileName;
+    let fileUrl = att.fileUrl;
+
+    if (dto.file) {
+      const [meta, base64Data] = dto.file.base64.split(',');
       const mimeMatch = meta.match(/data:(.*);base64/);
       const mimeType = mimeMatch?.[1];
-      if (!mimeType || !base64Data) {
+      if (!mimeType || !base64Data)
         throw new BadRequestException('Invalid file format');
-      }
 
       const buffer = Buffer.from(base64Data, 'base64');
-      const key = `company-files/${companyId}/Goal Attachments/${Date.now()}-${file.name}`;
-
-      // 4. Upload to S3
-      const { url } = await this.s3Service.uploadBuffer(
+      const key = `company-files/${companyId}/OKR Attachments/${Date.now()}-${dto.file.name}`;
+      const uploaded = await this.s3.uploadBuffer(
         buffer,
         key,
         companyId,
-        'goal_attachment',
+        'okr_attachment',
         'attachment',
         mimeType,
       );
 
-      // 5. Update the attachment in the database
-      const [updatedAttachment] = await this.db
-        .update(goalAttachments)
-        .set({
-          fileUrl: url,
-          fileName: file.name,
-          comment,
-          updatedAt: new Date(),
-        })
-        .where(eq(goalAttachments.id, attachmentId))
-        .returning();
-
-      return updatedAttachment;
-    } else {
-      // 6. Update only the comment if no file is provided
-      const [updatedAttachment] = await this.db
-        .update(goalAttachments)
-        .set({
-          comment,
-          updatedAt: new Date(),
-        })
-        .where(eq(goalAttachments.id, attachmentId))
-        .returning();
-
-      return updatedAttachment;
+      fileName = dto.file.name;
+      fileUrl = uploaded.url;
     }
+
+    const [updated] = await this.db
+      .update(objectiveAttachments)
+      .set({
+        fileUrl,
+        fileName,
+        comment: dto.comment ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(objectiveAttachments.id, attachmentId))
+      .returning();
+
+    await this.audit.logAction({
+      action: 'update',
+      entity: 'objective_attachment',
+      entityId: attachmentId,
+      userId,
+      details: `Updated attachment ${attachmentId}`,
+    });
+
+    return updated;
   }
 
   async deleteAttachment(attachmentId: string, user: User) {
-    // 1. Ensure the attachment exists
-    const [attachment] = await this.db
-      .select()
-      .from(goalAttachments)
-      .where(eq(goalAttachments.id, attachmentId));
+    const { id: userId } = user;
 
-    // 2. Ensure the user has permission to delete it
-    if (!attachment) {
-      throw new BadRequestException('Attachment not found');
-    }
+    const [att] = await this.db
+      .select({
+        id: objectiveAttachments.id,
+        uploadedById: objectiveAttachments.uploadedById,
+        fileUrl: objectiveAttachments.fileUrl,
+      })
+      .from(objectiveAttachments)
+      .where(eq(objectiveAttachments.id, attachmentId))
+      .limit(1);
 
-    if (attachment.uploadedById !== user.id) {
+    if (!att) throw new BadRequestException('Attachment not found');
+    if (att.uploadedById !== userId)
       throw new BadRequestException(
         'You do not have permission to delete this attachment',
       );
-    }
 
-    await this.s3Service.deleteFileFromS3(attachment.fileUrl);
-
-    // 3. Delete the attachment
+    await this.s3.deleteFileFromS3(att.fileUrl);
     await this.db
-      .delete(goalAttachments)
-      .where(eq(goalAttachments.id, attachmentId))
-      .returning();
+      .delete(objectiveAttachments)
+      .where(eq(objectiveAttachments.id, attachmentId));
 
-    // 4. Log the deletion in audit
-    await this.auditService.logAction({
+    await this.audit.logAction({
       action: 'delete',
-      entity: 'goal_attachment',
+      entity: 'objective_attachment',
       entityId: attachmentId,
-      userId: user.id,
-      details: `Deleted attachment for goal ${attachment.goalId} by user ${user.id}`,
+      userId,
+      details: `Deleted attachment ${attachmentId}`,
     });
+
+    return { message: 'Attachment deleted successfully' };
   }
 
-  private async getOrCreateGoalFolder(companyId: string, name: string) {
+  // --------------------------------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------------------------------
+
+  /** Compute KR progress% and current value depending on KR type/config */
+  private computeKrProgress(
+    kr: {
+      type: 'metric' | 'milestone' | 'binary';
+      direction:
+        | 'increase_to'
+        | 'decrease_to'
+        | 'at_least'
+        | 'at_most'
+        | 'range'
+        | null;
+      baseline: string | number | null;
+      target: string | number | null;
+      minRange: string | number | null;
+      maxRange: string | number | null;
+      current: string | number | null;
+    },
+    dto: AddKrCheckinDto,
+  ): { computedCurrent: number | null; computedPct: number } {
+    const num = (v: any) => (v === null || v === undefined ? null : Number(v));
+
+    // Metric KR
+    if (kr.type === 'metric' && kr.direction) {
+      const baseline = num(kr.baseline);
+      const target = num(kr.target);
+      const minR = num(kr.minRange);
+      const maxR = num(kr.maxRange);
+      const current =
+        dto.value !== undefined && dto.value !== null
+          ? Number(dto.value)
+          : num(kr.current);
+
+      if (current === null)
+        throw new BadRequestException(
+          'value is required for metric KR check-ins',
+        );
+
+      let pct = 0;
+
+      switch (kr.direction) {
+        case 'increase_to':
+        case 'at_least': {
+          if (baseline === null || target === null)
+            throw new BadRequestException('baseline/target required');
+          pct = (current - baseline) / (target - baseline);
+          break;
+        }
+        case 'decrease_to':
+        case 'at_most': {
+          if (baseline === null || target === null)
+            throw new BadRequestException('baseline/target required');
+          pct = (baseline - current) / (baseline - target);
+          break;
+        }
+        case 'range': {
+          if (minR === null || maxR === null)
+            throw new BadRequestException('min/max range required');
+          if (current >= minR && current <= maxR) pct = 1;
+          else {
+            // outside range -> 0 (or you can grade distance; keeping simple)
+            pct = 0;
+          }
+          break;
+        }
+        default:
+          pct = 0;
+      }
+
+      pct = Math.max(0, Math.min(1, pct));
+      return { computedCurrent: current, computedPct: pct * 100 };
+    }
+
+    // Milestone/binary or manual: use provided progressPct
+    const pct = dto.progressPct;
+    if (pct === undefined || pct === null) {
+      throw new BadRequestException(
+        'progressPct is required for non-metric KR check-ins',
+      );
+    }
+    if (pct < 0 || pct > 100)
+      throw new BadRequestException('progressPct must be 0..100');
+
+    return { computedCurrent: null, computedPct: pct };
+  }
+
+  /** Weighted average of active KRs progressPct; stores as 0..100 in objectives.score */
+  private async recomputeObjectiveScore(objectiveId: string) {
+    // pull KRs (non-archived) with weights
+    const rows = await this.db
+      .select({
+        weight: keyResults.weight,
+        progressPct: keyResults.progressPct,
+        isArchived: keyResults.isArchived,
+      })
+      .from(keyResults)
+      .where(
+        and(
+          eq(keyResults.objectiveId, objectiveId),
+          eq(keyResults.isArchived, false),
+        ),
+      );
+
+    if (rows.length === 0) {
+      await this.db
+        .update(objectives)
+        .set({ score: null, updatedAt: new Date() })
+        .where(eq(objectives.id, objectiveId));
+      return;
+    }
+
+    let sumW = 0;
+    let acc = 0;
+    for (const r of rows) {
+      const w = r.weight ?? 0;
+      const pct = r.progressPct ?? 0;
+      sumW += w || 0;
+      acc += (w || 0) * pct;
+    }
+
+    const score =
+      sumW > 0
+        ? Math.round(acc / sumW)
+        : Math.round(
+            rows.reduce((a, r) => a + (r.progressPct ?? 0), 0) / rows.length,
+          );
+
+    await this.db
+      .update(objectives)
+      .set({ score, updatedAt: new Date() })
+      .where(eq(objectives.id, objectiveId));
+  }
+
+  private async ensureObjectiveExists(objectiveId: string) {
+    const [obj] = await this.db
+      .select({ id: objectives.id, isArchived: objectives.isArchived })
+      .from(objectives)
+      .where(eq(objectives.id, objectiveId))
+      .limit(1);
+    if (!obj || obj.isArchived)
+      throw new BadRequestException('Objective not found or archived');
+  }
+
+  private async ensureKrExists(krId: string) {
+    const [kr] = await this.db
+      .select({ id: keyResults.id, isArchived: keyResults.isArchived })
+      .from(keyResults)
+      .where(eq(keyResults.id, krId))
+      .limit(1);
+    if (!kr || kr.isArchived)
+      throw new BadRequestException('Key Result not found or archived');
+  }
+
+  private assertXorTarget(
+    objectiveId?: string | null,
+    keyResultId?: string | null,
+  ) {
+    const a = !!objectiveId;
+    const b = !!keyResultId;
+    if (a === b)
+      throw new BadRequestException(
+        'Provide exactly one of objectiveId or keyResultId',
+      );
+  }
+
+  private async getOrCreateFolder(companyId: string, name: string) {
     let [folder] = await this.db
       .select()
       .from(companyFileFolders)
@@ -415,14 +673,9 @@ export class GoalActivityService {
     if (!folder) {
       [folder] = await this.db
         .insert(companyFileFolders)
-        .values({
-          companyId,
-          name,
-          createdAt: new Date(),
-        })
+        .values({ companyId, name, createdAt: new Date() })
         .returning();
     }
-
     return folder;
   }
 }

@@ -8,100 +8,7 @@ export declare class GroupsService {
     private readonly db;
     private readonly auditService;
     private readonly cache;
-    protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
-        name: "employee_groups";
-        schema: undefined;
-        columns: {
-            id: import("drizzle-orm/pg-core").PgColumn<{
-                name: "id";
-                tableName: "employee_groups";
-                dataType: "string";
-                columnType: "PgUUID";
-                data: string;
-                driverParam: string;
-                notNull: true;
-                hasDefault: true;
-                isPrimaryKey: true;
-                isAutoincrement: false;
-                hasRuntimeDefault: false;
-                enumValues: undefined;
-                baseColumn: never;
-                identity: undefined;
-                generated: undefined;
-            }, {}, {}>;
-            name: import("drizzle-orm/pg-core").PgColumn<{
-                name: "name";
-                tableName: "employee_groups";
-                dataType: "string";
-                columnType: "PgVarchar";
-                data: string;
-                driverParam: string;
-                notNull: true;
-                hasDefault: false;
-                isPrimaryKey: false;
-                isAutoincrement: false;
-                hasRuntimeDefault: false;
-                enumValues: [string, ...string[]];
-                baseColumn: never;
-                identity: undefined;
-                generated: undefined;
-            }, {}, {
-                length: 100;
-            }>;
-            createdAt: import("drizzle-orm/pg-core").PgColumn<{
-                name: "created_at";
-                tableName: "employee_groups";
-                dataType: "date";
-                columnType: "PgTimestamp";
-                data: Date;
-                driverParam: string;
-                notNull: true;
-                hasDefault: true;
-                isPrimaryKey: false;
-                isAutoincrement: false;
-                hasRuntimeDefault: false;
-                enumValues: undefined;
-                baseColumn: never;
-                identity: undefined;
-                generated: undefined;
-            }, {}, {}>;
-            updatedAt: import("drizzle-orm/pg-core").PgColumn<{
-                name: "updated_at";
-                tableName: "employee_groups";
-                dataType: "date";
-                columnType: "PgTimestamp";
-                data: Date;
-                driverParam: string;
-                notNull: true;
-                hasDefault: true;
-                isPrimaryKey: false;
-                isAutoincrement: false;
-                hasRuntimeDefault: false;
-                enumValues: undefined;
-                baseColumn: never;
-                identity: undefined;
-                generated: undefined;
-            }, {}, {}>;
-            companyId: import("drizzle-orm/pg-core").PgColumn<{
-                name: "company_id";
-                tableName: "employee_groups";
-                dataType: "string";
-                columnType: "PgUUID";
-                data: string;
-                driverParam: string;
-                notNull: true;
-                hasDefault: false;
-                isPrimaryKey: false;
-                isAutoincrement: false;
-                hasRuntimeDefault: false;
-                enumValues: undefined;
-                baseColumn: never;
-                identity: undefined;
-                generated: undefined;
-            }, {}, {}>;
-        };
-        dialect: "pg";
-    }>;
+    protected table: any;
     protected tableMembers: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "employee_group_memberships";
         schema: undefined;
@@ -140,8 +47,129 @@ export declare class GroupsService {
                 identity: undefined;
                 generated: undefined;
             }, {}, {}>;
+            role: import("drizzle-orm/pg-core").PgColumn<{
+                name: "role";
+                tableName: "employee_group_memberships";
+                dataType: "string";
+                columnType: "PgEnumColumn";
+                data: "member" | "lead" | "manager" | "contractor";
+                driverParam: string;
+                notNull: true;
+                hasDefault: true;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: ["member", "lead", "manager", "contractor"];
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {}>;
+            isPrimary: import("drizzle-orm/pg-core").PgColumn<{
+                name: "is_primary";
+                tableName: "employee_group_memberships";
+                dataType: "boolean";
+                columnType: "PgBoolean";
+                data: boolean;
+                driverParam: boolean;
+                notNull: true;
+                hasDefault: true;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: undefined;
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {}>;
+            title: import("drizzle-orm/pg-core").PgColumn<{
+                name: "title";
+                tableName: "employee_group_memberships";
+                dataType: "string";
+                columnType: "PgVarchar";
+                data: string;
+                driverParam: string;
+                notNull: false;
+                hasDefault: false;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: [string, ...string[]];
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {
+                length: 120;
+            }>;
+            startDate: import("drizzle-orm/pg-core").PgColumn<{
+                name: "start_date";
+                tableName: "employee_group_memberships";
+                dataType: "string";
+                columnType: "PgDateString";
+                data: string;
+                driverParam: string;
+                notNull: false;
+                hasDefault: false;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: undefined;
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {}>;
+            endDate: import("drizzle-orm/pg-core").PgColumn<{
+                name: "end_date";
+                tableName: "employee_group_memberships";
+                dataType: "string";
+                columnType: "PgDateString";
+                data: string;
+                driverParam: string;
+                notNull: false;
+                hasDefault: false;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: undefined;
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {}>;
+            allocationPct: import("drizzle-orm/pg-core").PgColumn<{
+                name: "allocation_pct";
+                tableName: "employee_group_memberships";
+                dataType: "number";
+                columnType: "PgInteger";
+                data: number;
+                driverParam: string | number;
+                notNull: false;
+                hasDefault: false;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: undefined;
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {}>;
             joinedAt: import("drizzle-orm/pg-core").PgColumn<{
                 name: "joined_at";
+                tableName: "employee_group_memberships";
+                dataType: "date";
+                columnType: "PgTimestamp";
+                data: Date;
+                driverParam: string;
+                notNull: true;
+                hasDefault: true;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: undefined;
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {}>;
+            updatedAt: import("drizzle-orm/pg-core").PgColumn<{
+                name: "updated_at";
                 tableName: "employee_group_memberships";
                 dataType: "date";
                 columnType: "PgTimestamp";
@@ -162,57 +190,151 @@ export declare class GroupsService {
     }>;
     constructor(db: db, auditService: AuditService, cache: CacheService);
     private tags;
-    create(createGroupDto: CreateGroupDto, user: User, ip: string): Promise<{
-        id: string;
-        name: string;
-        createdAt: Date;
-        updatedAt: Date;
-        companyId: string;
-    }>;
-    addMembers(groupId: string, employeeIds: AddGroupMembersDto, user: User, ip: string): Promise<{
+    private getGroupOrThrow;
+    private assertSameCompany;
+    private clearOtherPrimariesForEmployee;
+    private normalizeCreateMembers;
+    private normalizeAddMembers;
+    create(createGroupDto: CreateGroupDto, user: User, ip: string): Promise<any>;
+    addMembers(groupId: string, body: AddGroupMembersDto, user: User, ip: string): Promise<{
         message: string;
-        members: {
-            groupId: string;
-            employeeId: string;
-        }[];
+        members: any;
     }>;
-    findAll(companyId: string): Promise<{
-        id: string;
-        name: string;
-        createdAt: Date;
+    findAll(companyId: string): Promise<({
+        id: any;
+        name: any;
+        type: any;
+        parentGroupId: any;
+        createdAt: any;
         members: number;
-    }[]>;
+        leadEmployeeId: string | null;
+        leadEmployeeName: string | null;
+    } | {
+        id: any;
+        name: any;
+        type: any;
+        parentGroupId: any;
+        createdAt: any;
+        members: number;
+        leadEmployeeId: string | null;
+        leadEmployeeName: string | null;
+    } | {
+        id: any;
+        name: any;
+        type: any;
+        parentGroupId: any;
+        createdAt: any;
+        members: number;
+        leadEmployeeId: string | null;
+        leadEmployeeName: string | null;
+    } | {
+        id: any;
+        name: any;
+        type: any;
+        parentGroupId: any;
+        createdAt: any;
+        members: number;
+        leadEmployeeId: string | null;
+        leadEmployeeName: string | null;
+    })[]>;
     findOne(id: string): Promise<{
         members: ({
+            groupId: string;
+            employeeId: string;
+            role: "member" | "lead" | "manager" | "contractor";
+            isPrimary: boolean;
+            title: string | null;
+            startDate: string | null;
+            endDate: string | null;
+            allocationPct: number | null;
+            joinedAt: Date;
+            updatedAt: Date;
             id: any;
             firstName: any;
             lastName: any;
             email: any;
         } | {
+            groupId: string;
+            employeeId: string;
+            role: "member" | "lead" | "manager" | "contractor";
+            isPrimary: boolean;
+            title: string | null;
+            startDate: string | null;
+            endDate: string | null;
+            allocationPct: number | null;
+            joinedAt: Date;
+            updatedAt: Date;
             id: any;
             firstName: any;
             lastName: any;
             email: any;
         })[];
-        id: string;
-        name: string;
-        companyId: string;
+        id: any;
+        name: any;
+        companyId: any;
+    } | {
+        members: ({
+            groupId: string;
+            employeeId: string;
+            role: "member" | "lead" | "manager" | "contractor";
+            isPrimary: boolean;
+            title: string | null;
+            startDate: string | null;
+            endDate: string | null;
+            allocationPct: number | null;
+            joinedAt: Date;
+            updatedAt: Date;
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: any;
+        } | {
+            groupId: string;
+            employeeId: string;
+            role: "member" | "lead" | "manager" | "contractor";
+            isPrimary: boolean;
+            title: string | null;
+            startDate: string | null;
+            endDate: string | null;
+            allocationPct: number | null;
+            joinedAt: Date;
+            updatedAt: Date;
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: any;
+        })[];
+        id: any;
+        name: any;
+        companyId: any;
     }>;
-    findEmployeesGroups(employeeId: string): Promise<{
-        id: string;
-        name: string;
-    }[]>;
+    findEmployeesGroups(employeeId: string): Promise<({
+        id: any;
+        name: any;
+        type: any;
+        parentGroupId: any;
+        role: "member" | "lead" | "manager" | "contractor";
+        isPrimary: boolean;
+        startDate: string | null;
+        endDate: string | null;
+        allocationPct: number | null;
+    } | {
+        id: any;
+        name: any;
+        type: any;
+        parentGroupId: any;
+        role: "member" | "lead" | "manager" | "contractor";
+        isPrimary: boolean;
+        startDate: string | null;
+        endDate: string | null;
+        allocationPct: number | null;
+    })[]>;
     update(groupId: string, updateGroupDto: UpdateGroupDto, user: User, ip: string): Promise<{
-        id: string;
-        name: string;
-        createdAt: Date;
-        updatedAt: Date;
-        companyId: string;
+        [x: string]: any;
     }>;
-    remove(id: string): Promise<string>;
-    removeMembers(groupId: string, employeeId: AddGroupMembersDto, user: User, ip: string): Promise<{
+    remove(id: string, user: User): Promise<string>;
+    removeMembers(groupId: string, body: AddGroupMembersDto, user: User, ip: string): Promise<{
         message: string;
-        members: AddGroupMembersDto;
+        members: any;
     }>;
-    private findGroup;
 }

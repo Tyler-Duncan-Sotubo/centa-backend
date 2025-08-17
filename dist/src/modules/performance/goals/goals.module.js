@@ -11,13 +11,15 @@ const common_1 = require("@nestjs/common");
 const goals_service_1 = require("./goals.service");
 const goals_controller_1 = require("./goals.controller");
 const goal_activity_service_1 = require("./goal-activity.service");
+const goal_policy_controller_1 = require("./goal-policy.controller");
+const goal_policy_service_1 = require("./goal-policy.service");
 let GoalsModule = class GoalsModule {
 };
 exports.GoalsModule = GoalsModule;
 exports.GoalsModule = GoalsModule = __decorate([
     (0, common_1.Module)({
-        controllers: [goals_controller_1.GoalsController],
-        providers: [goals_service_1.GoalsService, goal_activity_service_1.GoalActivityService],
+        controllers: [goals_controller_1.GoalsController, goal_policy_controller_1.PerformancePolicyController],
+        providers: [goals_service_1.GoalsService, goal_activity_service_1.GoalActivityService, goal_policy_service_1.PolicyService],
     })
 ], GoalsModule);
 //# sourceMappingURL=goals.module.js.map

@@ -6,52 +6,125 @@ import { BaseController } from 'src/common/interceptor/base.controller';
 export declare class GroupsController extends BaseController {
     private readonly groupsService;
     constructor(groupsService: GroupsService);
-    create(createGroupDto: CreateGroupDto, user: User, ip: string): Promise<{
-        id: string;
-        name: string;
-        createdAt: Date;
-        updatedAt: Date;
-        companyId: string;
-    }>;
+    create(createGroupDto: CreateGroupDto, user: User, ip: string): Promise<any>;
     addMembers(id: string, employeeIds: AddGroupMembersDto, user: User, ip: string): Promise<{
         message: string;
-        members: {
-            groupId: string;
-            employeeId: string;
-        }[];
+        members: any;
     }>;
-    findAll(user: User): Promise<{
-        id: string;
-        name: string;
-        createdAt: Date;
+    findAll(user: User): Promise<({
+        id: any;
+        name: any;
+        type: any;
+        parentGroupId: any;
+        createdAt: any;
         members: number;
-    }[]>;
+        leadEmployeeId: string | null;
+        leadEmployeeName: string | null;
+    } | {
+        id: any;
+        name: any;
+        type: any;
+        parentGroupId: any;
+        createdAt: any;
+        members: number;
+        leadEmployeeId: string | null;
+        leadEmployeeName: string | null;
+    } | {
+        id: any;
+        name: any;
+        type: any;
+        parentGroupId: any;
+        createdAt: any;
+        members: number;
+        leadEmployeeId: string | null;
+        leadEmployeeName: string | null;
+    } | {
+        id: any;
+        name: any;
+        type: any;
+        parentGroupId: any;
+        createdAt: any;
+        members: number;
+        leadEmployeeId: string | null;
+        leadEmployeeName: string | null;
+    })[]>;
     findOne(id: string): Promise<{
         members: ({
+            groupId: string;
+            employeeId: string;
+            role: "member" | "lead" | "manager" | "contractor";
+            isPrimary: boolean;
+            title: string | null;
+            startDate: string | null;
+            endDate: string | null;
+            allocationPct: number | null;
+            joinedAt: Date;
+            updatedAt: Date;
             id: any;
             firstName: any;
             lastName: any;
             email: any;
         } | {
+            groupId: string;
+            employeeId: string;
+            role: "member" | "lead" | "manager" | "contractor";
+            isPrimary: boolean;
+            title: string | null;
+            startDate: string | null;
+            endDate: string | null;
+            allocationPct: number | null;
+            joinedAt: Date;
+            updatedAt: Date;
             id: any;
             firstName: any;
             lastName: any;
             email: any;
         })[];
-        id: string;
-        name: string;
-        companyId: string;
+        id: any;
+        name: any;
+        companyId: any;
+    } | {
+        members: ({
+            groupId: string;
+            employeeId: string;
+            role: "member" | "lead" | "manager" | "contractor";
+            isPrimary: boolean;
+            title: string | null;
+            startDate: string | null;
+            endDate: string | null;
+            allocationPct: number | null;
+            joinedAt: Date;
+            updatedAt: Date;
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: any;
+        } | {
+            groupId: string;
+            employeeId: string;
+            role: "member" | "lead" | "manager" | "contractor";
+            isPrimary: boolean;
+            title: string | null;
+            startDate: string | null;
+            endDate: string | null;
+            allocationPct: number | null;
+            joinedAt: Date;
+            updatedAt: Date;
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: any;
+        })[];
+        id: any;
+        name: any;
+        companyId: any;
     }>;
     update(id: string, updateGroupDto: UpdateGroupDto, user: User, ip: string): Promise<{
-        id: string;
-        name: string;
-        createdAt: Date;
-        updatedAt: Date;
-        companyId: string;
+        [x: string]: any;
     }>;
-    remove(id: string): Promise<string>;
+    remove(id: string, user: User): Promise<string>;
     removeMembers(id: string, employeeIds: AddGroupMembersDto, user: User, ip: string): Promise<{
         message: string;
-        members: AddGroupMembersDto;
+        members: any;
     }>;
 }

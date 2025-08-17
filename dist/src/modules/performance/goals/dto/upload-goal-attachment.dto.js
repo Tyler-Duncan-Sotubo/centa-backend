@@ -28,6 +28,16 @@ class UploadGoalAttachmentDto {
 }
 exports.UploadGoalAttachmentDto = UploadGoalAttachmentDto;
 __decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", Object)
+], UploadGoalAttachmentDto.prototype, "objectiveId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", Object)
+], UploadGoalAttachmentDto.prototype, "keyResultId", void 0);
+__decorate([
     (0, class_validator_1.ValidateNested)(),
     (0, class_transformer_1.Type)(() => FileDto),
     __metadata("design:type", FileDto)

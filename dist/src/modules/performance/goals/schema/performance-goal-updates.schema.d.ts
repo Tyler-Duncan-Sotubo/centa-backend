@@ -1,10 +1,10 @@
 export declare const performanceGoalUpdates: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "performance_goal_updates";
+    name: "performance_progress_updates";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "performance_goal_updates";
+            tableName: "performance_progress_updates";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -19,14 +19,14 @@ export declare const performanceGoalUpdates: import("drizzle-orm/pg-core").PgTab
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
-        goalId: import("drizzle-orm/pg-core").PgColumn<{
-            name: "goal_id";
-            tableName: "performance_goal_updates";
+        objectiveId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "objective_id";
+            tableName: "performance_progress_updates";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
             driverParam: string;
-            notNull: true;
+            notNull: false;
             hasDefault: false;
             isPrimaryKey: false;
             isAutoincrement: false;
@@ -36,15 +36,49 @@ export declare const performanceGoalUpdates: import("drizzle-orm/pg-core").PgTab
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
-        progress: import("drizzle-orm/pg-core").PgColumn<{
-            name: "progress";
-            tableName: "performance_goal_updates";
+        keyResultId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "key_result_id";
+            tableName: "performance_progress_updates";
+            dataType: "string";
+            columnType: "PgUUID";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        value: import("drizzle-orm/pg-core").PgColumn<{
+            name: "value";
+            tableName: "performance_progress_updates";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        progressPct: import("drizzle-orm/pg-core").PgColumn<{
+            name: "progress_pct";
+            tableName: "performance_progress_updates";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
             driverParam: string | number;
-            notNull: true;
-            hasDefault: true;
+            notNull: false;
+            hasDefault: false;
             isPrimaryKey: false;
             isAutoincrement: false;
             hasRuntimeDefault: false;
@@ -55,7 +89,7 @@ export declare const performanceGoalUpdates: import("drizzle-orm/pg-core").PgTab
         }, {}, {}>;
         note: import("drizzle-orm/pg-core").PgColumn<{
             name: "note";
-            tableName: "performance_goal_updates";
+            tableName: "performance_progress_updates";
             dataType: "string";
             columnType: "PgText";
             data: string;
@@ -72,7 +106,7 @@ export declare const performanceGoalUpdates: import("drizzle-orm/pg-core").PgTab
         }, {}, {}>;
         createdBy: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_by";
-            tableName: "performance_goal_updates";
+            tableName: "performance_progress_updates";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -89,7 +123,7 @@ export declare const performanceGoalUpdates: import("drizzle-orm/pg-core").PgTab
         }, {}, {}>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
-            tableName: "performance_goal_updates";
+            tableName: "performance_progress_updates";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;

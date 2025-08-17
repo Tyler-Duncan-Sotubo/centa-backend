@@ -42,8 +42,8 @@ let GroupsController = class GroupsController extends base_controller_1.BaseCont
     update(id, updateGroupDto, user, ip) {
         return this.groupsService.update(id, updateGroupDto, user, ip);
     }
-    remove(id) {
-        return this.groupsService.remove(id);
+    remove(id, user) {
+        return this.groupsService.remove(id, user);
     }
     removeMembers(id, employeeIds, user, ip) {
         return this.groupsService.removeMembers(id, employeeIds, user, ip);
@@ -113,8 +113,9 @@ __decorate([
     }),
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], GroupsController.prototype, "remove", null);
 __decorate([

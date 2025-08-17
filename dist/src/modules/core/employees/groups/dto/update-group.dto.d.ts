@@ -1,5 +1,11 @@
-import { CreateGroupDto } from './create-group.dto';
-declare const UpdateGroupDto_base: import("@nestjs/mapped-types").MappedType<Partial<CreateGroupDto>>;
-export declare class UpdateGroupDto extends UpdateGroupDto_base {
+import { GroupType, CreateGroupMemberDto } from './create-group.dto';
+export declare class UpdateGroupDto {
+    name?: string;
+    slug?: string;
+    type?: GroupType;
+    parentGroupId?: string;
+    location?: string;
+    timezone?: string;
+    headcountCap?: number;
+    members?: CreateGroupMemberDto[];
 }
-export {};

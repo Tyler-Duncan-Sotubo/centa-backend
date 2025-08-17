@@ -3,6 +3,8 @@ declare class FileDto {
     base64: string;
 }
 export declare class UploadGoalAttachmentDto {
+    objectiveId?: string | null;
+    keyResultId?: string | null;
     file: FileDto;
     comment: string;
 }

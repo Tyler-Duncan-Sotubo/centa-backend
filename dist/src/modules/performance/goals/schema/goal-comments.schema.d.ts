@@ -1,4 +1,4 @@
-export declare const goalComments: import("drizzle-orm/pg-core").PgTableWithColumns<{
+export declare const objectiveComments: import("drizzle-orm/pg-core").PgTableWithColumns<{
     name: "performance_goal_comments";
     schema: undefined;
     columns: {
@@ -19,14 +19,31 @@ export declare const goalComments: import("drizzle-orm/pg-core").PgTableWithColu
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
-        goalId: import("drizzle-orm/pg-core").PgColumn<{
-            name: "goal_id";
+        objectiveId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "objective_id";
             tableName: "performance_goal_comments";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
             driverParam: string;
-            notNull: true;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        keyResultId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "key_result_id";
+            tableName: "performance_goal_comments";
+            dataType: "string";
+            columnType: "PgUUID";
+            data: string;
+            driverParam: string;
+            notNull: false;
             hasDefault: false;
             isPrimaryKey: false;
             isAutoincrement: false;

@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsString, ValidateNested } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 class FileDto {
@@ -12,6 +18,14 @@ class FileDto {
 }
 
 export class UploadGoalAttachmentDto {
+  @IsOptional()
+  @IsUUID()
+  objectiveId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  keyResultId?: string | null;
+
   @ValidateNested()
   @Type(() => FileDto)
   file: FileDto;

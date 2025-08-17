@@ -41,7 +41,7 @@ export declare const feedbackRules: import("drizzle-orm/pg-core").PgTableWithCol
             tableName: "performance_feedback_rules";
             dataType: "string";
             columnType: "PgText";
-            data: "employee" | "manager";
+            data: "manager" | "employee";
             driverParam: string;
             notNull: true;
             hasDefault: false;
@@ -53,7 +53,7 @@ export declare const feedbackRules: import("drizzle-orm/pg-core").PgTableWithCol
             identity: undefined;
             generated: undefined;
         }, {}, {
-            $type: "employee" | "manager";
+            $type: "manager" | "employee";
         }>;
         type: import("drizzle-orm/pg-core").PgColumn<{
             name: "type";
