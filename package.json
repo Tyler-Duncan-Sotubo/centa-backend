@@ -30,6 +30,7 @@
     "@fastify/etag": "^6.0.3",
     "@fastify/multipart": "^9.0.3",
     "@keyv/redis": "^5.1.0",
+    "@logtail/pino": "^0.5.5",
     "@nestjs/bullmq": "^11.0.2",
     "@nestjs/cache-manager": "^3.0.1",
     "@nestjs/common": "^11.1.0",
