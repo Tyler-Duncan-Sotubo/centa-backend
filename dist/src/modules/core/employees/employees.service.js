@@ -11,9 +11,11 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var EmployeesService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EmployeesService = void 0;
 const common_1 = require("@nestjs/common");
+const nestjs_pino_1 = require("nestjs-pino");
 const jwt = require("jsonwebtoken");
 const audit_service_1 = require("../../audit/audit.service");
 const drizzle_module_1 = require("../../../drizzle/drizzle.module");
@@ -54,9 +56,10 @@ const payslip_service_1 = require("../../payroll/payslip/payslip.service");
 const leave_requests_schema_1 = require("../../leave/schema/leave-requests.schema");
 const leave_types_schema_1 = require("../../leave/schema/leave-types.schema");
 const onboarding_service_1 = require("../../lifecycle/onboarding/onboarding.service");
-let EmployeesService = class EmployeesService {
-    constructor(db, audit, profileService, historyService, dependentsService, certificationsService, compensationService, financeService, deptSvc, roleSvc, ccSvc, groupsService, config, employeeInvitationService, cacheService, companySettingsService, permissionService, leaveBalanceService, attendanceSettingsService, employeeShiftsService, payslipService, onboardingService) {
+let EmployeesService = EmployeesService_1 = class EmployeesService {
+    constructor(db, logger, audit, profileService, historyService, dependentsService, certificationsService, compensationService, financeService, deptSvc, roleSvc, ccSvc, groupsService, config, employeeInvitationService, cacheService, companySettingsService, permissionService, leaveBalanceService, attendanceSettingsService, employeeShiftsService, payslipService, onboardingService) {
         this.db = db;
+        this.logger = logger;
         this.audit = audit;
         this.profileService = profileService;
         this.historyService = historyService;
@@ -79,6 +82,7 @@ let EmployeesService = class EmployeesService {
         this.payslipService = payslipService;
         this.onboardingService = onboardingService;
         this.table = schema_1.employees;
+        this.logger.setContext(EmployeesService_1.name);
     }
     kCompany(companyId, ...parts) {
         return parts;
@@ -857,269 +861,316 @@ let EmployeesService = class EmployeesService {
         return wb;
     }
     async bulkCreate(user, rows) {
+        const t0 = Date.now();
         const { companyId } = user;
-        const roleNameMap = new Map([
-            ['HR Manager', 'hr_manager'],
-            ['HR Assistant', 'hr_assistant'],
-            ['Recruiter', 'recruiter'],
-            ['Payroll Specialist', 'payroll_specialist'],
-            ['Benefits Admin', 'benefits_admin'],
-            ['Finance Manager', 'finance_manager'],
-            ['Admin', 'admin'],
-            ['Employee', 'employee'],
-            ['Manager', 'manager'],
-        ]);
-        const [allDepts, allRoles, allCenters, allLocations, allPayGroups] = await Promise.all([
-            this.db
-                .select({ id: schema_1.departments.id, name: schema_1.departments.name })
-                .from(schema_1.departments)
-                .where((0, drizzle_orm_1.eq)(schema_1.departments.companyId, companyId))
-                .execute(),
-            this.db
-                .select({ id: schema_1.jobRoles.id, title: schema_1.jobRoles.title })
-                .from(schema_1.jobRoles)
-                .where((0, drizzle_orm_1.eq)(schema_1.jobRoles.companyId, companyId))
-                .execute(),
-            this.db
-                .select({ id: schema_1.costCenters.id, name: schema_1.costCenters.name })
-                .from(schema_1.costCenters)
-                .where((0, drizzle_orm_1.eq)(schema_1.costCenters.companyId, companyId))
-                .execute(),
-            this.db
-                .select({ id: schema_1.companyLocations.id, name: schema_1.companyLocations.name })
-                .from(schema_1.companyLocations)
-                .where((0, drizzle_orm_1.eq)(schema_1.companyLocations.companyId, companyId))
-                .execute(),
-            this.db
-                .select({ id: pay_groups_schema_1.payGroups.id, name: pay_groups_schema_1.payGroups.name })
-                .from(pay_groups_schema_1.payGroups)
-                .where((0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.companyId, companyId))
-                .execute(),
-        ]);
-        const roles = await this.permissionService.getRolesByCompany(companyId);
-        const companyRoleMap = new Map(roles.map((r) => [r.name, r.id]));
-        const deptMap = new Map(allDepts.map((d) => [d.name, d.id]));
-        const roleMap = new Map(allRoles.map((r) => [r.title, r.id]));
-        const centerMap = new Map(allCenters.map((c) => [c.name, c.id]));
-        const locationMap = new Map(allLocations.map((l) => [l.name, l.id]));
-        const groupMap = new Map(allPayGroups.map((g) => [g.name.toLowerCase(), g.id]));
-        const empNums = rows.map((r) => r['Employee Number']?.trim());
-        const emails = rows.map((r) => r['Email']?.trim().toLowerCase());
-        const managerEmailMap = new Map();
-        const roleMapFromCSV = new Map();
-        const dupes = await this.db
-            .select({ number: schema_1.employees.employeeNumber, email: schema_1.employees.email })
-            .from(schema_1.employees)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.or)((0, drizzle_orm_1.inArray)(schema_1.employees.employeeNumber, empNums), (0, drizzle_orm_1.inArray)(schema_1.employees.email, emails))))
-            .execute();
-        if (dupes.length) {
-            throw new common_1.BadRequestException(`These employees already exist: ` +
-                dupes.map((d) => `${d.number}/${d.email}`).join(', '));
-        }
-        const imports = [];
-        const failedRows = [];
-        const normalizedRoleMap = new Map(Array.from(roleNameMap.entries()).map(([label, key]) => [
-            label.trim().toLowerCase(),
-            key,
-        ]));
-        for (const [index, row] of rows.entries()) {
-            try {
-                const email = row['Email']?.trim().toLowerCase();
-                const managerEmail = row['Manager Email']?.trim()?.toLowerCase() || '';
-                const rawRole = row['Role']?.trim().toLowerCase();
-                const role = normalizedRoleMap.get(rawRole) ?? 'employee';
-                if (!normalizedRoleMap.has(rawRole)) {
-                    console.warn(`Unknown role in CSV: "${row['Role']}" — defaulting to 'employee'`);
-                }
-                if (!role) {
-                    const allowed = Array.from(roleNameMap.keys()).join(', ');
-                    throw new common_1.BadRequestException(`Invalid role "${row['Role']}". Allowed roles are: ${allowed}`);
-                }
-                if (managerEmail && email === managerEmail) {
-                    throw new common_1.BadRequestException('An employee cannot be their own manager.');
-                }
-                if (managerEmail) {
-                    managerEmailMap.set(email, managerEmail);
-                }
-                roleMapFromCSV.set(email, role);
-                const departmentId = deptMap.get(row['Department']?.trim() ?? '');
-                const jobRoleId = roleMap.get(row['Job Role']?.trim() ?? '');
-                const costCenterId = centerMap.get(row['Cost Center']?.trim() ?? '');
-                const locationId = locationMap.get(row['Location']?.trim() ?? '');
-                const payGroupName = row['Pay Group']?.trim().toLowerCase() ?? '';
-                const payGroupId = groupMap.get(payGroupName);
-                if (!payGroupId) {
-                    throw new common_1.BadRequestException(`Unknown Pay Group “${payGroupName}”`);
-                }
-                const today = new Date();
-                const rawDate = row['Effective Date'];
-                const rawProbationDate = row['Probation End Date'];
-                function excelSerialToDate(serial) {
-                    const excelEpoch = new Date(1899, 11, 30);
-                    const days = parseInt(serial, 10);
-                    if (isNaN(days)) {
-                        const parsed = new Date(serial);
-                        if (isNaN(parsed.getTime()))
-                            return null;
-                        return parsed.toISOString().split('T')[0];
-                    }
-                    const date = new Date(excelEpoch.getTime() + days * 86400000);
-                    return date.toISOString().split('T')[0];
-                }
-                const empDto = (0, class_transformer_1.plainToInstance)(create_employee_core_dto_1.CreateEmployeeCoreDto, {
-                    employeeNumber: row['Employee Number']?.trim(),
-                    departmentId,
-                    jobRoleId,
-                    costCenterId: costCenterId ?? null,
-                    employmentStatus: row['Employment Status']?.trim(),
-                    firstName: row['First Name']?.trim(),
-                    lastName: row['Last Name']?.trim(),
-                    confirmed: row['Confirmed']?.toLowerCase() === 'yes' ? true : false,
-                    probationEndDate: excelSerialToDate(rawProbationDate) ?? today,
-                    email,
+        this.logger.info({
+            op: 'employees.bulkCreate.start',
+            companyId,
+            rowsCount: rows?.length ?? 0,
+        }, 'Bulk create started');
+        try {
+            const [allDepts, allRoles, allCenters, allLocations, allPayGroups] = await Promise.all([
+                this.db
+                    .select({ id: schema_1.departments.id, name: schema_1.departments.name })
+                    .from(schema_1.departments)
+                    .where((0, drizzle_orm_1.eq)(schema_1.departments.companyId, companyId))
+                    .execute(),
+                this.db
+                    .select({ id: schema_1.jobRoles.id, title: schema_1.jobRoles.title })
+                    .from(schema_1.jobRoles)
+                    .where((0, drizzle_orm_1.eq)(schema_1.jobRoles.companyId, companyId))
+                    .execute(),
+                this.db
+                    .select({ id: schema_1.costCenters.id, name: schema_1.costCenters.name })
+                    .from(schema_1.costCenters)
+                    .where((0, drizzle_orm_1.eq)(schema_1.costCenters.companyId, companyId))
+                    .execute(),
+                this.db
+                    .select({ id: schema_1.companyLocations.id, name: schema_1.companyLocations.name })
+                    .from(schema_1.companyLocations)
+                    .where((0, drizzle_orm_1.eq)(schema_1.companyLocations.companyId, companyId))
+                    .execute(),
+                this.db
+                    .select({ id: pay_groups_schema_1.payGroups.id, name: pay_groups_schema_1.payGroups.name })
+                    .from(pay_groups_schema_1.payGroups)
+                    .where((0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.companyId, companyId))
+                    .execute(),
+            ]);
+            const roles = await this.permissionService.getRolesByCompany(companyId);
+            const companyRoleMap = new Map(roles.map((r) => [r.name, r.id]));
+            const deptMap = new Map(allDepts.map((d) => [d.name, d.id]));
+            const roleMap = new Map(allRoles.map((r) => [r.title, r.id]));
+            const centerMap = new Map(allCenters.map((c) => [c.name, c.id]));
+            const locationMap = new Map(allLocations.map((l) => [l.name, l.id]));
+            const groupMap = new Map(allPayGroups.map((g) => [g.name.toLowerCase(), g.id]));
+            const empNums = rows.map((r) => r['Employee Number']?.trim());
+            const emails = rows.map((r) => r['Email']?.trim().toLowerCase());
+            const dupes = await this.db
+                .select({ number: schema_1.employees.employeeNumber, email: schema_1.employees.email })
+                .from(schema_1.employees)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.or)((0, drizzle_orm_1.inArray)(schema_1.employees.employeeNumber, empNums), (0, drizzle_orm_1.inArray)(schema_1.employees.email, emails))))
+                .execute();
+            if (dupes.length) {
+                this.logger.warn({
+                    op: 'employees.bulkCreate.dupes',
                     companyId,
-                    locationId,
-                    payGroupId,
-                    employmentStartDate: excelSerialToDate(rawDate) ?? today,
-                });
-                const finDto = (0, class_transformer_1.plainToInstance)(create_finance_dto_1.CreateFinanceDto, {
-                    bankName: row['Bank Name']?.trim(),
-                    bankAccountNumber: row['Bank Account Number']?.toString().trim(),
-                    bankBranch: row['Bank Branch']?.toString().trim(),
-                    bankAccountName: `${row['First Name']?.trim()} ${row['Last Name']?.trim()}`,
-                    tin: row['TIN']?.toString().trim(),
-                    pensionPin: row['Pension PIN']?.toString().trim(),
-                    nhfNumber: row['NHF Number']?.toString().trim(),
-                });
-                const compDto = (0, class_transformer_1.plainToInstance)(create_compensation_dto_1.CreateCompensationDto, {
-                    effectiveDate: excelSerialToDate(row['Effective Date']),
-                    grossSalary: parseInt(row['Gross Salary']?.toString().trim() ?? '0', 10),
-                    currency: row['Currency'] ? row['Currency'].trim() : 'NGN',
-                    payFrequency: row['Pay Frequency']
-                        ? row['Pay Frequency'].trim()
-                        : 'Monthly',
-                });
-                await (0, class_validator_1.validateOrReject)(empDto);
-                await (0, class_validator_1.validateOrReject)(finDto);
-                await (0, class_validator_1.validateOrReject)(compDto);
-                imports.push({ empDto, finDto, compDto });
+                    dupesCount: dupes.length,
+                    examples: dupes.slice(0, 10),
+                }, 'Duplicate employees found; aborting import');
+                throw new common_1.BadRequestException(`These employees already exist: ` +
+                    dupes.map((d) => `${d.number}/${d.email}`).join(', '));
             }
-            catch (error) {
-                failedRows.push({
-                    rowIndex: index + 1,
-                    employeeNumber: row['Employee Number'],
-                    email: row['Email'],
-                    error: Array.isArray(error)
+            const managerEmailMap = new Map();
+            const roleMapFromCSV = new Map();
+            const imports = [];
+            const failedRows = [];
+            const normalizedRoleMap = new Map(Array.from(new Map([
+                ['HR Manager', 'hr_manager'],
+                ['HR Assistant', 'hr_assistant'],
+                ['Recruiter', 'recruiter'],
+                ['Payroll Specialist', 'payroll_specialist'],
+                ['Benefits Admin', 'benefits_admin'],
+                ['Finance Manager', 'finance_manager'],
+                ['Admin', 'admin'],
+                ['Employee', 'employee'],
+                ['Manager', 'manager'],
+            ]).entries()).map(([label, key]) => [label.trim().toLowerCase(), key]));
+            for (const [index, row] of rows.entries()) {
+                try {
+                    const email = row['Email']?.trim().toLowerCase();
+                    const managerEmail = row['Manager Email']?.trim()?.toLowerCase() || '';
+                    const rawRole = row['Role']?.trim().toLowerCase();
+                    const role = normalizedRoleMap.get(rawRole) ?? 'employee';
+                    if (!normalizedRoleMap.has(rawRole)) {
+                        this.logger.warn({
+                            op: 'employees.bulkCreate.unknownRole',
+                            rowIndex: index + 1,
+                            email,
+                            rawRole,
+                        }, 'Unknown role in CSV — defaulting to "employee"');
+                    }
+                    if (managerEmail && email === managerEmail) {
+                        throw new common_1.BadRequestException('An employee cannot be their own manager.');
+                    }
+                    if (managerEmail)
+                        managerEmailMap.set(email, managerEmail);
+                    roleMapFromCSV.set(email, role);
+                    const departmentId = deptMap.get(row['Department']?.trim() ?? '');
+                    const jobRoleId = roleMap.get(row['Job Role']?.trim() ?? '');
+                    const costCenterId = centerMap.get(row['Cost Center']?.trim() ?? '');
+                    const locationId = locationMap.get(row['Location']?.trim() ?? '');
+                    const payGroupName = row['Pay Group']?.trim().toLowerCase() ?? '';
+                    const payGroupId = groupMap.get(payGroupName);
+                    if (!payGroupId) {
+                        throw new common_1.BadRequestException(`Unknown Pay Group “${payGroupName}”`);
+                    }
+                    const today = new Date();
+                    const rawDate = row['Effective Date'];
+                    const rawProbationDate = row['Probation End Date'];
+                    function excelSerialToDate(serial) {
+                        const excelEpoch = new Date(1899, 11, 30);
+                        const days = parseInt(serial, 10);
+                        if (isNaN(days)) {
+                            const parsed = new Date(serial);
+                            if (isNaN(parsed.getTime()))
+                                return null;
+                            return parsed.toISOString().split('T')[0];
+                        }
+                        const date = new Date(excelEpoch.getTime() + days * 86400000);
+                        return date.toISOString().split('T')[0];
+                    }
+                    const empDto = (0, class_transformer_1.plainToInstance)(create_employee_core_dto_1.CreateEmployeeCoreDto, {
+                        employeeNumber: row['Employee Number']?.trim(),
+                        departmentId,
+                        jobRoleId,
+                        costCenterId: costCenterId ?? null,
+                        employmentStatus: row['Employment Status']?.trim(),
+                        firstName: row['First Name']?.trim(),
+                        lastName: row['Last Name']?.trim(),
+                        confirmed: row['Confirmed']?.toLowerCase() === 'yes' ? true : false,
+                        probationEndDate: excelSerialToDate(rawProbationDate) ?? today,
+                        email,
+                        companyId,
+                        locationId,
+                        payGroupId,
+                        employmentStartDate: excelSerialToDate(rawDate) ?? today,
+                    });
+                    const finDto = (0, class_transformer_1.plainToInstance)(create_finance_dto_1.CreateFinanceDto, {
+                        bankName: row['Bank Name']?.trim(),
+                        bankAccountNumber: row['Bank Account Number']?.toString().trim(),
+                        bankBranch: row['Bank Branch']?.toString().trim(),
+                        bankAccountName: `${row['First Name']?.trim()} ${row['Last Name']?.trim()}`,
+                        tin: row['TIN']?.toString().trim(),
+                        pensionPin: row['Pension PIN']?.toString().trim(),
+                        nhfNumber: row['NHF Number']?.toString().trim(),
+                    });
+                    const compDto = (0, class_transformer_1.plainToInstance)(create_compensation_dto_1.CreateCompensationDto, {
+                        effectiveDate: excelSerialToDate(row['Effective Date']),
+                        grossSalary: parseInt(row['Gross Salary']?.toString().trim() ?? '0', 10),
+                        currency: row['Currency'] ? row['Currency'].trim() : 'NGN',
+                        payFrequency: row['Pay Frequency']
+                            ? row['Pay Frequency'].trim()
+                            : 'Monthly',
+                    });
+                    await (0, class_validator_1.validateOrReject)(empDto);
+                    await (0, class_validator_1.validateOrReject)(finDto);
+                    await (0, class_validator_1.validateOrReject)(compDto);
+                    imports.push({ empDto, finDto, compDto });
+                }
+                catch (error) {
+                    const msg = Array.isArray(error)
                         ? error.map((e) => e.toString()).join('; ')
-                        : error.message,
-                });
-            }
-        }
-        if (imports.length === 0) {
-            return {
-                successCount: 0,
-                failedCount: failedRows.length,
-                failedRows,
-                created: [],
-            };
-        }
-        const fallbackManagerUserId = await this.resolveFallbackManager(companyId);
-        const result = await this.db.transaction(async (trx) => {
-            const plainPasswords = imports.map(() => (0, crypto_1.randomBytes)(12).toString('hex'));
-            const hashedPasswords = await Promise.all(plainPasswords.map((pw) => bcrypt.hash(pw, 6)));
-            const userValues = imports.map(({ empDto }, idx) => ({
-                email: empDto.email.toLowerCase(),
-                firstName: empDto.firstName,
-                lastName: empDto.lastName,
-                password: hashedPasswords[idx],
-                companyRoleId: companyRoleMap.get(roleMapFromCSV.get(empDto.email.toLowerCase()) ?? 'employee'),
-                companyId,
-            }));
-            const createdUsers = await trx
-                .insert(schema_2.users)
-                .values(userValues)
-                .returning({ id: schema_2.users.id, email: schema_2.users.email })
-                .execute();
-            const userIdMap = new Map(createdUsers.map((u) => [u.email, u.id]));
-            const empValues = imports.map(({ empDto }) => ({
-                ...empDto,
-                userId: userIdMap.get(empDto.email.toLowerCase()),
-                companyId,
-                employmentStatus: empDto.employmentStatus,
-            }));
-            const createdEmps = await trx
-                .insert(schema_1.employees)
-                .values(empValues)
-                .returning({
-                id: schema_1.employees.id,
-                employeeNumber: schema_1.employees.employeeNumber,
-                email: schema_1.employees.email,
-            })
-                .execute();
-            const empEmailIdMap = new Map();
-            createdEmps.forEach((e, i) => {
-                empEmailIdMap.set(userValues[i].email, e.id);
-            });
-            function hasCircularReference(empEmail, visited = new Set()) {
-                let current = empEmail;
-                while (managerEmailMap.has(current)) {
-                    const manager = managerEmailMap.get(current);
-                    if (manager === empEmail || visited.has(manager))
-                        return true;
-                    visited.add(manager);
-                    current = manager;
-                }
-                return false;
-            }
-            for (const [email] of managerEmailMap.entries()) {
-                if (hasCircularReference(email)) {
-                    throw new common_1.BadRequestException(`Circular reference detected for ${email}`);
+                        : error.message;
+                    failedRows.push({
+                        rowIndex: index + 1,
+                        employeeNumber: row['Employee Number'],
+                        email: row['Email'],
+                        error: msg,
+                    });
+                    this.logger.warn({
+                        op: 'employees.bulkCreate.rowFailed',
+                        companyId,
+                        rowIndex: index + 1,
+                        email: row['Email'],
+                        error: msg,
+                    }, 'Row validation failed');
                 }
             }
-            for (const [empEmail, mgrEmail] of managerEmailMap.entries()) {
-                const empId = empEmailIdMap.get(empEmail);
-                const mgrId = empEmailIdMap.get(mgrEmail);
-                if (empId) {
-                    const resolvedMgrId = mgrId ?? fallbackManagerUserId;
-                    if (resolvedMgrId) {
+            this.logger.info({
+                op: 'employees.bulkCreate.validated',
+                companyId,
+                rows: rows.length,
+                readyToImport: imports.length,
+                failedRows: failedRows.length,
+            }, 'Bulk create validation completed');
+            if (imports.length === 0) {
+                const durationMs = Date.now() - t0;
+                this.logger.warn({
+                    op: 'employees.bulkCreate.empty',
+                    companyId,
+                    failedRows: failedRows.length,
+                    durationMs,
+                }, 'No valid rows to import');
+                return {
+                    successCount: 0,
+                    failedCount: failedRows.length,
+                    failedRows,
+                    created: [],
+                };
+            }
+            const fallbackManagerUserId = await this.resolveFallbackManager(companyId);
+            let createdUsersCount = 0;
+            let createdEmpsCount = 0;
+            const result = await this.db.transaction(async (trx) => {
+                const plainPasswords = imports.map(() => (0, crypto_1.randomBytes)(12).toString('hex'));
+                const hashedPasswords = await Promise.all(plainPasswords.map((pw) => bcrypt.hash(pw, 6)));
+                const userValues = imports.map(({ empDto }, idx) => ({
+                    email: empDto.email.toLowerCase(),
+                    firstName: empDto.firstName,
+                    lastName: empDto.lastName,
+                    password: hashedPasswords[idx],
+                    companyRoleId: companyRoleMap.get(roleMapFromCSV.get(empDto.email.toLowerCase()) ?? 'employee'),
+                    companyId,
+                }));
+                const createdUsers = await trx
+                    .insert(schema_2.users)
+                    .values(userValues)
+                    .returning({ id: schema_2.users.id, email: schema_2.users.email })
+                    .execute();
+                createdUsersCount = createdUsers.length;
+                const userIdMap = new Map(createdUsers.map((u) => [u.email, u.id]));
+                const empValues = imports.map(({ empDto }) => ({
+                    ...empDto,
+                    userId: userIdMap.get(empDto.email.toLowerCase()),
+                    companyId,
+                    employmentStatus: empDto.employmentStatus,
+                }));
+                const createdEmps = await trx
+                    .insert(schema_1.employees)
+                    .values(empValues)
+                    .returning({
+                    id: schema_1.employees.id,
+                    employeeNumber: schema_1.employees.employeeNumber,
+                    email: schema_1.employees.email,
+                })
+                    .execute();
+                createdEmpsCount = createdEmps.length;
+                const empEmailIdMap = new Map();
+                createdEmps.forEach((e, i) => empEmailIdMap.set(userValues[i].email, e.id));
+                function hasCircularReference(empEmail, visited = new Set()) {
+                    let current = empEmail;
+                    while (managerEmailMap.has(current)) {
+                        const manager = managerEmailMap.get(current);
+                        if (manager === empEmail || visited.has(manager))
+                            return true;
+                        visited.add(manager);
+                        current = manager;
+                    }
+                    return false;
+                }
+                for (const [email] of managerEmailMap.entries()) {
+                    if (hasCircularReference(email)) {
+                        this.logger.error({ op: 'employees.bulkCreate.circular', companyId, email }, 'Circular manager reference detected');
+                        throw new common_1.BadRequestException(`Circular reference detected for ${email}`);
+                    }
+                }
+                for (const [empEmail, mgrEmail] of managerEmailMap.entries()) {
+                    const empId = empEmailIdMap.get(empEmail);
+                    const mgrId = empEmailIdMap.get(mgrEmail) ?? fallbackManagerUserId;
+                    if (empId && mgrId) {
                         await trx
                             .update(schema_1.employees)
-                            .set({ managerId: resolvedMgrId })
+                            .set({ managerId: mgrId })
                             .where((0, drizzle_orm_1.eq)(schema_1.employees.id, empId))
                             .execute();
                     }
                 }
-            }
-            const finValues = createdEmps.map((e, i) => ({
-                employeeId: e.id,
-                ...imports[i].finDto,
-            }));
-            await trx.insert(schema_1.employeeFinancials).values(finValues).execute();
-            const compValues = createdEmps.map((e, i) => ({
-                employeeId: e.id,
-                ...imports[i].compDto,
-            }));
-            await trx
-                .insert(compensation_schema_1.employeeCompensations)
-                .values(compValues.map((comp) => ({
-                ...comp,
-                grossSalary: comp.grossSalary,
-            })))
-                .execute();
-            await this.companySettingsService.setSetting(user.companyId, 'onboarding_upload_employees', true);
-            return createdEmps;
-        });
-        await this.cacheService.bumpCompanyVersion(companyId);
-        await this.cacheService.invalidateTags([
-            'employees:list',
-            'employees:summary',
-        ]);
-        return {
-            successCount: result.length,
-            failedCount: failedRows.length,
-            failedRows,
-            created: result,
-        };
+                const finValues = createdEmps.map((e, i) => ({
+                    employeeId: e.id,
+                    ...imports[i].finDto,
+                }));
+                await trx.insert(schema_1.employeeFinancials).values(finValues).execute();
+                const compValues = createdEmps.map((e, i) => ({
+                    employeeId: e.id,
+                    ...imports[i].compDto,
+                }));
+                await trx.insert(compensation_schema_1.employeeCompensations).values(compValues).execute();
+                await this.companySettingsService.setSetting(user.companyId, 'onboarding_upload_employees', true);
+                return createdEmps;
+            });
+            await this.cacheService.bumpCompanyVersion(companyId);
+            await this.cacheService.invalidateTags([
+                'employees:list',
+                'employees:summary',
+            ]);
+            const durationMs = Date.now() - t0;
+            this.logger.info({
+                op: 'employees.bulkCreate.success',
+                companyId,
+                createdUsers: createdUsersCount,
+                createdEmployees: createdEmpsCount,
+                failedRows: failedRows.length,
+                durationMs,
+            }, 'Bulk create finished');
+            return {
+                successCount: result.length,
+                failedCount: failedRows.length,
+                failedRows,
+                created: result,
+            };
+        }
+        catch (err) {
+            const durationMs = Date.now() - t0;
+            this.logger.error({
+                op: 'employees.bulkCreate.error',
+                companyId,
+                durationMs,
+                error: err instanceof Error
+                    ? { name: err.name, message: err.message, stack: err.stack }
+                    : err,
+            }, 'Bulk create failed');
+            throw err;
+        }
     }
     async getManagers(companyId) {
         return this.cacheService.getOrSetVersioned(companyId, ['managers'], async () => {
@@ -1352,10 +1403,11 @@ let EmployeesService = class EmployeesService {
     }
 };
 exports.EmployeesService = EmployeesService;
-exports.EmployeesService = EmployeesService = __decorate([
+exports.EmployeesService = EmployeesService = EmployeesService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+    __metadata("design:paramtypes", [Object, nestjs_pino_1.PinoLogger,
+        audit_service_1.AuditService,
         profile_service_1.ProfileService,
         history_service_1.HistoryService,
         dependents_service_1.DependentsService,

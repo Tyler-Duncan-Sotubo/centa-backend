@@ -49,10 +49,10 @@ export declare class GoalActivityService {
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        isPrivate: boolean | null;
         comment: string;
         objectiveId: string | null;
         keyResultId: string | null;
-        isPrivate: boolean | null;
         authorId: string;
     }>;
     updateComment(commentId: string, user: User, content: string): Promise<{

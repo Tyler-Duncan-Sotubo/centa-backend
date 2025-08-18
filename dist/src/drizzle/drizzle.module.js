@@ -43,7 +43,6 @@ exports.DrizzleModule = DrizzleModule = __decorate([
                             keepAlive: true,
                             maxUses: Number(process.env.PG_MAX_USES || 7_500),
                         });
-                        g.__PG_POOL__.on('connect', () => console.log('[PG] new connection established'));
                     }
                     return g.__PG_POOL__;
                 },

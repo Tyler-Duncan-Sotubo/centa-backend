@@ -22,10 +22,10 @@ export declare class GoalsController extends BaseController {
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        isPrivate: boolean | null;
         comment: string;
         objectiveId: string | null;
         keyResultId: string | null;
-        isPrivate: boolean | null;
         authorId: string;
     }>;
     updateComment(commentId: string, content: string, user: User): Promise<{

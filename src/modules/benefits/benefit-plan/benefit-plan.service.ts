@@ -8,7 +8,12 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { benefitPlans } from '../schema/benefit-plan.schema';
 import { benefitEnrollments } from '../schema/benefit-enrollments.schema';
-import { employeeProfiles, employees } from 'src/drizzle/schema';
+import {
+  employeeProfiles,
+  employees,
+  groupMemberships,
+  groups,
+} from 'src/drizzle/schema';
 import { EnrollBenefitPlanDto } from './dto/enroll-employee.dto';
 import { SingleEnrollBenefitDto } from './dto/single-employee-enroll.dto';
 import { differenceInYears, differenceInMonths } from 'date-fns';
@@ -278,7 +283,52 @@ export class BenefitPlanService {
       .from(benefitGroups)
       .where(eq(benefitGroups.id, benefitPlan.benefitGroupId))
       .execute();
-    if (!benefitGroup) throw new BadRequestException('Benefit group not found');
+
+    if (!benefitGroup) throw new BadRequestException('Benefit group not found'); // Benefit group must exist
+
+    // ensure employee is in the required team (if the group is tied to a team)
+    if (benefitGroup.teamId) {
+      // fetch team (for name + company guard + clearer error)
+      const [team] = await this.db
+        .select({
+          id: groups.id,
+          name: groups.name,
+          companyId: groups.companyId,
+        })
+        .from(groups)
+        .where(eq(groups.id, benefitGroup.teamId))
+        .execute();
+
+      if (!team) {
+        throw new BadRequestException(
+          'The team configured for this benefit group no longer exists.',
+        );
+      }
+      if (team.companyId !== user.companyId) {
+        throw new BadRequestException(
+          'This benefit group references a team from a different company.',
+        );
+      }
+
+      // is the employee a member of that team?
+      const membership = await this.db
+        .select({ employeeId: groupMemberships.employeeId })
+        .from(groupMemberships)
+        .where(
+          and(
+            eq(groupMemberships.groupId, team.id),
+            eq(groupMemberships.employeeId, employeeId),
+          ),
+        )
+        .limit(1)
+        .execute();
+
+      if (!membership.length) {
+        throw new BadRequestException(
+          `You must be a member of the "${team.name}" team to enroll in this benefit plan.`,
+        );
+      }
+    }
 
     const { minAge, minMonths, onlyConfirmed } = (benefitGroup.rules ?? {}) as {
       minAge?: number;

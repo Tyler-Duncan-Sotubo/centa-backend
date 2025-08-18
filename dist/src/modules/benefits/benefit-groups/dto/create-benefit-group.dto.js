@@ -21,6 +21,11 @@ __decorate([
 ], CreateBenefitGroupDto.prototype, "name", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CreateBenefitGroupDto.prototype, "teamId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateBenefitGroupDto.prototype, "description", void 0);

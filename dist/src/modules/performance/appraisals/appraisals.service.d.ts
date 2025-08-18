@@ -18,13 +18,13 @@ export declare class AppraisalsService {
         createdAt: Date | null;
         companyId: string | null;
         managerId: string;
-        employeeId: string;
         cycleId: string;
-        finalScore: number | null;
-        promotionRecommendation: "promote" | "hold" | "exit" | null;
+        employeeId: string;
         submittedByEmployee: boolean | null;
         submittedByManager: boolean | null;
         finalized: boolean | null;
+        finalScore: number | null;
+        promotionRecommendation: "promote" | "hold" | "exit" | null;
         finalNote: string | null;
     }>;
     findAll(companyId: string, cycleId: string): Promise<({
@@ -54,7 +54,7 @@ export declare class AppraisalsService {
             name: string;
             startDate: string;
             endDate: string;
-            status: "active" | "closed" | "upcoming";
+            status: "active" | "upcoming" | "closed";
         } | null;
         currentCycleAppraisal: {
             id: string;

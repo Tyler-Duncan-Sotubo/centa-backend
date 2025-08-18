@@ -8,7 +8,7 @@ import {
   timestamp,
   index,
 } from 'drizzle-orm/pg-core';
-import { companies } from 'src/drizzle/schema';
+import { companies, groups } from 'src/drizzle/schema';
 
 export const benefitGroups = pgTable(
   'benefit_groups',
@@ -18,6 +18,8 @@ export const benefitGroups = pgTable(
     companyId: uuid('company_id')
       .notNull()
       .references(() => companies.id),
+
+    teamId: uuid('team_id').references(() => groups.id),
 
     name: text('name').notNull(),
     description: text('description'),

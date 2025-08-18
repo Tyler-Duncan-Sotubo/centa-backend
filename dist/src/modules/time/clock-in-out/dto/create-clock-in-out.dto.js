@@ -29,4 +29,8 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], CreateClockInOutDto.prototype, "forceClockIn", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateClockInOutDto.prototype, "tz", void 0);
 //# sourceMappingURL=create-clock-in-out.dto.js.map

@@ -1,0 +1,2 @@
+ALTER TABLE "benefit_groups" ADD COLUMN "team_id" uuid;--> statement-breakpoint
+ALTER TABLE "benefit_groups" ADD CONSTRAINT "benefit_groups_team_id_employee_groups_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."employee_groups"("id") ON DELETE no action ON UPDATE no action;

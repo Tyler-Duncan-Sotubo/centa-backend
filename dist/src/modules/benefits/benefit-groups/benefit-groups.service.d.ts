@@ -15,12 +15,14 @@ export declare class BenefitGroupsService {
         name: string;
         createdAt: Date | null;
         companyId: string;
+        teamId: string | null;
         description: string | null;
         rules: unknown;
     }>;
     findAll(companyId: string): Promise<{
         id: string;
         companyId: string;
+        teamId: string | null;
         name: string;
         description: string | null;
         rules: unknown;
@@ -29,6 +31,7 @@ export declare class BenefitGroupsService {
     findOne(companyId: string, id: string): Promise<{
         id: string;
         companyId: string;
+        teamId: string | null;
         name: string;
         description: string | null;
         rules: unknown;
@@ -37,6 +40,7 @@ export declare class BenefitGroupsService {
     update(id: string, dto: UpdateBenefitGroupDto, user: User): Promise<{
         id: string;
         companyId: string;
+        teamId: string | null;
         name: string;
         description: string | null;
         rules: unknown;

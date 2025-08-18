@@ -11,17 +11,17 @@ export declare class BenefitPlanController extends BaseController {
     create(createBenefitPlanDto: CreateBenefitPlanDto, user: User): Promise<{
         id: string;
         name: string;
-        createdAt: Date | null;
         split: string;
+        createdAt: Date | null;
         companyId: string;
-        category: string;
         description: string | null;
+        benefitGroupId: string;
+        category: string;
+        coverageOptions: unknown;
+        cost: unknown;
         startDate: Date;
         endDate: Date | null;
         employerContribution: number | null;
-        benefitGroupId: string;
-        coverageOptions: unknown;
-        cost: unknown;
     }>;
     findAll(user: User): Promise<{
         id: string;

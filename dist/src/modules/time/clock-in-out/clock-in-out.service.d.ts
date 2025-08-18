@@ -19,10 +19,11 @@ export declare class ClockInOutService {
     constructor(db: db, auditService: AuditService, employeesService: EmployeesService, attendanceSettingsService: AttendanceSettingsService, employeeShiftsService: EmployeeShiftsService, reportService: ReportService, cache: CacheService);
     private tags;
     private isWithinRadius;
+    private pickTz;
     checkLocation(latitude: string, longitude: string, employee: any): Promise<void>;
     clockIn(user: User, dto: CreateClockInOutDto): Promise<string>;
-    clockOut(user: User, latitude: string, longitude: string): Promise<string>;
-    getAttendanceStatus(employeeId: string, companyId: string): Promise<{
+    clockOut(user: User, latitude: string, longitude: string, tz?: string): Promise<string>;
+    getAttendanceStatus(employeeId: string, companyId: string, tz?: string): Promise<{
         status: "absent";
         checkInTime?: undefined;
         checkOutTime?: undefined;

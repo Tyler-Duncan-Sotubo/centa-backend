@@ -191,6 +191,32 @@ let BenefitPlanService = class BenefitPlanService {
             .execute();
         if (!benefitGroup)
             throw new common_1.BadRequestException('Benefit group not found');
+        if (benefitGroup.teamId) {
+            const [team] = await this.db
+                .select({
+                id: schema_1.groups.id,
+                name: schema_1.groups.name,
+                companyId: schema_1.groups.companyId,
+            })
+                .from(schema_1.groups)
+                .where((0, drizzle_orm_1.eq)(schema_1.groups.id, benefitGroup.teamId))
+                .execute();
+            if (!team) {
+                throw new common_1.BadRequestException('The team configured for this benefit group no longer exists.');
+            }
+            if (team.companyId !== user.companyId) {
+                throw new common_1.BadRequestException('This benefit group references a team from a different company.');
+            }
+            const membership = await this.db
+                .select({ employeeId: schema_1.groupMemberships.employeeId })
+                .from(schema_1.groupMemberships)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.groupMemberships.groupId, team.id), (0, drizzle_orm_1.eq)(schema_1.groupMemberships.employeeId, employeeId)))
+                .limit(1)
+                .execute();
+            if (!membership.length) {
+                throw new common_1.BadRequestException(`You must be a member of the "${team.name}" team to enroll in this benefit plan.`);
+            }
+        }
         const { minAge, minMonths, onlyConfirmed } = (benefitGroup.rules ?? {});
         const employee = await this.findEmployeeById(employeeId, user);
         const today = new Date();

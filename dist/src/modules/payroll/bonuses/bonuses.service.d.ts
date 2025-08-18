@@ -11,14 +11,14 @@ export declare class BonusesService {
     constructor(db: db, auditService: AuditService, cache: CacheService);
     private getCompanyIdByBonusId;
     create(user: User, dto: CreateBonusDto): Promise<{
-        status: string | null;
         id: string;
         createdAt: Date | null;
         companyId: string;
-        createdBy: string;
+        status: string | null;
         employeeId: string;
-        effectiveDate: string;
+        createdBy: string;
         amount: string;
+        effectiveDate: string;
         bonusType: string;
     }[]>;
     findAll(companyId: string): Promise<({

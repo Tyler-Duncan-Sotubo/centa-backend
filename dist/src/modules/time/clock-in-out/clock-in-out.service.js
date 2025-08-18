@@ -23,6 +23,7 @@ const attendance_settings_service_1 = require("../settings/attendance-settings.s
 const employee_shifts_service_1 = require("../employee-shifts/employee-shifts.service");
 const report_service_1 = require("../report/report.service");
 const date_fns_1 = require("date-fns");
+const date_fns_tz_1 = require("date-fns-tz");
 const cache_service_1 = require("../../../common/cache/cache.service");
 let ClockInOutService = class ClockInOutService {
     constructor(db, auditService, employeesService, attendanceSettingsService, employeeShiftsService, reportService, cache) {
@@ -51,6 +52,17 @@ let ClockInOutService = class ClockInOutService {
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distance = R * c;
         return distance <= radiusInKm;
+    }
+    pickTz(tz) {
+        if (tz) {
+            try {
+                (0, date_fns_tz_1.fromZonedTime)('2000-01-01T00:00:00', tz);
+                return tz;
+            }
+            catch {
+            }
+        }
+        return process.env.DEFAULT_TZ || 'Africa/Lagos';
     }
     async checkLocation(latitude, longitude, employee) {
         if (!employee)
@@ -90,48 +102,49 @@ let ClockInOutService = class ClockInOutService {
     }
     async clockIn(user, dto) {
         const employee = await this.employeesService.findOneByUserId(user.id);
-        const currentDate = new Date().toISOString().split('T')[0];
+        const tz = this.pickTz(dto.tz ?? 'Africa/Lagos');
+        const localDate = (0, date_fns_tz_1.formatInTimeZone)(new Date(), tz, 'yyyy-MM-dd');
         const now = new Date();
-        const startOfDay = new Date(`${currentDate}T00:00:00.000Z`);
-        const endOfDay = new Date(`${currentDate}T23:59:59.999Z`);
+        const startOfDayUtc = (0, date_fns_tz_1.fromZonedTime)(`${localDate}T00:00:00.000`, tz);
+        const endOfDayUtc = (0, date_fns_tz_1.fromZonedTime)(`${localDate}T23:59:59.999`, tz);
         const forceClockIn = dto.forceClockIn ?? false;
         const existingAttendance = await this.db
             .select()
             .from(schema_1.attendanceRecords)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.employeeId, employee.id), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, user.companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, startOfDay), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, endOfDay)))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.employeeId, employee.id), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, user.companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, startOfDayUtc), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, endOfDayUtc)))
             .execute();
         if (existingAttendance.length > 0) {
             throw new common_1.BadRequestException('You have already clocked in today.');
         }
         await this.checkLocation(dto.latitude, dto.longitude, employee);
-        const attendanceSettings = await this.attendanceSettingsService.getAllAttendanceSettings(user.companyId);
-        const useShifts = attendanceSettings['use_shifts'] ?? false;
-        const earlyClockInMinutes = parseInt(attendanceSettings['early_clockIn_window_minutes'] ?? '15');
+        const settings = await this.attendanceSettingsService.getAllAttendanceSettings(user.companyId);
+        const useShifts = settings['use_shifts'] ?? false;
+        const earlyClockInMinutes = parseInt(settings['early_clockIn_window_minutes'] ?? '15');
         if (useShifts) {
-            const assignedShift = await this.employeeShiftsService.getActiveShiftForEmployee(employee.id, user.companyId, currentDate);
-            if (!assignedShift && !forceClockIn) {
+            const shift = await this.employeeShiftsService.getActiveShiftForEmployee(employee.id, user.companyId, localDate);
+            if (!shift && !forceClockIn) {
                 throw new common_1.BadRequestException('You do not have an active shift assigned today.');
             }
-            if (assignedShift && !assignedShift.allowEarlyClockIn) {
-                const shiftStartTime = new Date(`${currentDate}T${assignedShift.startTime}`);
-                if (now < shiftStartTime && !forceClockIn) {
-                    throw new common_1.BadRequestException('You cannot clock in before your shift start time.');
+            if (shift) {
+                const shiftStartUtc = (0, date_fns_tz_1.fromZonedTime)(`${localDate}T${shift.startTime}`, tz);
+                if (!shift.allowEarlyClockIn) {
+                    if (now < shiftStartUtc && !forceClockIn) {
+                        throw new common_1.BadRequestException('You cannot clock in before your shift start time.');
+                    }
                 }
-            }
-            else if (assignedShift && assignedShift.allowEarlyClockIn) {
-                const shiftStartTime = new Date(`${currentDate}T${assignedShift.startTime}`);
-                const earliestAllowedClockIn = new Date(shiftStartTime.getTime() -
-                    (assignedShift.earlyClockInMinutes ?? 0) * 60000);
-                if (now < earliestAllowedClockIn && !forceClockIn) {
-                    throw new common_1.BadRequestException('You are clocking in too early according to your shift rules.');
+                else {
+                    const earliestAllowedUtc = new Date(shiftStartUtc.getTime() - (shift.earlyClockInMinutes ?? 0) * 60000);
+                    if (now < earliestAllowedUtc && !forceClockIn) {
+                        throw new common_1.BadRequestException('You are clocking in too early according to your shift rules.');
+                    }
                 }
             }
         }
         else {
-            const startTime = attendanceSettings['default_start_time'] ?? '09:00';
-            const earliestAllowed = new Date(`${currentDate}T${startTime}:00`);
-            earliestAllowed.setMinutes(earliestAllowed.getMinutes() - earlyClockInMinutes);
-            if (now < earliestAllowed && !forceClockIn) {
+            const startTime = settings['default_start_time'] ?? '09:00';
+            const earliestAllowedUtc = new Date((0, date_fns_tz_1.fromZonedTime)(`${localDate}T${startTime}:00`, tz).getTime() -
+                earlyClockInMinutes * 60000);
+            if (now < earliestAllowedUtc && !forceClockIn) {
                 throw new common_1.BadRequestException('You are clocking in too early.');
             }
         }
@@ -148,16 +161,17 @@ let ClockInOutService = class ClockInOutService {
         await this.cache.bumpCompanyVersion(user.companyId);
         return 'Clocked in successfully.';
     }
-    async clockOut(user, latitude, longitude) {
+    async clockOut(user, latitude, longitude, tz) {
         const employee = await this.employeesService.findOneByUserId(user.id);
-        const currentDate = new Date().toISOString().split('T')[0];
+        const zone = this.pickTz(tz ?? 'Africa/Lagos');
+        const localDate = (0, date_fns_tz_1.formatInTimeZone)(new Date(), zone, 'yyyy-MM-dd');
         const now = new Date();
-        const startOfDay = new Date(`${currentDate}T00:00:00.000Z`);
-        const endOfDay = new Date(`${currentDate}T23:59:59.999Z`);
+        const startOfDayUtc = (0, date_fns_tz_1.fromZonedTime)(`${localDate}T00:00:00.000`, zone);
+        const endOfDayUtc = (0, date_fns_tz_1.fromZonedTime)(`${localDate}T23:59:59.999`, zone);
         const [attendance] = await this.db
             .select()
             .from(schema_1.attendanceRecords)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.employeeId, employee.id), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, user.companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, startOfDay), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, endOfDay)))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.employeeId, employee.id), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, user.companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, startOfDayUtc), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, endOfDayUtc)))
             .execute();
         if (!attendance)
             throw new common_1.BadRequestException('You have not clocked in today.');
@@ -165,46 +179,41 @@ let ClockInOutService = class ClockInOutService {
             throw new common_1.BadRequestException('You have already clocked out.');
         await this.checkLocation(latitude, longitude, employee);
         const checkInTime = new Date(attendance.clockIn);
-        const workedMilliseconds = now.getTime() - checkInTime.getTime();
-        const workDurationMinutes = Math.floor(workedMilliseconds / 60000);
-        const attendanceSettings = await this.attendanceSettingsService.getAllAttendanceSettings(user.companyId);
-        const useShifts = attendanceSettings['use_shifts'] ?? false;
+        const workedMs = now.getTime() - checkInTime.getTime();
+        const workDurationMinutes = Math.floor(workedMs / 60000);
+        const settings = await this.attendanceSettingsService.getAllAttendanceSettings(user.companyId);
+        const useShifts = settings['use_shifts'] ?? false;
         let isLateArrival = false;
         let isEarlyDeparture = false;
         let overtimeMinutes = 0;
         if (useShifts) {
-            const assignedShift = await this.employeeShiftsService.getActiveShiftForEmployee(employee.id, user.companyId, currentDate);
-            if (assignedShift) {
-                const shiftStart = new Date(`${currentDate}T${assignedShift.startTime}`);
-                const shiftEnd = new Date(`${currentDate}T${assignedShift.endTime}`);
-                const lateTolerance = assignedShift.lateToleranceMinutes ?? 10;
+            const shift = await this.employeeShiftsService.getActiveShiftForEmployee(employee.id, user.companyId, localDate);
+            if (shift) {
+                const shiftStartUtc = (0, date_fns_tz_1.fromZonedTime)(`${localDate}T${shift.startTime}`, zone);
+                const shiftEndUtc = (0, date_fns_tz_1.fromZonedTime)(`${localDate}T${shift.endTime}`, zone);
+                const lateTolerance = shift.lateToleranceMinutes ?? 10;
                 if (checkInTime.getTime() >
-                    shiftStart.getTime() + lateTolerance * 60000) {
+                    shiftStartUtc.getTime() + lateTolerance * 60000)
                     isLateArrival = true;
-                }
-                if (now.getTime() < shiftEnd.getTime()) {
+                if (now.getTime() < shiftEndUtc.getTime())
                     isEarlyDeparture = true;
-                }
-                if (now.getTime() > shiftEnd.getTime()) {
-                    overtimeMinutes = Math.floor((now.getTime() - shiftEnd.getTime()) / 60000);
+                if (now.getTime() > shiftEndUtc.getTime()) {
+                    overtimeMinutes = Math.floor((now.getTime() - shiftEndUtc.getTime()) / 60000);
                 }
             }
         }
         else {
-            const startTime = attendanceSettings['default_start_time'] ?? '09:00';
-            const endTime = attendanceSettings['default_end_time'] ?? '17:00';
-            const lateTolerance = parseInt(attendanceSettings['late_tolerance_minutes'] ?? '10');
-            const startDateTime = new Date(`${currentDate}T${startTime}:00`);
-            const endDateTime = new Date(`${currentDate}T${endTime}:00`);
-            if (checkInTime.getTime() >
-                startDateTime.getTime() + lateTolerance * 60000) {
+            const startTime = settings['default_start_time'] ?? '09:00';
+            const endTime = settings['default_end_time'] ?? '17:00';
+            const lateTolerance = parseInt(settings['late_tolerance_minutes'] ?? '10');
+            const startUtc = (0, date_fns_tz_1.fromZonedTime)(`${localDate}T${startTime}:00`, zone);
+            const endUtc = (0, date_fns_tz_1.fromZonedTime)(`${localDate}T${endTime}:00`, zone);
+            if (checkInTime.getTime() > startUtc.getTime() + lateTolerance * 60000)
                 isLateArrival = true;
-            }
-            if (now.getTime() < endDateTime.getTime()) {
+            if (now.getTime() < endUtc.getTime())
                 isEarlyDeparture = true;
-            }
-            if (now.getTime() > endDateTime.getTime()) {
-                overtimeMinutes = Math.floor((now.getTime() - endDateTime.getTime()) / 60000);
+            if (now.getTime() > endUtc.getTime()) {
+                overtimeMinutes = Math.floor((now.getTime() - endUtc.getTime()) / 60000);
             }
         }
         await this.db
@@ -222,24 +231,23 @@ let ClockInOutService = class ClockInOutService {
         await this.cache.bumpCompanyVersion(user.companyId);
         return 'Clocked out successfully.';
     }
-    async getAttendanceStatus(employeeId, companyId) {
-        const today = new Date().toISOString().split('T')[0];
-        const startOfDay = new Date(`${today}T00:00:00.000Z`);
-        const endOfDay = new Date(`${today}T23:59:59.999Z`);
-        return this.cache.getOrSetVersioned(companyId, ['attendance', 'status', employeeId, today], async () => {
+    async getAttendanceStatus(employeeId, companyId, tz) {
+        const zone = this.pickTz(tz ?? 'Africa/Lagos');
+        const todayLocal = (0, date_fns_tz_1.formatInTimeZone)(new Date(), zone, 'yyyy-MM-dd');
+        const startOfDayUtc = (0, date_fns_tz_1.fromZonedTime)(`${todayLocal}T00:00:00.000`, zone);
+        const endOfDayUtc = (0, date_fns_tz_1.fromZonedTime)(`${todayLocal}T23:59:59.999`, zone);
+        return this.cache.getOrSetVersioned(companyId, ['attendance', 'status', employeeId, todayLocal], async () => {
             const [attendance] = await this.db
                 .select()
                 .from(schema_1.attendanceRecords)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, startOfDay), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, endOfDay)))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, startOfDayUtc), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, endOfDayUtc)))
                 .execute();
             if (!attendance)
                 return { status: 'absent' };
-            const checkInTime = attendance.clockIn;
-            const checkOutTime = attendance.clockOut ?? null;
             return {
                 status: 'present',
-                checkInTime,
-                checkOutTime,
+                checkInTime: attendance.clockIn,
+                checkOutTime: attendance.clockOut ?? null,
             };
         });
     }

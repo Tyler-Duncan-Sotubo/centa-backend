@@ -62,6 +62,7 @@
     "csv-stringify": "^6.5.2",
     "csv-writer": "^1.6.0",
     "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
     "decimal.js": "^10.5.0",
     "drizzle-orm": "^0.39.3",
     "exceljs": "^4.4.0",

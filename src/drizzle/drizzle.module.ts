@@ -40,11 +40,6 @@ export const DRIZZLE = Symbol('DRIZZLE');
             // optional: recycle after N uses to avoid long-lived session bloat
             maxUses: Number(process.env.PG_MAX_USES || 7_500),
           });
-
-          // Small debug to verify connections aren’t exploding
-          g.__PG_POOL__.on('connect', () =>
-            console.log('[PG] new connection established'),
-          );
         }
 
         return g.__PG_POOL__ as Pool;

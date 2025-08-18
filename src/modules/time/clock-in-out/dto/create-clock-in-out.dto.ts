@@ -12,4 +12,7 @@ export class CreateClockInOutDto {
   @IsOptional()
   @IsBoolean()
   forceClockIn?: boolean;
+
+  @IsOptional()
+  tz?: string;
 }
