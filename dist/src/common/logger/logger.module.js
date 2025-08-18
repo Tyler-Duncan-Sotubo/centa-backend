@@ -9,8 +9,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.LoggerModule = void 0;
 const common_1 = require("@nestjs/common");
 const nestjs_pino_1 = require("nestjs-pino");
+const crypto_1 = require("crypto");
+const pino_1 = require("pino");
 const isProd = process.env.NODE_ENV === 'production';
 const logtailToken = process.env.LOGTAIL_SOURCE_TOKEN;
+const ingest = process.env.LOGTAIL_INGEST_HOST;
 let LoggerModule = class LoggerModule {
 };
 exports.LoggerModule = LoggerModule;
@@ -20,6 +23,22 @@ exports.LoggerModule = LoggerModule = __decorate([
             nestjs_pino_1.LoggerModule.forRoot({
                 pinoHttp: {
                     level: process.env.LOG_LEVEL || (isProd ? 'info' : 'debug'),
+                    timestamp: pino_1.default.stdTimeFunctions.isoTime,
+                    messageKey: 'message',
+                    customAttributeKeys: {
+                        req: 'httpRequest',
+                        res: 'httpResponse',
+                        err: 'error',
+                        responseTime: 'latency_ms',
+                    },
+                    customProps: (req, res) => ({
+                        service: process.env.APP_NAME || 'app',
+                        version: process.env.APP_VERSION || '0.0.0',
+                        env: process.env.NODE_ENV || 'development',
+                        requestId: req.id,
+                        route: req.route?.path,
+                        status: res?.statusCode,
+                    }),
                     redact: {
                         paths: [
                             'req.headers.authorization',
@@ -30,14 +49,17 @@ exports.LoggerModule = LoggerModule = __decorate([
                         ],
                         remove: true,
                     },
-                    genReqId: (req) => req.headers['x-request-id'] || crypto.randomUUID(),
+                    genReqId: (req) => req.headers['x-request-id'] || crypto_1.default.randomUUID(),
+                    autoLogging: {
+                        ignore: (req) => ['/health', '/metrics'].includes(req.url ?? ''),
+                    },
                     transport: {
                         targets: [
                             ...(!isProd
                                 ? [
                                     {
                                         target: 'pino-pretty',
-                                        level: 'debug',
+                                        level: process.env.LOG_LEVEL || 'debug',
                                         options: {
                                             singleLine: true,
                                             colorize: true,
@@ -46,12 +68,15 @@ exports.LoggerModule = LoggerModule = __decorate([
                                     },
                                 ]
                                 : []),
-                            ...(logtailToken
+                            ...(logtailToken && ingest
                                 ? [
                                     {
                                         target: '@logtail/pino',
                                         level: process.env.LOGTAIL_LEVEL || 'warn',
-                                        options: { sourceToken: logtailToken },
+                                        options: {
+                                            sourceToken: logtailToken,
+                                            options: { endpoint: `https://${ingest}` },
+                                        },
                                     },
                                 ]
                                 : []),
@@ -64,7 +89,8 @@ exports.LoggerModule = LoggerModule = __decorate([
                                 method: req.method,
                                 url: req.url,
                                 headers: { host: req.headers?.host, origin: req.headers?.origin },
-                                remoteAddress: req.remoteAddress,
+                                remoteAddress: req.socket?.remoteAddress,
+                                userAgent: req.headers?.['user-agent'],
                             };
                         },
                         res(res) {

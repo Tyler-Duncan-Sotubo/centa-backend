@@ -16,6 +16,7 @@ export declare class AssetsService {
     private tags;
     private categoryMap;
     create(dto: CreateAssetDto, user: User): Promise<{
+        status: string;
         id: string;
         name: string;
         createdAt: string | null;
@@ -25,7 +26,6 @@ export declare class AssetsService {
         locationId: string;
         isDeleted: boolean | null;
         employeeId: string | null;
-        status: string;
         internalId: string;
         modelName: string | null;
         color: string | null;
@@ -43,6 +43,7 @@ export declare class AssetsService {
     bulkCreateAssets(companyId: string, rows: any[]): Promise<{
         insertedCount: number;
         inserted: {
+            status: string;
             id: string;
             name: string;
             createdAt: string | null;
@@ -52,7 +53,6 @@ export declare class AssetsService {
             locationId: string;
             isDeleted: boolean | null;
             employeeId: string | null;
-            status: string;
             internalId: string;
             modelName: string | null;
             color: string | null;

@@ -17,6 +17,7 @@ export declare class JobsService {
     create(createDto: CreateJobDto & {
         pipelineTemplateId?: string;
     }, user: User): Promise<{
+        status: "draft" | "open" | "closed" | "archived";
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
@@ -28,7 +29,6 @@ export declare class JobsService {
         createdBy: string;
         description: string | null;
         title: string;
-        status: "draft" | "open" | "closed" | "archived";
         externalJobId: string | null;
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";

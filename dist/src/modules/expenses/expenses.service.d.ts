@@ -22,6 +22,7 @@ export declare class ExpensesService {
     private exportAndUpload;
     handleExpenseApprovalFlow(expenseId: string, user: User): Promise<void>;
     create(dto: CreateExpenseDto, user: User): Promise<{
+        status: string;
         date: string;
         id: string;
         createdAt: Date | null;
@@ -29,7 +30,6 @@ export declare class ExpensesService {
         companyId: string;
         category: string;
         employeeId: string;
-        status: string;
         submittedAt: Date | null;
         amount: string;
         rejectionReason: string | null;
@@ -39,6 +39,7 @@ export declare class ExpensesService {
         deletedAt: Date | null;
     }>;
     bulkCreateExpenses(companyId: string, rows: any[], user: User): Promise<{
+        status: string;
         date: string;
         id: string;
         createdAt: Date | null;
@@ -46,7 +47,6 @@ export declare class ExpensesService {
         companyId: string;
         category: string;
         employeeId: string;
-        status: string;
         submittedAt: Date | null;
         amount: string;
         rejectionReason: string | null;

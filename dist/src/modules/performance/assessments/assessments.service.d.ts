@@ -16,12 +16,12 @@ export declare class AssessmentsService {
     private invalidate;
     private serializeFilters;
     createAssessment(dto: CreateAssessmentDto, user: User): Promise<{
+        status: "in_progress" | "submitted" | "not_started" | null;
         id: string;
         createdAt: Date | null;
         companyId: string;
         type: "manager" | "self" | "peer";
         templateId: string;
-        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         cycleId: string;
         revieweeId: string;

@@ -13,11 +13,11 @@ export declare class InterviewsController extends BaseController {
     private readonly emailTemplatesService;
     constructor(interviewsService: InterviewsService, scoreCard: ScorecardTemplateService, emailTemplatesService: InterviewEmailTemplateService);
     scheduleInterview(dto: ScheduleInterviewDto): Promise<{
+        status: string | null;
         id: string;
         mode: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-        status: string | null;
         applicationId: string;
         stage: "phone_screen" | "tech" | "onsite" | "final";
         scheduledFor: Date;

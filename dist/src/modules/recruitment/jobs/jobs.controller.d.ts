@@ -12,6 +12,7 @@ export declare class JobsController extends BaseController {
     private readonly applicationFormService;
     constructor(jobsService: JobsService, applicationFormService: ApplicationFormService);
     create(createJobDto: CreateJobDto, user: User): Promise<{
+        status: "draft" | "open" | "closed" | "archived";
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
@@ -23,7 +24,6 @@ export declare class JobsController extends BaseController {
         createdBy: string;
         description: string | null;
         title: string;
-        status: "draft" | "open" | "closed" | "archived";
         externalJobId: string | null;
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";

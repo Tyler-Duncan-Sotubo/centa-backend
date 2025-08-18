@@ -8,11 +8,11 @@ export declare class InterviewsService {
     private readonly auditService;
     constructor(db: db, auditService: AuditService);
     scheduleInterview(dto: ScheduleInterviewDto): Promise<{
+        status: string | null;
         id: string;
         mode: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-        status: string | null;
         applicationId: string;
         stage: "phone_screen" | "tech" | "onsite" | "final";
         scheduledFor: Date;
