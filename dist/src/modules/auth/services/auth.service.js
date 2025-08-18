@@ -28,8 +28,9 @@ const config_1 = require("@nestjs/config");
 const jwt_1 = require("@nestjs/jwt");
 const company_settings_service_1 = require("../../../company-settings/company-settings.service");
 const permissions_service_1 = require("../permissions/permissions.service");
+const nestjs_pino_1 = require("nestjs-pino");
 let AuthService = class AuthService {
-    constructor(db, userService, tokenGeneratorService, auditService, verifyLogin, configService, jwtService, companySettingsService, permissionsService) {
+    constructor(db, userService, tokenGeneratorService, auditService, verifyLogin, configService, jwtService, companySettingsService, permissionsService, logger) {
         this.db = db;
         this.userService = userService;
         this.tokenGeneratorService = tokenGeneratorService;
@@ -39,6 +40,7 @@ let AuthService = class AuthService {
         this.jwtService = jwtService;
         this.companySettingsService = companySettingsService;
         this.permissionsService = permissionsService;
+        this.logger = logger;
     }
     async completeLogin(user, ip) {
         await this.db
@@ -117,6 +119,13 @@ let AuthService = class AuthService {
             .where((0, drizzle_orm_1.eq)(schema_1.companyRoles.id, user.companyRoleId))
             .execute();
         if (!role || !allowedRoles.includes(role.name)) {
+            this.logger.warn({
+                userId: user.id,
+                email: dto.email,
+                role: role?.name,
+                allowedRoles,
+                ip,
+            }, 'Login attempt rejected due to unauthorized role');
             throw new common_1.BadRequestException('Invalid credentials');
         }
         const now = new Date();
@@ -128,6 +137,11 @@ let AuthService = class AuthService {
         if (hoursSinceLastLogin > 48 && companySettings.twoFactorAuth) {
             await this.verifyLogin.generateVerificationToken(user.id);
             const tempToken = await this.tokenGeneratorService.generateTempToken(user);
+            this.logger.info({
+                userId: user.id,
+                email: dto.email,
+                ip,
+            }, '2FA required due to inactivity');
             return {
                 status: 'verification_required',
                 requiresVerification: true,
@@ -135,6 +149,7 @@ let AuthService = class AuthService {
                 message: 'Verification code sent',
             };
         }
+        this.logger.info({ userId: user.id, email: dto.email, role: role.name, ip }, 'Login successful');
         return await this.completeLogin(user, ip);
     }
     async verifyCode(tempToken, code, ip) {
@@ -209,6 +224,7 @@ exports.AuthService = AuthService = __decorate([
         config_1.ConfigService,
         jwt_1.JwtService,
         company_settings_service_1.CompanySettingsService,
-        permissions_service_1.PermissionsService])
+        permissions_service_1.PermissionsService,
+        nestjs_pino_1.PinoLogger])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

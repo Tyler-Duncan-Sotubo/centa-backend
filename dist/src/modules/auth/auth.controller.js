@@ -67,7 +67,7 @@ let AuthController = class AuthController {
         };
     }
     async employeeLogin(dto, res, ip) {
-        const result = await this.auth.login(dto, ['employee', 'manager'], ip);
+        const result = await this.auth.login(dto, ['employee', 'manager', 'hr_manager'], ip);
         if ('status' in result) {
             return result;
         }

@@ -23,6 +23,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 import { PermissionsService } from '../permissions/permissions.service';
+import { PinoLogger } from 'nestjs-pino';
 
 @Injectable()
 export class AuthService {
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly companySettingsService: CompanySettingsService,
     private readonly permissionsService: PermissionsService,
+    private readonly logger: PinoLogger,
   ) {}
 
   private async completeLogin(user: any, ip: string) {
@@ -136,25 +138,42 @@ export class AuthService {
       .execute();
 
     if (!role || !allowedRoles.includes(role.name)) {
+      this.logger.warn(
+        {
+          userId: user.id,
+          email: dto.email,
+          role: role?.name,
+          allowedRoles,
+          ip,
+        },
+        'Login attempt rejected due to unauthorized role',
+      );
       throw new BadRequestException('Invalid credentials');
     }
 
     const now = new Date();
     const lastLogin = user.lastLogin ? new Date(user.lastLogin) : null;
 
-    // Check if user has a company and if the company requires verification
     const companySettings =
       await this.companySettingsService.getTwoFactorAuthSetting(user.companyId);
 
-    // Check if lastLogin is more than 48 hours ago
     const hoursSinceLastLogin = lastLogin
       ? (now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60)
-      : Infinity; // force verification if no last login
+      : Infinity;
 
     if (hoursSinceLastLogin > 48 && companySettings.twoFactorAuth) {
       await this.verifyLogin.generateVerificationToken(user.id);
       const tempToken =
         await this.tokenGeneratorService.generateTempToken(user);
+
+      this.logger.info(
+        {
+          userId: user.id,
+          email: dto.email,
+          ip,
+        },
+        '2FA required due to inactivity',
+      );
 
       return {
         status: 'verification_required',
@@ -163,6 +182,11 @@ export class AuthService {
         message: 'Verification code sent',
       };
     }
+
+    this.logger.info(
+      { userId: user.id, email: dto.email, role: role.name, ip },
+      'Login successful',
+    );
 
     return await this.completeLogin(user, ip);
   }

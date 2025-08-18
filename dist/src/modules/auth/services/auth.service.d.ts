@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 import { PermissionsService } from '../permissions/permissions.service';
+import { PinoLogger } from 'nestjs-pino';
 export declare class AuthService {
     private db;
     private readonly userService;
@@ -20,7 +21,8 @@ export declare class AuthService {
     private readonly jwtService;
     private readonly companySettingsService;
     private readonly permissionsService;
-    constructor(db: db, userService: UserService, tokenGeneratorService: TokenGeneratorService, auditService: AuditService, verifyLogin: LoginVerificationService, configService: ConfigService, jwtService: JwtService, companySettingsService: CompanySettingsService, permissionsService: PermissionsService);
+    private readonly logger;
+    constructor(db: db, userService: UserService, tokenGeneratorService: TokenGeneratorService, auditService: AuditService, verifyLogin: LoginVerificationService, configService: ConfigService, jwtService: JwtService, companySettingsService: CompanySettingsService, permissionsService: PermissionsService, logger: PinoLogger);
     private completeLogin;
     login(dto: LoginDto, allowedRoles: string[], ip: string): Promise<{
         user: {
@@ -32,36 +34,6 @@ export declare class AuthService {
             companyId: string;
             avatar: string | null;
             roleId: string;
-        };
-        backendTokens: {
-            accessToken: string;
-            refreshToken: string;
-            expiresIn: number;
-        };
-        permissions: string[];
-    } | {
-        user: {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
-        } | {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;
@@ -85,36 +57,6 @@ export declare class AuthService {
             companyId: string;
             avatar: string | null;
             roleId: string;
-        };
-        backendTokens: {
-            accessToken: string;
-            refreshToken: string;
-            expiresIn: number;
-        };
-        permissions: string[];
-    } | {
-        user: {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
-        } | {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;

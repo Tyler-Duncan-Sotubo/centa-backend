@@ -128,7 +128,11 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Ip() ip: string,
   ) {
-    const result = await this.auth.login(dto, ['employee', 'manager'], ip);
+    const result = await this.auth.login(
+      dto,
+      ['employee', 'manager', 'hr_manager'],
+      ip,
+    );
 
     if ('status' in result) {
       return result; // short-circuit for 2FA setup/verify
