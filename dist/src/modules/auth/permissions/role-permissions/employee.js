@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EmployeeRolePermissions = void 0;
 exports.EmployeeRolePermissions = [
+    'ess.login',
     'announcements.read',
     'announcements.react',
     'announcements.category.read',

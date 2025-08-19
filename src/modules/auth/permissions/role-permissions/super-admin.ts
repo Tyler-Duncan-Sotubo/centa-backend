@@ -20,6 +20,7 @@ import { TaxPermissions } from '../permission-keys/tax';
 import { PerformancePermissions } from '../permission-keys/performance';
 
 export const SuperAdminPermissions = [
+  'dashboard.login',
   ...RecruitPermissions,
   ...PerformancePermissions,
   ...AnnouncementPermissions,

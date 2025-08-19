@@ -22,6 +22,7 @@ const shifts_1 = require("../permission-keys/shifts");
 const tax_1 = require("../permission-keys/tax");
 const performance_1 = require("../permission-keys/performance");
 exports.AdminPermissions = [
+    'dashboard.login',
     ...performance_1.PerformancePermissions,
     ...recruit_1.RecruitPermissions,
     ...announcements_1.AnnouncementPermissions,

@@ -1,4 +1,5 @@
 export const ManagerPermissions = [
+  'ess.login',
   // Announcements (read)
   'announcements.read',
   'announcements.category.read',

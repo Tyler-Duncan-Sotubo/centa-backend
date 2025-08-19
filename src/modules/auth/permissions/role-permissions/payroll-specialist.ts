@@ -1,4 +1,5 @@
 export const PayrollSpecialistPermissions = [
+  'ess.login',
   // Announcements (read & comment)
   'announcements.read',
   'announcements.comment',

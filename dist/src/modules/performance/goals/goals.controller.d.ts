@@ -10,8 +10,8 @@ export declare class GoalsController extends BaseController {
     constructor(activityService: GoalActivityService);
     addProgress(goalId: string, dto: AddGoalProgressDto, user: User): Promise<{
         id: string;
-        createdAt: Date | null;
         createdBy: string;
+        createdAt: Date | null;
         value: string | null;
         objectiveId: string | null;
         progressPct: number | null;
@@ -22,10 +22,10 @@ export declare class GoalsController extends BaseController {
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
-        isPrivate: boolean | null;
         comment: string;
         objectiveId: string | null;
         keyResultId: string | null;
+        isPrivate: boolean | null;
         authorId: string;
     }>;
     updateComment(commentId: string, content: string, user: User): Promise<{
@@ -45,9 +45,9 @@ export declare class GoalsController extends BaseController {
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        comment: string | null;
         fileName: string;
         fileUrl: string;
-        comment: string | null;
         objectiveId: string | null;
         keyResultId: string | null;
         uploadedById: string;

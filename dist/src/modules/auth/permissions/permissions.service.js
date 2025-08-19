@@ -222,6 +222,15 @@ let PermissionsService = class PermissionsService {
             await this.seedDefaultPermissionsForCompany(company.id);
         }
     }
+    async getLoginPermissionsByRole(companyId, roleId) {
+        await this.findRoleById(companyId, roleId);
+        return this.db
+            .select({ key: schema_1.permissions.key })
+            .from(schema_1.companyRolePermissions)
+            .innerJoin(schema_1.permissions, (0, drizzle_orm_1.eq)(schema_1.companyRolePermissions.permissionId, schema_1.permissions.id))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.companyRolePermissions.companyRoleId, roleId), (0, drizzle_orm_1.inArray)(schema_1.permissions.key, ['ess.login', 'dashboard.login'])))
+            .execute();
+    }
     async getPermissionsByRole(companyId, roleId) {
         await this.findRoleById(companyId, roleId);
         const cacheKey = `role_permissions:${companyId}:${roleId}`;

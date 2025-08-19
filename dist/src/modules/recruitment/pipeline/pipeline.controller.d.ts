@@ -12,16 +12,16 @@ export declare class PipelineController extends BaseController {
         id: string;
         name: string;
         createdAt: Date | null;
-        companyId: string | null;
         description: string | null;
+        companyId: string | null;
         isGlobal: boolean | null;
     }>;
     createTemplate(createPipelineDto: CreatePipelineDto, user: User): Promise<{
         id: string;
         name: string;
         createdAt: Date | null;
-        companyId: string | null;
         description: string | null;
+        companyId: string | null;
         isGlobal: boolean | null;
     }>;
     findAllTemplates(user: User): Promise<{

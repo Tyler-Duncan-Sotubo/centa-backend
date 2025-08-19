@@ -111,37 +111,33 @@ let AuthService = class AuthService {
         }
         return baseResponse;
     }
-    async login(dto, allowedRoles, ip) {
+    async login(dto, context, ip) {
         const user = await this.validateUser(dto.email, dto.password);
         const [role] = await this.db
-            .select({ name: schema_1.companyRoles.name })
+            .select({ name: schema_1.companyRoles.name, id: schema_1.companyRoles.id })
             .from(schema_1.companyRoles)
             .where((0, drizzle_orm_1.eq)(schema_1.companyRoles.id, user.companyRoleId))
             .execute();
-        if (!role || !allowedRoles.includes(role.name)) {
-            this.logger.warn({
-                userId: user.id,
-                email: dto.email,
-                role: role?.name,
-                allowedRoles,
-                ip,
-            }, 'Login attempt rejected due to unauthorized role');
+        if (!role) {
+            this.logger.warn({ email: dto.email, ip }, 'Login rejected: role not found');
+            throw new common_1.BadRequestException('Invalid credentials');
+        }
+        const loginPermissions = await this.permissionsService.getLoginPermissionsByRole(user.companyId, role.id);
+        const hasPermission = loginPermissions.some((p) => p.key === (context === 'ESS' ? 'ess.login' : 'dashboard.login'));
+        if (!hasPermission) {
+            this.logger.warn({ userId: user.id, email: dto.email, role: role.name, ip, context }, `Login rejected: missing ${context.toLowerCase()}.login permission`);
             throw new common_1.BadRequestException('Invalid credentials');
         }
         const now = new Date();
         const lastLogin = user.lastLogin ? new Date(user.lastLogin) : null;
-        const companySettings = await this.companySettingsService.getTwoFactorAuthSetting(user.companyId);
         const hoursSinceLastLogin = lastLogin
             ? (now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60)
             : Infinity;
+        const companySettings = await this.companySettingsService.getTwoFactorAuthSetting(user.companyId);
         if (hoursSinceLastLogin > 48 && companySettings.twoFactorAuth) {
             await this.verifyLogin.generateVerificationToken(user.id);
             const tempToken = await this.tokenGeneratorService.generateTempToken(user);
-            this.logger.info({
-                userId: user.id,
-                email: dto.email,
-                ip,
-            }, '2FA required due to inactivity');
+            this.logger.info({ userId: user.id, email: dto.email, ip, context }, '2FA required due to inactivity');
             return {
                 status: 'verification_required',
                 requiresVerification: true,
@@ -149,7 +145,7 @@ let AuthService = class AuthService {
                 message: 'Verification code sent',
             };
         }
-        this.logger.info({ userId: user.id, email: dto.email, role: role.name, ip }, 'Login successful');
+        this.logger.info({ userId: user.id, email: dto.email, role: role.name, ip, context }, 'Login successful');
         return await this.completeLogin(user, ip);
     }
     async verifyCode(tempToken, code, ip) {

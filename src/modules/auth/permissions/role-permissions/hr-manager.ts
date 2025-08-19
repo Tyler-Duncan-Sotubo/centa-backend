@@ -1,4 +1,6 @@
 export const HrManagerPermissions = [
+  'ess.login',
+  'dashboard.login',
   // Announcements (read & comment)
   'announcements.read',
   'announcements.comment',

@@ -48,7 +48,7 @@ let AuthController = class AuthController {
         return this.user.editUserRole(id, dto);
     }
     async login(dto, res, ip) {
-        const result = await this.auth.login(dto, ['super_admin', 'admin', 'hr_manager'], ip);
+        const result = await this.auth.login(dto, 'DASHBOARD', ip);
         if ('status' in result) {
             return result;
         }
@@ -67,7 +67,7 @@ let AuthController = class AuthController {
         };
     }
     async employeeLogin(dto, res, ip) {
-        const result = await this.auth.login(dto, ['employee', 'manager', 'hr_manager'], ip);
+        const result = await this.auth.login(dto, 'ESS', ip);
         if ('status' in result) {
             return result;
         }

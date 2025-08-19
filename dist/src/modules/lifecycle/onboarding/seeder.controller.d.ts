@@ -20,15 +20,15 @@ export declare class OnboardingSeederController extends BaseController {
             id: string;
             title: string;
             templateId: string;
-            order: number | null;
             assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         id: string;
         name: string;
         createdAt: Date;
-        companyId: string | null;
         description: string | null;
+        companyId: string | null;
         status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
@@ -36,8 +36,8 @@ export declare class OnboardingSeederController extends BaseController {
         id: string;
         name: string;
         createdAt: Date;
-        companyId: string | null;
         description: string | null;
+        companyId: string | null;
         status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
@@ -45,8 +45,8 @@ export declare class OnboardingSeederController extends BaseController {
         id: string;
         name: string;
         createdAt: Date;
-        companyId: string | null;
         description: string | null;
+        companyId: string | null;
         status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
@@ -87,8 +87,8 @@ export declare class OnboardingSeederController extends BaseController {
             id: string;
             title: string;
             templateId: string;
-            order: number | null;
             assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         fieldCount: number;

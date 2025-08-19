@@ -26,6 +26,9 @@ let PermissionsController = class PermissionsController extends base_controller_
         super();
         this.permissionsService = permissionsService;
     }
+    seedPermissions() {
+        return this.permissionsService.create();
+    }
     findAllPermissions() {
         return this.permissionsService.findAll();
     }
@@ -54,6 +57,12 @@ let PermissionsController = class PermissionsController extends base_controller_
     }
 };
 exports.PermissionsController = PermissionsController;
+__decorate([
+    (0, common_1.Post)('seed'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], PermissionsController.prototype, "seedPermissions", null);
 __decorate([
     (0, common_1.Get)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

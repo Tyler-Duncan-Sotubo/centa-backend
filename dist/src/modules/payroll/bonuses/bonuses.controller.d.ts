@@ -8,13 +8,13 @@ export declare class BonusesController extends BaseController {
     constructor(bonusesService: BonusesService);
     create(createBonusDto: CreateBonusDto, user: User): Promise<{
         id: string;
+        createdBy: string;
         createdAt: Date | null;
         companyId: string;
-        status: string | null;
         employeeId: string;
-        createdBy: string;
-        amount: string;
+        status: string | null;
         effectiveDate: string;
+        amount: string;
         bonusType: string;
     }[]>;
     findAll(user: User): Promise<({

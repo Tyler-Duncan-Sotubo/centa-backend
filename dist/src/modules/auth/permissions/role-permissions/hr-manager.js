@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HrManagerPermissions = void 0;
 exports.HrManagerPermissions = [
+    'ess.login',
+    'dashboard.login',
     'announcements.read',
     'announcements.comment',
     'announcements.category.read',

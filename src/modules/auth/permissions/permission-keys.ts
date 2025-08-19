@@ -28,6 +28,8 @@ import { SuperAdminPermissions } from './role-permissions/super-admin';
 import { PerformancePermissions } from './permission-keys/performance';
 
 export const PermissionKeys = [
+  'ess.login',
+  'dashboard.login',
   ...AnnouncementPermissions,
   ...AssetPermissions,
   ...AuditPermissions,

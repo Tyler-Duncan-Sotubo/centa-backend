@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FinanceOfficerPermissions = void 0;
 exports.FinanceOfficerPermissions = [
+    'ess.login',
     'announcements.read',
     'announcements.react',
     'announcements.category.read',

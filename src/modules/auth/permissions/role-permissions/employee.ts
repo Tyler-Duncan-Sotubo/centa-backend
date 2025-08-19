@@ -1,4 +1,5 @@
 export const EmployeeRolePermissions = [
+  'ess.login',
   // Announcements (read & react)
   'announcements.read',
   'announcements.react',

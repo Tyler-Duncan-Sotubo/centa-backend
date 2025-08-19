@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RecruiterPermissions = void 0;
 exports.RecruiterPermissions = [
+    'ess.login',
     'jobs.read',
     'jobs.manage',
     'applications.read',

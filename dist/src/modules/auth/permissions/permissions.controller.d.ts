@@ -6,6 +6,7 @@ import { BaseController } from 'src/common/interceptor/base.controller';
 export declare class PermissionsController extends BaseController {
     private readonly permissionsService;
     constructor(permissionsService: PermissionsService);
+    seedPermissions(): Promise<string>;
     findAllPermissions(): Promise<{
         id: string;
         key: string;

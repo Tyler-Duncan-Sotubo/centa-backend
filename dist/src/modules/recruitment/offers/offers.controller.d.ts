@@ -12,15 +12,15 @@ export declare class OffersController extends BaseController {
     constructor(offersService: OffersService, sendOffersService: SendOffersService);
     create(createOfferDto: CreateOfferDto, user: User): Promise<{
         id: string;
-        currency: string;
+        expiresAt: Date | null;
+        createdBy: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
+        currency: string;
         companyId: string;
         startDate: string | null;
-        status: "pending" | "accepted" | "sent" | "declined" | "expired";
         templateId: string | null;
-        createdBy: string | null;
-        expiresAt: Date | null;
+        status: "pending" | "accepted" | "sent" | "declined" | "expired";
         applicationId: string;
         signingMethod: string;
         salary: string | null;

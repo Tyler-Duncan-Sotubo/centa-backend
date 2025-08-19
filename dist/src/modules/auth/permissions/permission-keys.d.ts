@@ -1,4 +1,4 @@
-export declare const PermissionKeys: readonly string[];
+export declare const PermissionKeys: readonly ["ess.login", "dashboard.login", ...string[]];
 export declare const DefaultRolePermissions: Record<string, string[]>;
 export declare enum Permission {
     AnnouncementsCategoryRead = "announcements.category.read",

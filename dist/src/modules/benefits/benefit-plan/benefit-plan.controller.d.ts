@@ -13,15 +13,15 @@ export declare class BenefitPlanController extends BaseController {
         name: string;
         split: string;
         createdAt: Date | null;
-        companyId: string;
         description: string | null;
-        benefitGroupId: string;
-        category: string;
-        coverageOptions: unknown;
-        cost: unknown;
+        companyId: string;
         startDate: Date;
+        category: string;
         endDate: Date | null;
         employerContribution: number | null;
+        benefitGroupId: string;
+        coverageOptions: unknown;
+        cost: unknown;
     }>;
     findAll(user: User): Promise<{
         id: string;

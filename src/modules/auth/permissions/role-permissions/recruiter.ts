@@ -1,4 +1,5 @@
 export const RecruiterPermissions = [
+  'ess.login',
   // Jobs
   'jobs.read',
   'jobs.manage',

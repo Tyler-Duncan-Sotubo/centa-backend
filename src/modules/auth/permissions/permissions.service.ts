@@ -323,6 +323,25 @@ export class PermissionsService {
     }
   }
 
+  async getLoginPermissionsByRole(companyId: string, roleId: string) {
+    // ensure role exists
+    await this.findRoleById(companyId, roleId);
+    return this.db
+      .select({ key: permissions.key })
+      .from(companyRolePermissions)
+      .innerJoin(
+        permissions,
+        eq(companyRolePermissions.permissionId, permissions.id),
+      )
+      .where(
+        and(
+          eq(companyRolePermissions.companyRoleId, roleId),
+          inArray(permissions.key, ['ess.login', 'dashboard.login']), // 👈 filter only these
+        ),
+      )
+      .execute();
+  }
+
   async getPermissionsByRole(companyId: string, roleId: string) {
     // Fetch all permissions assigned to a specific role.
     await this.findRoleById(companyId, roleId);

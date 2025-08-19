@@ -24,7 +24,7 @@ export declare class AuthService {
     private readonly logger;
     constructor(db: db, userService: UserService, tokenGeneratorService: TokenGeneratorService, auditService: AuditService, verifyLogin: LoginVerificationService, configService: ConfigService, jwtService: JwtService, companySettingsService: CompanySettingsService, permissionsService: PermissionsService, logger: PinoLogger);
     private completeLogin;
-    login(dto: LoginDto, allowedRoles: string[], ip: string): Promise<{
+    login(dto: LoginDto, context: 'ESS' | 'DASHBOARD', ip: string): Promise<{
         user: {
             id: string;
             email: string;

@@ -1,4 +1,5 @@
 export const FinanceOfficerPermissions = [
+  'ess.login',
   // Announcements (read)
   'announcements.read',
   'announcements.react',

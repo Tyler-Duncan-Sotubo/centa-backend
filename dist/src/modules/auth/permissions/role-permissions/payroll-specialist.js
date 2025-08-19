@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PayrollSpecialistPermissions = void 0;
 exports.PayrollSpecialistPermissions = [
+    'ess.login',
     'announcements.read',
     'announcements.comment',
     'announcements.category.read',

@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ManagerPermissions = void 0;
 exports.ManagerPermissions = [
+    'ess.login',
     'announcements.read',
     'announcements.category.read',
     'attendance.clockin',

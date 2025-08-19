@@ -10,8 +10,8 @@ export declare class CycleController extends BaseController {
         id: string;
         name: string;
         createdAt: Date | null;
-        companyId: string;
         description: string | null;
+        companyId: string;
         startDate: string;
         endDate: string;
         status: string | null;

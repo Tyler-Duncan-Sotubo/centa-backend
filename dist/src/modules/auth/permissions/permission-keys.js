@@ -30,6 +30,8 @@ const recruiter_1 = require("./role-permissions/recruiter");
 const super_admin_1 = require("./role-permissions/super-admin");
 const performance_1 = require("./permission-keys/performance");
 exports.PermissionKeys = [
+    'ess.login',
+    'dashboard.login',
     ...announcements_1.AnnouncementPermissions,
     ...assets_1.AssetPermissions,
     ...audit_1.AuditPermissions,

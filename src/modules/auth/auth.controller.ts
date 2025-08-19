@@ -94,12 +94,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Ip() ip: string,
   ) {
-    const result = await this.auth.login(
-      dto,
-      ['super_admin', 'admin', 'hr_manager'],
-      ip,
-    );
-
+    const result = await this.auth.login(dto, 'DASHBOARD', ip);
     if ('status' in result) {
       return result; // short-circuit for 2FA setup/verify
     }
@@ -128,11 +123,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Ip() ip: string,
   ) {
-    const result = await this.auth.login(
-      dto,
-      ['employee', 'manager', 'hr_manager'],
-      ip,
-    );
+    const result = await this.auth.login(dto, 'ESS', ip);
 
     if ('status' in result) {
       return result; // short-circuit for 2FA setup/verify

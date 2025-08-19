@@ -20,10 +20,10 @@ export declare class DocumentsController extends BaseController {
     createFolder(user: User, createFolderDto: CreateDocumentFoldersDto): Promise<{
         id: string;
         name: string;
+        createdBy: string | null;
         createdAt: Date | null;
         companyId: string;
         permissionControlled: boolean | null;
-        createdBy: string | null;
         isSystem: boolean;
     }>;
     findAllFolders(user: User): Promise<{
@@ -33,9 +33,9 @@ export declare class DocumentsController extends BaseController {
             createdAt: Date | null;
             companyId: string;
             type: string;
+            category: string;
             folderId: string | null;
             url: string;
-            category: string;
             uploadedBy: string | null;
         }[];
         roleIds: string[];

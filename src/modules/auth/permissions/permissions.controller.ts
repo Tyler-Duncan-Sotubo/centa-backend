@@ -24,6 +24,11 @@ export class PermissionsController extends BaseController {
     super();
   }
 
+  @Post('seed')
+  seedPermissions() {
+    return this.permissionsService.create();
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', [Permission.PermissionsRead])
