@@ -34,11 +34,7 @@ export const DRIZZLE = Symbol('DRIZZLE');
             connectionTimeoutMillis: Number(
               process.env.PG_CONN_TIMEOUT_MS || 5_000,
             ),
-            statement_timeout: Number(process.env.PG_STMT_TIMEOUT_MS || 30_000),
-            application_name: process.env.PG_APP_NAME || 'nest-drizzle',
             keepAlive: true,
-            // optional: recycle after N uses to avoid long-lived session bloat
-            maxUses: Number(process.env.PG_MAX_USES || 7_500),
           });
         }
 
