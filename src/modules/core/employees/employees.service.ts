@@ -68,7 +68,7 @@ import { CreateEmployeeMultiDetailsDto } from './dto/create-employee-multi-detai
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 import { PermissionsService } from 'src/modules/auth/permissions/permissions.service';
 import { LeaveBalanceService } from 'src/modules/leave/balance/leave-balance.service';
-import { eachDayOfInterval, format, parse, parseISO } from 'date-fns';
+import { eachDayOfInterval, format, isValid, parse, parseISO } from 'date-fns';
 import { AttendanceSettingsService } from 'src/modules/time/settings/attendance-settings.service';
 import { EmployeeShiftsService } from 'src/modules/time/employee-shifts/employee-shifts.service';
 import { PayslipService } from 'src/modules/payroll/payslip/payslip.service';
@@ -103,6 +103,25 @@ type EmployeeFullResponse = {
   payslipSummary?: any;
   avatarUrl?: string;
 };
+
+type AttStatus = 'absent' | 'present' | 'late';
+
+type MonthlySummary = {
+  summaryList: Array<{
+    date: string;
+    checkInTime: string | null;
+    checkOutTime: string | null;
+    status: AttStatus;
+  }>;
+};
+
+type ShiftForDay = {
+  startTime: string; // "HH:mm"
+  endTime?: string | null; // "HH:mm"
+  lateToleranceMinutes?: number | null;
+};
+
+type ShiftMap = Record<string, ShiftForDay | undefined>; // yyyy-MM-dd -> shift
 
 @Injectable()
 export class EmployeesService {
@@ -1961,64 +1980,123 @@ export class EmployeesService {
     employeeId: string,
     companyId: string,
     yearMonth: string,
-  ): Promise<{
-    summaryList: Array<{
-      date: string;
-      checkInTime: string | null;
-      checkOutTime: string | null;
-      status: 'absent' | 'present' | 'late';
-    }>;
-  }> {
-    // No caching here because it composes per-day status + settings + shifts
+  ): Promise<MonthlySummary> {
+    // --- bounds for the month in server local time (adapt if you store UTC) ---
     const [y, m] = yearMonth.split('-').map(Number);
-    const start = new Date(y, m - 1, 1);
-    const end = new Date(y, m - 1, new Date(y, m, 0).getDate());
+    if (!y || !m) throw new Error('yearMonth must be YYYY-MM');
 
-    const startOfMonth = new Date(start);
-    startOfMonth.setHours(0, 0, 0, 0);
-    const endOfMonth = new Date(end);
-    endOfMonth.setHours(23, 59, 59, 999);
+    const monthStart = new Date(y, m - 1, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(y, m, 0, 23, 59, 59, 999);
+    const today = new Date();
+    const capEnd = monthEnd < today ? monthEnd : today;
 
-    const recs = await this.db
-      .select()
+    // --- settings once ---
+    const s =
+      await this.attendanceSettingsService.getAllAttendanceSettings(companyId);
+    const useShifts = s['use_shifts'] ?? false;
+    const defaultStartTime = (s['default_start_time'] as string) ?? '09:00';
+    const defaultTolerance = Number(s['late_tolerance_minutes'] ?? 10);
+
+    // --- prefetch shifts for the whole month (if enabled) into a date → shift map ---
+    const shiftMap: ShiftMap = {};
+
+    if (useShifts) {
+      // implement this in your service (one query that returns active shifts overlapping [monthStart, monthEnd])
+      // Expected shape per row: { date: 'yyyy-MM-dd', startTime: 'HH:mm', endTime?: 'HH:mm', lateToleranceMinutes?: number }
+      const monthlyShifts =
+        await this.employeeShiftsService.getEmployeeShiftsForRange(
+          employeeId,
+          companyId,
+          monthStart,
+          monthEnd,
+        );
+
+      monthlyShifts.forEach((s) => {
+        shiftMap[s.date] = {
+          startTime: s.startTime,
+          endTime: s.endTime ?? null,
+          lateToleranceMinutes: s.lateToleranceMinutes ?? null,
+        };
+      });
+    }
+
+    // --- single attendance read for the month ---
+    const rows = await this.db
+      .select({
+        id: attendanceRecords.id,
+        clockIn: attendanceRecords.clockIn,
+        clockOut: attendanceRecords.clockOut,
+        workDurationMinutes: attendanceRecords.workDurationMinutes,
+        overtimeMinutes: attendanceRecords.overtimeMinutes,
+      })
       .from(attendanceRecords)
       .where(
         and(
           eq(attendanceRecords.employeeId, employeeId),
           eq(attendanceRecords.companyId, companyId),
-          gte(attendanceRecords.clockIn, startOfMonth),
-          lte(attendanceRecords.clockIn, endOfMonth),
+          gte(attendanceRecords.clockIn, monthStart),
+          lte(attendanceRecords.clockIn, capEnd),
         ),
-      )
-      .execute();
+      );
 
-    const map = new Map<string, (typeof recs)[0]>();
-    for (const r of recs) {
-      const day = r.clockIn.toISOString().split('T')[0];
-      map.set(day, r);
+    // Keep earliest clock-in per day
+    const byDate = new Map<
+      string,
+      {
+        clockIn: Date;
+        clockOut: Date | null;
+        workDurationMinutes: number | null;
+        overtimeMinutes: number | null;
+      }
+    >();
+    for (const r of rows) {
+      const dayKey = format(r.clockIn, 'yyyy-MM-dd');
+      const prev = byDate.get(dayKey);
+      if (!prev || r.clockIn < prev.clockIn) {
+        byDate.set(dayKey, {
+          clockIn: r.clockIn,
+          clockOut: r.clockOut ?? null,
+          workDurationMinutes: r.workDurationMinutes ?? null,
+          overtimeMinutes: r.overtimeMinutes ?? null,
+        });
+      }
     }
 
-    const allDays = eachDayOfInterval({ start, end }).map((d) =>
-      format(d, 'yyyy-MM-dd'),
+    const days = eachDayOfInterval({ start: monthStart, end: capEnd }).map(
+      (d) => format(d, 'yyyy-MM-dd'),
     );
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const days = allDays.filter((dateKey) => dateKey <= todayStr);
-    const summaryList = await Promise.all(
-      days.map(async (dateKey) => {
-        const day = await this.getEmployeeAttendanceByDate(
-          employeeId,
-          companyId,
-          dateKey,
-        );
+    const summaryList = days.map((dateKey) => {
+      const rec = byDate.get(dateKey);
+      if (!rec) {
         return {
           date: dateKey,
-          checkInTime: day.checkInTime,
-          checkOutTime: day.checkOutTime,
-          status: day.status,
+          checkInTime: null,
+          checkOutTime: null,
+          status: 'absent' as AttStatus,
         };
-      }),
-    );
+      }
+
+      // compute late/present using shift (if any), else defaults
+      const shift = useShifts ? shiftMap[dateKey] : undefined;
+      const startTime = shift?.startTime ?? defaultStartTime;
+      const tol = (shift?.lateToleranceMinutes ?? defaultTolerance) * 60_000;
+
+      const shiftStartISO = `${dateKey}T${startTime}:00`;
+      const shiftStart = parseISO(shiftStartISO);
+      const isLate =
+        isValid(shiftStart) &&
+        rec.clockIn.getTime() > shiftStart.getTime() + tol;
+
+      return {
+        date: dateKey,
+        checkInTime: rec.clockIn.toTimeString().slice(0, 8),
+        checkOutTime: rec.clockOut
+          ? rec.clockOut.toTimeString().slice(0, 8)
+          : null,
+        status: isLate ? 'late' : ('present' as AttStatus),
+      };
+    });
 
     return { summaryList };
   }
@@ -2027,6 +2105,14 @@ export class EmployeesService {
     employeeId: string,
     companyId: string,
     date: string,
+    preload?: {
+      settings?: Record<string, any>;
+      shift?: {
+        startTime: string;
+        endTime?: string | null;
+        lateToleranceMinutes?: number | null;
+      } | null;
+    },
   ): Promise<{
     date: string;
     checkInTime: string | null;
@@ -2041,12 +2127,7 @@ export class EmployeesService {
     const startOfDay = new Date(`${target}T00:00:00.000Z`);
     const endOfDay = new Date(`${target}T23:59:59.999Z`);
 
-    const s =
-      await this.attendanceSettingsService.getAllAttendanceSettings(companyId);
-    const useShifts = s['use_shifts'] ?? false;
-    const defaultStartTimeStr = s['default_start_time'] ?? '09:00';
-    const lateToleranceMins = Number(s['late_tolerance_minutes'] ?? 10);
-
+    // 1) fetch attendance for the day (one read)
     const recs = await this.db
       .select()
       .from(attendanceRecords)
@@ -2057,8 +2138,7 @@ export class EmployeesService {
           gte(attendanceRecords.clockIn, startOfDay),
           lte(attendanceRecords.clockIn, endOfDay),
         ),
-      )
-      .execute();
+      );
 
     const rec = recs[0] ?? null;
     if (!rec) {
@@ -2074,45 +2154,52 @@ export class EmployeesService {
       };
     }
 
+    // 2) settings/shift (use preloaded if provided)
+    const s =
+      preload?.settings ??
+      (await this.attendanceSettingsService.getAllAttendanceSettings(
+        companyId,
+      ));
+
+    const useShifts = s['use_shifts'] ?? false;
+    const defaultStartTimeStr = s['default_start_time'] ?? '09:00';
+    const defaultEndTimeStr = s['default_end_time'] ?? '17:00';
+    const lateToleranceMins = Number(s['late_tolerance_minutes'] ?? 10);
+
     let startTimeStr = defaultStartTimeStr;
+    let endTimeStr = defaultEndTimeStr;
     let tolerance = lateToleranceMins;
-    if (useShifts) {
-      const shift = await this.employeeShiftsService.getActiveShiftForEmployee(
+
+    let shift = preload?.shift ?? null;
+    if (useShifts && !shift) {
+      shift = await this.employeeShiftsService.getActiveShiftForEmployee(
         employeeId,
         companyId,
         target,
       );
-      if (shift) {
-        startTimeStr = shift.startTime;
-        tolerance = shift.lateToleranceMinutes ?? lateToleranceMins;
-      }
+    }
+    if (shift) {
+      startTimeStr = shift.startTime ?? defaultStartTimeStr;
+      endTimeStr = shift.endTime ?? defaultEndTimeStr;
+      tolerance = shift.lateToleranceMinutes ?? lateToleranceMins;
     }
 
+    // 3) compute fields
     const shiftStart = parseISO(`${target}T${startTimeStr}:00`);
+    const shiftEnd = parseISO(`${target}T${endTimeStr}:00`);
     const checkIn = new Date(rec.clockIn);
     const checkOut = rec.clockOut ? new Date(rec.clockOut) : null;
-    const diffLate = (checkIn.getTime() - shiftStart.getTime()) / 60000;
 
-    const isLateArrival = diffLate > tolerance;
-    const isEarlyDeparture = checkOut
-      ? checkOut.getTime() <
-        parseISO(
-          `${target}T${
-            (
-              useShifts &&
-              (await this.employeeShiftsService.getActiveShiftForEmployee(
-                employeeId,
-                companyId,
-                target,
-              ))
-            )?.end_time ??
-            s['default_end_time'] ??
-            '17:00'
-          }:00`,
-        ).getTime()
-      : false;
+    const isLateArrival =
+      isValid(shiftStart) &&
+      checkIn.getTime() > shiftStart.getTime() + tolerance * 60_000;
 
-    const workDurationMinutes = rec.workDurationMinutes;
+    const isEarlyDeparture =
+      !!checkOut &&
+      isValid(shiftEnd) &&
+      checkOut.getTime() < shiftEnd.getTime();
+
+    const workDurationMinutes = rec.workDurationMinutes ?? null;
     const overtimeMinutes = rec.overtimeMinutes ?? 0;
 
     return {

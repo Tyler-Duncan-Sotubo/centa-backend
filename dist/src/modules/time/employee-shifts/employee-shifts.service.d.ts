@@ -145,6 +145,12 @@ export declare class EmployeeShiftsService {
         createdAt: Date | null;
         updatedAt: Date | null;
     } | null>;
+    getEmployeeShiftsForRange(employeeId: string, companyId: string, start: Date, end: Date): Promise<{
+        date: string;
+        startTime: string;
+        endTime: string;
+        lateToleranceMinutes: number | null;
+    }[]>;
     listByShift(companyId: string, shiftId: string): Promise<({
         id: string;
         employeeId: string;

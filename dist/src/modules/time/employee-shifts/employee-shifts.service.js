@@ -22,6 +22,7 @@ const schema_1 = require("../../audit/schema");
 const schema_2 = require("../../../drizzle/schema");
 const toCamelCase_1 = require("../../../utils/toCamelCase");
 const cache_service_1 = require("../../../common/cache/cache.service");
+const date_fns_1 = require("date-fns");
 let EmployeeShiftsService = class EmployeeShiftsService {
     constructor(auditService, db, cache) {
         this.auditService = auditService;
@@ -328,6 +329,34 @@ let EmployeeShiftsService = class EmployeeShiftsService {
                 .execute();
             return shiftRec || null;
         });
+    }
+    async getEmployeeShiftsForRange(employeeId, companyId, start, end) {
+        const [assignment] = await this.db
+            .select({ shiftId: employee_shifts_schema_1.employeeShifts.shiftId })
+            .from(employee_shifts_schema_1.employeeShifts)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(employee_shifts_schema_1.employeeShifts.employeeId, employeeId), (0, drizzle_orm_1.eq)(employee_shifts_schema_1.employeeShifts.companyId, companyId)))
+            .limit(1);
+        if (!assignment?.shiftId) {
+            return [];
+        }
+        const [def] = await this.db
+            .select({
+            startTime: schema_2.shifts.startTime,
+            endTime: schema_2.shifts.endTime,
+            lateToleranceMinutes: schema_2.shifts.lateToleranceMinutes,
+        })
+            .from(schema_2.shifts)
+            .where((0, drizzle_orm_1.eq)(schema_2.shifts.id, assignment.shiftId))
+            .limit(1);
+        if (!def)
+            return [];
+        const days = (0, date_fns_1.eachDayOfInterval)({ start, end });
+        return days.map((d) => ({
+            date: (0, date_fns_1.format)(d, 'yyyy-MM-dd'),
+            startTime: def.startTime,
+            endTime: def.endTime ?? null,
+            lateToleranceMinutes: def.lateToleranceMinutes ?? null,
+        }));
     }
     async listByShift(companyId, shiftId) {
         return this.cache.getOrSetVersioned(companyId, ['attendance', 'employee-shifts', 'by-shift', shiftId], () => this.baseEmployeeShiftQuery()

@@ -42,6 +42,15 @@ type EmployeeFullResponse = {
     payslipSummary?: any;
     avatarUrl?: string;
 };
+type AttStatus = 'absent' | 'present' | 'late';
+type MonthlySummary = {
+    summaryList: Array<{
+        date: string;
+        checkInTime: string | null;
+        checkOutTime: string | null;
+        status: AttStatus;
+    }>;
+};
 export declare class EmployeesService {
     private db;
     private readonly logger;
@@ -844,15 +853,15 @@ export declare class EmployeesService {
         costCenterName: string | null;
         locationName: string | null;
     })[]>;
-    getEmployeeAttendanceByMonth(employeeId: string, companyId: string, yearMonth: string): Promise<{
-        summaryList: Array<{
-            date: string;
-            checkInTime: string | null;
-            checkOutTime: string | null;
-            status: 'absent' | 'present' | 'late';
-        }>;
-    }>;
-    getEmployeeAttendanceByDate(employeeId: string, companyId: string, date: string): Promise<{
+    getEmployeeAttendanceByMonth(employeeId: string, companyId: string, yearMonth: string): Promise<MonthlySummary>;
+    getEmployeeAttendanceByDate(employeeId: string, companyId: string, date: string, preload?: {
+        settings?: Record<string, any>;
+        shift?: {
+            startTime: string;
+            endTime?: string | null;
+            lateToleranceMinutes?: number | null;
+        } | null;
+    }): Promise<{
         date: string;
         checkInTime: string | null;
         checkOutTime: string | null;

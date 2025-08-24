@@ -21,6 +21,7 @@ import {
 import { toCamelCase } from 'src/utils/toCamelCase';
 import { UpdateEmployeeShiftDto } from './dto/update-employee-shift.dto';
 import { CacheService } from 'src/common/cache/cache.service';
+import { eachDayOfInterval, format } from 'date-fns';
 
 type CalendarEvent = {
   date: string;
@@ -572,6 +573,52 @@ export class EmployeeShiftsService {
         return shiftRec || null;
       },
     );
+  }
+
+  async getEmployeeShiftsForRange(
+    employeeId: string,
+    companyId: string,
+    start: Date,
+    end: Date,
+  ) {
+    // 1) find the current assignment (one row)
+    const [assignment] = await this.db
+      .select({ shiftId: employeeShifts.shiftId })
+      .from(employeeShifts)
+      .where(
+        and(
+          eq(employeeShifts.employeeId, employeeId),
+          eq(employeeShifts.companyId, companyId),
+        ),
+      )
+      .limit(1);
+
+    if (!assignment?.shiftId) {
+      // no shift assigned -> let caller fall back to defaults
+      return [];
+    }
+
+    // 2) get shift definition
+    const [def] = await this.db
+      .select({
+        startTime: shifts.startTime,
+        endTime: shifts.endTime,
+        lateToleranceMinutes: shifts.lateToleranceMinutes,
+      })
+      .from(shifts)
+      .where(eq(shifts.id, assignment.shiftId))
+      .limit(1);
+
+    if (!def) return [];
+
+    // 3) expand same shift for every day
+    const days = eachDayOfInterval({ start, end });
+    return days.map((d) => ({
+      date: format(d, 'yyyy-MM-dd'),
+      startTime: def.startTime,
+      endTime: def.endTime ?? null,
+      lateToleranceMinutes: def.lateToleranceMinutes ?? null,
+    }));
   }
 
   async listByShift(companyId: string, shiftId: string) {

@@ -1391,49 +1391,87 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
     }
     async getEmployeeAttendanceByMonth(employeeId, companyId, yearMonth) {
         const [y, m] = yearMonth.split('-').map(Number);
-        const start = new Date(y, m - 1, 1);
-        const end = new Date(y, m - 1, new Date(y, m, 0).getDate());
-        const startOfMonth = new Date(start);
-        startOfMonth.setHours(0, 0, 0, 0);
-        const endOfMonth = new Date(end);
-        endOfMonth.setHours(23, 59, 59, 999);
-        const recs = await this.db
-            .select()
-            .from(schema_2.attendanceRecords)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_2.attendanceRecords.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_2.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_2.attendanceRecords.clockIn, startOfMonth), (0, drizzle_orm_1.lte)(schema_2.attendanceRecords.clockIn, endOfMonth)))
-            .execute();
-        const map = new Map();
-        for (const r of recs) {
-            const day = r.clockIn.toISOString().split('T')[0];
-            map.set(day, r);
+        if (!y || !m)
+            throw new Error('yearMonth must be YYYY-MM');
+        const monthStart = new Date(y, m - 1, 1, 0, 0, 0, 0);
+        const monthEnd = new Date(y, m, 0, 23, 59, 59, 999);
+        const today = new Date();
+        const capEnd = monthEnd < today ? monthEnd : today;
+        const s = await this.attendanceSettingsService.getAllAttendanceSettings(companyId);
+        const useShifts = s['use_shifts'] ?? false;
+        const defaultStartTime = s['default_start_time'] ?? '09:00';
+        const defaultTolerance = Number(s['late_tolerance_minutes'] ?? 10);
+        const shiftMap = {};
+        if (useShifts) {
+            const monthlyShifts = await this.employeeShiftsService.getEmployeeShiftsForRange(employeeId, companyId, monthStart, monthEnd);
+            monthlyShifts.forEach((s) => {
+                shiftMap[s.date] = {
+                    startTime: s.startTime,
+                    endTime: s.endTime ?? null,
+                    lateToleranceMinutes: s.lateToleranceMinutes ?? null,
+                };
+            });
         }
-        const allDays = (0, date_fns_1.eachDayOfInterval)({ start, end }).map((d) => (0, date_fns_1.format)(d, 'yyyy-MM-dd'));
-        const todayStr = new Date().toISOString().split('T')[0];
-        const days = allDays.filter((dateKey) => dateKey <= todayStr);
-        const summaryList = await Promise.all(days.map(async (dateKey) => {
-            const day = await this.getEmployeeAttendanceByDate(employeeId, companyId, dateKey);
+        const rows = await this.db
+            .select({
+            id: schema_2.attendanceRecords.id,
+            clockIn: schema_2.attendanceRecords.clockIn,
+            clockOut: schema_2.attendanceRecords.clockOut,
+            workDurationMinutes: schema_2.attendanceRecords.workDurationMinutes,
+            overtimeMinutes: schema_2.attendanceRecords.overtimeMinutes,
+        })
+            .from(schema_2.attendanceRecords)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_2.attendanceRecords.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_2.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_2.attendanceRecords.clockIn, monthStart), (0, drizzle_orm_1.lte)(schema_2.attendanceRecords.clockIn, capEnd)));
+        const byDate = new Map();
+        for (const r of rows) {
+            const dayKey = (0, date_fns_1.format)(r.clockIn, 'yyyy-MM-dd');
+            const prev = byDate.get(dayKey);
+            if (!prev || r.clockIn < prev.clockIn) {
+                byDate.set(dayKey, {
+                    clockIn: r.clockIn,
+                    clockOut: r.clockOut ?? null,
+                    workDurationMinutes: r.workDurationMinutes ?? null,
+                    overtimeMinutes: r.overtimeMinutes ?? null,
+                });
+            }
+        }
+        const days = (0, date_fns_1.eachDayOfInterval)({ start: monthStart, end: capEnd }).map((d) => (0, date_fns_1.format)(d, 'yyyy-MM-dd'));
+        const summaryList = days.map((dateKey) => {
+            const rec = byDate.get(dateKey);
+            if (!rec) {
+                return {
+                    date: dateKey,
+                    checkInTime: null,
+                    checkOutTime: null,
+                    status: 'absent',
+                };
+            }
+            const shift = useShifts ? shiftMap[dateKey] : undefined;
+            const startTime = shift?.startTime ?? defaultStartTime;
+            const tol = (shift?.lateToleranceMinutes ?? defaultTolerance) * 60_000;
+            const shiftStartISO = `${dateKey}T${startTime}:00`;
+            const shiftStart = (0, date_fns_1.parseISO)(shiftStartISO);
+            const isLate = (0, date_fns_1.isValid)(shiftStart) &&
+                rec.clockIn.getTime() > shiftStart.getTime() + tol;
             return {
                 date: dateKey,
-                checkInTime: day.checkInTime,
-                checkOutTime: day.checkOutTime,
-                status: day.status,
+                checkInTime: rec.clockIn.toTimeString().slice(0, 8),
+                checkOutTime: rec.clockOut
+                    ? rec.clockOut.toTimeString().slice(0, 8)
+                    : null,
+                status: isLate ? 'late' : 'present',
             };
-        }));
+        });
         return { summaryList };
     }
-    async getEmployeeAttendanceByDate(employeeId, companyId, date) {
+    async getEmployeeAttendanceByDate(employeeId, companyId, date, preload) {
         const target = new Date(date).toISOString().split('T')[0];
         const startOfDay = new Date(`${target}T00:00:00.000Z`);
         const endOfDay = new Date(`${target}T23:59:59.999Z`);
-        const s = await this.attendanceSettingsService.getAllAttendanceSettings(companyId);
-        const useShifts = s['use_shifts'] ?? false;
-        const defaultStartTimeStr = s['default_start_time'] ?? '09:00';
-        const lateToleranceMins = Number(s['late_tolerance_minutes'] ?? 10);
         const recs = await this.db
             .select()
             .from(schema_2.attendanceRecords)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_2.attendanceRecords.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_2.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_2.attendanceRecords.clockIn, startOfDay), (0, drizzle_orm_1.lte)(schema_2.attendanceRecords.clockIn, endOfDay)))
-            .execute();
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_2.attendanceRecords.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_2.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_2.attendanceRecords.clockIn, startOfDay), (0, drizzle_orm_1.lte)(schema_2.attendanceRecords.clockIn, endOfDay)));
         const rec = recs[0] ?? null;
         if (!rec) {
             return {
@@ -1447,28 +1485,34 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 isEarlyDeparture: false,
             };
         }
+        const s = preload?.settings ??
+            (await this.attendanceSettingsService.getAllAttendanceSettings(companyId));
+        const useShifts = s['use_shifts'] ?? false;
+        const defaultStartTimeStr = s['default_start_time'] ?? '09:00';
+        const defaultEndTimeStr = s['default_end_time'] ?? '17:00';
+        const lateToleranceMins = Number(s['late_tolerance_minutes'] ?? 10);
         let startTimeStr = defaultStartTimeStr;
+        let endTimeStr = defaultEndTimeStr;
         let tolerance = lateToleranceMins;
-        if (useShifts) {
-            const shift = await this.employeeShiftsService.getActiveShiftForEmployee(employeeId, companyId, target);
-            if (shift) {
-                startTimeStr = shift.startTime;
-                tolerance = shift.lateToleranceMinutes ?? lateToleranceMins;
-            }
+        let shift = preload?.shift ?? null;
+        if (useShifts && !shift) {
+            shift = await this.employeeShiftsService.getActiveShiftForEmployee(employeeId, companyId, target);
+        }
+        if (shift) {
+            startTimeStr = shift.startTime ?? defaultStartTimeStr;
+            endTimeStr = shift.endTime ?? defaultEndTimeStr;
+            tolerance = shift.lateToleranceMinutes ?? lateToleranceMins;
         }
         const shiftStart = (0, date_fns_1.parseISO)(`${target}T${startTimeStr}:00`);
+        const shiftEnd = (0, date_fns_1.parseISO)(`${target}T${endTimeStr}:00`);
         const checkIn = new Date(rec.clockIn);
         const checkOut = rec.clockOut ? new Date(rec.clockOut) : null;
-        const diffLate = (checkIn.getTime() - shiftStart.getTime()) / 60000;
-        const isLateArrival = diffLate > tolerance;
-        const isEarlyDeparture = checkOut
-            ? checkOut.getTime() <
-                (0, date_fns_1.parseISO)(`${target}T${(useShifts &&
-                    (await this.employeeShiftsService.getActiveShiftForEmployee(employeeId, companyId, target)))?.end_time ??
-                    s['default_end_time'] ??
-                    '17:00'}:00`).getTime()
-            : false;
-        const workDurationMinutes = rec.workDurationMinutes;
+        const isLateArrival = (0, date_fns_1.isValid)(shiftStart) &&
+            checkIn.getTime() > shiftStart.getTime() + tolerance * 60_000;
+        const isEarlyDeparture = !!checkOut &&
+            (0, date_fns_1.isValid)(shiftEnd) &&
+            checkOut.getTime() < shiftEnd.getTime();
+        const workDurationMinutes = rec.workDurationMinutes ?? null;
         const overtimeMinutes = rec.overtimeMinutes ?? 0;
         return {
             date: target,
