@@ -25,4 +25,5 @@ __exportStar(require("../goals/schema/goal-attachments.schema"), exports);
 __exportStar(require("../goals/schema/performance-goals.schema"), exports);
 __exportStar(require("../goals/schema/performance-goal-updates.schema"), exports);
 __exportStar(require("../goals/schema/goal-comments.schema"), exports);
+__exportStar(require("../goals/schema/policies-and-checkins.schema"), exports);
 //# sourceMappingURL=index.js.map

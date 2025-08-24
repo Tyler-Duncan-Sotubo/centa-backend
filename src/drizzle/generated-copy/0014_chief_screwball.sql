@@ -1,3 +1,0 @@
-ALTER TABLE "performance_feedback_responses" ADD COLUMN "question_id" uuid NOT NULL;--> statement-breakpoint
-ALTER TABLE "performance_feedback_responses" ADD CONSTRAINT "performance_feedback_responses_question_id_performance_feedback_questions_id_fk" FOREIGN KEY ("question_id") REFERENCES "public"."performance_feedback_questions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "performance_feedback_responses" DROP COLUMN "question";

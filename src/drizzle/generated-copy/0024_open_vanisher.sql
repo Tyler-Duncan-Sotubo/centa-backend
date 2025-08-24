@@ -1,1 +1,0 @@
-ALTER TYPE "public"."offer_status" ADD VALUE 'sent' BEFORE 'declined';

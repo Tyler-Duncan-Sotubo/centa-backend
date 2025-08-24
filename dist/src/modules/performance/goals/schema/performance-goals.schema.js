@@ -7,15 +7,14 @@ exports.performanceGoals = (0, pg_core_1.pgTable)('performance_goals', {
     id: (0, pg_core_1.uuid)('id').primaryKey().defaultRandom(),
     companyId: (0, pg_core_1.uuid)('company_id')
         .notNull()
-        .references(() => schema_1.companies.id, {
-        onDelete: 'cascade',
-    }),
+        .references(() => schema_1.companies.id, { onDelete: 'cascade' }),
     cycleId: (0, pg_core_1.uuid)('cycle_id')
         .notNull()
-        .references(() => schema_1.performanceCycles.id, {
+        .references(() => schema_1.performanceCycles.id, { onDelete: 'cascade' }),
+    employeeId: (0, pg_core_1.uuid)('employee_id').references(() => schema_1.employees.id, {
         onDelete: 'cascade',
     }),
-    employeeId: (0, pg_core_1.uuid)('employee_id').references(() => schema_1.employees.id, {
+    employeeGroupId: (0, pg_core_1.uuid)('employee_group_id').references(() => schema_1.groups.id, {
         onDelete: 'cascade',
     }),
     title: (0, pg_core_1.text)('title').notNull(),
@@ -38,5 +37,7 @@ exports.performanceGoals = (0, pg_core_1.pgTable)('performance_goals', {
 }, (t) => [
     (0, pg_core_1.index)('idx_goals_company_id').on(t.companyId),
     (0, pg_core_1.index)('idx_goals_cycle_id').on(t.cycleId),
+    (0, pg_core_1.index)('idx_goals_employee_id').on(t.employeeId),
+    (0, pg_core_1.index)('idx_goals_employee_group_id').on(t.employeeGroupId),
 ]);
 //# sourceMappingURL=performance-goals.schema.js.map

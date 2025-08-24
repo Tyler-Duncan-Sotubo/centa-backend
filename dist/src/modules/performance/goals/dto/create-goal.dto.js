@@ -17,17 +17,16 @@ exports.CreateGoalDto = CreateGoalDto;
 __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
+], CreateGoalDto.prototype, "status", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
 ], CreateGoalDto.prototype, "title", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateGoalDto.prototype, "description", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsBoolean)(),
-    __metadata("design:type", Boolean)
-], CreateGoalDto.prototype, "kpiBased", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
@@ -42,11 +41,13 @@ __decorate([
     __metadata("design:type", Number)
 ], CreateGoalDto.prototype, "weight", void 0);
 __decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
-], CreateGoalDto.prototype, "cycleId", void 0);
+], CreateGoalDto.prototype, "groupId", void 0);
 __decorate([
-    (0, class_validator_1.IsUUID)('all', { each: true }),
-    __metadata("design:type", Array)
-], CreateGoalDto.prototype, "ownerIds", void 0);
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CreateGoalDto.prototype, "employeeId", void 0);
 //# sourceMappingURL=create-goal.dto.js.map

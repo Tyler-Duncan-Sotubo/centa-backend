@@ -9,21 +9,21 @@ export declare class OnboardingSeederService {
     seedAllGlobalTemplates(): Promise<void>;
     private seedTemplate;
     cloneTemplateForCompany(globalTemplateId: string, companyId: string, templateName?: string): Promise<{
+        status: "draft" | "published" | null;
         id: string;
         name: string;
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
     createCompanyTemplate(companyId: string, dto: CreateOnboardingTemplateDto): Promise<{
+        status: "draft" | "published" | null;
         id: string;
         name: string;
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
     updateTemplateById(templateId: string, dto: CreateOnboardingTemplateDto): Promise<{
@@ -70,8 +70,8 @@ export declare class OnboardingSeederService {
             id: string;
             title: string;
             templateId: string;
-            order: number | null;
             assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         fieldCount: number;
@@ -99,16 +99,16 @@ export declare class OnboardingSeederService {
             id: string;
             title: string;
             templateId: string;
-            order: number | null;
             assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
+        status: "draft" | "published" | null;
         id: string;
         name: string;
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
 }

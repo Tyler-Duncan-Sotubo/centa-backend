@@ -1,1 +1,0 @@
-ALTER TABLE "performance_appraisals" ADD COLUMN "final_note" text;

@@ -7,6 +7,7 @@ export declare class RunController extends BaseController {
     private formattedDate;
     calculatePayrollForCompany(user: User, date: string): Promise<{
         name: string;
+        transport: string;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
@@ -18,7 +19,6 @@ export declare class RunController extends BaseController {
         payrollRunId: string;
         basic: string;
         housing: string;
-        transport: string;
         pensionContribution: string;
         employerPensionContribution: string;
         bonuses: string | null;

@@ -175,24 +175,24 @@ export declare class CompensationService {
     private tags;
     upsert(employeeId: string, dto: CreateCompensationDto, userId: string, ip: string): Promise<{
         id: string;
-        currency: string;
         createdAt: Date;
         updatedAt: Date;
+        currency: string;
         payFrequency: string;
         employeeId: string;
-        grossSalary: number;
         effectiveDate: string;
+        grossSalary: number;
         applyNHf: boolean;
     }>;
     create(employeeId: string, dto: CreateCompensationDto, userId: string, ip: string, trx?: typeof this.db): Promise<{
         id: string;
-        currency: string;
         createdAt: Date;
         updatedAt: Date;
+        currency: string;
         payFrequency: string;
         employeeId: string;
-        grossSalary: number;
         effectiveDate: string;
+        grossSalary: number;
         applyNHf: boolean;
     }>;
     findAll(employeeId: string): Promise<{

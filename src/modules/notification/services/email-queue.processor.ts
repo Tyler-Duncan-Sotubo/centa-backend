@@ -1,11 +1,13 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { EmployeeInvitationService } from './employee-invitation.service';
+import { GoalNotificationService } from './goal-notification.service';
 
 @Processor('emailQueue')
 export class EmailQueueProcessor extends WorkerHost {
   constructor(
     private readonly employeeInvitationService: EmployeeInvitationService,
+    private readonly goalNotificationService: GoalNotificationService,
   ) {
     super();
   }
@@ -15,6 +17,10 @@ export class EmailQueueProcessor extends WorkerHost {
       switch (job.name) {
         case 'sendPasswordResetEmail':
           await this.handleEmployeeInvitationEmail(job.data);
+          break;
+
+        case 'sendGoalCheckin':
+          await this.handleGoalCheckin(job.data);
           break;
 
         default:
@@ -35,5 +41,9 @@ export class EmailQueueProcessor extends WorkerHost {
       role,
       resetLink,
     );
+  }
+
+  private async handleGoalCheckin(data: any) {
+    await this.goalNotificationService.sendGoalCheckin(data);
   }
 }

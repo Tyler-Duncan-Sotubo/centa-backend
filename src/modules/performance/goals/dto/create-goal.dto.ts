@@ -1,22 +1,15 @@
-import {
-  IsString,
-  IsOptional,
-  IsUUID,
-  IsNumber,
-  IsBoolean,
-} from 'class-validator';
+import { IsString, IsOptional, IsUUID, IsNumber } from 'class-validator';
 
 export class CreateGoalDto {
+  @IsString()
+  status: string;
+
   @IsString()
   title: string;
 
   @IsOptional()
   @IsString()
   description?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  kpiBased?: boolean;
 
   @IsString()
   dueDate: string;
@@ -28,9 +21,11 @@ export class CreateGoalDto {
   @IsNumber()
   weight?: number;
 
+  @IsOptional()
   @IsUUID()
-  cycleId: string;
+  groupId: string;
 
-  @IsUUID('all', { each: true })
-  ownerIds: string[];
+  @IsOptional()
+  @IsUUID()
+  employeeId: string;
 }

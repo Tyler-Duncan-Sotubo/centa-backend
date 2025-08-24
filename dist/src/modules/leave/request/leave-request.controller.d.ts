@@ -6,6 +6,7 @@ export declare class LeaveRequestController extends BaseController {
     private readonly leaveRequest;
     constructor(leaveRequest: LeaveRequestService);
     createLeaveRequest(dto: CreateLeaveRequestDto, user: User, ip: string): Promise<{
+        status: string;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
@@ -13,7 +14,6 @@ export declare class LeaveRequestController extends BaseController {
         startDate: string;
         employeeId: string;
         endDate: string;
-        status: string;
         reason: string | null;
         requestedAt: Date | null;
         leaveTypeId: string;

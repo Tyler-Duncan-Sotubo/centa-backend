@@ -10,8 +10,8 @@ export declare class PerformanceTemplatesController extends BaseController {
         id: string;
         name: string;
         createdAt: Date | null;
-        description: string | null;
         companyId: string;
+        description: string | null;
         isDefault: boolean | null;
         includeGoals: boolean | null;
         includeAttendance: boolean | null;

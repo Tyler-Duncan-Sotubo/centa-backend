@@ -57,10 +57,8 @@ let FeedbackQuestionService = class FeedbackQuestionService {
         return this.cache.getOrSetVersioned(companyId, ['feedback-questions', 'type', type], async () => this.db
             .select()
             .from(performance_feedback_questions_schema_1.feedbackQuestions)
-            .where((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.companyId, companyId) &&
-            (0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.type, type))
-            .orderBy((0, drizzle_orm_1.asc)(performance_feedback_questions_schema_1.feedbackQuestions.order))
-            .execute(), { tags: this.tags(companyId) });
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.companyId, companyId), (0, drizzle_orm_1.eq)(performance_feedback_questions_schema_1.feedbackQuestions.type, type)))
+            .orderBy((0, drizzle_orm_1.asc)(performance_feedback_questions_schema_1.feedbackQuestions.order)), { tags: this.tags(companyId) });
     }
     async findOne(companyId, id) {
         return this.cache.getOrSetVersioned(companyId, ['feedback-questions', 'one', id], async () => {

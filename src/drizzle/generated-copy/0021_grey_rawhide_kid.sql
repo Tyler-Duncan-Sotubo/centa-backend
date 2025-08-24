@@ -1,1 +1,0 @@
-ALTER TABLE "performance_appraisal_cycles" ADD COLUMN "is_auto_generated" boolean DEFAULT false;

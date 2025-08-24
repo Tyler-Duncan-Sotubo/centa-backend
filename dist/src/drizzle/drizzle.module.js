@@ -38,10 +38,7 @@ exports.DrizzleModule = DrizzleModule = __decorate([
                             max: Number(process.env.PG_POOL_MAX || 10),
                             idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30_000),
                             connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 5_000),
-                            statement_timeout: Number(process.env.PG_STMT_TIMEOUT_MS || 30_000),
-                            application_name: process.env.PG_APP_NAME || 'nest-drizzle',
                             keepAlive: true,
-                            maxUses: Number(process.env.PG_MAX_USES || 7_500),
                         });
                     }
                     return g.__PG_POOL__;

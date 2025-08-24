@@ -5,6 +5,7 @@ import Keyv from 'keyv';
 import KeyvRedis from '@keyv/redis';
 import { CacheService } from './cache.service';
 import { AnnouncementCacheService } from './announcement-cache.service';
+import { CacheVersionCronService } from './cache-version-cron.service';
 
 @Global()
 @Module({
@@ -44,7 +45,7 @@ import { AnnouncementCacheService } from './announcement-cache.service';
       },
     }),
   ],
-  providers: [CacheService, AnnouncementCacheService],
+  providers: [CacheService, AnnouncementCacheService, CacheVersionCronService],
   exports: [NestCacheModule, CacheService, AnnouncementCacheService],
 })
 export class CacheModule {}

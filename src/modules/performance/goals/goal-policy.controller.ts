@@ -2,19 +2,16 @@
 import {
   Controller,
   Get,
-  Post,
-  Patch,
-  Param,
   Body,
-  Query,
   UseGuards,
   SetMetadata,
+  Patch,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { CurrentUser } from 'src/modules/auth/decorator/current-user.decorator';
 import { User } from 'src/common/types/user.type';
 import { PolicyService } from './goal-policy.service';
-import { UpsertCompanyPolicyDto, UpsertTeamPolicyDto } from './dto/policy.dtos';
+import { UpsertCompanyPolicyDto } from './dto/policy.dtos';
 import { BaseController } from 'src/common/interceptor/base.controller';
 
 @UseGuards(JwtAuthGuard)
@@ -24,14 +21,14 @@ export class PerformancePolicyController extends BaseController {
     super();
   }
 
-  // Get effective policy for UI prefill (system -> company -> team)
+  // Effective (company -> system)
   @Get('')
   @SetMetadata('permissions', ['performance.goals.edit'])
-  getEffective(@CurrentUser() user: User, @Query('groupId') groupId?: string) {
-    return this.policy.getEffectivePolicy(user.companyId, groupId ?? null);
+  getEffective(@CurrentUser() user: User) {
+    return this.policy.getEffectivePolicy(user.companyId);
   }
 
-  // Upsert company-wide defaults (admin)
+  // Upsert company policy
   @Patch('company')
   @SetMetadata('permissions', ['performance.goals.edit'])
   upsertCompany(
@@ -39,47 +36,5 @@ export class PerformancePolicyController extends BaseController {
     @Body() dto: UpsertCompanyPolicyDto,
   ) {
     return this.policy.upsertCompanyPolicy(user.companyId, user.id, dto);
-  }
-
-  // Upsert team override (admin)
-  @Patch('team/:groupId')
-  @SetMetadata('permissions', ['performance.goals.edit'])
-  upsertTeam(
-    @Param('groupId') groupId: string,
-    @CurrentUser() user: User,
-    @Body() dto: UpsertTeamPolicyDto,
-  ) {
-    return this.policy.upsertTeamPolicy(user.companyId, groupId, user.id, dto);
-  }
-
-  // Resync an objective's schedule from policy (optional endpoint)
-  @Post('/objectives/:objectiveId/schedule/resync')
-  @SetMetadata('permissions', ['performance.goals.edit'])
-  resyncObjectiveSchedule(
-    @Param('objectiveId') objectiveId: string,
-    @CurrentUser() user: User,
-    @Body()
-    overrides?: Partial<{
-      cadence: 'weekly' | 'biweekly' | 'monthly';
-      timezone: string;
-      anchorDow: number;
-      anchorHour: number;
-      groupId: string | null;
-    }>,
-  ) {
-    const groupId = overrides?.groupId ?? null;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { cadence, timezone, anchorDow, anchorHour, ..._ } = overrides ?? {};
-    return this.policy.upsertObjectiveScheduleFromPolicy(
-      objectiveId,
-      user.companyId,
-      groupId,
-      {
-        cadence,
-        timezone,
-        anchorDow,
-        anchorHour,
-      },
-    );
   }
 }

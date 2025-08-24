@@ -52,8 +52,8 @@ export declare class DeductionsService {
         id: string;
         isActive: boolean;
         startDate: string;
-        endDate: string | null;
         employeeId: string;
+        endDate: string | null;
         metadata: unknown;
         deductionTypeId: string;
         rateType: "fixed" | "percentage";

@@ -1,4 +1,4 @@
-export declare const objectiveAttachments: import("drizzle-orm/pg-core").PgTableWithColumns<{
+export declare const goalAttachments: import("drizzle-orm/pg-core").PgTableWithColumns<{
     name: "performance_goal_attachments";
     schema: undefined;
     columns: {
@@ -19,31 +19,14 @@ export declare const objectiveAttachments: import("drizzle-orm/pg-core").PgTable
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
-        objectiveId: import("drizzle-orm/pg-core").PgColumn<{
-            name: "objective_id";
+        goalId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "goal_id";
             tableName: "performance_goal_attachments";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
             driverParam: string;
-            notNull: false;
-            hasDefault: false;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: undefined;
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        keyResultId: import("drizzle-orm/pg-core").PgColumn<{
-            name: "key_result_id";
-            tableName: "performance_goal_attachments";
-            dataType: "string";
-            columnType: "PgUUID";
-            data: string;
-            driverParam: string;
-            notNull: false;
+            notNull: true;
             hasDefault: false;
             isPrimaryKey: false;
             isAutoincrement: false;
@@ -60,7 +43,7 @@ export declare const objectiveAttachments: import("drizzle-orm/pg-core").PgTable
             columnType: "PgText";
             data: string;
             driverParam: string;
-            notNull: false;
+            notNull: true;
             hasDefault: false;
             isPrimaryKey: false;
             isAutoincrement: false;

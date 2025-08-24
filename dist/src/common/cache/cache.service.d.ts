@@ -23,6 +23,7 @@ export declare class CacheService {
         ttlSeconds?: number;
         tags?: string[];
     }): Promise<T>;
+    resetCompanyVersion(companyId: string): Promise<number>;
     private attachTags;
     invalidateTags(tags: string[]): Promise<void>;
 }

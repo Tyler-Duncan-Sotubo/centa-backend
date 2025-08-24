@@ -7,11 +7,11 @@ export declare class PayrollAdjustmentsController {
     constructor(payrollAdjustmentsService: PayrollAdjustmentsService);
     create(createPayrollAdjustmentDto: CreatePayrollAdjustmentDto, user: User): Promise<{
         id: string;
-        createdBy: string | null;
         createdAt: string | null;
         companyId: string;
-        isDeleted: boolean | null;
+        createdBy: string | null;
         type: string;
+        isDeleted: boolean | null;
         employeeId: string;
         notes: string | null;
         label: string | null;

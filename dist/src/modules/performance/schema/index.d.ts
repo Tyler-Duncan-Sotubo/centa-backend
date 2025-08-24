@@ -9,3 +9,4 @@ export * from '../goals/schema/goal-attachments.schema';
 export * from '../goals/schema/performance-goals.schema';
 export * from '../goals/schema/performance-goal-updates.schema';
 export * from '../goals/schema/goal-comments.schema';
+export * from '../goals/schema/policies-and-checkins.schema';

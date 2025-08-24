@@ -14,6 +14,7 @@ const keyv_1 = require("keyv");
 const redis_1 = require("@keyv/redis");
 const cache_service_1 = require("./cache.service");
 const announcement_cache_service_1 = require("./announcement-cache.service");
+const cache_version_cron_service_1 = require("./cache-version-cron.service");
 let CacheModule = class CacheModule {
 };
 exports.CacheModule = CacheModule;
@@ -49,7 +50,7 @@ exports.CacheModule = CacheModule = __decorate([
                 },
             }),
         ],
-        providers: [cache_service_1.CacheService, announcement_cache_service_1.AnnouncementCacheService],
+        providers: [cache_service_1.CacheService, announcement_cache_service_1.AnnouncementCacheService, cache_version_cron_service_1.CacheVersionCronService],
         exports: [cache_manager_1.CacheModule, cache_service_1.CacheService, announcement_cache_service_1.AnnouncementCacheService],
     })
 ], CacheModule);

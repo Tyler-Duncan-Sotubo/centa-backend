@@ -12,16 +12,21 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.EmailQueueProcessor = void 0;
 const bullmq_1 = require("@nestjs/bullmq");
 const employee_invitation_service_1 = require("./employee-invitation.service");
+const goal_notification_service_1 = require("./goal-notification.service");
 let EmailQueueProcessor = class EmailQueueProcessor extends bullmq_1.WorkerHost {
-    constructor(employeeInvitationService) {
+    constructor(employeeInvitationService, goalNotificationService) {
         super();
         this.employeeInvitationService = employeeInvitationService;
+        this.goalNotificationService = goalNotificationService;
     }
     async process(job) {
         try {
             switch (job.name) {
                 case 'sendPasswordResetEmail':
                     await this.handleEmployeeInvitationEmail(job.data);
+                    break;
+                case 'sendGoalCheckin':
+                    await this.handleGoalCheckin(job.data);
                     break;
                 default:
                     console.warn(`⚠️ Unhandled email job: ${job.name}`);
@@ -36,10 +41,14 @@ let EmailQueueProcessor = class EmailQueueProcessor extends bullmq_1.WorkerHost 
         const { email, name, companyName, role, resetLink } = data;
         await this.employeeInvitationService.sendInvitationEmail(email, name, companyName, role, resetLink);
     }
+    async handleGoalCheckin(data) {
+        await this.goalNotificationService.sendGoalCheckin(data);
+    }
 };
 exports.EmailQueueProcessor = EmailQueueProcessor;
 exports.EmailQueueProcessor = EmailQueueProcessor = __decorate([
     (0, bullmq_1.Processor)('emailQueue'),
-    __metadata("design:paramtypes", [employee_invitation_service_1.EmployeeInvitationService])
+    __metadata("design:paramtypes", [employee_invitation_service_1.EmployeeInvitationService,
+        goal_notification_service_1.GoalNotificationService])
 ], EmailQueueProcessor);
 //# sourceMappingURL=email-queue.processor.js.map

@@ -7,6 +7,7 @@ import { EmailVerificationService } from './services/email-verification.service'
 import { EmployeeInvitationService } from './services/employee-invitation.service';
 import { PusherService } from './services/pusher.service';
 import { PayrollApprovalEmailService } from './services/payroll-approval.service';
+import { GoalNotificationService } from './services/goal-notification.service';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { PayrollApprovalEmailService } from './services/payroll-approval.service
     EmployeeInvitationService,
     PusherService,
     PayrollApprovalEmailService,
+    GoalNotificationService,
   ],
   exports: [
     PasswordResetEmailService,
@@ -30,6 +32,7 @@ import { PayrollApprovalEmailService } from './services/payroll-approval.service
     EmployeeInvitationService,
     PusherService,
     PayrollApprovalEmailService,
+    GoalNotificationService,
   ],
 })
 export class NotificationModule {}

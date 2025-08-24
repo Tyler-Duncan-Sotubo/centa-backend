@@ -1,266 +1,188 @@
-// src/modules/performance/policy/policy.service.ts
-import { Injectable, BadRequestException } from '@nestjs/common';
-import { Inject } from '@nestjs/common';
-import { and, eq, sql } from 'drizzle-orm';
+import { Injectable, BadRequestException, Inject } from '@nestjs/common';
+import { and, eq, lte } from 'drizzle-orm';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import { groups, groupMemberships } from 'src/drizzle/schema';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
-import { objectives } from './schema/performance-objectives.schema';
-import {
-  performanceOkrCompanyPolicies,
-  performanceOkrTeamPolicies,
-  performanceCheckinSchedules,
-} from './schema/policies-and-checkins.schema';
-import { UpsertCompanyPolicyDto, UpsertTeamPolicyDto } from './dto/policy.dtos';
+import { CacheService } from 'src/common/cache/cache.service';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
-// --- SYSTEM DEFAULTS (server-side) ---
+import {
+  performanceGoalCheckinSchedules,
+  performanceGoalCompanyPolicies,
+} from './schema/policies-and-checkins.schema';
+import { performanceGoals } from '../goals/schema/performance-goals.schema';
+import { employees, users } from 'src/drizzle/schema';
+import { GoalNotificationService } from 'src/modules/notification/services/goal-notification.service';
+
 const SYSTEM_POLICY_DEFAULTS = {
-  visibility: 'company' as 'private' | 'manager' | 'company',
-  cadence: 'monthly' as 'weekly' | 'biweekly' | 'monthly',
+  visibility: 'company' as const,
+  cadence: 'monthly' as const, // 'weekly' | 'biweekly' | 'monthly'
   timezone: 'Europe/London',
-  anchorDow: 1 as 1 | 2 | 3 | 4 | 5 | 6 | 7, // Monday..Sunday
-  anchorHour: 9 as number, // 0..23
-  defaultOwnerIsLead: true,
+  anchorDow: 1, // Monday (1..7 => Mon..Sun)
+  anchorHour: 9, // 09:00
 };
 
 export type EffectivePolicy = {
   visibility: 'private' | 'manager' | 'company';
   cadence: 'weekly' | 'biweekly' | 'monthly';
-  timezone: string | null;
-  anchorDow: number; // 1..7
+  timezone: string;
+  anchorDow: number; // 1..7 (Mon..Sun)
   anchorHour: number; // 0..23
-  defaultOwnerIsLead: boolean;
-  // optional source flags (handy in UI)
-  _source?: {
-    visibility: 'system' | 'company' | 'team';
-    cadence: 'system' | 'company' | 'team';
-    timezone: 'system' | 'company' | 'team' | 'none';
-    anchorDow: 'system' | 'company' | 'team';
-    anchorHour: 'system' | 'company' | 'team';
-    defaultOwnerIsLead: 'system' | 'team';
-  };
 };
 
-// --- SERVICE ---
 @Injectable()
 export class PolicyService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly audit: AuditService,
+    private readonly cache: CacheService,
+    private readonly notification: GoalNotificationService,
+    @InjectQueue('emailQueue') private readonly emailQueue: Queue,
   ) {}
 
-  /** Get or lazily create a company policy row (seeded from system defaults). */
-  async getOrCreateCompanyPolicy(companyId: string) {
-    const [existing] = await this.db
-      .select()
-      .from(performanceOkrCompanyPolicies)
-      .where(eq(performanceOkrCompanyPolicies.companyId, companyId))
-      .limit(1);
-
-    if (existing) return existing;
-
-    // lazily seed
-    const now = new Date();
-    const [created] = await this.db
-      .insert(performanceOkrCompanyPolicies)
-      .values({
-        companyId,
-        defaultVisibility: SYSTEM_POLICY_DEFAULTS.visibility,
-        defaultCadence: SYSTEM_POLICY_DEFAULTS.cadence,
-        defaultTimezone: SYSTEM_POLICY_DEFAULTS.timezone,
-        defaultAnchorDow: SYSTEM_POLICY_DEFAULTS.anchorDow,
-        defaultAnchorHour: SYSTEM_POLICY_DEFAULTS.anchorHour,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoNothing()
-      .returning();
-
-    if (created) return created;
-
-    // concurrent create won—re-fetch
-    const [row] = await this.db
-      .select()
-      .from(performanceOkrCompanyPolicies)
-      .where(eq(performanceOkrCompanyPolicies.companyId, companyId))
-      .limit(1);
-
-    return row!;
+  // ---------------- cache helpers ----------------
+  private tags(companyId: string) {
+    return [`company:${companyId}:performance:policy`];
+  }
+  private async invalidate(companyId: string) {
+    await this.cache.bumpCompanyVersion(companyId);
+    // or: await this.cache.invalidateTags(this.tags(companyId));
   }
 
-  /** Upsert company policy (admin). */
+  // ---------------- company policy ----------------
+  async getOrCreateCompanyPolicy(companyId: string) {
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['policy', 'company'],
+      async () => {
+        const [existing] = await this.db
+          .select()
+          .from(performanceGoalCompanyPolicies)
+          .where(eq(performanceGoalCompanyPolicies.companyId, companyId))
+          .limit(1);
+
+        if (existing) return existing;
+
+        const now = new Date();
+        const [created] = await this.db
+          .insert(performanceGoalCompanyPolicies)
+          .values({
+            companyId,
+            defaultVisibility: SYSTEM_POLICY_DEFAULTS.visibility,
+            defaultCadence: SYSTEM_POLICY_DEFAULTS.cadence,
+            defaultTimezone: SYSTEM_POLICY_DEFAULTS.timezone,
+            defaultAnchorDow: SYSTEM_POLICY_DEFAULTS.anchorDow,
+            defaultAnchorHour: SYSTEM_POLICY_DEFAULTS.anchorHour,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .onConflictDoNothing()
+          .returning();
+
+        if (created) return created;
+
+        // race condition: re-fetch
+        const [row] = await this.db
+          .select()
+          .from(performanceGoalCompanyPolicies)
+          .where(eq(performanceGoalCompanyPolicies.companyId, companyId))
+          .limit(1);
+
+        return row!;
+      },
+      { tags: this.tags(companyId) },
+    );
+  }
+
   async upsertCompanyPolicy(
     companyId: string,
     userId: string,
-    dto: UpsertCompanyPolicyDto,
+    dto: {
+      defaultVisibility?: 'private' | 'manager' | 'company';
+      defaultCadence?: 'weekly' | 'biweekly' | 'monthly';
+      defaultTimezone?: string;
+      defaultAnchorDow?: number;
+      defaultAnchorHour?: number;
+    },
   ) {
-    this.validatePolicyPatch(dto);
+    this.validate(dto);
 
     const now = new Date();
     const [row] = await this.db
-      .insert(performanceOkrCompanyPolicies)
+      .insert(performanceGoalCompanyPolicies)
       .values({ companyId, ...dto, updatedAt: now })
       .onConflictDoUpdate({
-        target: performanceOkrCompanyPolicies.companyId,
+        target: performanceGoalCompanyPolicies.companyId,
         set: { ...dto, updatedAt: now },
       })
       .returning();
 
     await this.audit.logAction({
       action: 'upsert',
-      entity: 'performance_okr_company_policies',
+      entity: 'performance_goal_company_policies',
       entityId: row.id,
       userId,
       details: `Upserted company policy for ${companyId}`,
       changes: dto,
     });
 
+    await this.invalidate(companyId);
     return row;
   }
 
-  /** Upsert a team policy (override). Unique on (companyId, groupId). */
-  async upsertTeamPolicy(
-    companyId: string,
-    groupId: string,
-    userId: string,
-    dto: UpsertTeamPolicyDto,
-  ) {
-    this.validatePolicyPatch(dto);
-
-    // ensure group belongs to this company (optional safety)
-    const [grp] = await this.db
-      .select({ id: groups.id })
-      .from(groups)
-      .where(eq(groups.id, groupId))
-      .limit(1);
-    if (!grp) throw new BadRequestException('Group not found');
-
-    const now = new Date();
-    const [row] = await this.db
-      .insert(performanceOkrTeamPolicies)
-      .values({ companyId, groupId, ...dto, updatedAt: now })
-      .onConflictDoUpdate({
-        target: [
-          performanceOkrTeamPolicies.companyId,
-          performanceOkrTeamPolicies.groupId,
-        ],
-        set: { ...dto, updatedAt: now },
-      })
-      .returning();
-
-    await this.audit.logAction({
-      action: 'upsert',
-      entity: 'performance_okr_team_policies',
-      entityId: row.id,
-      userId,
-      details: `Upserted team policy for group ${groupId}`,
-      changes: dto,
-    });
-
-    return row;
-  }
-
-  /** Read effective policy: system → company → team. */
-  async getEffectivePolicy(
-    companyId: string,
-    groupId?: string | null,
-  ): Promise<EffectivePolicy> {
-    const company = await this.getOrCreateCompanyPolicy(companyId);
-
-    let team = null as any;
-    if (groupId) {
-      const [t] = await this.db
-        .select()
-        .from(performanceOkrTeamPolicies)
-        .where(
-          and(
-            eq(performanceOkrTeamPolicies.companyId, companyId),
-            eq(performanceOkrTeamPolicies.groupId, groupId),
-          ),
-        )
-        .limit(1);
-      team = t ?? null;
-    }
-
-    const eff: EffectivePolicy = {
-      visibility: (team?.visibility ??
-        company?.defaultVisibility ??
-        SYSTEM_POLICY_DEFAULTS.visibility) as any,
-      cadence: (team?.cadence ??
-        company?.defaultCadence ??
-        SYSTEM_POLICY_DEFAULTS.cadence) as any,
-      timezone:
-        (team?.timezone ??
-          company?.defaultTimezone ??
-          SYSTEM_POLICY_DEFAULTS.timezone) ||
-        null,
-      anchorDow:
-        team?.anchorDow ??
-        company?.defaultAnchorDow ??
-        SYSTEM_POLICY_DEFAULTS.anchorDow,
-      anchorHour:
-        team?.anchorHour ??
-        company?.defaultAnchorHour ??
-        SYSTEM_POLICY_DEFAULTS.anchorHour,
-      defaultOwnerIsLead:
-        team?.defaultOwnerIsLead ?? SYSTEM_POLICY_DEFAULTS.defaultOwnerIsLead,
-      _source: {
-        visibility: team?.visibility
-          ? 'team'
-          : company?.defaultVisibility
-            ? 'company'
-            : 'system',
-        cadence: team?.cadence
-          ? 'team'
-          : company?.defaultCadence
-            ? 'company'
-            : 'system',
-        timezone: team?.timezone
-          ? 'team'
-          : company?.defaultTimezone
-            ? 'company'
-            : 'system',
-        anchorDow: team?.anchorDow
-          ? 'team'
-          : company?.defaultAnchorDow
-            ? 'company'
-            : 'system',
-        anchorHour: team?.anchorHour
-          ? 'team'
-          : company?.defaultAnchorHour
-            ? 'company'
-            : 'system',
-        defaultOwnerIsLead:
-          team?.defaultOwnerIsLead !== undefined ? 'team' : 'system',
+  /** Effective = company policy or system fallback */
+  async getEffectivePolicy(companyId: string): Promise<EffectivePolicy> {
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['policy', 'effective'],
+      async () => {
+        const company = await this.getOrCreateCompanyPolicy(companyId);
+        return {
+          visibility: (company?.defaultVisibility ??
+            SYSTEM_POLICY_DEFAULTS.visibility) as any,
+          cadence: (company?.defaultCadence ??
+            SYSTEM_POLICY_DEFAULTS.cadence) as any,
+          timezone: company?.defaultTimezone ?? SYSTEM_POLICY_DEFAULTS.timezone,
+          anchorDow:
+            company?.defaultAnchorDow ?? SYSTEM_POLICY_DEFAULTS.anchorDow,
+          anchorHour:
+            company?.defaultAnchorHour ?? SYSTEM_POLICY_DEFAULTS.anchorHour,
+        };
       },
-    };
-
-    // sanity checks
-    this.assertBounds(eff.anchorDow, 1, 7, 'anchorDow');
-    this.assertBounds(eff.anchorHour, 0, 23, 'anchorHour');
-
-    return eff;
+      { tags: this.tags(companyId) },
+    );
   }
 
-  /** Create or update the objective-level schedule from an effective policy. */
-  async upsertObjectiveScheduleFromPolicy(
-    objectiveId: string,
+  // ---------------- schedules (GOALS) ----------------
+  /** Create or update the goal-level schedule from company policy */
+  async upsertGoalScheduleFromPolicy(
+    goalId: string,
     companyId: string,
-    groupId?: string | null,
+    tx?: any,
     overrides?: Partial<
       Pick<EffectivePolicy, 'cadence' | 'timezone' | 'anchorDow' | 'anchorHour'>
     >,
   ) {
-    // ensure objective exists (optional but helpful)
-    const [obj] = await this.db
-      .select({ id: objectives.id })
-      .from(objectives)
-      .where(eq(objectives.id, objectiveId))
+    // Ensure goal exists and belongs to the company
+    const [goal] = await (tx ?? this.db)
+      .select({
+        id: performanceGoals.id,
+        companyId: performanceGoals.companyId,
+        isArchived: performanceGoals.isArchived,
+      })
+      .from(performanceGoals)
+      .where(
+        and(
+          eq(performanceGoals.id, goalId),
+          eq(performanceGoals.companyId, companyId),
+        ),
+      )
       .limit(1);
-    if (!obj) throw new BadRequestException('Objective not found');
 
-    const eff = await this.getEffectivePolicy(companyId, groupId);
+    if (!goal) throw new BadRequestException('Goal not found');
+
+    const eff = await this.getEffectivePolicy(companyId);
     const cadence = overrides?.cadence ?? eff.cadence;
     const timezone = overrides?.timezone ?? eff.timezone;
     const anchorDow = overrides?.anchorDow ?? eff.anchorDow;
@@ -273,16 +195,15 @@ export class PolicyService {
       anchorHour,
     );
 
-    // Check if schedule exists
-    const [existing] = await this.db
+    const [existing] = await (tx ?? this.db)
       .select()
-      .from(performanceCheckinSchedules)
-      .where(eq(performanceCheckinSchedules.objectiveId, objectiveId))
+      .from(performanceGoalCheckinSchedules)
+      .where(eq(performanceGoalCheckinSchedules.goalId, goalId))
       .limit(1);
 
     if (existing) {
-      const [updated] = await this.db
-        .update(performanceCheckinSchedules)
+      const [updated] = await (tx ?? this.db)
+        .update(performanceGoalCheckinSchedules)
         .set({
           frequency: cadence as any,
           timezone,
@@ -291,15 +212,15 @@ export class PolicyService {
           nextDueAt,
           updatedAt: new Date(),
         })
-        .where(eq(performanceCheckinSchedules.id, existing.id))
+        .where(eq(performanceGoalCheckinSchedules.id, existing.id))
         .returning();
       return updated;
     }
 
-    const [created] = await this.db
-      .insert(performanceCheckinSchedules)
+    const [created] = await (tx ?? this.db)
+      .insert(performanceGoalCheckinSchedules)
       .values({
-        objectiveId,
+        goalId,
         frequency: cadence as any,
         timezone,
         anchorDow,
@@ -309,60 +230,36 @@ export class PolicyService {
         updatedAt: new Date(),
       })
       .returning();
+
     return created;
   }
 
-  /** Optional helper if your policy uses "default owner is team lead" */
-  async resolveOwnerFromTeamLead(groupId?: string | null) {
-    if (!groupId) return null;
-    const [lead] = await this.db
-      .select({ employeeId: groupMemberships.employeeId })
-      .from(groupMemberships)
-      .where(
-        and(
-          eq(groupMemberships.groupId, groupId),
-          eq(groupMemberships.role, 'lead'),
-          sql`${groupMemberships.endDate} IS NULL`,
-        ),
-      )
-      .orderBy(sql`${groupMemberships.joinedAt} DESC`)
-      .limit(1);
-    return lead?.employeeId ?? null;
-  }
-
-  // ----------------- utils -----------------
-
-  private validatePolicyPatch(dto: Record<string, any>) {
-    if (dto.defaultAnchorDow !== undefined)
-      this.assertBounds(dto.defaultAnchorDow, 1, 7, 'defaultAnchorDow');
-    if (dto.defaultAnchorHour !== undefined)
-      this.assertBounds(dto.defaultAnchorHour, 0, 23, 'defaultAnchorHour');
-    if (dto.anchorDow !== undefined)
-      this.assertBounds(dto.anchorDow, 1, 7, 'anchorDow');
-    if (dto.anchorHour !== undefined)
-      this.assertBounds(dto.anchorHour, 0, 23, 'anchorHour');
-    if (
-      dto.defaultCadence &&
-      !['weekly', 'biweekly', 'monthly'].includes(dto.defaultCadence)
-    )
+  // ---------------- utils ----------------
+  private validate(dto: Record<string, any>) {
+    const inSet = (v: any, set: string[]) => v === undefined || set.includes(v);
+    if (!inSet(dto.defaultVisibility, ['private', 'manager', 'company']))
+      throw new BadRequestException(
+        'defaultVisibility must be private|manager|company',
+      );
+    if (!inSet(dto.defaultCadence, ['weekly', 'biweekly', 'monthly']))
       throw new BadRequestException(
         'defaultCadence must be weekly|biweekly|monthly',
       );
-    if (dto.cadence && !['weekly', 'biweekly', 'monthly'].includes(dto.cadence))
-      throw new BadRequestException('cadence must be weekly|biweekly|monthly');
-  }
-
-  private assertBounds(n: number, min: number, max: number, field: string) {
-    if (typeof n !== 'number' || n < min || n > max) {
-      throw new BadRequestException(
-        `${field} must be between ${min} and ${max}`,
-      );
-    }
+    if (
+      dto.defaultAnchorDow !== undefined &&
+      (dto.defaultAnchorDow < 1 || dto.defaultAnchorDow > 7)
+    )
+      throw new BadRequestException('defaultAnchorDow must be 1..7');
+    if (
+      dto.defaultAnchorHour !== undefined &&
+      (dto.defaultAnchorHour < 0 || dto.defaultAnchorHour > 23)
+    )
+      throw new BadRequestException('defaultAnchorHour must be 0..23');
   }
 
   /**
-   * Compute next due instant in UTC using an anchor weekday (1..7 Mon..Sun) and hour (0..23).
-   * Keep it simple here; if you need strict local tz math, convert using Luxon/Temporal in your worker.
+   * Compute the next due datetime from `from`, aligned to the given weekday/hour.
+   * DOW is 1..7 (Mon..Sun) mapped to JS 0..6; monthly is approximated to +28 days.
    */
   private computeNextDueAt(
     from: Date,
@@ -371,6 +268,7 @@ export class PolicyService {
     anchorHour: number,
   ) {
     const now = new Date(from);
+    // Build a UTC date at today's anchorHour
     const result = new Date(
       Date.UTC(
         now.getUTCFullYear(),
@@ -383,23 +281,172 @@ export class PolicyService {
       ),
     );
 
-    // JS: 0=Sun..6=Sat; anchorDow: 1=Mon..7=Sun -> normalize to 0..6
-    const targetJs = anchorDow % 7 === 0 ? 0 : anchorDow % 7; // 7->0 (Sun)
-    const currentJs = result.getUTCDay();
+    // Map 1..7 (Mon..Sun) to JS 0..6
+    const jsTarget = anchorDow % 7 === 0 ? 0 : anchorDow % 7; // 7 => 0 (Sun)
+    const jsNow = result.getUTCDay();
 
-    let addDays = (targetJs - currentJs + 7) % 7;
-    if (addDays === 0 && result <= now) addDays = 7; // if today’s anchor passed, move to next week
+    // days to add to reach the next target weekday
+    let addDays = (jsTarget - jsNow + 7) % 7;
+    if (addDays === 0 && result <= now) addDays = 7;
     result.setUTCDate(result.getUTCDate() + addDays);
 
     if (cadence === 'biweekly') {
-      // next anchor; worker will roll +14d after sending reminders
-      return result;
-    }
-    if (cadence === 'monthly') {
-      // month jump: keep weekday-of-month feel—simple approach: add ~4 weeks
+      // First occurrence aligned; subsequent sends should roll +14 days in the worker
+    } else if (cadence === 'monthly') {
+      // Simple monthly == every 4 weeks; refine as needed
       result.setUTCDate(result.getUTCDate() + 28);
-      return result;
     }
-    return result; // weekly
+
+    return result;
+  }
+
+  async processDueGoalCheckins(opts?: { companyId?: string; limit?: number }) {
+    const { companyId, limit = 200 } = opts ?? {};
+    const now = new Date();
+
+    // 1) fetch due schedules (+ goal + recipient)
+    const baseQuery = this.db
+      .select({
+        scheduleId: performanceGoalCheckinSchedules.id,
+        goalId: performanceGoalCheckinSchedules.goalId,
+        nextDueAt: performanceGoalCheckinSchedules.nextDueAt,
+        frequency: performanceGoalCheckinSchedules.frequency,
+        // goal
+        goalTitle: performanceGoals.title,
+        goalCompanyId: performanceGoals.companyId,
+        isArchived: performanceGoals.isArchived,
+        // owner (employee) -> user (recipient)
+        employeeId: performanceGoals.employeeId,
+        employeeUserId: users.id,
+        employeeEmail: users.email,
+        employeeName: users.firstName,
+      })
+      .from(performanceGoalCheckinSchedules)
+      .innerJoin(
+        performanceGoals,
+        eq(performanceGoals.id, performanceGoalCheckinSchedules.goalId),
+      )
+      .leftJoin(employees, eq(employees.id, performanceGoals.employeeId))
+      .leftJoin(users, eq(users.id, employees.userId));
+
+    const due = await (
+      companyId
+        ? baseQuery.where(
+            and(
+              lte(performanceGoalCheckinSchedules.nextDueAt, now),
+              eq(performanceGoals.isArchived, false),
+              eq(performanceGoals.companyId, companyId),
+            ),
+          )
+        : baseQuery.where(
+            and(
+              lte(performanceGoalCheckinSchedules.nextDueAt, now),
+              eq(performanceGoals.isArchived, false),
+            ),
+          )
+    ).limit(limit);
+
+    if (!due.length) {
+      return { processed: 0, enqueued: 0, skipped: 0, advanced: 0 };
+    }
+
+    let enqueued = 0;
+    let skipped = 0;
+    let advanced = 0;
+
+    // 2) process each due schedule in a short transaction
+    for (const r of due) {
+      try {
+        await this.db.transaction(async (tx) => {
+          // Re-check inside txn for idempotency
+          const [row] = await tx
+            .select({
+              id: performanceGoalCheckinSchedules.id,
+              nextDueAt: performanceGoalCheckinSchedules.nextDueAt,
+              frequency: performanceGoalCheckinSchedules.frequency,
+            })
+            .from(performanceGoalCheckinSchedules)
+            .where(eq(performanceGoalCheckinSchedules.id, r.scheduleId))
+            .limit(1);
+
+          if (!row) {
+            skipped++;
+            return;
+          }
+          if (row.nextDueAt > new Date()) {
+            // already handled by another worker
+            skipped++;
+            return;
+          }
+
+          if (r.employeeUserId && r.employeeEmail) {
+            // 2a) enqueue the email job (idempotent jobId)
+            const jobId = `goal-checkin:${r.scheduleId}:${row.nextDueAt.getTime()}`;
+            await this.emailQueue.add(
+              'sendGoalCheckin',
+              {
+                email: r.employeeEmail,
+                name: r.employeeName,
+                goalTitle: r.goalTitle,
+                meta: { goalId: r.goalId, scheduleId: r.scheduleId },
+                toUserId: r.employeeUserId,
+                subject: `Check-in: "${r.goalTitle}"`,
+                body: `Please update your progress for goal "${r.goalTitle}".`,
+              },
+              {
+                jobId, // prevents duplicates for the same schedule occurrence
+                removeOnComplete: 1000,
+                removeOnFail: 500,
+              },
+            );
+            enqueued++;
+          } else {
+            skipped++;
+          }
+
+          // 2b) roll next due forward (catch up if behind)
+          const next = this.rollForward(
+            row.nextDueAt,
+            row.frequency as any,
+            new Date(),
+          );
+
+          await tx
+            .update(performanceGoalCheckinSchedules)
+            .set({ nextDueAt: next, updatedAt: new Date() })
+            .where(eq(performanceGoalCheckinSchedules.id, r.scheduleId));
+          advanced++;
+
+          // 2c) audit the enqueue
+          await this.audit.logAction({
+            action: 'enqueue',
+            entity: 'performance_goal_checkin',
+            entityId: r.scheduleId,
+            userId: 'system',
+            details: `Enqueued goal check-in for goal ${r.goalId} (${row.frequency})`,
+            changes: { previousNextDueAt: r.nextDueAt, nextNextDueAt: next },
+          });
+        });
+      } catch {
+        // swallow per-item errors; you can add per-item error audit if you like
+        skipped++;
+      }
+    }
+
+    return { processed: due.length, enqueued, skipped, advanced };
+  }
+
+  /** Advance nextDueAt by +7 / +14 / +28 days until it's in the future. */
+  private rollForward(
+    current: Date,
+    freq: 'weekly' | 'biweekly' | 'monthly',
+    now: Date,
+  ) {
+    const stepDays = freq === 'weekly' ? 7 : freq === 'biweekly' ? 14 : 28;
+    let next = new Date(current);
+    while (next <= now) {
+      next = new Date(next.getTime() + stepDays * 24 * 60 * 60 * 1000);
+    }
+    return next;
   }
 }

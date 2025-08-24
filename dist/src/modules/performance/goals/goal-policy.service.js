@@ -14,194 +14,133 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PolicyService = void 0;
 const common_1 = require("@nestjs/common");
-const common_2 = require("@nestjs/common");
 const drizzle_orm_1 = require("drizzle-orm");
 const drizzle_module_1 = require("../../../drizzle/drizzle.module");
-const schema_1 = require("../../../drizzle/schema");
 const audit_service_1 = require("../../audit/audit.service");
-const performance_objectives_schema_1 = require("./schema/performance-objectives.schema");
+const cache_service_1 = require("../../../common/cache/cache.service");
+const bullmq_1 = require("@nestjs/bullmq");
+const bullmq_2 = require("bullmq");
 const policies_and_checkins_schema_1 = require("./schema/policies-and-checkins.schema");
+const performance_goals_schema_1 = require("../goals/schema/performance-goals.schema");
+const schema_1 = require("../../../drizzle/schema");
+const goal_notification_service_1 = require("../../notification/services/goal-notification.service");
 const SYSTEM_POLICY_DEFAULTS = {
     visibility: 'company',
     cadence: 'monthly',
     timezone: 'Europe/London',
     anchorDow: 1,
     anchorHour: 9,
-    defaultOwnerIsLead: true,
 };
 let PolicyService = class PolicyService {
-    constructor(db, audit) {
+    constructor(db, audit, cache, notification, emailQueue) {
         this.db = db;
         this.audit = audit;
+        this.cache = cache;
+        this.notification = notification;
+        this.emailQueue = emailQueue;
+    }
+    tags(companyId) {
+        return [`company:${companyId}:performance:policy`];
+    }
+    async invalidate(companyId) {
+        await this.cache.bumpCompanyVersion(companyId);
     }
     async getOrCreateCompanyPolicy(companyId) {
-        const [existing] = await this.db
-            .select()
-            .from(policies_and_checkins_schema_1.performanceOkrCompanyPolicies)
-            .where((0, drizzle_orm_1.eq)(policies_and_checkins_schema_1.performanceOkrCompanyPolicies.companyId, companyId))
-            .limit(1);
-        if (existing)
-            return existing;
-        const now = new Date();
-        const [created] = await this.db
-            .insert(policies_and_checkins_schema_1.performanceOkrCompanyPolicies)
-            .values({
-            companyId,
-            defaultVisibility: SYSTEM_POLICY_DEFAULTS.visibility,
-            defaultCadence: SYSTEM_POLICY_DEFAULTS.cadence,
-            defaultTimezone: SYSTEM_POLICY_DEFAULTS.timezone,
-            defaultAnchorDow: SYSTEM_POLICY_DEFAULTS.anchorDow,
-            defaultAnchorHour: SYSTEM_POLICY_DEFAULTS.anchorHour,
-            createdAt: now,
-            updatedAt: now,
-        })
-            .onConflictDoNothing()
-            .returning();
-        if (created)
-            return created;
-        const [row] = await this.db
-            .select()
-            .from(policies_and_checkins_schema_1.performanceOkrCompanyPolicies)
-            .where((0, drizzle_orm_1.eq)(policies_and_checkins_schema_1.performanceOkrCompanyPolicies.companyId, companyId))
-            .limit(1);
-        return row;
+        return this.cache.getOrSetVersioned(companyId, ['policy', 'company'], async () => {
+            const [existing] = await this.db
+                .select()
+                .from(policies_and_checkins_schema_1.performanceGoalCompanyPolicies)
+                .where((0, drizzle_orm_1.eq)(policies_and_checkins_schema_1.performanceGoalCompanyPolicies.companyId, companyId))
+                .limit(1);
+            if (existing)
+                return existing;
+            const now = new Date();
+            const [created] = await this.db
+                .insert(policies_and_checkins_schema_1.performanceGoalCompanyPolicies)
+                .values({
+                companyId,
+                defaultVisibility: SYSTEM_POLICY_DEFAULTS.visibility,
+                defaultCadence: SYSTEM_POLICY_DEFAULTS.cadence,
+                defaultTimezone: SYSTEM_POLICY_DEFAULTS.timezone,
+                defaultAnchorDow: SYSTEM_POLICY_DEFAULTS.anchorDow,
+                defaultAnchorHour: SYSTEM_POLICY_DEFAULTS.anchorHour,
+                createdAt: now,
+                updatedAt: now,
+            })
+                .onConflictDoNothing()
+                .returning();
+            if (created)
+                return created;
+            const [row] = await this.db
+                .select()
+                .from(policies_and_checkins_schema_1.performanceGoalCompanyPolicies)
+                .where((0, drizzle_orm_1.eq)(policies_and_checkins_schema_1.performanceGoalCompanyPolicies.companyId, companyId))
+                .limit(1);
+            return row;
+        }, { tags: this.tags(companyId) });
     }
     async upsertCompanyPolicy(companyId, userId, dto) {
-        this.validatePolicyPatch(dto);
+        this.validate(dto);
         const now = new Date();
         const [row] = await this.db
-            .insert(policies_and_checkins_schema_1.performanceOkrCompanyPolicies)
+            .insert(policies_and_checkins_schema_1.performanceGoalCompanyPolicies)
             .values({ companyId, ...dto, updatedAt: now })
             .onConflictDoUpdate({
-            target: policies_and_checkins_schema_1.performanceOkrCompanyPolicies.companyId,
+            target: policies_and_checkins_schema_1.performanceGoalCompanyPolicies.companyId,
             set: { ...dto, updatedAt: now },
         })
             .returning();
         await this.audit.logAction({
             action: 'upsert',
-            entity: 'performance_okr_company_policies',
+            entity: 'performance_goal_company_policies',
             entityId: row.id,
             userId,
             details: `Upserted company policy for ${companyId}`,
             changes: dto,
         });
+        await this.invalidate(companyId);
         return row;
     }
-    async upsertTeamPolicy(companyId, groupId, userId, dto) {
-        this.validatePolicyPatch(dto);
-        const [grp] = await this.db
-            .select({ id: schema_1.groups.id })
-            .from(schema_1.groups)
-            .where((0, drizzle_orm_1.eq)(schema_1.groups.id, groupId))
-            .limit(1);
-        if (!grp)
-            throw new common_1.BadRequestException('Group not found');
-        const now = new Date();
-        const [row] = await this.db
-            .insert(policies_and_checkins_schema_1.performanceOkrTeamPolicies)
-            .values({ companyId, groupId, ...dto, updatedAt: now })
-            .onConflictDoUpdate({
-            target: [
-                policies_and_checkins_schema_1.performanceOkrTeamPolicies.companyId,
-                policies_and_checkins_schema_1.performanceOkrTeamPolicies.groupId,
-            ],
-            set: { ...dto, updatedAt: now },
+    async getEffectivePolicy(companyId) {
+        return this.cache.getOrSetVersioned(companyId, ['policy', 'effective'], async () => {
+            const company = await this.getOrCreateCompanyPolicy(companyId);
+            return {
+                visibility: (company?.defaultVisibility ??
+                    SYSTEM_POLICY_DEFAULTS.visibility),
+                cadence: (company?.defaultCadence ??
+                    SYSTEM_POLICY_DEFAULTS.cadence),
+                timezone: company?.defaultTimezone ?? SYSTEM_POLICY_DEFAULTS.timezone,
+                anchorDow: company?.defaultAnchorDow ?? SYSTEM_POLICY_DEFAULTS.anchorDow,
+                anchorHour: company?.defaultAnchorHour ?? SYSTEM_POLICY_DEFAULTS.anchorHour,
+            };
+        }, { tags: this.tags(companyId) });
+    }
+    async upsertGoalScheduleFromPolicy(goalId, companyId, tx, overrides) {
+        const [goal] = await (tx ?? this.db)
+            .select({
+            id: performance_goals_schema_1.performanceGoals.id,
+            companyId: performance_goals_schema_1.performanceGoals.companyId,
+            isArchived: performance_goals_schema_1.performanceGoals.isArchived,
         })
-            .returning();
-        await this.audit.logAction({
-            action: 'upsert',
-            entity: 'performance_okr_team_policies',
-            entityId: row.id,
-            userId,
-            details: `Upserted team policy for group ${groupId}`,
-            changes: dto,
-        });
-        return row;
-    }
-    async getEffectivePolicy(companyId, groupId) {
-        const company = await this.getOrCreateCompanyPolicy(companyId);
-        let team = null;
-        if (groupId) {
-            const [t] = await this.db
-                .select()
-                .from(policies_and_checkins_schema_1.performanceOkrTeamPolicies)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(policies_and_checkins_schema_1.performanceOkrTeamPolicies.companyId, companyId), (0, drizzle_orm_1.eq)(policies_and_checkins_schema_1.performanceOkrTeamPolicies.groupId, groupId)))
-                .limit(1);
-            team = t ?? null;
-        }
-        const eff = {
-            visibility: (team?.visibility ??
-                company?.defaultVisibility ??
-                SYSTEM_POLICY_DEFAULTS.visibility),
-            cadence: (team?.cadence ??
-                company?.defaultCadence ??
-                SYSTEM_POLICY_DEFAULTS.cadence),
-            timezone: (team?.timezone ??
-                company?.defaultTimezone ??
-                SYSTEM_POLICY_DEFAULTS.timezone) ||
-                null,
-            anchorDow: team?.anchorDow ??
-                company?.defaultAnchorDow ??
-                SYSTEM_POLICY_DEFAULTS.anchorDow,
-            anchorHour: team?.anchorHour ??
-                company?.defaultAnchorHour ??
-                SYSTEM_POLICY_DEFAULTS.anchorHour,
-            defaultOwnerIsLead: team?.defaultOwnerIsLead ?? SYSTEM_POLICY_DEFAULTS.defaultOwnerIsLead,
-            _source: {
-                visibility: team?.visibility
-                    ? 'team'
-                    : company?.defaultVisibility
-                        ? 'company'
-                        : 'system',
-                cadence: team?.cadence
-                    ? 'team'
-                    : company?.defaultCadence
-                        ? 'company'
-                        : 'system',
-                timezone: team?.timezone
-                    ? 'team'
-                    : company?.defaultTimezone
-                        ? 'company'
-                        : 'system',
-                anchorDow: team?.anchorDow
-                    ? 'team'
-                    : company?.defaultAnchorDow
-                        ? 'company'
-                        : 'system',
-                anchorHour: team?.anchorHour
-                    ? 'team'
-                    : company?.defaultAnchorHour
-                        ? 'company'
-                        : 'system',
-                defaultOwnerIsLead: team?.defaultOwnerIsLead !== undefined ? 'team' : 'system',
-            },
-        };
-        this.assertBounds(eff.anchorDow, 1, 7, 'anchorDow');
-        this.assertBounds(eff.anchorHour, 0, 23, 'anchorHour');
-        return eff;
-    }
-    async upsertObjectiveScheduleFromPolicy(objectiveId, companyId, groupId, overrides) {
-        const [obj] = await this.db
-            .select({ id: performance_objectives_schema_1.objectives.id })
-            .from(performance_objectives_schema_1.objectives)
-            .where((0, drizzle_orm_1.eq)(performance_objectives_schema_1.objectives.id, objectiveId))
+            .from(performance_goals_schema_1.performanceGoals)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.id, goalId), (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.companyId, companyId)))
             .limit(1);
-        if (!obj)
-            throw new common_1.BadRequestException('Objective not found');
-        const eff = await this.getEffectivePolicy(companyId, groupId);
+        if (!goal)
+            throw new common_1.BadRequestException('Goal not found');
+        const eff = await this.getEffectivePolicy(companyId);
         const cadence = overrides?.cadence ?? eff.cadence;
         const timezone = overrides?.timezone ?? eff.timezone;
         const anchorDow = overrides?.anchorDow ?? eff.anchorDow;
         const anchorHour = overrides?.anchorHour ?? eff.anchorHour;
         const nextDueAt = this.computeNextDueAt(new Date(), cadence, anchorDow, anchorHour);
-        const [existing] = await this.db
+        const [existing] = await (tx ?? this.db)
             .select()
-            .from(policies_and_checkins_schema_1.performanceCheckinSchedules)
-            .where((0, drizzle_orm_1.eq)(policies_and_checkins_schema_1.performanceCheckinSchedules.objectiveId, objectiveId))
+            .from(policies_and_checkins_schema_1.performanceGoalCheckinSchedules)
+            .where((0, drizzle_orm_1.eq)(policies_and_checkins_schema_1.performanceGoalCheckinSchedules.goalId, goalId))
             .limit(1);
         if (existing) {
-            const [updated] = await this.db
-                .update(policies_and_checkins_schema_1.performanceCheckinSchedules)
+            const [updated] = await (tx ?? this.db)
+                .update(policies_and_checkins_schema_1.performanceGoalCheckinSchedules)
                 .set({
                 frequency: cadence,
                 timezone,
@@ -210,14 +149,14 @@ let PolicyService = class PolicyService {
                 nextDueAt,
                 updatedAt: new Date(),
             })
-                .where((0, drizzle_orm_1.eq)(policies_and_checkins_schema_1.performanceCheckinSchedules.id, existing.id))
+                .where((0, drizzle_orm_1.eq)(policies_and_checkins_schema_1.performanceGoalCheckinSchedules.id, existing.id))
                 .returning();
             return updated;
         }
-        const [created] = await this.db
-            .insert(policies_and_checkins_schema_1.performanceCheckinSchedules)
+        const [created] = await (tx ?? this.db)
+            .insert(policies_and_checkins_schema_1.performanceGoalCheckinSchedules)
             .values({
-            objectiveId,
+            goalId,
             frequency: cadence,
             timezone,
             anchorDow,
@@ -229,60 +168,144 @@ let PolicyService = class PolicyService {
             .returning();
         return created;
     }
-    async resolveOwnerFromTeamLead(groupId) {
-        if (!groupId)
-            return null;
-        const [lead] = await this.db
-            .select({ employeeId: schema_1.groupMemberships.employeeId })
-            .from(schema_1.groupMemberships)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.groupMemberships.groupId, groupId), (0, drizzle_orm_1.eq)(schema_1.groupMemberships.role, 'lead'), (0, drizzle_orm_1.sql) `${schema_1.groupMemberships.endDate} IS NULL`))
-            .orderBy((0, drizzle_orm_1.sql) `${schema_1.groupMemberships.joinedAt} DESC`)
-            .limit(1);
-        return lead?.employeeId ?? null;
-    }
-    validatePolicyPatch(dto) {
-        if (dto.defaultAnchorDow !== undefined)
-            this.assertBounds(dto.defaultAnchorDow, 1, 7, 'defaultAnchorDow');
-        if (dto.defaultAnchorHour !== undefined)
-            this.assertBounds(dto.defaultAnchorHour, 0, 23, 'defaultAnchorHour');
-        if (dto.anchorDow !== undefined)
-            this.assertBounds(dto.anchorDow, 1, 7, 'anchorDow');
-        if (dto.anchorHour !== undefined)
-            this.assertBounds(dto.anchorHour, 0, 23, 'anchorHour');
-        if (dto.defaultCadence &&
-            !['weekly', 'biweekly', 'monthly'].includes(dto.defaultCadence))
+    validate(dto) {
+        const inSet = (v, set) => v === undefined || set.includes(v);
+        if (!inSet(dto.defaultVisibility, ['private', 'manager', 'company']))
+            throw new common_1.BadRequestException('defaultVisibility must be private|manager|company');
+        if (!inSet(dto.defaultCadence, ['weekly', 'biweekly', 'monthly']))
             throw new common_1.BadRequestException('defaultCadence must be weekly|biweekly|monthly');
-        if (dto.cadence && !['weekly', 'biweekly', 'monthly'].includes(dto.cadence))
-            throw new common_1.BadRequestException('cadence must be weekly|biweekly|monthly');
-    }
-    assertBounds(n, min, max, field) {
-        if (typeof n !== 'number' || n < min || n > max) {
-            throw new common_1.BadRequestException(`${field} must be between ${min} and ${max}`);
-        }
+        if (dto.defaultAnchorDow !== undefined &&
+            (dto.defaultAnchorDow < 1 || dto.defaultAnchorDow > 7))
+            throw new common_1.BadRequestException('defaultAnchorDow must be 1..7');
+        if (dto.defaultAnchorHour !== undefined &&
+            (dto.defaultAnchorHour < 0 || dto.defaultAnchorHour > 23))
+            throw new common_1.BadRequestException('defaultAnchorHour must be 0..23');
     }
     computeNextDueAt(from, cadence, anchorDow, anchorHour) {
         const now = new Date(from);
         const result = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), anchorHour, 0, 0, 0));
-        const targetJs = anchorDow % 7 === 0 ? 0 : anchorDow % 7;
-        const currentJs = result.getUTCDay();
-        let addDays = (targetJs - currentJs + 7) % 7;
+        const jsTarget = anchorDow % 7 === 0 ? 0 : anchorDow % 7;
+        const jsNow = result.getUTCDay();
+        let addDays = (jsTarget - jsNow + 7) % 7;
         if (addDays === 0 && result <= now)
             addDays = 7;
         result.setUTCDate(result.getUTCDate() + addDays);
         if (cadence === 'biweekly') {
-            return result;
         }
-        if (cadence === 'monthly') {
+        else if (cadence === 'monthly') {
             result.setUTCDate(result.getUTCDate() + 28);
-            return result;
         }
         return result;
+    }
+    async processDueGoalCheckins(opts) {
+        const { companyId, limit = 200 } = opts ?? {};
+        const now = new Date();
+        const baseQuery = this.db
+            .select({
+            scheduleId: policies_and_checkins_schema_1.performanceGoalCheckinSchedules.id,
+            goalId: policies_and_checkins_schema_1.performanceGoalCheckinSchedules.goalId,
+            nextDueAt: policies_and_checkins_schema_1.performanceGoalCheckinSchedules.nextDueAt,
+            frequency: policies_and_checkins_schema_1.performanceGoalCheckinSchedules.frequency,
+            goalTitle: performance_goals_schema_1.performanceGoals.title,
+            goalCompanyId: performance_goals_schema_1.performanceGoals.companyId,
+            isArchived: performance_goals_schema_1.performanceGoals.isArchived,
+            employeeId: performance_goals_schema_1.performanceGoals.employeeId,
+            employeeUserId: schema_1.users.id,
+            employeeEmail: schema_1.users.email,
+            employeeName: schema_1.users.firstName,
+        })
+            .from(policies_and_checkins_schema_1.performanceGoalCheckinSchedules)
+            .innerJoin(performance_goals_schema_1.performanceGoals, (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.id, policies_and_checkins_schema_1.performanceGoalCheckinSchedules.goalId))
+            .leftJoin(schema_1.employees, (0, drizzle_orm_1.eq)(schema_1.employees.id, performance_goals_schema_1.performanceGoals.employeeId))
+            .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.users.id, schema_1.employees.userId));
+        const due = await (companyId
+            ? baseQuery.where((0, drizzle_orm_1.and)((0, drizzle_orm_1.lte)(policies_and_checkins_schema_1.performanceGoalCheckinSchedules.nextDueAt, now), (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.isArchived, false), (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.companyId, companyId)))
+            : baseQuery.where((0, drizzle_orm_1.and)((0, drizzle_orm_1.lte)(policies_and_checkins_schema_1.performanceGoalCheckinSchedules.nextDueAt, now), (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.isArchived, false)))).limit(limit);
+        if (!due.length) {
+            return { processed: 0, enqueued: 0, skipped: 0, advanced: 0 };
+        }
+        let enqueued = 0;
+        let skipped = 0;
+        let advanced = 0;
+        for (const r of due) {
+            try {
+                await this.db.transaction(async (tx) => {
+                    const [row] = await tx
+                        .select({
+                        id: policies_and_checkins_schema_1.performanceGoalCheckinSchedules.id,
+                        nextDueAt: policies_and_checkins_schema_1.performanceGoalCheckinSchedules.nextDueAt,
+                        frequency: policies_and_checkins_schema_1.performanceGoalCheckinSchedules.frequency,
+                    })
+                        .from(policies_and_checkins_schema_1.performanceGoalCheckinSchedules)
+                        .where((0, drizzle_orm_1.eq)(policies_and_checkins_schema_1.performanceGoalCheckinSchedules.id, r.scheduleId))
+                        .limit(1);
+                    if (!row) {
+                        skipped++;
+                        return;
+                    }
+                    if (row.nextDueAt > new Date()) {
+                        skipped++;
+                        return;
+                    }
+                    if (r.employeeUserId && r.employeeEmail) {
+                        const jobId = `goal-checkin:${r.scheduleId}:${row.nextDueAt.getTime()}`;
+                        await this.emailQueue.add('sendGoalCheckin', {
+                            email: r.employeeEmail,
+                            name: r.employeeName,
+                            goalTitle: r.goalTitle,
+                            meta: { goalId: r.goalId, scheduleId: r.scheduleId },
+                            toUserId: r.employeeUserId,
+                            subject: `Check-in: "${r.goalTitle}"`,
+                            body: `Please update your progress for goal "${r.goalTitle}".`,
+                        }, {
+                            jobId,
+                            removeOnComplete: 1000,
+                            removeOnFail: 500,
+                        });
+                        enqueued++;
+                    }
+                    else {
+                        skipped++;
+                    }
+                    const next = this.rollForward(row.nextDueAt, row.frequency, new Date());
+                    await tx
+                        .update(policies_and_checkins_schema_1.performanceGoalCheckinSchedules)
+                        .set({ nextDueAt: next, updatedAt: new Date() })
+                        .where((0, drizzle_orm_1.eq)(policies_and_checkins_schema_1.performanceGoalCheckinSchedules.id, r.scheduleId));
+                    advanced++;
+                    await this.audit.logAction({
+                        action: 'enqueue',
+                        entity: 'performance_goal_checkin',
+                        entityId: r.scheduleId,
+                        userId: 'system',
+                        details: `Enqueued goal check-in for goal ${r.goalId} (${row.frequency})`,
+                        changes: { previousNextDueAt: r.nextDueAt, nextNextDueAt: next },
+                    });
+                });
+            }
+            catch {
+                skipped++;
+            }
+        }
+        return { processed: due.length, enqueued, skipped, advanced };
+    }
+    rollForward(current, freq, now) {
+        const stepDays = freq === 'weekly' ? 7 : freq === 'biweekly' ? 14 : 28;
+        let next = new Date(current);
+        while (next <= now) {
+            next = new Date(next.getTime() + stepDays * 24 * 60 * 60 * 1000);
+        }
+        return next;
     }
 };
 exports.PolicyService = PolicyService;
 exports.PolicyService = PolicyService = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, common_2.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
+    __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
+    __param(4, (0, bullmq_1.InjectQueue)('emailQueue')),
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
+        cache_service_1.CacheService,
+        goal_notification_service_1.GoalNotificationService,
+        bullmq_2.Queue])
 ], PolicyService);
 //# sourceMappingURL=goal-policy.service.js.map

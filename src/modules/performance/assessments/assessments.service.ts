@@ -17,6 +17,7 @@ import {
   jobRoles,
   performanceCompetencies,
   performanceCycles,
+  performanceGoals,
   performanceGoalUpdates,
   performanceReviewQuestions,
   performanceReviewTemplates,
@@ -34,7 +35,6 @@ import { GetDashboardAssessmentsDto } from './dto/get-dashboard-assessments.dto'
 import { feedbackResponses } from '../feedback/schema/performance-feedback-responses.schema';
 import { assessmentConclusions } from './schema/performance-assessment-conclusions.schema';
 import { CacheService } from 'src/common/cache/cache.service';
-import { objectives } from '../goals/schema/performance-objectives.schema';
 
 @Injectable()
 export class AssessmentsService {
@@ -476,43 +476,39 @@ export class AssessmentsService {
         if (template.includeGoals) {
           const goals = await this.db
             .select({
-              id: objectives.id,
-              title: objectives.title,
-              dueDate: objectives.dueDate,
-              weight: objectives.weight,
-              status: objectives.status,
+              id: performanceGoals.id,
+              title: performanceGoals.title,
+              dueDate: performanceGoals.dueDate,
+              weight: performanceGoals.weight,
+              status: performanceGoals.status,
               employee: sql<string>`CONCAT(${employees.firstName}, ' ', ${employees.lastName})`,
               employeeId: employees.id,
               departmentName: departments.name,
               departmentId: departments.id,
             })
-            .from(objectives)
-            .innerJoin(employees, eq(employees.id, objectives.ownerEmployeeId))
+            .from(performanceGoals)
+            .innerJoin(employees, eq(employees.id, performanceGoals.employeeId))
             .leftJoin(departments, eq(departments.id, employees.departmentId))
-            .where(and(eq(objectives.ownerEmployeeId, assessment.revieweeId)))
-            .orderBy(desc(objectives.assignedAt));
+            .where(and(eq(performanceGoals.employeeId, assessment.revieweeId)))
+            .orderBy(desc(performanceGoals.assignedAt));
 
           const latestProgress = await this.db
             .select({
-              goalId: performanceGoalUpdates.objectiveId,
-              progress: performanceGoalUpdates.progressPct,
+              goalId: performanceGoalUpdates.goalId,
+              progress: performanceGoalUpdates.progress,
             })
             .from(performanceGoalUpdates)
             .where(
               inArray(
-                performanceGoalUpdates.objectiveId,
+                performanceGoalUpdates.goalId,
                 goals.map((g) => g.id),
               ),
             )
-            .orderBy(desc(objectives.assignedAt));
+            .orderBy(desc(performanceGoalUpdates.createdAt));
 
           const progressMap = new Map<string, number>();
           for (const update of latestProgress) {
-            if (
-              update.goalId !== null &&
-              update.progress !== null &&
-              !progressMap.has(update.goalId)
-            ) {
+            if (!progressMap.has(update.goalId)) {
               progressMap.set(update.goalId, update.progress);
             }
           }

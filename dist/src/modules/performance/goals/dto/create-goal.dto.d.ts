@@ -1,10 +1,10 @@
 export declare class CreateGoalDto {
+    status: string;
     title: string;
     description?: string;
-    kpiBased?: boolean;
     dueDate: string;
     startDate: string;
     weight?: number;
-    cycleId: string;
-    ownerIds: string[];
+    groupId: string;
+    employeeId: string;
 }

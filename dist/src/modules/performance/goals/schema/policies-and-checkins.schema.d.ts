@@ -1,10 +1,10 @@
-export declare const performanceOkrCompanyPolicies: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "performance_okr_company_policies";
+export declare const performanceGoalCompanyPolicies: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "performance_goal_company_policies";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "performance_okr_company_policies";
+            tableName: "performance_goal_company_policies";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -21,7 +21,7 @@ export declare const performanceOkrCompanyPolicies: import("drizzle-orm/pg-core"
         }, {}, {}>;
         companyId: import("drizzle-orm/pg-core").PgColumn<{
             name: "company_id";
-            tableName: "performance_okr_company_policies";
+            tableName: "performance_goal_company_policies";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -38,7 +38,7 @@ export declare const performanceOkrCompanyPolicies: import("drizzle-orm/pg-core"
         }, {}, {}>;
         defaultVisibility: import("drizzle-orm/pg-core").PgColumn<{
             name: "default_visibility";
-            tableName: "performance_okr_company_policies";
+            tableName: "performance_goal_company_policies";
             dataType: "string";
             columnType: "PgEnumColumn";
             data: "manager" | "private" | "company";
@@ -55,7 +55,7 @@ export declare const performanceOkrCompanyPolicies: import("drizzle-orm/pg-core"
         }, {}, {}>;
         defaultCadence: import("drizzle-orm/pg-core").PgColumn<{
             name: "default_cadence";
-            tableName: "performance_okr_company_policies";
+            tableName: "performance_goal_company_policies";
             dataType: "string";
             columnType: "PgEnumColumn";
             data: "monthly" | "weekly" | "biweekly";
@@ -72,7 +72,7 @@ export declare const performanceOkrCompanyPolicies: import("drizzle-orm/pg-core"
         }, {}, {}>;
         defaultTimezone: import("drizzle-orm/pg-core").PgColumn<{
             name: "default_timezone";
-            tableName: "performance_okr_company_policies";
+            tableName: "performance_goal_company_policies";
             dataType: "string";
             columnType: "PgVarchar";
             data: string;
@@ -91,7 +91,7 @@ export declare const performanceOkrCompanyPolicies: import("drizzle-orm/pg-core"
         }>;
         defaultAnchorDow: import("drizzle-orm/pg-core").PgColumn<{
             name: "default_anchor_dow";
-            tableName: "performance_okr_company_policies";
+            tableName: "performance_goal_company_policies";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -108,7 +108,7 @@ export declare const performanceOkrCompanyPolicies: import("drizzle-orm/pg-core"
         }, {}, {}>;
         defaultAnchorHour: import("drizzle-orm/pg-core").PgColumn<{
             name: "default_anchor_hour";
-            tableName: "performance_okr_company_policies";
+            tableName: "performance_goal_company_policies";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -125,7 +125,7 @@ export declare const performanceOkrCompanyPolicies: import("drizzle-orm/pg-core"
         }, {}, {}>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
-            tableName: "performance_okr_company_policies";
+            tableName: "performance_goal_company_policies";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -142,7 +142,7 @@ export declare const performanceOkrCompanyPolicies: import("drizzle-orm/pg-core"
         }, {}, {}>;
         updatedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "updated_at";
-            tableName: "performance_okr_company_policies";
+            tableName: "performance_goal_company_policies";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -160,13 +160,13 @@ export declare const performanceOkrCompanyPolicies: import("drizzle-orm/pg-core"
     };
     dialect: "pg";
 }>;
-export declare const performanceOkrTeamPolicies: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "performance_okr_team_policies";
+export declare const performanceGoalCheckinSchedules: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "performance_goal_checkin_schedules";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "performance_okr_team_policies";
+            tableName: "performance_goal_checkin_schedules";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -181,227 +181,14 @@ export declare const performanceOkrTeamPolicies: import("drizzle-orm/pg-core").P
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
-        companyId: import("drizzle-orm/pg-core").PgColumn<{
-            name: "company_id";
-            tableName: "performance_okr_team_policies";
+        goalId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "goal_id";
+            tableName: "performance_goal_checkin_schedules";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
             driverParam: string;
             notNull: true;
-            hasDefault: false;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: undefined;
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        groupId: import("drizzle-orm/pg-core").PgColumn<{
-            name: "group_id";
-            tableName: "performance_okr_team_policies";
-            dataType: "string";
-            columnType: "PgUUID";
-            data: string;
-            driverParam: string;
-            notNull: true;
-            hasDefault: false;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: undefined;
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        visibility: import("drizzle-orm/pg-core").PgColumn<{
-            name: "visibility";
-            tableName: "performance_okr_team_policies";
-            dataType: "string";
-            columnType: "PgEnumColumn";
-            data: "manager" | "private" | "company";
-            driverParam: string;
-            notNull: false;
-            hasDefault: false;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: ["private", "manager", "company"];
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        cadence: import("drizzle-orm/pg-core").PgColumn<{
-            name: "cadence";
-            tableName: "performance_okr_team_policies";
-            dataType: "string";
-            columnType: "PgEnumColumn";
-            data: "monthly" | "weekly" | "biweekly";
-            driverParam: string;
-            notNull: false;
-            hasDefault: false;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: ["weekly", "biweekly", "monthly"];
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        defaultOwnerIsLead: import("drizzle-orm/pg-core").PgColumn<{
-            name: "default_owner_is_lead";
-            tableName: "performance_okr_team_policies";
-            dataType: "boolean";
-            columnType: "PgBoolean";
-            data: boolean;
-            driverParam: boolean;
-            notNull: false;
-            hasDefault: true;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: undefined;
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        timezone: import("drizzle-orm/pg-core").PgColumn<{
-            name: "timezone";
-            tableName: "performance_okr_team_policies";
-            dataType: "string";
-            columnType: "PgVarchar";
-            data: string;
-            driverParam: string;
-            notNull: false;
-            hasDefault: false;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: [string, ...string[]];
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {
-            length: 64;
-        }>;
-        anchorDow: import("drizzle-orm/pg-core").PgColumn<{
-            name: "anchor_dow";
-            tableName: "performance_okr_team_policies";
-            dataType: "number";
-            columnType: "PgInteger";
-            data: number;
-            driverParam: string | number;
-            notNull: false;
-            hasDefault: false;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: undefined;
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        anchorHour: import("drizzle-orm/pg-core").PgColumn<{
-            name: "anchor_hour";
-            tableName: "performance_okr_team_policies";
-            dataType: "number";
-            columnType: "PgInteger";
-            data: number;
-            driverParam: string | number;
-            notNull: false;
-            hasDefault: false;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: undefined;
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        createdAt: import("drizzle-orm/pg-core").PgColumn<{
-            name: "created_at";
-            tableName: "performance_okr_team_policies";
-            dataType: "date";
-            columnType: "PgTimestamp";
-            data: Date;
-            driverParam: string;
-            notNull: false;
-            hasDefault: true;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: undefined;
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        updatedAt: import("drizzle-orm/pg-core").PgColumn<{
-            name: "updated_at";
-            tableName: "performance_okr_team_policies";
-            dataType: "date";
-            columnType: "PgTimestamp";
-            data: Date;
-            driverParam: string;
-            notNull: false;
-            hasDefault: true;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: undefined;
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-    };
-    dialect: "pg";
-}>;
-export declare const performanceCheckinSchedules: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "performance_checkin_schedules";
-    schema: undefined;
-    columns: {
-        id: import("drizzle-orm/pg-core").PgColumn<{
-            name: "id";
-            tableName: "performance_checkin_schedules";
-            dataType: "string";
-            columnType: "PgUUID";
-            data: string;
-            driverParam: string;
-            notNull: true;
-            hasDefault: true;
-            isPrimaryKey: true;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: undefined;
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        objectiveId: import("drizzle-orm/pg-core").PgColumn<{
-            name: "objective_id";
-            tableName: "performance_checkin_schedules";
-            dataType: "string";
-            columnType: "PgUUID";
-            data: string;
-            driverParam: string;
-            notNull: false;
-            hasDefault: false;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: undefined;
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        keyResultId: import("drizzle-orm/pg-core").PgColumn<{
-            name: "key_result_id";
-            tableName: "performance_checkin_schedules";
-            dataType: "string";
-            columnType: "PgUUID";
-            data: string;
-            driverParam: string;
-            notNull: false;
             hasDefault: false;
             isPrimaryKey: false;
             isAutoincrement: false;
@@ -413,7 +200,7 @@ export declare const performanceCheckinSchedules: import("drizzle-orm/pg-core").
         }, {}, {}>;
         frequency: import("drizzle-orm/pg-core").PgColumn<{
             name: "frequency";
-            tableName: "performance_checkin_schedules";
+            tableName: "performance_goal_checkin_schedules";
             dataType: "string";
             columnType: "PgEnumColumn";
             data: "monthly" | "weekly" | "biweekly";
@@ -430,7 +217,7 @@ export declare const performanceCheckinSchedules: import("drizzle-orm/pg-core").
         }, {}, {}>;
         nextDueAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "next_due_at";
-            tableName: "performance_checkin_schedules";
+            tableName: "performance_goal_checkin_schedules";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -447,7 +234,7 @@ export declare const performanceCheckinSchedules: import("drizzle-orm/pg-core").
         }, {}, {}>;
         timezone: import("drizzle-orm/pg-core").PgColumn<{
             name: "timezone";
-            tableName: "performance_checkin_schedules";
+            tableName: "performance_goal_checkin_schedules";
             dataType: "string";
             columnType: "PgVarchar";
             data: string;
@@ -466,7 +253,7 @@ export declare const performanceCheckinSchedules: import("drizzle-orm/pg-core").
         }>;
         anchorDow: import("drizzle-orm/pg-core").PgColumn<{
             name: "anchor_dow";
-            tableName: "performance_checkin_schedules";
+            tableName: "performance_goal_checkin_schedules";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -483,7 +270,7 @@ export declare const performanceCheckinSchedules: import("drizzle-orm/pg-core").
         }, {}, {}>;
         anchorHour: import("drizzle-orm/pg-core").PgColumn<{
             name: "anchor_hour";
-            tableName: "performance_checkin_schedules";
+            tableName: "performance_goal_checkin_schedules";
             dataType: "number";
             columnType: "PgInteger";
             data: number;
@@ -500,7 +287,7 @@ export declare const performanceCheckinSchedules: import("drizzle-orm/pg-core").
         }, {}, {}>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
-            tableName: "performance_checkin_schedules";
+            tableName: "performance_goal_checkin_schedules";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -517,7 +304,7 @@ export declare const performanceCheckinSchedules: import("drizzle-orm/pg-core").
         }, {}, {}>;
         updatedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "updated_at";
-            tableName: "performance_checkin_schedules";
+            tableName: "performance_goal_checkin_schedules";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;

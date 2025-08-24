@@ -1,26 +1,24 @@
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
-import { UpsertCompanyPolicyDto, UpsertTeamPolicyDto } from './dto/policy.dtos';
+import { CacheService } from 'src/common/cache/cache.service';
+import { Queue } from 'bullmq';
+import { GoalNotificationService } from 'src/modules/notification/services/goal-notification.service';
 export type EffectivePolicy = {
     visibility: 'private' | 'manager' | 'company';
     cadence: 'weekly' | 'biweekly' | 'monthly';
-    timezone: string | null;
+    timezone: string;
     anchorDow: number;
     anchorHour: number;
-    defaultOwnerIsLead: boolean;
-    _source?: {
-        visibility: 'system' | 'company' | 'team';
-        cadence: 'system' | 'company' | 'team';
-        timezone: 'system' | 'company' | 'team' | 'none';
-        anchorDow: 'system' | 'company' | 'team';
-        anchorHour: 'system' | 'company' | 'team';
-        defaultOwnerIsLead: 'system' | 'team';
-    };
 };
 export declare class PolicyService {
     private readonly db;
     private readonly audit;
-    constructor(db: db, audit: AuditService);
+    private readonly cache;
+    private readonly notification;
+    private readonly emailQueue;
+    constructor(db: db, audit: AuditService, cache: CacheService, notification: GoalNotificationService, emailQueue: Queue);
+    private tags;
+    private invalidate;
     getOrCreateCompanyPolicy(companyId: string): Promise<{
         id: string;
         createdAt: Date | null;
@@ -32,7 +30,13 @@ export declare class PolicyService {
         defaultAnchorDow: number | null;
         defaultAnchorHour: number | null;
     }>;
-    upsertCompanyPolicy(companyId: string, userId: string, dto: UpsertCompanyPolicyDto): Promise<{
+    upsertCompanyPolicy(companyId: string, userId: string, dto: {
+        defaultVisibility?: 'private' | 'manager' | 'company';
+        defaultCadence?: 'weekly' | 'biweekly' | 'monthly';
+        defaultTimezone?: string;
+        defaultAnchorDow?: number;
+        defaultAnchorHour?: number;
+    }): Promise<{
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
@@ -43,34 +47,18 @@ export declare class PolicyService {
         defaultAnchorDow: number | null;
         defaultAnchorHour: number | null;
     }>;
-    upsertTeamPolicy(companyId: string, groupId: string, userId: string, dto: UpsertTeamPolicyDto): Promise<{
-        id: string;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-        companyId: string;
-        timezone: string | null;
-        groupId: string;
-        visibility: "manager" | "private" | "company" | null;
-        cadence: "monthly" | "weekly" | "biweekly" | null;
-        defaultOwnerIsLead: boolean | null;
-        anchorDow: number | null;
-        anchorHour: number | null;
-    }>;
-    getEffectivePolicy(companyId: string, groupId?: string | null): Promise<EffectivePolicy>;
-    upsertObjectiveScheduleFromPolicy(objectiveId: string, companyId: string, groupId?: string | null, overrides?: Partial<Pick<EffectivePolicy, 'cadence' | 'timezone' | 'anchorDow' | 'anchorHour'>>): Promise<{
-        id: string;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-        timezone: string | null;
-        objectiveId: string | null;
-        keyResultId: string | null;
-        anchorDow: number | null;
-        anchorHour: number | null;
-        frequency: "monthly" | "weekly" | "biweekly";
-        nextDueAt: Date;
-    }>;
-    resolveOwnerFromTeamLead(groupId?: string | null): Promise<string | null>;
-    private validatePolicyPatch;
-    private assertBounds;
+    getEffectivePolicy(companyId: string): Promise<EffectivePolicy>;
+    upsertGoalScheduleFromPolicy(goalId: string, companyId: string, tx?: any, overrides?: Partial<Pick<EffectivePolicy, 'cadence' | 'timezone' | 'anchorDow' | 'anchorHour'>>): Promise<any>;
+    private validate;
     private computeNextDueAt;
+    processDueGoalCheckins(opts?: {
+        companyId?: string;
+        limit?: number;
+    }): Promise<{
+        processed: number;
+        enqueued: number;
+        skipped: number;
+        advanced: number;
+    }>;
+    private rollForward;
 }

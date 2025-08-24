@@ -18,9 +18,9 @@ export declare class SeedController extends BaseController {
         id: string;
         name: string;
         createdAt: Date | null;
-        description: string | null;
         isActive: boolean | null;
         companyId: string | null;
+        description: string | null;
         isGlobal: boolean | null;
     }>;
     getCompetencies(user: User): Promise<{

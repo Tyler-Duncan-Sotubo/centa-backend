@@ -119,6 +119,16 @@ let CacheService = CacheService_1 = class CacheService {
         }
         return val;
     }
+    async resetCompanyVersion(companyId) {
+        const versionKey = `company:${companyId}:ver`;
+        return (await this.safeRedisCall(async (client) => {
+            await client.set(versionKey, '1');
+            return 1;
+        }, async () => {
+            await this.cacheManager.set(versionKey, '1');
+            return 1;
+        }));
+    }
     async attachTags(cacheKey, tags) {
         await this.safeRedisCall(async (client) => {
             if (!client.sadd)

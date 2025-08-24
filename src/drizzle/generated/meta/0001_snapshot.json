@@ -1,6 +1,6 @@
 {
-  "id": "798e013f-cd46-49f7-a274-f1a328507d1e",
-  "prevId": "781cdd9b-93ac-4e15-a2cd-e6ca1146d958",
+  "id": "8563b31c-42cb-418f-bb64-51da2860e959",
+  "prevId": "cf70d8c0-40c3-4062-ba68-621165ec7f26",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2470,6 +2470,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "team_id": {
+          "name": "team_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "name": {
           "name": "name",
           "type": "text",
@@ -2550,6 +2556,19 @@
           "tableTo": "companies",
           "columnsFrom": [
             "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "benefit_groups_team_id_employee_groups_id_fk": {
+          "name": "benefit_groups_team_id_employee_groups_id_fk",
+          "tableFrom": "benefit_groups",
+          "tableTo": "employee_groups",
+          "columnsFrom": [
+            "team_id"
           ],
           "columnsTo": [
             "id"

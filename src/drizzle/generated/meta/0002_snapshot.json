@@ -1,6 +1,6 @@
 {
-  "id": "7f94e471-24ef-456e-a585-e109ff5fe07f",
-  "prevId": "798e013f-cd46-49f7-a274-f1a328507d1e",
+  "id": "dd72613c-8aad-44c1-bb0e-bc992a7feb0e",
+  "prevId": "8563b31c-42cb-418f-bb64-51da2860e959",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2470,6 +2470,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "team_id": {
+          "name": "team_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "name": {
           "name": "name",
           "type": "text",
@@ -2550,6 +2556,19 @@
           "tableTo": "companies",
           "columnsFrom": [
             "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "benefit_groups_team_id_employee_groups_id_fk": {
+          "name": "benefit_groups_team_id_employee_groups_id_fk",
+          "tableFrom": "benefit_groups",
+          "tableTo": "employee_groups",
+          "columnsFrom": [
+            "team_id"
           ],
           "columnsTo": [
             "id"
@@ -14687,23 +14706,17 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "objective_id": {
-          "name": "objective_id",
+        "goal_id": {
+          "name": "goal_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
-        },
-        "key_result_id": {
-          "name": "key_result_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "comment": {
           "name": "comment",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "uploaded_by_id": {
           "name": "uploaded_by_id",
@@ -14739,26 +14752,11 @@
         }
       },
       "indexes": {
-        "idx_goal_attachments_objective_id": {
-          "name": "idx_goal_attachments_objective_id",
+        "idx_goal_attachments_goal_id": {
+          "name": "idx_goal_attachments_goal_id",
           "columns": [
             {
-              "expression": "objective_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_goal_attachments_key_result_id": {
-          "name": "idx_goal_attachments_key_result_id",
-          "columns": [
-            {
-              "expression": "key_result_id",
+              "expression": "goal_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -14771,25 +14769,12 @@
         }
       },
       "foreignKeys": {
-        "performance_goal_attachments_objective_id_performance_objectives_id_fk": {
-          "name": "performance_goal_attachments_objective_id_performance_objectives_id_fk",
+        "performance_goal_attachments_goal_id_performance_goals_id_fk": {
+          "name": "performance_goal_attachments_goal_id_performance_goals_id_fk",
           "tableFrom": "performance_goal_attachments",
-          "tableTo": "performance_objectives",
+          "tableTo": "performance_goals",
           "columnsFrom": [
-            "objective_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "performance_goal_attachments_key_result_id_performance_key_results_id_fk": {
-          "name": "performance_goal_attachments_key_result_id_performance_key_results_id_fk",
-          "tableFrom": "performance_goal_attachments",
-          "tableTo": "performance_key_results",
-          "columnsFrom": [
-            "key_result_id"
+            "goal_id"
           ],
           "columnsTo": [
             "id"
@@ -14828,17 +14813,11 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "objective_id": {
-          "name": "objective_id",
+        "goal_id": {
+          "name": "goal_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
-        },
-        "key_result_id": {
-          "name": "key_result_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "author_id": {
           "name": "author_id",
@@ -14875,26 +14854,11 @@
         }
       },
       "indexes": {
-        "idx_goal_comments_objective_id": {
-          "name": "idx_goal_comments_objective_id",
+        "idx_goal_comments_goal_id": {
+          "name": "idx_goal_comments_goal_id",
           "columns": [
             {
-              "expression": "objective_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_goal_comments_key_result_id": {
-          "name": "idx_goal_comments_key_result_id",
-          "columns": [
-            {
-              "expression": "key_result_id",
+              "expression": "goal_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -14922,25 +14886,12 @@
         }
       },
       "foreignKeys": {
-        "performance_goal_comments_objective_id_performance_objectives_id_fk": {
-          "name": "performance_goal_comments_objective_id_performance_objectives_id_fk",
+        "performance_goal_comments_goal_id_performance_goals_id_fk": {
+          "name": "performance_goal_comments_goal_id_performance_goals_id_fk",
           "tableFrom": "performance_goal_comments",
-          "tableTo": "performance_objectives",
+          "tableTo": "performance_goals",
           "columnsFrom": [
-            "objective_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "performance_goal_comments_key_result_id_performance_key_results_id_fk": {
-          "name": "performance_goal_comments_key_result_id_performance_key_results_id_fk",
-          "tableFrom": "performance_goal_comments",
-          "tableTo": "performance_key_results",
-          "columnsFrom": [
-            "key_result_id"
+            "goal_id"
           ],
           "columnsTo": [
             "id"
@@ -14968,8 +14919,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.kpi_snapshots": {
-      "name": "kpi_snapshots",
+    "public.performance_goal_updates": {
+      "name": "performance_goal_updates",
       "schema": "",
       "columns": {
         "id": {
@@ -14979,245 +14930,18 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "kpi_id": {
-          "name": "kpi_id",
+        "goal_id": {
+          "name": "goal_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "value": {
-          "name": "value",
-          "type": "numeric(18, 6)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "collected_at": {
-          "name": "collected_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "collected_by": {
-          "name": "collected_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "idx_kpi_snapshots_kpi_time": {
-          "name": "idx_kpi_snapshots_kpi_time",
-          "columns": [
-            {
-              "expression": "kpi_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "collected_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "kpi_snapshots_kpi_id_kpis_id_fk": {
-          "name": "kpi_snapshots_kpi_id_kpis_id_fk",
-          "tableFrom": "kpi_snapshots",
-          "tableTo": "kpis",
-          "columnsFrom": [
-            "kpi_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "kpi_snapshots_collected_by_users_id_fk": {
-          "name": "kpi_snapshots_collected_by_users_id_fk",
-          "tableFrom": "kpi_snapshots",
-          "tableTo": "users",
-          "columnsFrom": [
-            "collected_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.kpis": {
-      "name": "kpis",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "unit": {
-          "name": "unit",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "direction": {
-          "name": "direction",
-          "type": "direction",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "data_source",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'manual'"
-        },
-        "source_ref": {
-          "name": "source_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "is_archived": {
-          "name": "is_archived",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "idx_kpis_company": {
-          "name": "idx_kpis_company",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "kpis_company_id_companies_id_fk": {
-          "name": "kpis_company_id_companies_id_fk",
-          "tableFrom": "kpis",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.performance_progress_updates": {
-      "name": "performance_progress_updates",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "objective_id": {
-          "name": "objective_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "key_result_id": {
-          "name": "key_result_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "value": {
-          "name": "value",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "progress_pct": {
-          "name": "progress_pct",
+        "progress": {
+          "name": "progress",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": 0
         },
         "note": {
           "name": "note",
@@ -15241,12 +14965,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "performance_progress_updates_objective_id_performance_objectives_id_fk": {
-          "name": "performance_progress_updates_objective_id_performance_objectives_id_fk",
-          "tableFrom": "performance_progress_updates",
-          "tableTo": "performance_objectives",
+        "performance_goal_updates_goal_id_performance_goals_id_fk": {
+          "name": "performance_goal_updates_goal_id_performance_goals_id_fk",
+          "tableFrom": "performance_goal_updates",
+          "tableTo": "performance_goals",
           "columnsFrom": [
-            "objective_id"
+            "goal_id"
           ],
           "columnsTo": [
             "id"
@@ -15254,22 +14978,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "performance_progress_updates_key_result_id_performance_key_results_id_fk": {
-          "name": "performance_progress_updates_key_result_id_performance_key_results_id_fk",
-          "tableFrom": "performance_progress_updates",
-          "tableTo": "performance_key_results",
-          "columnsFrom": [
-            "key_result_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "performance_progress_updates_created_by_users_id_fk": {
-          "name": "performance_progress_updates_created_by_users_id_fk",
-          "tableFrom": "performance_progress_updates",
+        "performance_goal_updates_created_by_users_id_fk": {
+          "name": "performance_goal_updates_created_by_users_id_fk",
+          "tableFrom": "performance_goal_updates",
           "tableTo": "users",
           "columnsFrom": [
             "created_by"
@@ -15312,6 +15023,12 @@
         },
         "employee_id": {
           "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "employee_group_id": {
+          "name": "employee_group_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -15431,6 +15148,36 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "idx_goals_employee_id": {
+          "name": "idx_goals_employee_id",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_goals_employee_group_id": {
+          "name": "idx_goals_employee_group_id",
+          "columns": [
+            {
+              "expression": "employee_group_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -15473,6 +15220,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "performance_goals_employee_group_id_employee_groups_id_fk": {
+          "name": "performance_goals_employee_group_id_employee_groups_id_fk",
+          "tableFrom": "performance_goals",
+          "tableTo": "employee_groups",
+          "columnsFrom": [
+            "employee_group_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "performance_goals_parent_goal_id_performance_goals_id_fk": {
           "name": "performance_goals_parent_goal_id_performance_goals_id_fk",
           "tableFrom": "performance_goals",
@@ -15497,941 +15257,6 @@
             "id"
           ],
           "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.performance_key_results": {
-      "name": "performance_key_results",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "objective_id": {
-          "name": "objective_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "type": {
-          "name": "type",
-          "type": "kr_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'metric'"
-        },
-        "scoring_method": {
-          "name": "scoring_method",
-          "type": "scoring_method",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'okr_classic'"
-        },
-        "unit": {
-          "name": "unit",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "direction": {
-          "name": "direction",
-          "type": "direction",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "baseline": {
-          "name": "baseline",
-          "type": "numeric(18, 6)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "target": {
-          "name": "target",
-          "type": "numeric(18, 6)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "min_range": {
-          "name": "min_range",
-          "type": "numeric(18, 6)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "max_range": {
-          "name": "max_range",
-          "type": "numeric(18, 6)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "current": {
-          "name": "current",
-          "type": "numeric(18, 6)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "progress_pct": {
-          "name": "progress_pct",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "weight": {
-          "name": "weight",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "owner_employee_id": {
-          "name": "owner_employee_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source": {
-          "name": "source",
-          "type": "data_source",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'manual'"
-        },
-        "source_ref": {
-          "name": "source_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "start_date": {
-          "name": "start_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "due_date": {
-          "name": "due_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "is_archived": {
-          "name": "is_archived",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "idx_krs_objective": {
-          "name": "idx_krs_objective",
-          "columns": [
-            {
-              "expression": "objective_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_krs_owner": {
-          "name": "idx_krs_owner",
-          "columns": [
-            {
-              "expression": "owner_employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "performance_key_results_objective_id_performance_objectives_id_fk": {
-          "name": "performance_key_results_objective_id_performance_objectives_id_fk",
-          "tableFrom": "performance_key_results",
-          "tableTo": "performance_objectives",
-          "columnsFrom": [
-            "objective_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "performance_key_results_owner_employee_id_employees_id_fk": {
-          "name": "performance_key_results_owner_employee_id_employees_id_fk",
-          "tableFrom": "performance_key_results",
-          "tableTo": "employees",
-          "columnsFrom": [
-            "owner_employee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.performance_objectives": {
-      "name": "performance_objectives",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cycle_id": {
-          "name": "cycle_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "owner_employee_id": {
-          "name": "owner_employee_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "owner_group_id": {
-          "name": "owner_group_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "objective_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'draft'"
-        },
-        "visibility": {
-          "name": "visibility",
-          "type": "visibility",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'company'"
-        },
-        "weight": {
-          "name": "weight",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "score": {
-          "name": "score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "confidence": {
-          "name": "confidence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "parent_objective_id": {
-          "name": "parent_objective_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "start_date": {
-          "name": "start_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "due_date": {
-          "name": "due_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "assigned_at": {
-          "name": "assigned_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "assigned_by": {
-          "name": "assigned_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "is_archived": {
-          "name": "is_archived",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "idx_objectives_company_cycle": {
-          "name": "idx_objectives_company_cycle",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "cycle_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_objectives_owner_emp": {
-          "name": "idx_objectives_owner_emp",
-          "columns": [
-            {
-              "expression": "owner_employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_objectives_owner_group": {
-          "name": "idx_objectives_owner_group",
-          "columns": [
-            {
-              "expression": "owner_group_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "performance_objectives_company_id_companies_id_fk": {
-          "name": "performance_objectives_company_id_companies_id_fk",
-          "tableFrom": "performance_objectives",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "performance_objectives_cycle_id_performance_cycles_id_fk": {
-          "name": "performance_objectives_cycle_id_performance_cycles_id_fk",
-          "tableFrom": "performance_objectives",
-          "tableTo": "performance_cycles",
-          "columnsFrom": [
-            "cycle_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "performance_objectives_owner_employee_id_employees_id_fk": {
-          "name": "performance_objectives_owner_employee_id_employees_id_fk",
-          "tableFrom": "performance_objectives",
-          "tableTo": "employees",
-          "columnsFrom": [
-            "owner_employee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "performance_objectives_owner_group_id_employee_groups_id_fk": {
-          "name": "performance_objectives_owner_group_id_employee_groups_id_fk",
-          "tableFrom": "performance_objectives",
-          "tableTo": "employee_groups",
-          "columnsFrom": [
-            "owner_group_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "performance_objectives_parent_objective_id_performance_objectives_id_fk": {
-          "name": "performance_objectives_parent_objective_id_performance_objectives_id_fk",
-          "tableFrom": "performance_objectives",
-          "tableTo": "performance_objectives",
-          "columnsFrom": [
-            "parent_objective_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "performance_objectives_assigned_by_users_id_fk": {
-          "name": "performance_objectives_assigned_by_users_id_fk",
-          "tableFrom": "performance_objectives",
-          "tableTo": "users",
-          "columnsFrom": [
-            "assigned_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.performance_checkin_schedules": {
-      "name": "performance_checkin_schedules",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "objective_id": {
-          "name": "objective_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "key_result_id": {
-          "name": "key_result_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "frequency": {
-          "name": "frequency",
-          "type": "performance_checkin_cadence",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "next_due_at": {
-          "name": "next_due_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "timezone": {
-          "name": "timezone",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "anchor_dow": {
-          "name": "anchor_dow",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "anchor_hour": {
-          "name": "anchor_hour",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "idx_performance_checkins_due": {
-          "name": "idx_performance_checkins_due",
-          "columns": [
-            {
-              "expression": "next_due_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_performance_checkins_objective": {
-          "name": "idx_performance_checkins_objective",
-          "columns": [
-            {
-              "expression": "objective_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_performance_checkins_kr": {
-          "name": "idx_performance_checkins_kr",
-          "columns": [
-            {
-              "expression": "key_result_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "uniq_performance_checkin_per_objective": {
-          "name": "uniq_performance_checkin_per_objective",
-          "columns": [
-            {
-              "expression": "objective_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"performance_checkin_schedules\".\"objective_id\" IS NOT NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "uniq_performance_checkin_per_kr": {
-          "name": "uniq_performance_checkin_per_kr",
-          "columns": [
-            {
-              "expression": "key_result_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"performance_checkin_schedules\".\"key_result_id\" IS NOT NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "performance_checkin_schedules_objective_id_performance_objectives_id_fk": {
-          "name": "performance_checkin_schedules_objective_id_performance_objectives_id_fk",
-          "tableFrom": "performance_checkin_schedules",
-          "tableTo": "performance_objectives",
-          "columnsFrom": [
-            "objective_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "performance_checkin_schedules_key_result_id_performance_key_results_id_fk": {
-          "name": "performance_checkin_schedules_key_result_id_performance_key_results_id_fk",
-          "tableFrom": "performance_checkin_schedules",
-          "tableTo": "performance_key_results",
-          "columnsFrom": [
-            "key_result_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.performance_okr_company_policies": {
-      "name": "performance_okr_company_policies",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "default_visibility": {
-          "name": "default_visibility",
-          "type": "performance_visibility",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'company'"
-        },
-        "default_cadence": {
-          "name": "default_cadence",
-          "type": "performance_checkin_cadence",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'monthly'"
-        },
-        "default_timezone": {
-          "name": "default_timezone",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "default_anchor_dow": {
-          "name": "default_anchor_dow",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "default_anchor_hour": {
-          "name": "default_anchor_hour",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "idx_performance_okr_company_policies_company": {
-          "name": "idx_performance_okr_company_policies_company",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "uniq_performance_okr_company_policy_per_company": {
-          "name": "uniq_performance_okr_company_policy_per_company",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "performance_okr_company_policies_company_id_companies_id_fk": {
-          "name": "performance_okr_company_policies_company_id_companies_id_fk",
-          "tableFrom": "performance_okr_company_policies",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.performance_okr_team_policies": {
-      "name": "performance_okr_team_policies",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "group_id": {
-          "name": "group_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "visibility": {
-          "name": "visibility",
-          "type": "performance_visibility",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cadence": {
-          "name": "cadence",
-          "type": "performance_checkin_cadence",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "default_owner_is_lead": {
-          "name": "default_owner_is_lead",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": true
-        },
-        "timezone": {
-          "name": "timezone",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "anchor_dow": {
-          "name": "anchor_dow",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "anchor_hour": {
-          "name": "anchor_hour",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "idx_performance_okr_team_policies_company_group": {
-          "name": "idx_performance_okr_team_policies_company_group",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "group_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "uniq_performance_okr_team_policy_per_group": {
-          "name": "uniq_performance_okr_team_policy_per_group",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "group_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "performance_okr_team_policies_company_id_companies_id_fk": {
-          "name": "performance_okr_team_policies_company_id_companies_id_fk",
-          "tableFrom": "performance_okr_team_policies",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "performance_okr_team_policies_group_id_employee_groups_id_fk": {
-          "name": "performance_okr_team_policies_group_id_employee_groups_id_fk",
-          "tableFrom": "performance_okr_team_policies",
-          "tableTo": "employee_groups",
-          "columnsFrom": [
-            "group_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -21235,82 +20060,6 @@
       "values": [
         "fixed",
         "percentage"
-      ]
-    },
-    "public.direction": {
-      "name": "direction",
-      "schema": "public",
-      "values": [
-        "at_least",
-        "at_most",
-        "increase_to",
-        "decrease_to",
-        "range"
-      ]
-    },
-    "public.kr_type": {
-      "name": "kr_type",
-      "schema": "public",
-      "values": [
-        "metric",
-        "milestone",
-        "binary"
-      ]
-    },
-    "public.objective_status": {
-      "name": "objective_status",
-      "schema": "public",
-      "values": [
-        "draft",
-        "active",
-        "paused",
-        "closed"
-      ]
-    },
-    "public.performance_checkin_cadence": {
-      "name": "performance_checkin_cadence",
-      "schema": "public",
-      "values": [
-        "weekly",
-        "biweekly",
-        "monthly"
-      ]
-    },
-    "public.performance_visibility": {
-      "name": "performance_visibility",
-      "schema": "public",
-      "values": [
-        "private",
-        "manager",
-        "company"
-      ]
-    },
-    "public.scoring_method": {
-      "name": "scoring_method",
-      "schema": "public",
-      "values": [
-        "okr_classic",
-        "kpi_target",
-        "milestone_bool",
-        "milestone_pct"
-      ]
-    },
-    "public.data_source": {
-      "name": "data_source",
-      "schema": "public",
-      "values": [
-        "manual",
-        "system",
-        "integration"
-      ]
-    },
-    "public.visibility": {
-      "name": "visibility",
-      "schema": "public",
-      "values": [
-        "private",
-        "manager",
-        "company"
       ]
     },
     "public.application_status": {
