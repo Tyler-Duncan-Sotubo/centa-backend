@@ -8,6 +8,7 @@ import { User } from 'src/common/types/user.type';
 import { ReportService } from '../report/report.service';
 import { AdjustAttendanceDto } from './dto/adjust-attendance.dto';
 import { CacheService } from 'src/common/cache/cache.service';
+type DayStatus = 'absent' | 'present' | 'late';
 export declare class ClockInOutService {
     private readonly db;
     private readonly auditService;
@@ -18,8 +19,11 @@ export declare class ClockInOutService {
     private readonly cache;
     constructor(db: db, auditService: AuditService, employeesService: EmployeesService, attendanceSettingsService: AttendanceSettingsService, employeeShiftsService: EmployeeShiftsService, reportService: ReportService, cache: CacheService);
     private tags;
-    private isWithinRadius;
     private pickTz;
+    private isWithinRadius;
+    private getTodayWindow;
+    private settingsMemo;
+    private getSettings;
     checkLocation(latitude: string, longitude: string, employee: any): Promise<void>;
     clockIn(user: User, dto: CreateClockInOutDto): Promise<string>;
     clockOut(user: User, latitude: string, longitude: string, tz?: string): Promise<string>;
@@ -52,8 +56,8 @@ export declare class ClockInOutService {
             averageCheckInTime: Date | null;
         };
         summaryList: {
-            employeeId: string;
-            employeeNumber: string;
+            employeeId: any;
+            employeeNumber: any;
             name: string;
             department: any;
             checkInTime: string | null;
@@ -72,8 +76,8 @@ export declare class ClockInOutService {
     }>;
     getDailyDashboardStatsByDate(companyId: string, date: string): Promise<{
         summaryList: {
-            employeeId: string;
-            employeeNumber: string;
+            employeeId: any;
+            employeeNumber: any;
             name: string;
             department: any;
             checkInTime: string | null;
@@ -93,7 +97,7 @@ export declare class ClockInOutService {
         date: string;
         checkInTime: string | null;
         checkOutTime: string | null;
-        status: 'absent' | 'present' | 'late';
+        status: DayStatus;
         workDurationMinutes: number | null;
         overtimeMinutes: number;
         isLateArrival: boolean;
@@ -104,8 +108,9 @@ export declare class ClockInOutService {
             date: string;
             checkInTime: string | null;
             checkOutTime: string | null;
-            status: 'absent' | 'present' | 'late';
+            status: DayStatus;
         }>;
     }>;
     adjustAttendanceRecord(dto: AdjustAttendanceDto, attendanceRecordId: string, user: User, ip: string): Promise<string>;
 }
+export {};
