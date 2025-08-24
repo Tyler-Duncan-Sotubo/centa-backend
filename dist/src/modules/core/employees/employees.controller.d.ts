@@ -237,16 +237,113 @@ export declare class EmployeesController extends BaseController {
             role: string;
             confirmed: boolean | null;
         };
-        profile: {} | null;
-        history: {} | null;
-        dependents: {} | null;
-        certifications: {} | null;
-        compensation: {} | null;
+        profile: {
+            id: string;
+            dateOfBirth: string | null;
+            gender: string | null;
+            maritalStatus: string | null;
+            address: string | null;
+            state: string | null;
+            country: string | null;
+            phone: string | null;
+            emergencyName: string | null;
+            emergencyPhone: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            employeeId: string;
+        } | null;
+        history: {
+            id: string;
+            employeeId: string;
+            type: "employment" | "education" | "certification" | "promotion" | "transfer" | "termination";
+            title: string;
+            startDate: string | null;
+            endDate: string | null;
+            institution: string | null;
+            description: string | null;
+            createdAt: Date;
+        }[] | null;
+        dependents: {
+            id: string;
+            employeeId: string;
+            name: string;
+            relationship: string;
+            dateOfBirth: string;
+            isBeneficiary: boolean | null;
+            createdAt: Date;
+        }[] | null;
+        certifications: {
+            id: string;
+            employeeId: string;
+            name: string;
+            authority: string | null;
+            licenseNumber: string | null;
+            issueDate: string | null;
+            expiryDate: string | null;
+            documentUrl: string | null;
+            createdAt: Date;
+        }[] | null;
+        compensation: {
+            id: string;
+            employeeId: string;
+            grossSalary: number;
+            payGroupId: any;
+            applyNhf: boolean;
+            startDate: any;
+            endDate: any;
+        } | {
+            id: string;
+            employeeId: string;
+            grossSalary: number;
+            payGroupId: any;
+            applyNhf: boolean;
+            startDate: any;
+            endDate: any;
+        } | null;
         finance: {} | null;
-        leaveBalance: {} | null;
-        leaveRequests: {} | null;
-        attendance: {} | null;
-        payslipSummary: {} | null;
+        leaveBalance: {
+            leaveTypeId: string;
+            leaveTypeName: string;
+            year: number;
+            entitlement: string;
+            used: string;
+            balance: string;
+        }[] | null;
+        leaveRequests: {
+            requestId: string;
+            employeeId: string;
+            leaveType: string;
+            startDate: string;
+            endDate: string;
+            status: string;
+            reason: string | null;
+        }[] | null;
+        attendance: {
+            summaryList: Array<{
+                date: string;
+                checkInTime: string | null;
+                checkOutTime: string | null;
+                status: "absent" | "present" | "late";
+            }>;
+        } | null;
+        payslipSummary: {
+            payslip_id: string;
+            payroll_date: string;
+            gross_salary: string;
+            net_salary: string;
+            totalDeduction: string;
+            taxableIncome: string;
+            paye: string;
+            pensionContribution: string;
+            nhfContribution: string | null;
+            salaryAdvance: string | null;
+            payslip_pdf_url: string | null;
+            paymentStatus: string | null;
+            basic: string;
+            housing: string;
+            transport: string;
+            voluntaryDeductions: unknown;
+        }[] | null;
         avatarUrl: any;
     }>;
     findOne(id: string, user: User): Promise<{

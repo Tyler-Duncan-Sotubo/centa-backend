@@ -296,60 +296,48 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
         return employeeId;
     }
     async findAll(employeeId, companyId, month) {
-        let targetMonth = month;
-        if (!targetMonth) {
-            targetMonth = (0, date_fns_1.format)(new Date(), 'yyyy-MM');
-        }
-        else {
+        const targetMonth = month ?? (0, date_fns_1.format)(new Date(), 'yyyy-MM');
+        const employee = await this.findOne(employeeId, companyId);
+        if (!employee)
+            throw new Error('Employee not found');
+        const withTimeout = (p, ms = 6000) => Promise.race([
+            p,
+            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms)),
+        ]);
+        const safe = async (p) => {
             try {
-                const parsed = (0, date_fns_1.parse)(targetMonth + '-01', 'yyyy-MM-dd', new Date());
-                targetMonth = (0, date_fns_1.format)(parsed, 'yyyy-MM');
+                return await p;
             }
             catch {
+                return null;
             }
-        }
-        return this.cacheService.getOrSetVersioned(companyId, this.kEmployee(employeeId, 'all', targetMonth), async () => {
-            const employee = await this.findOne(employeeId, companyId);
-            if (!employee) {
-                throw new Error('Employee not found');
-            }
-            const safe = async (p) => {
-                try {
-                    return await p;
-                }
-                catch (err) {
-                    console.error('[employee.findAll] subcall error:', err);
-                    return null;
-                }
-            };
-            const results = await Promise.allSettled([
-                safe(this.financeService.findOne(employeeId)),
-                safe(this.profileService.findOne(employeeId)),
-                safe(this.historyService.findAll(employeeId)),
-                safe(this.dependentsService.findAll(employeeId)),
-                safe(this.certificationsService.findAll(employeeId)),
-                safe(this.compensationService.findAll(employeeId)),
-                safe(this.leaveBalanceService.findByEmployeeId(employeeId)),
-                safe(this.findAllLeaveRequestByEmployeeId(employeeId, companyId)),
-                safe(this.getEmployeeAttendanceByMonth(employeeId, companyId, targetMonth)),
-                safe(this.payslipService.getEmployeePayslipSummary(employeeId)),
-            ]);
-            const [finance, profile, history, dependents, certifications, compensation, leaveBalance, leaves, attendance, payslipSummary,] = results.map((r) => (r.status === 'fulfilled' ? r.value : null));
-            return {
-                core: employee,
-                profile,
-                history,
-                dependents,
-                certifications,
-                compensation,
-                finance,
-                leaveBalance,
-                leaveRequests: leaves,
-                attendance,
-                payslipSummary,
-                avatarUrl: employee?.avatarUrl ?? '',
-            };
-        }, { tags: [`employee:${employeeId}`, `company:${companyId}:employee`] });
+        };
+        const [finance, profile, history, dependents, certifications, compensation, leaveBalance, leaves, attendance, payslipSummary,] = await Promise.all([
+            safe(withTimeout(this.financeService.findOne(employeeId))),
+            safe(withTimeout(this.profileService.findOne(employeeId))),
+            safe(withTimeout(this.historyService.findAll(employeeId))),
+            safe(withTimeout(this.dependentsService.findAll(employeeId))),
+            safe(withTimeout(this.certificationsService.findAll(employeeId))),
+            safe(withTimeout(this.compensationService.findAll(employeeId))),
+            safe(withTimeout(this.leaveBalanceService.findByEmployeeId(employeeId))),
+            safe(withTimeout(this.findAllLeaveRequestByEmployeeId(employeeId, companyId))),
+            safe(withTimeout(this.getEmployeeAttendanceByMonth(employeeId, companyId, targetMonth), 8000)),
+            safe(withTimeout(this.payslipService.getEmployeePayslipSummary(employeeId))),
+        ]);
+        return {
+            core: employee,
+            profile,
+            history,
+            dependents,
+            certifications,
+            compensation,
+            finance,
+            leaveBalance,
+            leaveRequests: leaves,
+            attendance,
+            payslipSummary,
+            avatarUrl: employee?.avatarUrl ?? '',
+        };
     }
     async getEmployeeByUserId(user_id) {
         const [empRow] = await this.db
