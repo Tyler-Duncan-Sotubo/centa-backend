@@ -6,7 +6,6 @@ import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { eq } from 'drizzle-orm';
 import { employeeHistory } from '../schema/history.schema';
-import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class HistoryService {
@@ -15,17 +14,7 @@ export class HistoryService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
-    private readonly cache: CacheService,
   ) {}
-
-  private tags(scope: string) {
-    // scope is employeeId or "global"
-    return [
-      `employee:${scope}:history`,
-      `employee:${scope}:history:list`,
-      `employee:${scope}:history:detail`,
-    ];
-  }
 
   async create(
     employeeId: string,
@@ -53,48 +42,31 @@ export class HistoryService {
       changes: { ...dto },
     });
 
-    // Invalidate caches for this employee
-    await this.cache.bumpCompanyVersion(employeeId);
-
     return created;
   }
 
   // READ (cached per employee)
-  findAll(employeeId: string) {
-    return this.cache.getOrSetVersioned(
-      employeeId,
-      ['history', 'list', employeeId],
-      async () => {
-        const rows = await this.db
-          .select()
-          .from(this.table)
-          .where(eq(this.table.employeeId, employeeId))
-          .execute();
-        return rows;
-      },
-      { tags: this.tags(employeeId) },
-    );
+  async findAll(employeeId: string) {
+    const rows = await this.db
+      .select()
+      .from(this.table)
+      .where(eq(this.table.employeeId, employeeId))
+      .execute();
+    return rows;
   }
 
   // READ (cached; no employeeId in signature → global scope)
   async findOne(historyId: string) {
-    return this.cache.getOrSetVersioned(
-      'global',
-      ['history', 'detail', historyId],
-      async () => {
-        const [history] = await this.db
-          .select()
-          .from(this.table)
-          .where(eq(this.table.id, historyId))
-          .execute();
+    const [history] = await this.db
+      .select()
+      .from(this.table)
+      .where(eq(this.table.id, historyId))
+      .execute();
 
-        if (!history) {
-          return {};
-        }
-        return history;
-      },
-      { tags: this.tags('global') },
-    );
+    if (!history) {
+      return {};
+    }
+    return history;
   }
 
   async update(
@@ -144,21 +116,10 @@ export class HistoryService {
       });
     }
 
-    // Invalidate caches: employee list + global detail
-    await this.cache.bumpCompanyVersion(history.employeeId);
-    await this.cache.bumpCompanyVersion('global');
-
     return updated;
   }
 
   async remove(historyId: string) {
-    // grab for cache bump
-    const [existing] = await this.db
-      .select()
-      .from(this.table)
-      .where(eq(this.table.id, historyId))
-      .execute();
-
     const result = await this.db
       .delete(this.table)
       .where(eq(this.table.id, historyId))
@@ -170,12 +131,6 @@ export class HistoryService {
         `History for employee ${historyId} not found`,
       );
     }
-
-    // Invalidate caches
-    if (existing?.employeeId) {
-      await this.cache.bumpCompanyVersion(existing.employeeId);
-    }
-    await this.cache.bumpCompanyVersion('global');
 
     return { deleted: true, id: result[0].id };
   }

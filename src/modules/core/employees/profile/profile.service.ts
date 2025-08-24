@@ -5,7 +5,6 @@ import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { employeeProfiles } from '../schema/profile.schema';
 import { eq } from 'drizzle-orm';
-import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class ProfileService {
@@ -14,13 +13,7 @@ export class ProfileService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
-    private readonly cache: CacheService,
   ) {}
-
-  private tags(scope: string) {
-    // scope is employeeId or "global"
-    return [`employee:${scope}:profile`, `employee:${scope}:profile:detail`];
-  }
 
   async upsert(
     employeeId: string,
@@ -63,10 +56,6 @@ export class ProfileService {
         });
       }
 
-      // Invalidate caches
-      await this.cache.bumpCompanyVersion(employeeId);
-      await this.cache.bumpCompanyVersion('global');
-
       return updated;
     } else {
       const [created] = await this.db
@@ -85,30 +74,19 @@ export class ProfileService {
         changes: { ...dto },
       });
 
-      // Invalidate caches
-      await this.cache.bumpCompanyVersion(employeeId);
-      await this.cache.bumpCompanyVersion('global');
-
       return created;
     }
   }
 
   // READ (cached per employee)
   async findOne(employeeId: string) {
-    return this.cache.getOrSetVersioned(
-      employeeId,
-      ['profile', 'detail', employeeId],
-      async () => {
-        const [profile] = await this.db
-          .select()
-          .from(this.table)
-          .where(eq(this.table.employeeId, employeeId))
-          .execute();
+    const [profile] = await this.db
+      .select()
+      .from(this.table)
+      .where(eq(this.table.employeeId, employeeId))
+      .execute();
 
-        return profile ?? {};
-      },
-      { tags: this.tags(employeeId) },
-    );
+    return profile ?? {};
   }
 
   async remove(employeeId: string) {
@@ -123,10 +101,6 @@ export class ProfileService {
         `Profile for employee ${employeeId} not found`,
       );
     }
-
-    // Invalidate caches
-    await this.cache.bumpCompanyVersion(employeeId);
-    await this.cache.bumpCompanyVersion('global');
 
     return { deleted: true, id: result[0].id };
   }

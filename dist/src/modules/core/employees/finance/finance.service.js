@@ -21,17 +21,12 @@ const finance_schema_1 = require("../schema/finance.schema");
 const crypto_util_1 = require("../../../../utils/crypto.util");
 const https = require('https');
 const config_1 = require("@nestjs/config");
-const cache_service_1 = require("../../../../common/cache/cache.service");
 let FinanceService = class FinanceService {
-    constructor(db, auditService, config, cache) {
+    constructor(db, auditService, config) {
         this.db = db;
         this.auditService = auditService;
         this.config = config;
-        this.cache = cache;
         this.table = finance_schema_1.employeeFinancials;
-    }
-    tags(scope) {
-        return [`employee:${scope}:finance`, `employee:${scope}:finance:detail`];
     }
     async upsert(employeeId, dto, userId, ip) {
         const [employee] = await this.db
@@ -64,8 +59,6 @@ let FinanceService = class FinanceService {
                     changes,
                 });
             }
-            await this.cache.bumpCompanyVersion(employeeId);
-            await this.cache.bumpCompanyVersion('global');
             return updated;
         }
         else {
@@ -83,20 +76,15 @@ let FinanceService = class FinanceService {
                 ipAddress: ip,
                 changes: { ...dto },
             });
-            await this.cache.bumpCompanyVersion(employeeId);
-            await this.cache.bumpCompanyVersion('global');
             return created;
         }
     }
     async findOne(employeeId) {
-        const raw = await this.cache.getOrSetVersioned(employeeId, ['finance', 'detail', employeeId], async () => {
-            const [finance] = await this.db
-                .select()
-                .from(finance_schema_1.employeeFinancials)
-                .where((0, drizzle_orm_1.eq)(finance_schema_1.employeeFinancials.employeeId, employeeId))
-                .execute();
-            return finance ?? {};
-        }, { tags: this.tags(employeeId) });
+        const [raw] = await this.db
+            .select()
+            .from(finance_schema_1.employeeFinancials)
+            .where((0, drizzle_orm_1.eq)(finance_schema_1.employeeFinancials.employeeId, employeeId))
+            .execute();
         if (!raw || Object.keys(raw).length === 0) {
             return {};
         }
@@ -124,8 +112,6 @@ let FinanceService = class FinanceService {
         if (!result.length) {
             throw new common_1.NotFoundException(`Profile for employee ${employeeId} not found`);
         }
-        await this.cache.bumpCompanyVersion(employeeId);
-        await this.cache.bumpCompanyVersion('global');
         return { deleted: true, id: result[0].id };
     }
     async verifyBankAccount(accountNumber, bankCode) {
@@ -172,7 +158,6 @@ exports.FinanceService = FinanceService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
-        config_1.ConfigService,
-        cache_service_1.CacheService])
+        config_1.ConfigService])
 ], FinanceService);
 //# sourceMappingURL=finance.service.js.map

@@ -11,8 +11,8 @@ export declare class DependentsController extends BaseController {
         name: string;
         createdAt: Date;
         employeeId: string;
-        dateOfBirth: string;
         relationship: string;
+        dateOfBirth: string;
         isBeneficiary: boolean | null;
     }>;
     findAll(id: string): Promise<{

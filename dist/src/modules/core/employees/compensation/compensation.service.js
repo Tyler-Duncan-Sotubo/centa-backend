@@ -19,20 +19,11 @@ const audit_service_1 = require("../../../audit/audit.service");
 const drizzle_orm_1 = require("drizzle-orm");
 const compensation_schema_1 = require("../schema/compensation.schema");
 const employee_schema_1 = require("../schema/employee.schema");
-const cache_service_1 = require("../../../../common/cache/cache.service");
 let CompensationService = class CompensationService {
-    constructor(db, auditService, cache) {
+    constructor(db, auditService) {
         this.db = db;
         this.auditService = auditService;
-        this.cache = cache;
         this.table = compensation_schema_1.employeeCompensations;
-    }
-    tags(scope) {
-        return [
-            `employee:${scope}:compensation`,
-            `employee:${scope}:compensation:list`,
-            `employee:${scope}:compensation:detail`,
-        ];
     }
     async upsert(employeeId, dto, userId, ip) {
         const [employee] = await this.db
@@ -66,8 +57,6 @@ let CompensationService = class CompensationService {
                     changes,
                 });
             }
-            await this.cache.bumpCompanyVersion(employeeId);
-            await this.cache.bumpCompanyVersion('global');
             return updated;
         }
         else {
@@ -91,8 +80,6 @@ let CompensationService = class CompensationService {
                 ipAddress: ip,
                 changes: { ...dto },
             });
-            await this.cache.bumpCompanyVersion(employeeId);
-            await this.cache.bumpCompanyVersion('global');
             return created;
         }
     }
@@ -125,51 +112,45 @@ let CompensationService = class CompensationService {
             ipAddress: ip,
             changes: { ...dto },
         });
-        await this.cache.bumpCompanyVersion(employeeId);
-        await this.cache.bumpCompanyVersion('global');
         return created;
     }
     async findAll(employeeId) {
-        return this.cache.getOrSetVersioned(employeeId, ['compensation', 'list', employeeId], async () => {
-            const [compensation] = await this.db
-                .select({
-                id: this.table.id,
-                employeeId: this.table.employeeId,
-                grossSalary: this.table.grossSalary,
-                payGroupId: employee_schema_1.employees.payGroupId,
-                applyNhf: this.table.applyNHf,
-                startDate: employee_schema_1.employees.employmentStartDate,
-                endDate: employee_schema_1.employees.employmentEndDate,
-            })
-                .from(this.table)
-                .innerJoin(employee_schema_1.employees, (0, drizzle_orm_1.eq)(employee_schema_1.employees.id, this.table.employeeId))
-                .where((0, drizzle_orm_1.eq)(this.table.employeeId, employeeId))
-                .execute();
-            if (!compensation) {
-                throw new common_1.NotFoundException(`compensation for employee ${employeeId} not found`);
-            }
-            return compensation;
-        }, { tags: this.tags(employeeId) });
+        const [compensation] = await this.db
+            .select({
+            id: this.table.id,
+            employeeId: this.table.employeeId,
+            grossSalary: this.table.grossSalary,
+            payGroupId: employee_schema_1.employees.payGroupId,
+            applyNhf: this.table.applyNHf,
+            startDate: employee_schema_1.employees.employmentStartDate,
+            endDate: employee_schema_1.employees.employmentEndDate,
+        })
+            .from(this.table)
+            .innerJoin(employee_schema_1.employees, (0, drizzle_orm_1.eq)(employee_schema_1.employees.id, this.table.employeeId))
+            .where((0, drizzle_orm_1.eq)(this.table.employeeId, employeeId))
+            .execute();
+        if (!compensation) {
+            throw new common_1.NotFoundException(`compensation for employee ${employeeId} not found`);
+        }
+        return compensation;
     }
     async findOne(compensationId) {
-        return this.cache.getOrSetVersioned('global', ['compensation', 'detail', compensationId], async () => {
-            const [compensation] = await this.db
-                .select({
-                id: this.table.id,
-                employeeId: this.table.employeeId,
-                grossSalary: this.table.grossSalary,
-                payGroupId: employee_schema_1.employees.payGroupId,
-                applyNhf: this.table.applyNHf,
-            })
-                .from(this.table)
-                .leftJoin(employee_schema_1.employees, (0, drizzle_orm_1.eq)(employee_schema_1.employees.id, this.table.employeeId))
-                .where((0, drizzle_orm_1.eq)(this.table.id, compensationId))
-                .execute();
-            if (!compensation) {
-                throw new common_1.NotFoundException(`compensation for employee ${compensationId} not found`);
-            }
-            return compensation;
-        }, { tags: this.tags('global') });
+        const [compensation] = await this.db
+            .select({
+            id: this.table.id,
+            employeeId: this.table.employeeId,
+            grossSalary: this.table.grossSalary,
+            payGroupId: employee_schema_1.employees.payGroupId,
+            applyNhf: this.table.applyNHf,
+        })
+            .from(this.table)
+            .leftJoin(employee_schema_1.employees, (0, drizzle_orm_1.eq)(employee_schema_1.employees.id, this.table.employeeId))
+            .where((0, drizzle_orm_1.eq)(this.table.id, compensationId))
+            .execute();
+        if (!compensation) {
+            throw new common_1.NotFoundException(`compensation for employee ${compensationId} not found`);
+        }
+        return compensation;
     }
     async update(compensationId, dto, userId, ip) {
         const [dependant] = await this.db
@@ -205,16 +186,9 @@ let CompensationService = class CompensationService {
                 changes,
             });
         }
-        await this.cache.bumpCompanyVersion(dependant.employeeId);
-        await this.cache.bumpCompanyVersion('global');
         return updated;
     }
     async remove(compensationId) {
-        const [existing] = await this.db
-            .select()
-            .from(this.table)
-            .where((0, drizzle_orm_1.eq)(this.table.id, compensationId))
-            .execute();
         const result = await this.db
             .delete(this.table)
             .where((0, drizzle_orm_1.eq)(this.table.id, compensationId))
@@ -223,10 +197,6 @@ let CompensationService = class CompensationService {
         if (!result.length) {
             throw new common_1.NotFoundException(`Profile for employee ${compensationId} not found`);
         }
-        if (existing?.employeeId) {
-            await this.cache.bumpCompanyVersion(existing.employeeId);
-        }
-        await this.cache.bumpCompanyVersion('global');
         return { deleted: true, id: result[0].id };
     }
 };
@@ -234,7 +204,6 @@ exports.CompensationService = CompensationService;
 exports.CompensationService = CompensationService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
-        cache_service_1.CacheService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
 ], CompensationService);
 //# sourceMappingURL=compensation.service.js.map

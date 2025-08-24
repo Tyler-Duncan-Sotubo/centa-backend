@@ -13,9 +13,9 @@ export declare class AssessmentsController extends BaseController {
         companyId: string;
         type: "manager" | "self" | "peer";
         status: "in_progress" | "not_started" | "submitted" | null;
-        cycleId: string;
         templateId: string;
         submittedAt: Date | null;
+        cycleId: string;
         reviewerId: string;
         revieweeId: string;
     }>;

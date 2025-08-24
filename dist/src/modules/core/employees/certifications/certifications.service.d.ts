@@ -2,11 +2,9 @@ import { CreateCertificationDto } from './dto/create-certification.dto';
 import { UpdateCertificationDto } from './dto/update-certification.dto';
 import { db } from 'src/drizzle/types/drizzle';
 import { AuditService } from 'src/modules/audit/audit.service';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class CertificationsService {
     private readonly db;
     private readonly auditService;
-    private readonly cache;
     protected table: import("drizzle-orm/pg-core").PgTableWithColumns<{
         name: "employee_certifications";
         schema: undefined;
@@ -167,7 +165,7 @@ export declare class CertificationsService {
         };
         dialect: "pg";
     }>;
-    constructor(db: db, auditService: AuditService, cache: CacheService);
+    constructor(db: db, auditService: AuditService);
     private tags;
     create(employeeId: string, dto: CreateCertificationDto, userId: string, ip: string): Promise<{
         id: string;

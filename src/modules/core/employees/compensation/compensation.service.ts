@@ -7,7 +7,6 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { eq } from 'drizzle-orm';
 import { employeeCompensations } from '../schema/compensation.schema';
 import { employees } from '../schema/employee.schema';
-import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class CompensationService {
@@ -16,17 +15,7 @@ export class CompensationService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
-    private readonly cache: CacheService,
   ) {}
-
-  private tags(scope: string) {
-    // scope is employeeId or "global"
-    return [
-      `employee:${scope}:compensation`,
-      `employee:${scope}:compensation:list`,
-      `employee:${scope}:compensation:detail`,
-    ];
-  }
 
   async upsert(
     employeeId: string,
@@ -69,10 +58,6 @@ export class CompensationService {
         });
       }
 
-      // Invalidate caches for this employee and global detail cache
-      await this.cache.bumpCompanyVersion(employeeId);
-      await this.cache.bumpCompanyVersion('global');
-
       return updated;
     } else {
       const [created] = await this.db
@@ -96,10 +81,6 @@ export class CompensationService {
         ipAddress: ip,
         changes: { ...dto },
       });
-
-      // Invalidate caches
-      await this.cache.bumpCompanyVersion(employeeId);
-      await this.cache.bumpCompanyVersion('global');
 
       return created;
     }
@@ -147,75 +128,57 @@ export class CompensationService {
       changes: { ...dto },
     });
 
-    // Invalidate caches
-    await this.cache.bumpCompanyVersion(employeeId);
-    await this.cache.bumpCompanyVersion('global');
-
     return created;
   }
 
   // READ (cached per employee)
   async findAll(employeeId: string) {
-    return this.cache.getOrSetVersioned(
-      employeeId,
-      ['compensation', 'list', employeeId],
-      async () => {
-        const [compensation] = await this.db
-          .select({
-            id: this.table.id,
-            employeeId: this.table.employeeId,
-            grossSalary: this.table.grossSalary,
-            payGroupId: employees.payGroupId,
-            applyNhf: this.table.applyNHf,
-            startDate: employees.employmentStartDate,
-            endDate: employees.employmentEndDate,
-          })
-          .from(this.table)
-          .innerJoin(employees, eq(employees.id, this.table.employeeId))
-          .where(eq(this.table.employeeId, employeeId))
-          .execute();
+    const [compensation] = await this.db
+      .select({
+        id: this.table.id,
+        employeeId: this.table.employeeId,
+        grossSalary: this.table.grossSalary,
+        payGroupId: employees.payGroupId,
+        applyNhf: this.table.applyNHf,
+        startDate: employees.employmentStartDate,
+        endDate: employees.employmentEndDate,
+      })
+      .from(this.table)
+      .innerJoin(employees, eq(employees.id, this.table.employeeId))
+      .where(eq(this.table.employeeId, employeeId))
+      .execute();
 
-        if (!compensation) {
-          throw new NotFoundException(
-            `compensation for employee ${employeeId} not found`,
-          );
-        }
+    if (!compensation) {
+      throw new NotFoundException(
+        `compensation for employee ${employeeId} not found`,
+      );
+    }
 
-        return compensation;
-      },
-      { tags: this.tags(employeeId) },
-    );
+    return compensation;
   }
 
   // READ (cached; no employeeId provided → global scope)
   async findOne(compensationId: string) {
-    return this.cache.getOrSetVersioned(
-      'global',
-      ['compensation', 'detail', compensationId],
-      async () => {
-        const [compensation] = await this.db
-          .select({
-            id: this.table.id,
-            employeeId: this.table.employeeId,
-            grossSalary: this.table.grossSalary,
-            payGroupId: employees.payGroupId,
-            applyNhf: this.table.applyNHf,
-          })
-          .from(this.table)
-          .leftJoin(employees, eq(employees.id, this.table.employeeId))
-          .where(eq(this.table.id, compensationId))
-          .execute();
+    const [compensation] = await this.db
+      .select({
+        id: this.table.id,
+        employeeId: this.table.employeeId,
+        grossSalary: this.table.grossSalary,
+        payGroupId: employees.payGroupId,
+        applyNhf: this.table.applyNHf,
+      })
+      .from(this.table)
+      .leftJoin(employees, eq(employees.id, this.table.employeeId))
+      .where(eq(this.table.id, compensationId))
+      .execute();
 
-        if (!compensation) {
-          throw new NotFoundException(
-            `compensation for employee ${compensationId} not found`,
-          );
-        }
+    if (!compensation) {
+      throw new NotFoundException(
+        `compensation for employee ${compensationId} not found`,
+      );
+    }
 
-        return compensation;
-      },
-      { tags: this.tags('global') },
-    );
+    return compensation;
   }
 
   async update(
@@ -264,21 +227,10 @@ export class CompensationService {
       });
     }
 
-    // Invalidate caches (employee + global)
-    await this.cache.bumpCompanyVersion(dependant.employeeId);
-    await this.cache.bumpCompanyVersion('global');
-
     return updated;
   }
 
   async remove(compensationId: string) {
-    // fetch to know employeeId for precise cache bump
-    const [existing] = await this.db
-      .select()
-      .from(this.table)
-      .where(eq(this.table.id, compensationId))
-      .execute();
-
     const result = await this.db
       .delete(this.table)
       .where(eq(this.table.id, compensationId))
@@ -290,12 +242,6 @@ export class CompensationService {
         `Profile for employee ${compensationId} not found`,
       );
     }
-
-    // Invalidate caches
-    if (existing?.employeeId) {
-      await this.cache.bumpCompanyVersion(existing.employeeId);
-    }
-    await this.cache.bumpCompanyVersion('global');
 
     return { deleted: true, id: result[0].id };
   }

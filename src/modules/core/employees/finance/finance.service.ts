@@ -14,7 +14,6 @@ import { decrypt } from 'src/utils/crypto.util';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const https = require('https');
 import { ConfigService } from '@nestjs/config';
-import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class FinanceService {
@@ -24,13 +23,7 @@ export class FinanceService {
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
     private readonly config: ConfigService,
-    private readonly cache: CacheService,
   ) {}
-
-  private tags(scope: string) {
-    // scope is employeeId or "global"
-    return [`employee:${scope}:finance`, `employee:${scope}:finance:detail`];
-  }
 
   async upsert(
     employeeId: string,
@@ -71,10 +64,6 @@ export class FinanceService {
         });
       }
 
-      // Invalidate caches
-      await this.cache.bumpCompanyVersion(employeeId);
-      await this.cache.bumpCompanyVersion('global');
-
       return updated;
     } else {
       const [created] = await this.db
@@ -93,31 +82,17 @@ export class FinanceService {
         changes: { ...dto },
       });
 
-      // Invalidate caches
-      await this.cache.bumpCompanyVersion(employeeId);
-      await this.cache.bumpCompanyVersion('global');
-
       return created;
     }
   }
 
   // READ (cached per employee; returns decrypted values)
   async findOne(employeeId: string) {
-    const raw = await this.cache.getOrSetVersioned(
-      employeeId,
-      ['finance', 'detail', employeeId],
-      async () => {
-        const [finance] = await this.db
-          .select()
-          .from(employeeFinancials)
-          .where(eq(employeeFinancials.employeeId, employeeId))
-          .execute();
-
-        // store raw encrypted row (or {} if not found)
-        return finance ?? {};
-      },
-      { tags: this.tags(employeeId) },
-    );
+    const [raw] = await this.db
+      .select()
+      .from(employeeFinancials)
+      .where(eq(employeeFinancials.employeeId, employeeId))
+      .execute();
 
     if (!raw || Object.keys(raw).length === 0) {
       return {};
@@ -152,10 +127,6 @@ export class FinanceService {
         `Profile for employee ${employeeId} not found`,
       );
     }
-
-    // Invalidate caches
-    await this.cache.bumpCompanyVersion(employeeId);
-    await this.cache.bumpCompanyVersion('global');
 
     return { deleted: true, id: result[0].id };
   }
