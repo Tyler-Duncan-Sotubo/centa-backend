@@ -296,16 +296,33 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
         return employeeId;
     }
     async findAll(employeeId, companyId, month) {
-        const currentMonth = (0, date_fns_1.format)(new Date(), 'yyyy-MM');
-        const targetMonth = month || currentMonth;
+        let targetMonth = month;
+        if (!targetMonth) {
+            targetMonth = (0, date_fns_1.format)(new Date(), 'yyyy-MM');
+        }
+        else {
+            try {
+                const parsed = (0, date_fns_1.parse)(targetMonth + '-01', 'yyyy-MM-dd', new Date());
+                targetMonth = (0, date_fns_1.format)(parsed, 'yyyy-MM');
+            }
+            catch {
+            }
+        }
         return this.cacheService.getOrSetVersioned(companyId, this.kEmployee(employeeId, 'all', targetMonth), async () => {
             const employee = await this.findOne(employeeId, companyId);
-            const safe = (promise) => promise.catch((err) => {
-                console.error('Error in findAll:', err);
-                return null;
-            });
-            const [core, finance, profile, history, dependents, certifications, compensation, leaveBalance, leaves, attendance, payslipSummary,] = await Promise.all([
-                safe(this.findOne(employeeId, companyId)),
+            if (!employee) {
+                throw new Error('Employee not found');
+            }
+            const safe = async (p) => {
+                try {
+                    return await p;
+                }
+                catch (err) {
+                    console.error('[employee.findAll] subcall error:', err);
+                    return null;
+                }
+            };
+            const results = await Promise.allSettled([
                 safe(this.financeService.findOne(employeeId)),
                 safe(this.profileService.findOne(employeeId)),
                 safe(this.historyService.findAll(employeeId)),
@@ -317,8 +334,9 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 safe(this.getEmployeeAttendanceByMonth(employeeId, companyId, targetMonth)),
                 safe(this.payslipService.getEmployeePayslipSummary(employeeId)),
             ]);
+            const [finance, profile, history, dependents, certifications, compensation, leaveBalance, leaves, attendance, payslipSummary,] = results.map((r) => (r.status === 'fulfilled' ? r.value : null));
             return {
-                core,
+                core: employee,
                 profile,
                 history,
                 dependents,
@@ -329,11 +347,9 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 leaveRequests: leaves,
                 attendance,
                 payslipSummary,
-                avatarUrl: employee.avatarUrl
-                    ? employee.avatarUrl
-                    : '',
+                avatarUrl: employee?.avatarUrl ?? '',
             };
-        }, { tags: [`employee:${employeeId}`] });
+        }, { tags: [`employee:${employeeId}`, `company:${companyId}:employee`] });
     }
     async getEmployeeByUserId(user_id) {
         const [empRow] = await this.db

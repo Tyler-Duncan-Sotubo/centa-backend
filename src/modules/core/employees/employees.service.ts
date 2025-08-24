@@ -68,7 +68,7 @@ import { CreateEmployeeMultiDetailsDto } from './dto/create-employee-multi-detai
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 import { PermissionsService } from 'src/modules/auth/permissions/permissions.service';
 import { LeaveBalanceService } from 'src/modules/leave/balance/leave-balance.service';
-import { eachDayOfInterval, format, parseISO } from 'date-fns';
+import { eachDayOfInterval, format, parse, parseISO } from 'date-fns';
 import { AttendanceSettingsService } from 'src/modules/time/settings/attendance-settings.service';
 import { EmployeeShiftsService } from 'src/modules/time/employee-shifts/employee-shifts.service';
 import { PayslipService } from 'src/modules/payroll/payslip/payslip.service';
@@ -384,23 +384,63 @@ export class EmployeesService {
   }
 
   async findAll(employeeId: string, companyId: string, month?: string) {
-    const currentMonth = format(new Date(), 'yyyy-MM');
-    const targetMonth = month || currentMonth;
+    // Normalize month to yyyy-MM
+    let targetMonth = month;
+    if (!targetMonth) {
+      targetMonth = format(new Date(), 'yyyy-MM');
+    } else {
+      // best-effort normalize (optional)
+      try {
+        // if a full date is passed, coerce to yyyy-MM; otherwise assume already yyyy-MM
+        const parsed = parse(targetMonth + '-01', 'yyyy-MM-dd', new Date());
+        targetMonth = format(parsed, 'yyyy-MM');
+      } catch {
+        // leave as-is if parse fails
+      }
+    }
 
     return this.cacheService.getOrSetVersioned(
       companyId,
       this.kEmployee(employeeId, 'all', targetMonth),
       async () => {
+        // 1) fetch core once
         const employee = await this.findOne(employeeId, companyId);
+        if (!employee) {
+          // fail fast instead of caching an empty shape
+          throw new Error('Employee not found');
+        }
 
-        const safe = <T>(promise: Promise<T>): Promise<T | null> =>
-          promise.catch((err) => {
-            console.error('Error in findAll:', err);
+        const safe = async <T>(p: Promise<T>): Promise<T | null> => {
+          try {
+            return await p;
+          } catch (err) {
+            console.error('[employee.findAll] subcall error:', err);
             return null;
-          });
+          }
+        };
 
+        // 2) fan out (without duplicating core)
+        const results = await Promise.allSettled([
+          safe(this.financeService.findOne(employeeId)), // 0 finance
+          safe(this.profileService.findOne(employeeId)), // 1 profile
+          safe(this.historyService.findAll(employeeId)), // 2 history
+          safe(this.dependentsService.findAll(employeeId)), // 3 dependents
+          safe(this.certificationsService.findAll(employeeId)), // 4 certifications
+          safe(this.compensationService.findAll(employeeId)), // 5 compensation
+          safe(this.leaveBalanceService.findByEmployeeId(employeeId)), // 6 leaveBalance
+          safe(this.findAllLeaveRequestByEmployeeId(employeeId, companyId)), // 7 leaves
+          safe(
+            this.getEmployeeAttendanceByMonth(
+              employeeId,
+              companyId,
+              targetMonth,
+            ),
+          ), // 8 attendance
+          safe(this.payslipService.getEmployeePayslipSummary(employeeId)), // 9 payslipSummary
+        ]);
+
+        // 3) unpack (allSettled + our safe() means all are fulfilled with T|null)
         const [
-          core,
           finance,
           profile,
           history,
@@ -411,28 +451,10 @@ export class EmployeesService {
           leaves,
           attendance,
           payslipSummary,
-        ] = await Promise.all([
-          safe(this.findOne(employeeId, companyId)),
-          safe(this.financeService.findOne(employeeId)),
-          safe(this.profileService.findOne(employeeId)),
-          safe(this.historyService.findAll(employeeId)),
-          safe(this.dependentsService.findAll(employeeId)),
-          safe(this.certificationsService.findAll(employeeId)),
-          safe(this.compensationService.findAll(employeeId)),
-          safe(this.leaveBalanceService.findByEmployeeId(employeeId)),
-          safe(this.findAllLeaveRequestByEmployeeId(employeeId, companyId)),
-          safe(
-            this.getEmployeeAttendanceByMonth(
-              employeeId,
-              companyId,
-              targetMonth,
-            ),
-          ),
-          safe(this.payslipService.getEmployeePayslipSummary(employeeId)),
-        ]);
+        ] = results.map((r) => (r.status === 'fulfilled' ? r.value : null));
 
         return {
-          core,
+          core: employee, // reuse the first fetch
           profile,
           history,
           dependents,
@@ -443,12 +465,11 @@ export class EmployeesService {
           leaveRequests: leaves,
           attendance,
           payslipSummary,
-          avatarUrl: (employee as any).avatarUrl
-            ? (employee as any).avatarUrl
-            : '',
+          avatarUrl: (employee as any)?.avatarUrl ?? '',
         };
       },
-      { tags: [`employee:${employeeId}`] },
+      // include both employee + company as tags for easy invalidation
+      { tags: [`employee:${employeeId}`, `company:${companyId}:employee`] },
     );
   }
 
