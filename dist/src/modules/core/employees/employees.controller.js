@@ -68,8 +68,13 @@ let EmployeesController = class EmployeesController extends base_controller_1.Ba
     employeeFinanceDetails(employeeId) {
         return this.employeesService.employeeFinanceDetails(employeeId);
     }
-    findAll(user, id) {
-        return this.employeesService.findAll(id, user.companyId);
+    async getEmployeeFull(id, user, sectionsCsv = 'core', month) {
+        const sections = new Set((sectionsCsv || 'core')
+            .split(',')
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean));
+        const data = await this.employeesService.findBySections(id, user.companyId, sections, month);
+        return { status: 'success', data };
     }
     findOne(id, user) {
         return this.employeesService.findOne(id, user.companyId);
@@ -217,12 +222,14 @@ __decorate([
     (0, common_1.Get)(':id/full'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.SetMetadata)('permission', ['employees.read_full']),
-    __param(0, (0, current_user_decorator_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __param(2, (0, common_1.Query)('sections')),
+    __param(3, (0, common_1.Query)('month')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", void 0)
-], EmployeesController.prototype, "findAll", null);
+    __metadata("design:paramtypes", [String, Object, Object, String]),
+    __metadata("design:returntype", Promise)
+], EmployeesController.prototype, "getEmployeeFull", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

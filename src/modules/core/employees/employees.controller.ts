@@ -155,11 +155,48 @@ export class EmployeesController extends BaseController {
     return this.employeesService.employeeFinanceDetails(employeeId);
   }
 
+  // @Get(':id/full')
+  // @UseGuards(JwtAuthGuard)
+  // @SetMetadata('permission', ['employees.read_full'])
+  // findAll(@CurrentUser() user: User, @Param('id') id: string) {
+  //   return this.employeesService.findAll(id, user.companyId);
+  // }
+
   @Get(':id/full')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permission', ['employees.read_full'])
-  findAll(@CurrentUser() user: User, @Param('id') id: string) {
-    return this.employeesService.findAll(id, user.companyId);
+  async getEmployeeFull(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+    @Query('sections') sectionsCsv = 'core',
+    @Query('month') month?: string,
+  ) {
+    const sections = new Set(
+      (sectionsCsv || 'core')
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean),
+    ) as Set<
+      | 'core'
+      | 'profile'
+      | 'history'
+      | 'dependents'
+      | 'certifications'
+      | 'compensation'
+      | 'finance'
+      | 'leave'
+      | 'attendance'
+      | 'payslip'
+    >;
+
+    const data = await this.employeesService.findBySections(
+      id,
+      user.companyId,
+      sections,
+      month,
+    );
+
+    return { status: 'success', data };
   }
 
   @Get(':id')

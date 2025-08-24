@@ -77,6 +77,33 @@ import { leaveTypes } from 'src/modules/leave/schema/leave-types.schema';
 import { EmployeeProfileDto } from './dto/update-employee-details.dto';
 import { OnboardingService } from 'src/modules/lifecycle/onboarding/onboarding.service';
 
+type Section =
+  | 'core'
+  | 'profile'
+  | 'history'
+  | 'dependents'
+  | 'certifications'
+  | 'compensation'
+  | 'finance'
+  | 'leave'
+  | 'attendance'
+  | 'payslip';
+
+type EmployeeFullResponse = {
+  core?: any;
+  profile?: any;
+  history?: any;
+  dependents?: any;
+  certifications?: any;
+  compensation?: any;
+  finance?: any;
+  leaveBalance?: any;
+  leaveRequests?: any;
+  attendance?: any;
+  payslipSummary?: any;
+  avatarUrl?: string;
+};
+
 @Injectable()
 export class EmployeesService {
   protected table = employees;
@@ -381,6 +408,155 @@ export class EmployeesService {
     ]);
 
     return employeeId;
+  }
+
+  // Helper: swallow errors -> null
+  private async safe<T>(p: Promise<T>): Promise<T | null> {
+    try {
+      return await p;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[employee.findBySections] subcall error:', err);
+      return null;
+    }
+  }
+
+  // Helper: push tasks that ALWAYS resolve to Promise<void>
+  private assign<T>(p: Promise<T>, sink: (v: T | null) => void): Promise<void> {
+    return this.safe(p).then((v) => {
+      sink(v);
+    });
+  }
+
+  async findBySections(
+    employeeId: string,
+    companyId: string,
+    sections: Set<Section>,
+    month?: string,
+  ): Promise<EmployeeFullResponse> {
+    // normalize month -> yyyy-MM
+    let targetMonth = month ?? format(new Date(), 'yyyy-MM');
+    if (month) {
+      try {
+        const parsed = parse(`${month}-01`, 'yyyy-MM-dd', new Date());
+        targetMonth = format(parsed, 'yyyy-MM');
+      } catch {
+        // ignore parse errors
+      }
+    }
+
+    const wants = (s: Section) =>
+      sections.size === 0 ? s === 'core' : sections.has(s);
+
+    // core first if requested / required
+    let core: any | null = null;
+    if (wants('core')) {
+      core = await this.findOne(employeeId, companyId);
+      if (!core) throw new BadRequestException('Employee not found');
+    }
+
+    const resp: EmployeeFullResponse = {};
+    if (core) {
+      resp.core = core;
+      resp.avatarUrl = (core as any)?.avatarUrl ?? '';
+    }
+
+    const tasks: Promise<void>[] = [];
+
+    if (wants('profile')) {
+      tasks.push(
+        this.assign(this.profileService.findOne(employeeId), (v) => {
+          resp.profile = v;
+        }),
+      );
+    }
+
+    if (wants('history')) {
+      tasks.push(
+        this.assign(this.historyService.findAll(employeeId), (v) => {
+          resp.history = v;
+        }),
+      );
+    }
+
+    if (wants('dependents')) {
+      tasks.push(
+        this.assign(this.dependentsService.findAll(employeeId), (v) => {
+          resp.dependents = v;
+        }),
+      );
+    }
+
+    if (wants('certifications')) {
+      tasks.push(
+        this.assign(this.certificationsService.findAll(employeeId), (v) => {
+          resp.certifications = v;
+        }),
+      );
+    }
+
+    if (wants('compensation')) {
+      tasks.push(
+        this.assign(this.compensationService.findAll(employeeId), (v) => {
+          resp.compensation = v;
+        }),
+      );
+    }
+
+    if (wants('finance')) {
+      tasks.push(
+        this.assign(this.financeService.findOne(employeeId), (v) => {
+          resp.finance = v;
+        }),
+      );
+    }
+
+    if (wants('leave')) {
+      // run both in parallel but each returns void into resp
+      tasks.push(
+        this.assign(
+          this.leaveBalanceService.findByEmployeeId(employeeId),
+          (v) => {
+            resp.leaveBalance = v;
+          },
+        ),
+      );
+      tasks.push(
+        this.assign(
+          // replace with your actual function
+          this.findAllLeaveRequestByEmployeeId(employeeId, companyId),
+          (v) => {
+            resp.leaveRequests = v;
+          },
+        ),
+      );
+    }
+
+    if (wants('attendance')) {
+      tasks.push(
+        this.assign(
+          // replace with your actual function
+          this.getEmployeeAttendanceByMonth(employeeId, companyId, targetMonth),
+          (v) => {
+            resp.attendance = v;
+          },
+        ),
+      );
+    }
+
+    if (wants('payslip')) {
+      tasks.push(
+        this.assign(
+          this.payslipService.getEmployeePayslipSummary(employeeId),
+          (v) => {
+            resp.payslipSummary = v;
+          },
+        ),
+      );
+    }
+
+    await Promise.all(tasks);
+    return resp;
   }
 
   async findAll(employeeId: string, companyId: string, month?: string) {

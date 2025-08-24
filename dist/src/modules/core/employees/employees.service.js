@@ -295,6 +295,94 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
         ]);
         return employeeId;
     }
+    async safe(p) {
+        try {
+            return await p;
+        }
+        catch (err) {
+            console.error('[employee.findBySections] subcall error:', err);
+            return null;
+        }
+    }
+    assign(p, sink) {
+        return this.safe(p).then((v) => {
+            sink(v);
+        });
+    }
+    async findBySections(employeeId, companyId, sections, month) {
+        let targetMonth = month ?? (0, date_fns_1.format)(new Date(), 'yyyy-MM');
+        if (month) {
+            try {
+                const parsed = (0, date_fns_1.parse)(`${month}-01`, 'yyyy-MM-dd', new Date());
+                targetMonth = (0, date_fns_1.format)(parsed, 'yyyy-MM');
+            }
+            catch {
+            }
+        }
+        const wants = (s) => sections.size === 0 ? s === 'core' : sections.has(s);
+        let core = null;
+        if (wants('core')) {
+            core = await this.findOne(employeeId, companyId);
+            if (!core)
+                throw new common_1.BadRequestException('Employee not found');
+        }
+        const resp = {};
+        if (core) {
+            resp.core = core;
+            resp.avatarUrl = core?.avatarUrl ?? '';
+        }
+        const tasks = [];
+        if (wants('profile')) {
+            tasks.push(this.assign(this.profileService.findOne(employeeId), (v) => {
+                resp.profile = v;
+            }));
+        }
+        if (wants('history')) {
+            tasks.push(this.assign(this.historyService.findAll(employeeId), (v) => {
+                resp.history = v;
+            }));
+        }
+        if (wants('dependents')) {
+            tasks.push(this.assign(this.dependentsService.findAll(employeeId), (v) => {
+                resp.dependents = v;
+            }));
+        }
+        if (wants('certifications')) {
+            tasks.push(this.assign(this.certificationsService.findAll(employeeId), (v) => {
+                resp.certifications = v;
+            }));
+        }
+        if (wants('compensation')) {
+            tasks.push(this.assign(this.compensationService.findAll(employeeId), (v) => {
+                resp.compensation = v;
+            }));
+        }
+        if (wants('finance')) {
+            tasks.push(this.assign(this.financeService.findOne(employeeId), (v) => {
+                resp.finance = v;
+            }));
+        }
+        if (wants('leave')) {
+            tasks.push(this.assign(this.leaveBalanceService.findByEmployeeId(employeeId), (v) => {
+                resp.leaveBalance = v;
+            }));
+            tasks.push(this.assign(this.findAllLeaveRequestByEmployeeId(employeeId, companyId), (v) => {
+                resp.leaveRequests = v;
+            }));
+        }
+        if (wants('attendance')) {
+            tasks.push(this.assign(this.getEmployeeAttendanceByMonth(employeeId, companyId, targetMonth), (v) => {
+                resp.attendance = v;
+            }));
+        }
+        if (wants('payslip')) {
+            tasks.push(this.assign(this.payslipService.getEmployeePayslipSummary(employeeId), (v) => {
+                resp.payslipSummary = v;
+            }));
+        }
+        await Promise.all(tasks);
+        return resp;
+    }
     async findAll(employeeId, companyId, month) {
         let targetMonth = month;
         if (!targetMonth) {

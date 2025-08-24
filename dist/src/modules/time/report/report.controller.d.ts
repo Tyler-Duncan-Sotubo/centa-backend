@@ -18,8 +18,8 @@ export declare class ReportController extends BaseController {
                 averageCheckInTime: Date | null;
             };
             summaryList: {
-                employeeId: any;
-                employeeNumber: any;
+                employeeId: string;
+                employeeNumber: string;
                 name: string;
                 department: any;
                 checkInTime: string | null;
@@ -95,8 +95,8 @@ export declare class ReportController extends BaseController {
             averageCheckInTime: Date | null;
         };
         summaryList: {
-            employeeId: any;
-            employeeNumber: any;
+            employeeId: string;
+            employeeNumber: string;
             name: string;
             department: any;
             checkInTime: string | null;
