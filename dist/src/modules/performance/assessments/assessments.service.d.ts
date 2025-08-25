@@ -6,6 +6,12 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { GetDashboardAssessmentsDto } from './dto/get-dashboard-assessments.dto';
 import { CacheService } from 'src/common/cache/cache.service';
+type AssessmentCounts = {
+    all: number;
+    not_started: number;
+    in_progress: number;
+    submitted: number;
+};
 export declare class AssessmentsService {
     private readonly db;
     private readonly clockInOutService;
@@ -20,11 +26,11 @@ export declare class AssessmentsService {
         createdAt: Date | null;
         companyId: string;
         status: "not_started" | "in_progress" | "submitted" | null;
-        type: "self" | "manager" | "peer";
         cycleId: string;
         templateId: string;
         reviewerId: string;
         revieweeId: string;
+        type: "self" | "manager" | "peer";
         submittedAt: Date | null;
     }>;
     startAssessment(assessmentId: string, userId: string): Promise<void>;
@@ -45,6 +51,11 @@ export declare class AssessmentsService {
         dueDate: string | null;
         score: number | null;
     }[]>;
+    getCounts(companyId: string, opts?: {
+        cycleId?: string;
+        reviewerId?: string;
+        departmentId?: string;
+    }): Promise<AssessmentCounts>;
     getAssessmentById(assessmentId: string): Promise<any>;
     getAssessmentsForUser(userId: string): Promise<{
         id: string;
@@ -89,3 +100,4 @@ export declare class AssessmentsService {
         questionId: string;
     }[]>;
 }
+export {};

@@ -10,12 +10,12 @@ export declare class FeedbackController extends BaseController {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        type: string;
-        isArchived: boolean | null;
-        submittedAt: Date | null;
         senderId: string;
         recipientId: string;
+        type: string;
         isAnonymous: boolean | null;
+        submittedAt: Date | null;
+        isArchived: boolean | null;
     }>;
     findAll(user: User, type?: string, departmentId?: string): Promise<{
         id: string;
@@ -29,6 +29,10 @@ export declare class FeedbackController extends BaseController {
         departmentId: any;
         isArchived: boolean | null;
     }[]>;
+    getCounts(user: User): Promise<{
+        all: number;
+        archived: number;
+    }>;
     getForEmployee(employeeId: string, user: User, type?: string): Promise<{
         id: string;
         type: string;

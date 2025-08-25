@@ -53,6 +53,13 @@ export class FeedbackController extends BaseController {
     });
   }
 
+  // Get feedback counts (if user is admin or manager)
+  @Get('counts')
+  @SetMetadata('permissions', ['performance.reviews.read'])
+  getCounts(@CurrentUser() user: User) {
+    return this.feedbackService.getCounts(user.companyId);
+  }
+
   // Get feedbacks for a specific employee (if user is admin or manager)
   @Get('employee/:employeeId')
   @SetMetadata('permissions', ['performance.reviews.read'])

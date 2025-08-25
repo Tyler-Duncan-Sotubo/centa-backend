@@ -38,6 +38,9 @@ let AssessmentsController = class AssessmentsController extends base_controller_
     getDashboard(user, filters) {
         return this.assessmentsService.getAssessmentsForDashboard(user.companyId, filters);
     }
+    getCounts(user) {
+        return this.assessmentsService.getCounts(user.companyId);
+    }
     getById(id) {
         return this.assessmentsService.getAssessmentById(id);
     }
@@ -97,6 +100,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, get_dashboard_assessments_dto_1.GetDashboardAssessmentsDto]),
     __metadata("design:returntype", void 0)
 ], AssessmentsController.prototype, "getDashboard", null);
+__decorate([
+    (0, common_1.Get)('counts'),
+    (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AssessmentsController.prototype, "getCounts", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, common_1.SetMetadata)('permissions', [

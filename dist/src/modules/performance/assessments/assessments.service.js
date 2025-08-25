@@ -251,6 +251,45 @@ let AssessmentsService = class AssessmentsService {
             }));
         });
     }
+    async getCounts(companyId, opts) {
+        const whereBase = [(0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.companyId, companyId)];
+        if (opts?.cycleId) {
+            whereBase.push((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.cycleId, opts.cycleId));
+        }
+        if (opts?.reviewerId) {
+            whereBase.push((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.reviewerId, opts.reviewerId));
+        }
+        const needsDept = !!opts?.departmentId;
+        const rows = await this.db
+            .select({
+            status: performance_assessments_schema_1.performanceAssessments.status,
+            count: (0, drizzle_orm_1.sql) `cast(count(*) as int)`,
+        })
+            .from(performance_assessments_schema_1.performanceAssessments)
+            .leftJoin(schema_1.employees, (0, drizzle_orm_1.eq)(schema_1.employees.id, performance_assessments_schema_1.performanceAssessments.revieweeId))
+            .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.departments.id, schema_1.employees.departmentId))
+            .where(needsDept
+            ? (0, drizzle_orm_1.and)(...whereBase, (0, drizzle_orm_1.eq)(schema_1.departments.id, opts.departmentId))
+            : (0, drizzle_orm_1.and)(...whereBase))
+            .groupBy(performance_assessments_schema_1.performanceAssessments.status);
+        const counts = {
+            all: 0,
+            not_started: 0,
+            in_progress: 0,
+            submitted: 0,
+        };
+        for (const r of rows) {
+            switch (r.status) {
+                case 'not_started':
+                case 'in_progress':
+                case 'submitted':
+                    counts[r.status] = r.count ?? 0;
+                    break;
+            }
+            counts.all += r.count ?? 0;
+        }
+        return counts;
+    }
     async getAssessmentById(assessmentId) {
         const [meta] = await this.db
             .select({ companyId: performance_assessments_schema_1.performanceAssessments.companyId })

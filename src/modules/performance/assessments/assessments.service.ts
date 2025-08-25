@@ -36,6 +36,13 @@ import { feedbackResponses } from '../feedback/schema/performance-feedback-respo
 import { assessmentConclusions } from './schema/performance-assessment-conclusions.schema';
 import { CacheService } from 'src/common/cache/cache.service';
 
+type AssessmentCounts = {
+  all: number;
+  not_started: number;
+  in_progress: number;
+  submitted: number;
+};
+
 @Injectable()
 export class AssessmentsService {
   constructor(
@@ -341,6 +348,63 @@ export class AssessmentsService {
         score: a.score ?? null,
       }));
     });
+  }
+
+  async getCounts(
+    companyId: string,
+    opts?: {
+      cycleId?: string;
+      reviewerId?: string;
+      departmentId?: string;
+    },
+  ): Promise<AssessmentCounts> {
+    const whereBase = [eq(performanceAssessments.companyId, companyId)];
+
+    if (opts?.cycleId) {
+      whereBase.push(eq(performanceAssessments.cycleId, opts.cycleId));
+    }
+    if (opts?.reviewerId) {
+      whereBase.push(eq(performanceAssessments.reviewerId, opts.reviewerId));
+    }
+
+    const needsDept = !!opts?.departmentId;
+
+    // ---- counts by status (grouped) ----
+    const rows = await this.db
+      .select({
+        status: performanceAssessments.status,
+        count: sql<number>`cast(count(*) as int)`,
+      })
+      .from(performanceAssessments)
+      .leftJoin(employees, eq(employees.id, performanceAssessments.revieweeId))
+      .leftJoin(departments, eq(departments.id, employees.departmentId))
+      .where(
+        needsDept
+          ? and(...whereBase, eq(departments.id, opts!.departmentId!))
+          : and(...whereBase),
+      )
+      .groupBy(performanceAssessments.status);
+
+    // ---- normalize response ----
+    const counts: AssessmentCounts = {
+      all: 0,
+      not_started: 0,
+      in_progress: 0,
+      submitted: 0,
+    };
+
+    for (const r of rows) {
+      switch (r.status) {
+        case 'not_started':
+        case 'in_progress':
+        case 'submitted':
+          counts[r.status] = r.count ?? 0;
+          break;
+      }
+      counts.all += r.count ?? 0;
+    }
+
+    return counts;
   }
 
   async getAssessmentById(assessmentId: string) {

@@ -70,6 +70,12 @@ export class AssessmentsController extends BaseController {
     );
   }
 
+  @Get('counts')
+  @SetMetadata('permissions', ['performance.reviews.read'])
+  getCounts(@CurrentUser() user: User) {
+    return this.assessmentsService.getCounts(user.companyId);
+  }
+
   // Get full assessment with related data (self, manager, peer)
   @Get(':id')
   @SetMetadata('permissions', [

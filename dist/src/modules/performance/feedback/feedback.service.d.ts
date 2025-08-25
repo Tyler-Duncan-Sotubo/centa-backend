@@ -15,12 +15,12 @@ export declare class FeedbackService {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        type: string;
-        isArchived: boolean | null;
-        submittedAt: Date | null;
         senderId: string;
         recipientId: string;
+        type: string;
         isAnonymous: boolean | null;
+        submittedAt: Date | null;
+        isArchived: boolean | null;
     }>;
     private resolveViewerIds;
     getFeedbackForRecipient(recipientId: string, viewer: User): Promise<any[]>;
@@ -54,6 +54,10 @@ export declare class FeedbackService {
         departmentId: any;
         isArchived: boolean | null;
     }[]>;
+    getCounts(companyId: string, expectedTypes?: string[]): Promise<{
+        all: number;
+        archived: number;
+    }>;
     findAllByEmployeeId(companyId: string, employeeId: string, filters?: {
         type?: string;
     }): Promise<{

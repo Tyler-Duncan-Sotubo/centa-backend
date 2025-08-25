@@ -34,6 +34,9 @@ let FeedbackController = class FeedbackController extends base_controller_1.Base
             departmentId,
         });
     }
+    getCounts(user) {
+        return this.feedbackService.getCounts(user.companyId);
+    }
     getForEmployee(employeeId, user, type) {
         return this.feedbackService.findAllByEmployeeId(user.companyId, employeeId, {
             type,
@@ -76,6 +79,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", void 0)
 ], FeedbackController.prototype, "findAll", null);
+__decorate([
+    (0, common_1.Get)('counts'),
+    (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], FeedbackController.prototype, "getCounts", null);
 __decorate([
     (0, common_1.Get)('employee/:employeeId'),
     (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),

@@ -296,6 +296,51 @@ export class FeedbackService {
     );
   }
 
+  async getCounts(companyId: string, expectedTypes: string[] = []) {
+    // group by type (non-archived)
+    const typeRows = await this.db
+      .select({
+        type: performanceFeedback.type,
+        count: sql<number>`cast(count(*) as int)`,
+      })
+      .from(performanceFeedback)
+      .where(
+        and(
+          eq(performanceFeedback.companyId, companyId),
+          eq(performanceFeedback.isArchived, false),
+        ),
+      )
+      .groupBy(performanceFeedback.type);
+
+    // totals (all non-archived, and archived)
+    const [totals] = await this.db
+      .select({
+        all: sql<number>`cast(sum(case when ${performanceFeedback.isArchived} = false then 1 else 0 end) as int)`,
+        archived: sql<number>`cast(sum(case when ${performanceFeedback.isArchived} = true  then 1 else 0 end) as int)`,
+      })
+      .from(performanceFeedback)
+      .where(eq(performanceFeedback.companyId, companyId));
+
+    // Build byType map
+    const byType: Record<string, number> = {};
+    for (const r of typeRows) {
+      // r.type might be nullable depending on schema; guard just in case
+      const key = (r.type ?? 'unknown') as string;
+      byType[key] = r.count ?? 0;
+    }
+
+    // Normalize zeros for expectedTypes (optional)
+    for (const t of expectedTypes) {
+      if (!(t in byType)) byType[t] = 0;
+    }
+
+    return {
+      all: totals?.all ?? 0,
+      archived: totals?.archived ?? 0,
+      ...byType,
+    };
+  }
+
   async findAllByEmployeeId(
     companyId: string,
     employeeId: string,

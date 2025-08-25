@@ -12,11 +12,11 @@ export declare class AssessmentsController extends BaseController {
         createdAt: Date | null;
         companyId: string;
         status: "not_started" | "in_progress" | "submitted" | null;
-        type: "self" | "manager" | "peer";
         cycleId: string;
         templateId: string;
         reviewerId: string;
         revieweeId: string;
+        type: "self" | "manager" | "peer";
         submittedAt: Date | null;
     }>;
     start(id: string, user: User): Promise<void>;
@@ -37,6 +37,12 @@ export declare class AssessmentsController extends BaseController {
         dueDate: string | null;
         score: number | null;
     }[]>;
+    getCounts(user: User): Promise<{
+        all: number;
+        not_started: number;
+        in_progress: number;
+        submitted: number;
+    }>;
     getById(id: string): Promise<any>;
     getOwnAssessments(user: User): Promise<{
         id: string;
