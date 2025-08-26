@@ -33,6 +33,10 @@ export declare class FeedbackController extends BaseController {
         all: number;
         archived: number;
     }>;
+    getCountsForEmployee(employeeId: string, user: User): Promise<{
+        all: number;
+        archived: number;
+    }>;
     getForEmployee(employeeId: string, user: User, type?: string): Promise<{
         id: string;
         type: string;

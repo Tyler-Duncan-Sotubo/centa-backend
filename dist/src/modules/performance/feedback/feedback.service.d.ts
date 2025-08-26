@@ -58,6 +58,10 @@ export declare class FeedbackService {
         all: number;
         archived: number;
     }>;
+    getCountsForEmployee(companyId: string, employeeId: string, expectedTypes?: string[]): Promise<{
+        all: number;
+        archived: number;
+    }>;
     findAllByEmployeeId(companyId: string, employeeId: string, filters?: {
         type?: string;
     }): Promise<{

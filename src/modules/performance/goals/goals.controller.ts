@@ -71,6 +71,18 @@ export class GoalsController extends BaseController {
     return this.goalsService.getStatusCount(user.companyId);
   }
 
+  @Get('status-counts/employee/:employeeId')
+  @SetMetadata('permissions', ['performance.goals.read'])
+  async getStatusCountsForEmployee(
+    @CurrentUser() user: User,
+    @Param('employeeId') employeeId: string,
+  ) {
+    return this.goalsService.getStatusCountForEmployee(
+      user.companyId,
+      employeeId,
+    );
+  }
+
   @Patch(':id')
   @SetMetadata('permissions', ['performance.goals.edit'])
   update(

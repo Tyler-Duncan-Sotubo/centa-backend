@@ -275,6 +275,37 @@ let FeedbackService = class FeedbackService {
             ...byType,
         };
     }
+    async getCountsForEmployee(companyId, employeeId, expectedTypes = []) {
+        const typeRows = await this.db
+            .select({
+            type: performance_feedback_schema_1.performanceFeedback.type,
+            count: (0, drizzle_orm_1.sql) `cast(count(*) as int)`,
+        })
+            .from(performance_feedback_schema_1.performanceFeedback)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_feedback_schema_1.performanceFeedback.companyId, companyId), (0, drizzle_orm_1.eq)(performance_feedback_schema_1.performanceFeedback.recipientId, employeeId), (0, drizzle_orm_1.eq)(performance_feedback_schema_1.performanceFeedback.isArchived, false)))
+            .groupBy(performance_feedback_schema_1.performanceFeedback.type);
+        const [totals] = await this.db
+            .select({
+            all: (0, drizzle_orm_1.sql) `cast(sum(case when ${performance_feedback_schema_1.performanceFeedback.isArchived} = false then 1 else 0 end) as int)`,
+            archived: (0, drizzle_orm_1.sql) `cast(sum(case when ${performance_feedback_schema_1.performanceFeedback.isArchived} = true  then 1 else 0 end) as int)`,
+        })
+            .from(performance_feedback_schema_1.performanceFeedback)
+            .where((0, drizzle_orm_1.eq)(performance_feedback_schema_1.performanceFeedback.recipientId, employeeId));
+        const byType = {};
+        for (const r of typeRows) {
+            const key = (r.type ?? 'unknown');
+            byType[key] = r.count ?? 0;
+        }
+        for (const t of expectedTypes) {
+            if (!(t in byType))
+                byType[t] = 0;
+        }
+        return {
+            all: totals?.all ?? 0,
+            archived: totals?.archived ?? 0,
+            ...byType,
+        };
+    }
     async findAllByEmployeeId(companyId, employeeId, filters) {
         return this.cache.getOrSetVersioned(companyId, ['feedback', 'by-employee', employeeId, filters?.type ?? 'all'], async () => {
             if (!employeeId)

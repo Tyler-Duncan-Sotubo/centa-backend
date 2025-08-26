@@ -37,6 +37,9 @@ let FeedbackController = class FeedbackController extends base_controller_1.Base
     getCounts(user) {
         return this.feedbackService.getCounts(user.companyId);
     }
+    getCountsForEmployee(employeeId, user) {
+        return this.feedbackService.getCountsForEmployee(user.companyId, employeeId);
+    }
     getForEmployee(employeeId, user, type) {
         return this.feedbackService.findAllByEmployeeId(user.companyId, employeeId, {
             type,
@@ -87,6 +90,15 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], FeedbackController.prototype, "getCounts", null);
+__decorate([
+    (0, common_1.Get)('counts/employee/:employeeId'),
+    (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),
+    __param(0, (0, common_1.Param)('employeeId')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], FeedbackController.prototype, "getCountsForEmployee", null);
 __decorate([
     (0, common_1.Get)('employee/:employeeId'),
     (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),

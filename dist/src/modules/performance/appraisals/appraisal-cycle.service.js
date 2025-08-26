@@ -184,6 +184,28 @@ let AppraisalCycleService = class AppraisalCycleService {
         await this.bump(companyId);
         return { message: 'Cycle deleted successfully' };
     }
+    lockKey(companyId, cycleId) {
+        return BigInt('0x' +
+            Buffer.from(companyId + cycleId)
+                .toString('hex')
+                .slice(0, 15));
+    }
+    async withCompanyCycleLock(companyId, cycleId, run) {
+        const key = this.lockKey(companyId, cycleId);
+        const got = await this.db.execute((0, drizzle_orm_1.sql) `SELECT pg_try_advisory_lock(${key}) AS locked`);
+        const locked = Array.isArray(got)
+            ? got[0].locked
+            : got.rows?.[0]?.locked;
+        if (!locked) {
+            return;
+        }
+        try {
+            return await run();
+        }
+        finally {
+            await this.db.execute((0, drizzle_orm_1.sql) `SELECT pg_advisory_unlock(${key})`);
+        }
+    }
 };
 exports.AppraisalCycleService = AppraisalCycleService;
 exports.AppraisalCycleService = AppraisalCycleService = __decorate([

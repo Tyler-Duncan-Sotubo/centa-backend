@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
-import { and, asc, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { CreateAppraisalCycleDto } from './dto/create-appraisal-cycle.dto';
@@ -254,5 +254,38 @@ export class AppraisalCycleService {
 
     await this.bump(companyId);
     return { message: 'Cycle deleted successfully' };
+  }
+
+  // Make a stable bigint key from company+cycle (hash in app, or use pg_advisory_lock with two ints)
+  private lockKey(companyId: string, cycleId: string) {
+    // naive: use first 15 hex of a hash as bigint; or compute in SQL
+    return BigInt(
+      '0x' +
+        Buffer.from(companyId + cycleId)
+          .toString('hex')
+          .slice(0, 15),
+    );
+  }
+
+  async withCompanyCycleLock<T>(
+    companyId: string,
+    cycleId: string,
+    run: () => Promise<T>,
+  ) {
+    const key = this.lockKey(companyId, cycleId);
+    const got = await this.db.execute(
+      sql`SELECT pg_try_advisory_lock(${key}) AS locked`,
+    );
+    const locked = Array.isArray(got)
+      ? (got[0] as any).locked
+      : (got as any).rows?.[0]?.locked;
+    if (!locked) {
+      return;
+    }
+    try {
+      return await run();
+    } finally {
+      await this.db.execute(sql`SELECT pg_advisory_unlock(${key})`);
+    }
   }
 }

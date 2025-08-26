@@ -197,7 +197,6 @@ let GoalsService = class GoalsService {
         const conditions = [
             (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.companyId, companyId),
             (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.employeeId, employeeId),
-            (0, drizzle_orm_1.isNotNull)(performance_goals_schema_1.performanceGoals.parentGoalId),
         ];
         if (status === 'archived') {
             conditions.push((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.isArchived, true));
@@ -348,6 +347,26 @@ let GoalsService = class GoalsService {
             attachments,
         };
     }
+    async getStatusCountForEmployee(companyId, employeeId) {
+        const rows = await this.db
+            .select({
+            status: performance_goals_schema_1.performanceGoals.status,
+            count: (0, drizzle_orm_1.sql) `cast(count(*) as int)`,
+        })
+            .from(performance_goals_schema_1.performanceGoals)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.companyId, companyId), (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.employeeId, employeeId)))
+            .groupBy(performance_goals_schema_1.performanceGoals.status);
+        const counts = {
+            published: 0,
+            incomplete: 0,
+            completed: 0,
+            overdue: 0,
+            archived: 0,
+        };
+        for (const r of rows)
+            counts[r.status] = r.count ?? 0;
+        return counts;
+    }
     async getStatusCount(companyId) {
         const rows = await this.db
             .select({
@@ -466,27 +485,49 @@ let GoalsService = class GoalsService {
         if (!existingGoal) {
             throw new common_1.NotFoundException('Goal not found or not assigned to this employee');
         }
-        if (existingGoal.status !== 'draft') {
-            throw new common_1.BadRequestException('Only draft goals can be archived');
+        if (existingGoal.isArchived) {
+            throw new common_1.BadRequestException('Goal is already archived');
+        }
+        const [{ updatesCount }] = await this.db
+            .select({ updatesCount: (0, drizzle_orm_1.sql) `COUNT(*)::int` })
+            .from(performance_goal_updates_schema_1.performanceGoalUpdates)
+            .where((0, drizzle_orm_1.eq)(performance_goal_updates_schema_1.performanceGoalUpdates.goalId, goalId));
+        const [{ commentsCount }] = await this.db
+            .select({ commentsCount: (0, drizzle_orm_1.sql) `COUNT(*)::int` })
+            .from(goal_comments_schema_1.goalComments)
+            .where((0, drizzle_orm_1.eq)(goal_comments_schema_1.goalComments.goalId, goalId));
+        const [{ attachmentsCount }] = await this.db
+            .select({ attachmentsCount: (0, drizzle_orm_1.sql) `COUNT(*)::int` })
+            .from(goal_attachments_schema_1.goalAttachments)
+            .where((0, drizzle_orm_1.eq)(goal_attachments_schema_1.goalAttachments.goalId, goalId));
+        const hasActivity = (updatesCount ?? 0) > 0 ||
+            (commentsCount ?? 0) > 0 ||
+            (attachmentsCount ?? 0) > 0;
+        if (hasActivity) {
+            throw new common_1.BadRequestException('Goal has activity and cannot be deleted');
         }
         await this.db
             .update(performance_goals_schema_1.performanceGoals)
             .set({
             isArchived: true,
+            status: 'archived',
             updatedAt: new Date(),
             assignedBy: user.id,
-            status: 'archived',
         })
             .where((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.id, goalId))
             .execute();
         await this.auditService.logAction({
-            action: 'unassign',
+            action: 'archive',
             entity: 'performance_goal',
             entityId: goalId,
             userId: user.id,
             details: `Archived goal for employee ${employeeId}`,
         });
-        return { message: 'Goal archived for employee' };
+        return {
+            message: 'Goal archived for employee',
+            activity: { updatesCount, commentsCount, attachmentsCount },
+            deletable: !hasActivity,
+        };
     }
 };
 exports.GoalsService = GoalsService;

@@ -46,6 +46,9 @@ let GoalsController = class GoalsController extends base_controller_1.BaseContro
     async getStatusCounts(user) {
         return this.goalsService.getStatusCount(user.companyId);
     }
+    async getStatusCountsForEmployee(user, employeeId) {
+        return this.goalsService.getStatusCountForEmployee(user.companyId, employeeId);
+    }
     update(id, dto, user) {
         return this.goalsService.update(id, dto, user);
     }
@@ -129,6 +132,15 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], GoalsController.prototype, "getStatusCounts", null);
+__decorate([
+    (0, common_1.Get)('status-counts/employee/:employeeId'),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.read']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('employeeId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], GoalsController.prototype, "getStatusCountsForEmployee", null);
 __decorate([
     (0, common_1.Patch)(':id'),
     (0, common_1.SetMetadata)('permissions', ['performance.goals.edit']),

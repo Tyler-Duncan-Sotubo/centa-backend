@@ -60,6 +60,19 @@ export class FeedbackController extends BaseController {
     return this.feedbackService.getCounts(user.companyId);
   }
 
+  // Get feedback counts for a specific employee
+  @Get('counts/employee/:employeeId')
+  @SetMetadata('permissions', ['performance.reviews.read'])
+  getCountsForEmployee(
+    @Param('employeeId') employeeId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.feedbackService.getCountsForEmployee(
+      user.companyId,
+      employeeId,
+    );
+  }
+
   // Get feedbacks for a specific employee (if user is admin or manager)
   @Get('employee/:employeeId')
   @SetMetadata('permissions', ['performance.reviews.read'])

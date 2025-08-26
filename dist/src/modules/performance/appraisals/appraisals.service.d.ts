@@ -4,27 +4,23 @@ import { User } from 'src/common/types/user.type';
 import { CreateAppraisalDto } from './dto/create-appraisal.dto';
 import { UpdateAppraisalDto } from './dto/update-appraisal.dto';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class AppraisalsService {
     private readonly db;
     private readonly auditService;
     private readonly companySettingsService;
-    private readonly cache;
-    constructor(db: db, auditService: AuditService, companySettingsService: CompanySettingsService, cache: CacheService);
-    private tags;
-    private invalidate;
+    constructor(db: db, auditService: AuditService, companySettingsService: CompanySettingsService);
     create(createDto: CreateAppraisalDto, companyId: string, userId?: string): Promise<{
         id: string;
         createdAt: Date | null;
         companyId: string | null;
-        managerId: string;
-        employeeId: string;
         cycleId: string;
-        finalScore: number | null;
-        promotionRecommendation: "promote" | "hold" | "exit" | null;
+        employeeId: string;
+        managerId: string;
         submittedByEmployee: boolean | null;
         submittedByManager: boolean | null;
         finalized: boolean | null;
+        finalScore: number | null;
+        promotionRecommendation: "promote" | "hold" | "exit" | null;
         finalNote: string | null;
     }>;
     findAll(companyId: string, cycleId: string): Promise<({
@@ -54,7 +50,7 @@ export declare class AppraisalsService {
             name: string;
             startDate: string;
             endDate: string;
-            status: "active" | "closed" | "upcoming";
+            status: "upcoming" | "active" | "closed";
         } | null;
         currentCycleAppraisal: {
             id: string;

@@ -10,7 +10,6 @@ import { ValidationPipe } from '@nestjs/common';
 import fastifyCompress from '@fastify/compress';
 import fastifyCookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
-import etag from '@fastify/etag';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -33,7 +32,6 @@ async function bootstrap() {
     limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
   });
 
-  await app.register(etag);
   await fastify.register(fastifyCompress as any);
 
   await fastify.register(fastifyCookie, {

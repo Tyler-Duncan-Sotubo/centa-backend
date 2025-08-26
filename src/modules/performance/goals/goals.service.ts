@@ -8,18 +8,7 @@ import { CreateGoalDto } from './dto/create-goal.dto';
 import { UpdateGoalDto } from './dto/update-goal.dto';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
-import {
-  eq,
-  and,
-  desc,
-  lt,
-  sql,
-  isNotNull,
-  inArray,
-  or,
-  lte,
-  gte,
-} from 'drizzle-orm';
+import { eq, and, desc, lt, sql, inArray, or, lte, gte } from 'drizzle-orm';
 import { performanceGoals } from './schema/performance-goals.schema';
 import { User } from 'src/common/types/user.type';
 import { AuditService } from 'src/modules/audit/audit.service';
@@ -275,7 +264,6 @@ export class GoalsService {
     const conditions: any[] = [
       eq(performanceGoals.companyId, companyId),
       eq(performanceGoals.employeeId, employeeId),
-      isNotNull(performanceGoals.parentGoalId), // Exclude parent goals
     ];
 
     // Status handling
@@ -465,6 +453,36 @@ export class GoalsService {
     };
   }
 
+  async getStatusCountForEmployee(companyId: string, employeeId: string) {
+    const rows = await this.db
+      .select({
+        status: performanceGoals.status,
+        count: sql<number>`cast(count(*) as int)`,
+      })
+      .from(performanceGoals)
+      .where(
+        and(
+          eq(performanceGoals.companyId, companyId),
+          eq(performanceGoals.employeeId, employeeId),
+        ),
+      )
+      .groupBy(performanceGoals.status);
+
+    // Normalize with zeros for any missing statuses your UI expects
+    const counts = {
+      published: 0,
+      incomplete: 0,
+      completed: 0,
+      overdue: 0,
+      archived: 0,
+    } as Record<string, number>;
+
+    for (const r of rows)
+      counts[r.status as keyof typeof counts] = r.count ?? 0;
+
+    return counts;
+  }
+
   async getStatusCount(companyId: string) {
     const rows = await this.db
       .select({
@@ -612,7 +630,7 @@ export class GoalsService {
   }
 
   async archiveForEmployee(goalId: string, employeeId: string, user: User) {
-    // 1. Ensure the employee exists and belongs to the same company
+    // 1) Ensure the employee exists and belongs to the same company
     const [employee] = await this.db
       .select()
       .from(employees)
@@ -627,7 +645,7 @@ export class GoalsService {
       throw new NotFoundException('Employee not found in company');
     }
 
-    // 2. Ensure the goal exists and is assigned to this user
+    // 2) Ensure the goal exists and is assigned to this user
     const [existingGoal] = await this.db
       .select()
       .from(performanceGoals)
@@ -645,31 +663,61 @@ export class GoalsService {
       );
     }
 
-    if (existingGoal.status !== 'draft') {
-      throw new BadRequestException('Only draft goals can be archived');
+    if (existingGoal.isArchived) {
+      throw new BadRequestException('Goal is already archived');
     }
 
-    // 3. Soft archive the goal
+    // 3) Check for activity (updates, comments, attachments)
+    const [{ updatesCount }] = await this.db
+      .select({ updatesCount: sql<number>`COUNT(*)::int` })
+      .from(performanceGoalUpdates)
+      .where(eq(performanceGoalUpdates.goalId, goalId));
+
+    const [{ commentsCount }] = await this.db
+      .select({ commentsCount: sql<number>`COUNT(*)::int` })
+      .from(goalComments)
+      .where(eq(goalComments.goalId, goalId));
+
+    const [{ attachmentsCount }] = await this.db
+      .select({ attachmentsCount: sql<number>`COUNT(*)::int` })
+      .from(goalAttachments)
+      .where(eq(goalAttachments.goalId, goalId));
+
+    const hasActivity =
+      (updatesCount ?? 0) > 0 ||
+      (commentsCount ?? 0) > 0 ||
+      (attachmentsCount ?? 0) > 0;
+
+    if (hasActivity) {
+      throw new BadRequestException('Goal has activity and cannot be deleted');
+    }
+
+    // 4) Archive the goal (no status restriction)
     await this.db
       .update(performanceGoals)
       .set({
         isArchived: true,
+        status: 'archived', // keep if you want status to reflect archive
         updatedAt: new Date(),
         assignedBy: user.id,
-        status: 'archived', // optional, if you want to mark status
       })
       .where(eq(performanceGoals.id, goalId))
       .execute();
 
-    // 4. Log the action
+    // 5) Audit log
     await this.auditService.logAction({
-      action: 'unassign',
+      action: 'archive',
       entity: 'performance_goal',
       entityId: goalId,
       userId: user.id,
       details: `Archived goal for employee ${employeeId}`,
     });
 
-    return { message: 'Goal archived for employee' };
+    // Return a hint your delete endpoint can use
+    return {
+      message: 'Goal archived for employee',
+      activity: { updatesCount, commentsCount, attachmentsCount },
+      deletable: !hasActivity,
+    };
   }
 }
