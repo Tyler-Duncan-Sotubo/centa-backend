@@ -21,6 +21,7 @@ import { assetApprovals } from '../schema/asset-approval.schema';
 import { AssetsSettingsService } from '../settings/assets-settings.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
 import { CacheService } from 'src/common/cache/cache.service';
+import { PushNotificationService } from 'src/modules/notification/services/push-notification.service';
 
 @Injectable()
 export class AssetsRequestService {
@@ -29,7 +30,8 @@ export class AssetsRequestService {
     private readonly auditService: AuditService,
     private readonly assetsSettingsService: AssetsSettingsService,
     private readonly pusher: PusherService,
-    private readonly cache: CacheService, // 👈 add cache
+    private readonly cache: CacheService,
+    private readonly push: PushNotificationService,
   ) {}
 
   private tags(companyId: string) {
@@ -376,7 +378,12 @@ export class AssetsRequestService {
     const assetSettings = await this.assetsSettingsService.getAssetSettings(
       request.companyId,
     );
-    const fallbackRoles = assetSettings.fallbackRoles || [];
+
+    const SUPER_ADMIN_ROLE = 'super_admin' as const;
+
+    const fallbackRoles = Array.from(
+      new Set([...(assetSettings.fallbackRoles ?? []), SUPER_ADMIN_ROLE]),
+    );
 
     const enrichedSteps = steps.map((step) => {
       const isFallback = fallbackRoles.includes(user?.role || '');
@@ -460,7 +467,8 @@ export class AssetsRequestService {
     const fallbackRoles = settings.fallbackRoles || [];
     const actorRole = currentStep.role;
     const isFallback = fallbackRoles.includes(user.role);
-    const isActor = user.role === actorRole;
+    const isSuperAdmin = user.role === 'super_admin';
+    const isActor = isSuperAdmin || user.role === actorRole || isFallback;
 
     if (!isActor && !isFallback) {
       throw new BadRequestException(
@@ -500,11 +508,20 @@ export class AssetsRequestService {
         `Your asset request has been ${action}`,
         'asset',
       );
+
       await this.pusher.createNotification(
         user.companyId,
         `Your asset request has been ${action}`,
         'asset',
       );
+
+      await this.push.createAndSendToEmployee(request.employeeId, {
+        title: 'Asset Request Update',
+        body: `Your asset request has been ${action}`,
+        route: '/screens/dashboard/assets/my-asset-requests',
+        data: {},
+        type: 'message',
+      });
 
       // write -> invalidate
       await this.cache.bumpCompanyVersion(user.companyId);
@@ -553,6 +570,14 @@ export class AssetsRequestService {
         'asset',
       );
 
+      await this.push.createAndSendToEmployee(request.employeeId, {
+        title: 'Asset Request Update',
+        body: `Your asset request has been ${action}`,
+        route: '/screens/dashboard/assets/my-asset-requests',
+        data: {},
+        type: 'message',
+      });
+
       // write -> invalidate
       await this.cache.bumpCompanyVersion(user.companyId);
 
@@ -600,6 +625,14 @@ export class AssetsRequestService {
       `Your asset request has been ${action}`,
       'asset',
     );
+
+    await this.push.createAndSendToEmployee(request.employeeId, {
+      title: 'Asset Request Update',
+      body: `Your asset request has been ${action}`,
+      route: '/screens/dashboard/assets/my-asset-requests',
+      data: {},
+      type: 'message',
+    });
 
     // write -> invalidate
     await this.cache.bumpCompanyVersion(user.companyId);

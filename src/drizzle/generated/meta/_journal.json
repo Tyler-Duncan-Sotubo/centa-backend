@@ -29,6 +29,20 @@
       "when": 1756036857056,
       "tag": "0003_parched_hex",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1756298586704,
+      "tag": "0004_deep_lucky_pierre",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1756318459773,
+      "tag": "0005_melted_supernaut",
+      "breakpoints": true
     }
   ]
 }

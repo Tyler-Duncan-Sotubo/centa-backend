@@ -22,14 +22,16 @@ const leave_balance_service_1 = require("../balance/leave-balance.service");
 const leave_settings_service_1 = require("../settings/leave-settings.service");
 const pusher_service_1 = require("../../notification/services/pusher.service");
 const cache_service_1 = require("../../../common/cache/cache.service");
+const push_notification_service_1 = require("../../notification/services/push-notification.service");
 let LeaveApprovalService = class LeaveApprovalService {
-    constructor(db, auditService, leaveBalanceService, leaveSettingsService, pusher, cache) {
+    constructor(db, auditService, leaveBalanceService, leaveSettingsService, pusher, cache, push) {
         this.db = db;
         this.auditService = auditService;
         this.leaveBalanceService = leaveBalanceService;
         this.leaveSettingsService = leaveSettingsService;
         this.pusher = pusher;
         this.cache = cache;
+        this.push = push;
     }
     tags(companyId) {
         return [
@@ -116,6 +118,13 @@ let LeaveApprovalService = class LeaveApprovalService {
                 .execute();
             await this.leaveBalanceService.updateLeaveBalanceOnLeaveApproval(leaveRequest.leaveTypeId, leaveRequest.employeeId, new Date().getFullYear(), leaveRequest.totalDays, user.id);
             await this.pusher.createEmployeeNotification(updatedLeaveRequest[0].companyId, updatedLeaveRequest[0].employeeId, `Your leave request has been approved!`, 'leave');
+            await this.push.createAndSendToEmployee(updatedLeaveRequest[0].employeeId, {
+                title: 'Update on your leave request',
+                body: `Your leave request has been approved!`,
+                route: '/screens/dashboard/leave/leave-history',
+                data: {},
+                type: 'message',
+            });
             await this.auditService.logAction({
                 action: 'approve',
                 entity: 'leave_request',
@@ -169,6 +178,13 @@ let LeaveApprovalService = class LeaveApprovalService {
                 changes: { status: 'rejected' },
             });
             await this.pusher.createEmployeeNotification(updatedLeaveRequest[0].companyId, updatedLeaveRequest[0].employeeId, `Your leave request has been rejected!`, 'leave');
+            await this.push.createAndSendToEmployee(updatedLeaveRequest[0].employeeId, {
+                title: 'Update on your leave request',
+                body: `Your leave request has been rejected!`,
+                route: '/screens/dashboard/leave/leave-history',
+                data: {},
+                type: 'message',
+            });
             await this.cache.bumpCompanyVersion(user.companyId);
             return updatedLeaveRequest;
         }
@@ -207,6 +223,7 @@ exports.LeaveApprovalService = LeaveApprovalService = __decorate([
         leave_balance_service_1.LeaveBalanceService,
         leave_settings_service_1.LeaveSettingsService,
         pusher_service_1.PusherService,
-        cache_service_1.CacheService])
+        cache_service_1.CacheService,
+        push_notification_service_1.PushNotificationService])
 ], LeaveApprovalService);
 //# sourceMappingURL=leave-approval.service.js.map

@@ -28,6 +28,7 @@ import { ExportUtil } from 'src/utils/export.util';
 import { S3StorageService } from 'src/common/aws/s3-storage.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
 import { CacheService } from 'src/common/cache/cache.service';
+import { PushNotificationService } from '../notification/services/push-notification.service';
 
 @Injectable()
 export class ExpensesService {
@@ -39,6 +40,7 @@ export class ExpensesService {
     private readonly awsStorage: S3StorageService,
     private readonly pusher: PusherService,
     private readonly cache: CacheService,
+    private readonly push: PushNotificationService,
   ) {}
 
   /** Tags used for Redis tag invalidation (optional, additive to versioning) */
@@ -616,6 +618,16 @@ export class ExpensesService {
         'expense',
       );
 
+      await this.push.createAndSendToEmployee(expense.employeeId, {
+        title: 'Expense Request Update',
+        body: `Your expense request has been ${action}`,
+        route: '/screens/dashboard/reimbursement/reimbursement-details',
+        data: {
+          id: expenseId,
+        },
+        type: 'message',
+      });
+
       // write -> invalidate
       await this.cache.bumpCompanyVersion(expense.companyId);
 
@@ -656,6 +668,16 @@ export class ExpensesService {
         `Your expense request has been ${action}`,
         'expense',
       );
+
+      await this.push.createAndSendToEmployee(expense.employeeId, {
+        title: 'Expense Request Update',
+        body: `Your expense request has been ${action}`,
+        route: '/screens/dashboard/reimbursement/reimbursement-details',
+        data: {
+          id: expenseId,
+        },
+        type: 'message',
+      });
 
       // write -> invalidate
       await this.cache.bumpCompanyVersion(expense.companyId);
@@ -699,6 +721,16 @@ export class ExpensesService {
       `Your expense request has been ${action}`,
       'expense',
     );
+
+    await this.push.createAndSendToEmployee(expense.employeeId, {
+      title: 'Expense Request Update',
+      body: `Your expense request has been ${action}`,
+      route: '/screens/dashboard/reimbursement/reimbursement-details',
+      data: {
+        id: expenseId,
+      },
+      type: 'message',
+    });
 
     // write -> invalidate
     await this.cache.bumpCompanyVersion(expense.companyId);

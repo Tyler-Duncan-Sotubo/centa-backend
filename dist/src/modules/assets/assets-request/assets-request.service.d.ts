@@ -6,28 +6,30 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { AssetsSettingsService } from '../settings/assets-settings.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
 import { CacheService } from 'src/common/cache/cache.service';
+import { PushNotificationService } from 'src/modules/notification/services/push-notification.service';
 export declare class AssetsRequestService {
     private readonly db;
     private readonly auditService;
     private readonly assetsSettingsService;
     private readonly pusher;
     private readonly cache;
-    constructor(db: db, auditService: AuditService, assetsSettingsService: AssetsSettingsService, pusher: PusherService, cache: CacheService);
+    private readonly push;
+    constructor(db: db, auditService: AuditService, assetsSettingsService: AssetsSettingsService, pusher: PusherService, cache: CacheService, push: PushNotificationService);
     private tags;
     handleAssetApprovalFlow(assetRequestId: string, user: User): Promise<void>;
     create(dto: CreateAssetsRequestDto, user: User): Promise<{
-        status: string | null;
         id: string;
+        requestDate: string;
+        assetType: string;
+        purpose: string;
+        urgency: string;
+        notes: string | null;
+        status: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
         employeeId: string;
-        notes: string | null;
         rejectionReason: string | null;
-        purpose: string;
-        requestDate: string;
-        assetType: string;
-        urgency: string;
     }>;
     findAll(companyId: string): Promise<({
         id: string;

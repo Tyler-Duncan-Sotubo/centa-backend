@@ -20,6 +20,7 @@ import { PusherService } from 'src/modules/notification/services/pusher.service'
 import { employeeCompensations } from 'src/modules/core/employees/schema/compensation.schema';
 import Decimal from 'decimal.js';
 import { loanSequences } from './schema/loan_sequences.schema';
+import { PushNotificationService } from 'src/modules/notification/services/push-notification.service';
 
 @Injectable()
 export class SalaryAdvanceService {
@@ -29,6 +30,7 @@ export class SalaryAdvanceService {
     private readonly auditService: AuditService,
     private readonly payrollSettingsService: PayrollSettingsService,
     private readonly pusher: PusherService,
+    private readonly push: PushNotificationService,
   ) {}
 
   async createLoanNumber(companyId: string) {
@@ -401,6 +403,14 @@ export class SalaryAdvanceService {
         `Your loan request ${loan.loanNumber} has been ${updated.status}`,
         'loan',
       );
+
+      await this.push.createAndSendToEmployee(loan.employeeId, {
+        title: 'Loan Request Update',
+        body: `Your loan request ${loan.loanNumber} has been ${updated.status}`,
+        route: '/screens/dashboard/loans',
+        data: {},
+        type: 'message',
+      });
 
       await this.auditService.logAction({
         action: 'update',

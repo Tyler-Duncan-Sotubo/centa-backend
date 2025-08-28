@@ -6,6 +6,7 @@ import { ApproveRejectLeaveDto } from './dto/approve-reject.dto';
 import { LeaveSettingsService } from '../settings/leave-settings.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
 import { CacheService } from 'src/common/cache/cache.service';
+import { PushNotificationService } from 'src/modules/notification/services/push-notification.service';
 export declare class LeaveApprovalService {
     private readonly db;
     private readonly auditService;
@@ -13,7 +14,8 @@ export declare class LeaveApprovalService {
     private readonly leaveSettingsService;
     private readonly pusher;
     private readonly cache;
-    constructor(db: db, auditService: AuditService, leaveBalanceService: LeaveBalanceService, leaveSettingsService: LeaveSettingsService, pusher: PusherService, cache: CacheService);
+    private readonly push;
+    constructor(db: db, auditService: AuditService, leaveBalanceService: LeaveBalanceService, leaveSettingsService: LeaveSettingsService, pusher: PusherService, cache: CacheService, push: PushNotificationService);
     private tags;
     findOneById(leaveRequestId: string, companyId: string): Promise<{
         id: string;

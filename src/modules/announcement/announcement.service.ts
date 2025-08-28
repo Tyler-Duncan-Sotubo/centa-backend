@@ -22,6 +22,7 @@ import {
   users,
 } from 'src/drizzle/schema';
 import { CacheService } from 'src/common/cache/cache.service';
+import { PushNotificationService } from '../notification/services/push-notification.service';
 
 @Injectable()
 export class AnnouncementService {
@@ -32,6 +33,7 @@ export class AnnouncementService {
     private readonly reactionService: ReactionService,
     private readonly awsService: AwsService,
     private readonly cache: CacheService,
+    private readonly push: PushNotificationService,
   ) {}
 
   private tags(companyId: string) {
@@ -98,6 +100,16 @@ export class AnnouncementService {
           body: newAnnouncement.body,
           publishedAt: newAnnouncement.publishedAt,
         },
+      });
+
+      await this.push.createAndSendToCompany(user.companyId, {
+        title: 'New Announcement',
+        body: newAnnouncement.title,
+        type: 'message',
+        data: {
+          id: newAnnouncement.id,
+        },
+        route: `/screens/dashboard/announcements/announcement-detail`,
       });
 
       // Invalidate all announcement-related caches for this company

@@ -87,6 +87,14 @@ export class GoalActivityService {
       })
       .returning();
 
+    if (dto.progress === 100) {
+      await this.db
+        .update(performanceGoals)
+        .set({ status: 'completed', updatedAt: new Date(), updatedBy: userId })
+        .where(eq(performanceGoals.id, goalId))
+        .returning();
+    }
+
     return update;
   }
 

@@ -8,6 +8,7 @@ import { EmployeeInvitationService } from './services/employee-invitation.servic
 import { PusherService } from './services/pusher.service';
 import { PayrollApprovalEmailService } from './services/payroll-approval.service';
 import { GoalNotificationService } from './services/goal-notification.service';
+import { PushNotificationService } from './services/push-notification.service';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { GoalNotificationService } from './services/goal-notification.service';
     PusherService,
     PayrollApprovalEmailService,
     GoalNotificationService,
+    PushNotificationService,
   ],
   exports: [
     PasswordResetEmailService,
@@ -33,6 +35,7 @@ import { GoalNotificationService } from './services/goal-notification.service';
     PusherService,
     PayrollApprovalEmailService,
     GoalNotificationService,
+    PushNotificationService,
   ],
 })
 export class NotificationModule {}

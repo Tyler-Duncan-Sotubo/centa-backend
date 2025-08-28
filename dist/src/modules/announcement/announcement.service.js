@@ -23,14 +23,16 @@ const reaction_service_1 = require("./reaction.service");
 const aws_service_1 = require("../../common/aws/aws.service");
 const schema_1 = require("../../drizzle/schema");
 const cache_service_1 = require("../../common/cache/cache.service");
+const push_notification_service_1 = require("../notification/services/push-notification.service");
 let AnnouncementService = class AnnouncementService {
-    constructor(db, auditService, commentService, reactionService, awsService, cache) {
+    constructor(db, auditService, commentService, reactionService, awsService, cache, push) {
         this.db = db;
         this.auditService = auditService;
         this.commentService = commentService;
         this.reactionService = reactionService;
         this.awsService = awsService;
         this.cache = cache;
+        this.push = push;
     }
     tags(companyId) {
         return [
@@ -84,6 +86,15 @@ let AnnouncementService = class AnnouncementService {
                     body: newAnnouncement.body,
                     publishedAt: newAnnouncement.publishedAt,
                 },
+            });
+            await this.push.createAndSendToCompany(user.companyId, {
+                title: 'New Announcement',
+                body: newAnnouncement.title,
+                type: 'message',
+                data: {
+                    id: newAnnouncement.id,
+                },
+                route: `/screens/dashboard/announcements/announcement-detail`,
             });
             await this.cache.bumpCompanyVersion(user.companyId);
             return newAnnouncement;
@@ -356,6 +367,7 @@ exports.AnnouncementService = AnnouncementService = __decorate([
         comment_service_1.CommentService,
         reaction_service_1.ReactionService,
         aws_service_1.AwsService,
-        cache_service_1.CacheService])
+        cache_service_1.CacheService,
+        push_notification_service_1.PushNotificationService])
 ], AnnouncementService);
 //# sourceMappingURL=announcement.service.js.map

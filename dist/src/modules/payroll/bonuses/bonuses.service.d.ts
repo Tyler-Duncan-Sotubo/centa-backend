@@ -4,22 +4,24 @@ import { CacheService } from 'src/common/cache/cache.service';
 import { User } from 'src/common/types/user.type';
 import { CreateBonusDto } from './dto/create-bonus.dto';
 import { UpdateBonusDto } from './dto/update-bonus.dto';
+import { PushNotificationService } from 'src/modules/notification/services/push-notification.service';
 export declare class BonusesService {
     private db;
     private auditService;
     private cache;
-    constructor(db: db, auditService: AuditService, cache: CacheService);
+    private readonly push;
+    constructor(db: db, auditService: AuditService, cache: CacheService, push: PushNotificationService);
     private getCompanyIdByBonusId;
     create(user: User, dto: CreateBonusDto): Promise<{
-        status: string | null;
         id: string;
         createdAt: Date | null;
         companyId: string;
-        createdBy: string;
         employeeId: string;
-        effectiveDate: string;
+        createdBy: string;
         amount: string;
         bonusType: string;
+        effectiveDate: string;
+        status: string | null;
     }[]>;
     findAll(companyId: string): Promise<({
         id: string;

@@ -20,11 +20,13 @@ const audit_service_1 = require("../../audit/audit.service");
 const cache_service_1 = require("../../../common/cache/cache.service");
 const schema_1 = require("../../../drizzle/schema");
 const payroll_bonuses_schema_1 = require("../schema/payroll-bonuses.schema");
+const push_notification_service_1 = require("../../notification/services/push-notification.service");
 let BonusesService = class BonusesService {
-    constructor(db, auditService, cache) {
+    constructor(db, auditService, cache, push) {
         this.db = db;
         this.auditService = auditService;
         this.cache = cache;
+        this.push = push;
     }
     async getCompanyIdByBonusId(bonusId) {
         const [row] = await this.db
@@ -62,6 +64,13 @@ let BonusesService = class BonusesService {
                 employeeId: dto.employeeId,
                 effectiveDate: dto.effectiveDate,
             },
+        });
+        await this.push.createAndSendToEmployee(dto.employeeId, {
+            title: 'New Bonus Added',
+            body: `You have been awarded a ${dto.bonusType} bonus of ${dto.amount} `,
+            route: '/screens/dashboard/payroll/bonus-details',
+            data: {},
+            type: 'message',
         });
         await this.cache.bumpCompanyVersion(user.companyId);
         await this.cache.invalidateTags([
@@ -182,6 +191,7 @@ exports.BonusesService = BonusesService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
-        cache_service_1.CacheService])
+        cache_service_1.CacheService,
+        push_notification_service_1.PushNotificationService])
 ], BonusesService);
 //# sourceMappingURL=bonuses.service.js.map

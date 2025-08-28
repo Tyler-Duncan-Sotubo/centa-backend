@@ -7,6 +7,7 @@ import { CommentService } from './comment.service';
 import { ReactionService } from './reaction.service';
 import { AwsService } from 'src/common/aws/aws.service';
 import { CacheService } from 'src/common/cache/cache.service';
+import { PushNotificationService } from '../notification/services/push-notification.service';
 export declare class AnnouncementService {
     private readonly db;
     private readonly auditService;
@@ -14,23 +15,24 @@ export declare class AnnouncementService {
     private readonly reactionService;
     private readonly awsService;
     private readonly cache;
-    constructor(db: db, auditService: AuditService, commentService: CommentService, reactionService: ReactionService, awsService: AwsService, cache: CacheService);
+    private readonly push;
+    constructor(db: db, auditService: AuditService, commentService: CommentService, reactionService: ReactionService, awsService: AwsService, cache: CacheService, push: PushNotificationService);
     private tags;
     create(dto: CreateAnnouncementDto, user: User): Promise<{
         id: string;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-        link: string | null;
-        companyId: string;
-        createdBy: string;
-        departmentId: string | null;
         title: string;
-        locationId: string | null;
         body: string;
+        link: string | null;
         image: string | null;
         publishedAt: Date | null;
         expiresAt: Date | null;
         isPublished: boolean | null;
+        createdBy: string;
+        createdAt: Date | null;
+        updatedAt: Date | null;
+        companyId: string;
+        departmentId: string | null;
+        locationId: string | null;
         categoryId: string;
     }>;
     findAll(companyId: string): Promise<{

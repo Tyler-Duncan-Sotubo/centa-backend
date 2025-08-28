@@ -12,6 +12,7 @@ import { payrollBonuses } from '../schema/payroll-bonuses.schema';
 
 import { CreateBonusDto } from './dto/create-bonus.dto';
 import { UpdateBonusDto } from './dto/update-bonus.dto';
+import { PushNotificationService } from 'src/modules/notification/services/push-notification.service';
 
 @Injectable()
 export class BonusesService {
@@ -19,6 +20,7 @@ export class BonusesService {
     @Inject(DRIZZLE) private db: db,
     private auditService: AuditService,
     private cache: CacheService,
+    private readonly push: PushNotificationService,
   ) {}
 
   // -------------------------------------------------------
@@ -65,6 +67,14 @@ export class BonusesService {
         employeeId: dto.employeeId,
         effectiveDate: dto.effectiveDate,
       },
+    });
+
+    await this.push.createAndSendToEmployee(dto.employeeId, {
+      title: 'New Bonus Added',
+      body: `You have been awarded a ${dto.bonusType} bonus of ${dto.amount} `,
+      route: '/screens/dashboard/payroll/bonus-details',
+      data: {},
+      type: 'message',
     });
 
     // Invalidate caches (version bump + tag sets)

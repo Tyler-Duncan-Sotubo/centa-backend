@@ -23,13 +23,15 @@ const asset_approval_schema_1 = require("../schema/asset-approval.schema");
 const assets_settings_service_1 = require("../settings/assets-settings.service");
 const pusher_service_1 = require("../../notification/services/pusher.service");
 const cache_service_1 = require("../../../common/cache/cache.service");
+const push_notification_service_1 = require("../../notification/services/push-notification.service");
 let AssetsRequestService = class AssetsRequestService {
-    constructor(db, auditService, assetsSettingsService, pusher, cache) {
+    constructor(db, auditService, assetsSettingsService, pusher, cache, push) {
         this.db = db;
         this.auditService = auditService;
         this.assetsSettingsService = assetsSettingsService;
         this.pusher = pusher;
         this.cache = cache;
+        this.push = push;
     }
     tags(companyId) {
         return [
@@ -283,7 +285,8 @@ let AssetsRequestService = class AssetsRequestService {
             .orderBy(schema_1.approvalSteps.sequence)
             .execute();
         const assetSettings = await this.assetsSettingsService.getAssetSettings(request.companyId);
-        const fallbackRoles = assetSettings.fallbackRoles || [];
+        const SUPER_ADMIN_ROLE = 'super_admin';
+        const fallbackRoles = Array.from(new Set([...(assetSettings.fallbackRoles ?? []), SUPER_ADMIN_ROLE]));
         const enrichedSteps = steps.map((step) => {
             const isFallback = fallbackRoles.includes(user?.role || '');
             const isPrimary = user?.role === step.role;
@@ -343,7 +346,8 @@ let AssetsRequestService = class AssetsRequestService {
         const fallbackRoles = settings.fallbackRoles || [];
         const actorRole = currentStep.role;
         const isFallback = fallbackRoles.includes(user.role);
-        const isActor = user.role === actorRole;
+        const isSuperAdmin = user.role === 'super_admin';
+        const isActor = isSuperAdmin || user.role === actorRole || isFallback;
         if (!isActor && !isFallback) {
             throw new common_1.BadRequestException(`You do not have permission to take action on this step. Required: ${actorRole}`);
         }
@@ -372,6 +376,13 @@ let AssetsRequestService = class AssetsRequestService {
                 .execute();
             await this.pusher.createEmployeeNotification(user.companyId, request.employeeId, `Your asset request has been ${action}`, 'asset');
             await this.pusher.createNotification(user.companyId, `Your asset request has been ${action}`, 'asset');
+            await this.push.createAndSendToEmployee(request.employeeId, {
+                title: 'Asset Request Update',
+                body: `Your asset request has been ${action}`,
+                route: '/screens/dashboard/assets/my-asset-requests',
+                data: {},
+                type: 'message',
+            });
             await this.cache.bumpCompanyVersion(user.companyId);
             return `Asset request rejected successfully`;
         }
@@ -402,6 +413,13 @@ let AssetsRequestService = class AssetsRequestService {
                 .execute();
             await this.pusher.createEmployeeNotification(user.companyId, request.employeeId, `Your asset request has been ${action}`, 'asset');
             await this.pusher.createNotification(user.companyId, `Your asset request has been ${action}`, 'asset');
+            await this.push.createAndSendToEmployee(request.employeeId, {
+                title: 'Asset Request Update',
+                body: `Your asset request has been ${action}`,
+                route: '/screens/dashboard/assets/my-asset-requests',
+                data: {},
+                type: 'message',
+            });
             await this.cache.bumpCompanyVersion(user.companyId);
             return `Asset request fully approved via fallback`;
         }
@@ -431,6 +449,13 @@ let AssetsRequestService = class AssetsRequestService {
         }
         await this.pusher.createEmployeeNotification(user.companyId, request.employeeId, `Your asset request has been ${action}`, 'asset');
         await this.pusher.createNotification(user.companyId, `Your asset request has been ${action}`, 'asset');
+        await this.push.createAndSendToEmployee(request.employeeId, {
+            title: 'Asset Request Update',
+            body: `Your asset request has been ${action}`,
+            route: '/screens/dashboard/assets/my-asset-requests',
+            data: {},
+            type: 'message',
+        });
         await this.cache.bumpCompanyVersion(user.companyId);
         return `Asset request ${action} successfully`;
     }
@@ -442,6 +467,7 @@ exports.AssetsRequestService = AssetsRequestService = __decorate([
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
         assets_settings_service_1.AssetsSettingsService,
         pusher_service_1.PusherService,
-        cache_service_1.CacheService])
+        cache_service_1.CacheService,
+        push_notification_service_1.PushNotificationService])
 ], AssetsRequestService);
 //# sourceMappingURL=assets-request.service.js.map

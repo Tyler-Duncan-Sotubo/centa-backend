@@ -5,13 +5,15 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { PayrollSettingsService } from '../settings/payroll-settings.service';
 import { User } from 'src/common/types/user.type';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
+import { PushNotificationService } from 'src/modules/notification/services/push-notification.service';
 export declare class SalaryAdvanceService {
     private db;
     private readonly cache;
     private readonly auditService;
     private readonly payrollSettingsService;
     private readonly pusher;
-    constructor(db: db, cache: CacheService, auditService: AuditService, payrollSettingsService: PayrollSettingsService, pusher: PusherService);
+    private readonly push;
+    constructor(db: db, cache: CacheService, auditService: AuditService, payrollSettingsService: PayrollSettingsService, pusher: PusherService, push: PushNotificationService);
     createLoanNumber(companyId: string): Promise<string>;
     private getEmployeeCompanyId;
     private getEmployee;
@@ -20,18 +22,18 @@ export declare class SalaryAdvanceService {
         monthlyDeduction: string | null;
     }[]>;
     salaryAdvanceRequest(dto: CreateSalaryAdvanceDto, employee_id: string, user: User): Promise<{
-        status: string;
         id: string;
         name: string;
+        loanNumber: string | null;
         createdAt: Date;
         companyId: string;
         employeeId: string;
-        paymentStatus: string;
-        loanNumber: string | null;
         amount: string;
         totalPaid: string;
         tenureMonths: number;
         preferredMonthlyPayment: string | null;
+        status: string;
+        paymentStatus: string;
     }>;
     getAdvances(company_id: string): Promise<({
         name: string;

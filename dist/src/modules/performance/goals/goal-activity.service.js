@@ -69,6 +69,13 @@ let GoalActivityService = class GoalActivityService {
             createdBy: userId,
         })
             .returning();
+        if (dto.progress === 100) {
+            await this.db
+                .update(performance_goals_schema_1.performanceGoals)
+                .set({ status: 'completed', updatedAt: new Date(), updatedBy: userId })
+                .where((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.id, goalId))
+                .returning();
+        }
         return update;
     }
     async getLatestProgressValue(goalId, companyId) {

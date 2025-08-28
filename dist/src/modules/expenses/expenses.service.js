@@ -29,8 +29,9 @@ const export_util_1 = require("../../utils/export.util");
 const s3_storage_service_1 = require("../../common/aws/s3-storage.service");
 const pusher_service_1 = require("../notification/services/pusher.service");
 const cache_service_1 = require("../../common/cache/cache.service");
+const push_notification_service_1 = require("../notification/services/push-notification.service");
 let ExpensesService = class ExpensesService {
-    constructor(db, auditService, awsService, expenseSettingsService, awsStorage, pusher, cache) {
+    constructor(db, auditService, awsService, expenseSettingsService, awsStorage, pusher, cache, push) {
         this.db = db;
         this.auditService = auditService;
         this.awsService = awsService;
@@ -38,6 +39,7 @@ let ExpensesService = class ExpensesService {
         this.awsStorage = awsStorage;
         this.pusher = pusher;
         this.cache = cache;
+        this.push = push;
     }
     tags(companyId) {
         return [
@@ -431,6 +433,15 @@ let ExpensesService = class ExpensesService {
                 .execute();
             await this.pusher.createEmployeeNotification(user.companyId, expense.employeeId, `Your expense request has been ${action}`, 'expense');
             await this.pusher.createNotification(user.companyId, `Your expense request has been ${action}`, 'expense');
+            await this.push.createAndSendToEmployee(expense.employeeId, {
+                title: 'Expense Request Update',
+                body: `Your expense request has been ${action}`,
+                route: '/screens/dashboard/reimbursement/reimbursement-details',
+                data: {
+                    id: expenseId,
+                },
+                type: 'message',
+            });
             await this.cache.bumpCompanyVersion(expense.companyId);
             return `Expense rejected successfully`;
         }
@@ -458,6 +469,15 @@ let ExpensesService = class ExpensesService {
                 .execute();
             await this.pusher.createEmployeeNotification(user.companyId, expense.employeeId, `Your expense request has been ${action}`, 'expense');
             await this.pusher.createNotification(user.companyId, `Your expense request has been ${action}`, 'expense');
+            await this.push.createAndSendToEmployee(expense.employeeId, {
+                title: 'Expense Request Update',
+                body: `Your expense request has been ${action}`,
+                route: '/screens/dashboard/reimbursement/reimbursement-details',
+                data: {
+                    id: expenseId,
+                },
+                type: 'message',
+            });
             await this.cache.bumpCompanyVersion(expense.companyId);
             return `Expense fully approved via fallback`;
         }
@@ -484,6 +504,15 @@ let ExpensesService = class ExpensesService {
         }
         await this.pusher.createEmployeeNotification(user.companyId, expense.employeeId, `Your expense request has been ${action}`, 'expense');
         await this.pusher.createNotification(user.companyId, `Your expense request has been ${action}`, 'expense');
+        await this.push.createAndSendToEmployee(expense.employeeId, {
+            title: 'Expense Request Update',
+            body: `Your expense request has been ${action}`,
+            route: '/screens/dashboard/reimbursement/reimbursement-details',
+            data: {
+                id: expenseId,
+            },
+            type: 'message',
+        });
         await this.cache.bumpCompanyVersion(expense.companyId);
         return `Expense ${action} successfully`;
     }
@@ -657,6 +686,7 @@ exports.ExpensesService = ExpensesService = __decorate([
         expense_settings_service_1.ExpensesSettingsService,
         s3_storage_service_1.S3StorageService,
         pusher_service_1.PusherService,
-        cache_service_1.CacheService])
+        cache_service_1.CacheService,
+        push_notification_service_1.PushNotificationService])
 ], ExpensesService);
 //# sourceMappingURL=expenses.service.js.map

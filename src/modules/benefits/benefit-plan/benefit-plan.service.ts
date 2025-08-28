@@ -19,6 +19,7 @@ import { SingleEnrollBenefitDto } from './dto/single-employee-enroll.dto';
 import { differenceInYears, differenceInMonths } from 'date-fns';
 import { benefitGroups } from '../schema/benefit-groups.schema';
 import { CacheService } from 'src/common/cache/cache.service';
+import { PushNotificationService } from 'src/modules/notification/services/push-notification.service';
 
 @Injectable()
 export class BenefitPlanService {
@@ -26,6 +27,7 @@ export class BenefitPlanService {
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
     private readonly cache: CacheService,
+    private readonly push: PushNotificationService,
   ) {}
 
   private tags(companyId: string) {
@@ -68,6 +70,16 @@ export class BenefitPlanService {
       .values({ ...dto, companyId: user.companyId })
       .returning()
       .execute();
+
+    await this.push.createAndSendToCompany(user.companyId, {
+      title: 'New Benefit Plan Available',
+      body: `A new benefit plan "${newPlan.name}" has been created.`,
+      type: 'message',
+      data: {
+        category: newPlan.category,
+      },
+      route: `/screens/dashboard/benefits/enroll`,
+    });
 
     await this.auditService.logAction({
       action: 'create',

@@ -25,13 +25,15 @@ const pusher_service_1 = require("../../notification/services/pusher.service");
 const compensation_schema_1 = require("../../core/employees/schema/compensation.schema");
 const decimal_js_1 = require("decimal.js");
 const loan_sequences_schema_1 = require("./schema/loan_sequences.schema");
+const push_notification_service_1 = require("../../notification/services/push-notification.service");
 let SalaryAdvanceService = class SalaryAdvanceService {
-    constructor(db, cache, auditService, payrollSettingsService, pusher) {
+    constructor(db, cache, auditService, payrollSettingsService, pusher, push) {
         this.db = db;
         this.cache = cache;
         this.auditService = auditService;
         this.payrollSettingsService = payrollSettingsService;
         this.pusher = pusher;
+        this.push = push;
     }
     async createLoanNumber(companyId) {
         const [seqRow] = await this.db
@@ -283,6 +285,13 @@ let SalaryAdvanceService = class SalaryAdvanceService {
             });
             await this.pusher.createNotification(loan.companyId, `New loan request updated to ${updated.status}`, 'loan');
             await this.pusher.createEmployeeNotification(loan.companyId, loan.employeeId, `Your loan request ${loan.loanNumber} has been ${updated.status}`, 'loan');
+            await this.push.createAndSendToEmployee(loan.employeeId, {
+                title: 'Loan Request Update',
+                body: `Your loan request ${loan.loanNumber} has been ${updated.status}`,
+                route: '/screens/dashboard/loans',
+                data: {},
+                type: 'message',
+            });
             await this.auditService.logAction({
                 action: 'update',
                 entity: 'salary_advance',
@@ -440,6 +449,7 @@ exports.SalaryAdvanceService = SalaryAdvanceService = __decorate([
     __metadata("design:paramtypes", [Object, cache_service_1.CacheService,
         audit_service_1.AuditService,
         payroll_settings_service_1.PayrollSettingsService,
-        pusher_service_1.PusherService])
+        pusher_service_1.PusherService,
+        push_notification_service_1.PushNotificationService])
 ], SalaryAdvanceService);
 //# sourceMappingURL=salary-advance.service.js.map

@@ -23,11 +23,13 @@ const schema_1 = require("../../../drizzle/schema");
 const date_fns_1 = require("date-fns");
 const benefit_groups_schema_1 = require("../schema/benefit-groups.schema");
 const cache_service_1 = require("../../../common/cache/cache.service");
+const push_notification_service_1 = require("../../notification/services/push-notification.service");
 let BenefitPlanService = class BenefitPlanService {
-    constructor(db, auditService, cache) {
+    constructor(db, auditService, cache, push) {
         this.db = db;
         this.auditService = auditService;
         this.cache = cache;
+        this.push = push;
     }
     tags(companyId) {
         return [
@@ -54,6 +56,15 @@ let BenefitPlanService = class BenefitPlanService {
             .values({ ...dto, companyId: user.companyId })
             .returning()
             .execute();
+        await this.push.createAndSendToCompany(user.companyId, {
+            title: 'New Benefit Plan Available',
+            body: `A new benefit plan "${newPlan.name}" has been created.`,
+            type: 'message',
+            data: {
+                category: newPlan.category,
+            },
+            route: `/screens/dashboard/benefits/enroll`,
+        });
         await this.auditService.logAction({
             action: 'create',
             entity: 'benefit_plan',
@@ -358,6 +369,7 @@ exports.BenefitPlanService = BenefitPlanService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
-        cache_service_1.CacheService])
+        cache_service_1.CacheService,
+        push_notification_service_1.PushNotificationService])
 ], BenefitPlanService);
 //# sourceMappingURL=benefit-plan.service.js.map

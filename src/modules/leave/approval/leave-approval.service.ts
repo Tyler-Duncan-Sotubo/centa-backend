@@ -15,6 +15,7 @@ import { ApproveRejectLeaveDto } from './dto/approve-reject.dto';
 import { LeaveSettingsService } from '../settings/leave-settings.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
 import { CacheService } from 'src/common/cache/cache.service';
+import { PushNotificationService } from 'src/modules/notification/services/push-notification.service';
 
 @Injectable()
 export class LeaveApprovalService {
@@ -25,6 +26,7 @@ export class LeaveApprovalService {
     private readonly leaveSettingsService: LeaveSettingsService,
     private readonly pusher: PusherService,
     private readonly cache: CacheService,
+    private readonly push: PushNotificationService,
   ) {}
 
   /** cache tags used for this domain (lets CacheService pick TTL centrally) */
@@ -187,6 +189,17 @@ export class LeaveApprovalService {
         'leave',
       );
 
+      await this.push.createAndSendToEmployee(
+        updatedLeaveRequest[0].employeeId,
+        {
+          title: 'Update on your leave request',
+          body: `Your leave request has been approved!`,
+          route: '/screens/dashboard/leave/leave-history',
+          data: {},
+          type: 'message',
+        },
+      );
+
       // Audit
       await this.auditService.logAction({
         action: 'approve',
@@ -271,6 +284,17 @@ export class LeaveApprovalService {
         updatedLeaveRequest[0].employeeId,
         `Your leave request has been rejected!`,
         'leave',
+      );
+
+      await this.push.createAndSendToEmployee(
+        updatedLeaveRequest[0].employeeId,
+        {
+          title: 'Update on your leave request',
+          body: `Your leave request has been rejected!`,
+          route: '/screens/dashboard/leave/leave-history',
+          data: {},
+          type: 'message',
+        },
       );
 
       // Invalidate caches
