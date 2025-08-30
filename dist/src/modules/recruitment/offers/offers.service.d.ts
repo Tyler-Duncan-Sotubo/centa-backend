@@ -16,15 +16,14 @@ export declare class OffersService {
     constructor(db: db, queue: Queue, auditService: AuditService, offerLetterPdfService: OfferLetterPdfService, cache: CacheService);
     private tags;
     create(dto: CreateOfferDto, user: User): Promise<{
-        version: number | null;
-        status: "pending" | "accepted" | "sent" | "declined" | "expired";
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         currency: string;
         companyId: string;
-        createdBy: string | null;
         startDate: string | null;
+        status: "pending" | "accepted" | "sent" | "declined" | "expired";
+        createdBy: string | null;
         templateId: string | null;
         expiresAt: Date | null;
         applicationId: string;
@@ -36,6 +35,7 @@ export declare class OffersService {
         signingUrl: string | null;
         signedAt: Date | null;
         sentAt: Date | null;
+        version: number | null;
         pdfData: Record<string, any>;
     }>;
     getTemplateVariablesWithAutoFilledData(templateId: string, applicationId: string, user: User): Promise<{

@@ -18,22 +18,22 @@ export declare class ScorecardTemplateService {
         criteria: unknown;
     }[]>;
     create(user: User, dto: CreateScorecardTemplateDto): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string | null;
-        isSystem: boolean | null;
         description: string | null;
+        isSystem: boolean | null;
     }>;
     cloneTemplate(templateId: string, user: User): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string | null;
-        isSystem: boolean | null;
         description: string | null;
+        isSystem: boolean | null;
     }>;
     seedSystemTemplates(): Promise<{
         success: boolean;

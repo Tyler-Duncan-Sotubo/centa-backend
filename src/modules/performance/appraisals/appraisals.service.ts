@@ -415,4 +415,9 @@ export class AppraisalsService {
 
     return { message: 'Appraisal restarted successfully' };
   }
+
+  async sendReminder(employeeId: string) {
+    console.log(employeeId);
+    // TODO send reminder via email, push notifications
+  }
 }

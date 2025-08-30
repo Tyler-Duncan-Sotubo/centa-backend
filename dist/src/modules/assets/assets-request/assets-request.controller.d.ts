@@ -8,17 +8,17 @@ export declare class AssetsRequestController extends BaseController {
     constructor(assetsRequestService: AssetsRequestService);
     create(createAssetsRequestDto: CreateAssetsRequestDto, user: User): Promise<{
         id: string;
-        requestDate: string;
-        assetType: string;
-        purpose: string;
-        urgency: string;
-        notes: string | null;
-        status: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
         employeeId: string;
+        status: string | null;
+        purpose: string;
         rejectionReason: string | null;
+        notes: string | null;
+        requestDate: string;
+        assetType: string;
+        urgency: string;
     }>;
     findAll(user: User): Promise<({
         id: string;

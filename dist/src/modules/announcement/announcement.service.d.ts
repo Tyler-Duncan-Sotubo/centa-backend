@@ -20,19 +20,19 @@ export declare class AnnouncementService {
     private tags;
     create(dto: CreateAnnouncementDto, user: User): Promise<{
         id: string;
-        title: string;
-        body: string;
+        createdAt: Date | null;
+        updatedAt: Date | null;
         link: string | null;
+        companyId: string;
+        departmentId: string | null;
+        title: string;
+        locationId: string | null;
+        createdBy: string;
+        body: string;
         image: string | null;
         publishedAt: Date | null;
         expiresAt: Date | null;
         isPublished: boolean | null;
-        createdBy: string;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-        companyId: string;
-        departmentId: string | null;
-        locationId: string | null;
         categoryId: string;
     }>;
     findAll(companyId: string): Promise<{

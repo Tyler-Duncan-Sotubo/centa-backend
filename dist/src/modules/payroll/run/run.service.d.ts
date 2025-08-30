@@ -10,9 +10,11 @@ import { SalaryAdvanceService } from '../salary-advance/salary-advance.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
 import { PayrollApprovalEmailService } from 'src/modules/notification/services/payroll-approval.service';
 import { ConfigService } from '@nestjs/config';
+import { HotQueries } from 'src/drizzle/hot-queries';
 export declare class RunService {
     private payrollQueue;
     private readonly db;
+    private readonly hot;
     private readonly auditService;
     private readonly payrollSettingsService;
     private readonly compensationService;
@@ -22,20 +24,19 @@ export declare class RunService {
     private readonly pusher;
     private readonly payrollApprovalEmailService;
     private readonly configService;
-    constructor(payrollQueue: Queue, db: db, auditService: AuditService, payrollSettingsService: PayrollSettingsService, compensationService: CompensationService, taxService: TaxService, payslipService: PayslipService, salaryAdvanceService: SalaryAdvanceService, pusher: PusherService, payrollApprovalEmailService: PayrollApprovalEmailService, configService: ConfigService);
+    constructor(payrollQueue: Queue, db: db, hot: HotQueries, auditService: AuditService, payrollSettingsService: PayrollSettingsService, compensationService: CompensationService, taxService: TaxService, payslipService: PayslipService, salaryAdvanceService: SalaryAdvanceService, pusher: PusherService, payrollApprovalEmailService: PayrollApprovalEmailService, configService: ConfigService);
     private calculatePAYE;
     private percentOf;
     private round2;
     calculatePayroll(employeeId: string, payrollDate: string, payrollRunId: string, companyId: string, userId: string, workflowId: string): Promise<{
         name: string;
         id: string;
+        payrollRunId: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
         userId: string | null;
         employeeId: string;
-        paymentStatus: string | null;
-        payrollRunId: string;
         basic: string;
         housing: string;
         transport: string;
@@ -54,6 +55,7 @@ export declare class RunService {
         taxableIncome: string;
         payrollDate: string;
         payrollMonth: string;
+        paymentStatus: string | null;
         paymentDate: string | null;
         paymentReference: string | null;
         approvalDate: string | null;
@@ -72,13 +74,12 @@ export declare class RunService {
     calculatePayrollForCompany(user: User, payrollDate: string, groupId?: string): Promise<{
         name: string;
         id: string;
+        payrollRunId: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
         userId: string | null;
         employeeId: string;
-        paymentStatus: string | null;
-        payrollRunId: string;
         basic: string;
         housing: string;
         transport: string;
@@ -97,6 +98,7 @@ export declare class RunService {
         taxableIncome: string;
         payrollDate: string;
         payrollMonth: string;
+        paymentStatus: string | null;
         paymentDate: string | null;
         paymentReference: string | null;
         approvalDate: string | null;

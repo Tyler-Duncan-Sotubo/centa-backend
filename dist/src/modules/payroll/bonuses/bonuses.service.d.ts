@@ -17,11 +17,11 @@ export declare class BonusesService {
         createdAt: Date | null;
         companyId: string;
         employeeId: string;
-        createdBy: string;
-        amount: string;
-        bonusType: string;
         effectiveDate: string;
+        amount: string;
         status: string | null;
+        createdBy: string;
+        bonusType: string;
     }[]>;
     findAll(companyId: string): Promise<({
         id: string;

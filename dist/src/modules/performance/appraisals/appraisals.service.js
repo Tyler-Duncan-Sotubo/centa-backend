@@ -312,6 +312,9 @@ let AppraisalsService = class AppraisalsService {
         });
         return { message: 'Appraisal restarted successfully' };
     }
+    async sendReminder(employeeId) {
+        console.log(employeeId);
+    }
 };
 exports.AppraisalsService = AppraisalsService;
 exports.AppraisalsService = AppraisalsService = __decorate([

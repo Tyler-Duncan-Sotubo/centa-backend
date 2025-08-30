@@ -95,6 +95,13 @@ exports.payroll = (0, pg_core_1.pgTable)('payroll', {
     (0, pg_core_1.index)('payroll_workflow_id_idx').on(t.workflowId),
     (0, pg_core_1.index)('payroll_current_step_idx').on(t.currentStep),
     (0, pg_core_1.index)('payroll_created_at_idx').on(t.createdAt),
+    (0, pg_core_1.unique)('payroll_emp_date_co_uniq').on(t.employeeId, t.payrollDate, t.companyId),
+    (0, pg_core_1.index)('payroll_emp_date_co_idx').on(t.employeeId, t.payrollDate, t.companyId),
+    (0, pg_core_1.index)('payroll_co_date_idx').on(t.companyId, t.payrollDate),
+    (0, pg_core_1.index)('payroll_run_emp_idx').on(t.payrollRunId, t.employeeId),
+    (0, pg_core_1.index)('payroll_co_month_idx').on(t.companyId, t.payrollMonth),
+    (0, pg_core_1.index)('payroll_co_status_date_idx').on(t.companyId, t.approvalStatus, t.payrollDate),
+    (0, pg_core_1.index)('payroll_workflow_step_idx').on(t.workflowId, t.currentStep),
 ]);
 exports.payrollApprovals = (0, pg_core_1.pgTable)('payroll_approvals', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),

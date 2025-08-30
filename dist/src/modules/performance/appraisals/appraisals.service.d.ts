@@ -135,4 +135,5 @@ export declare class AppraisalsService {
     restartAppraisal(appraisalId: string, user: User): Promise<{
         message: string;
     }>;
+    sendReminder(employeeId: string): Promise<void>;
 }

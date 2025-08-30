@@ -23,11 +23,8 @@ const payroll_allowances_schema_1 = require("../schema/payroll-allowances.schema
 const payroll_ytd_schema_1 = require("../schema/payroll-ytd.schema");
 const uuid_1 = require("uuid");
 const payroll_run_schema_1 = require("../schema/payroll-run.schema");
-const payroll_bonuses_schema_1 = require("../schema/payroll-bonuses.schema");
-const pay_groups_schema_1 = require("../schema/pay-groups.schema");
 const payroll_settings_service_1 = require("../settings/payroll-settings.service");
 const compensation_service_1 = require("../../core/employees/compensation/compensation.service");
-const pay_group_allowances_schema_1 = require("../schema/pay-group-allowances.schema");
 const date_fns_1 = require("date-fns");
 const tax_service_1 = require("../tax/tax.service");
 const bullmq_1 = require("bullmq");
@@ -35,19 +32,36 @@ const bullmq_2 = require("@nestjs/bullmq");
 const payslip_service_1 = require("../payslip/payslip.service");
 const payslip_schema_1 = require("../schema/payslip.schema");
 const workingDays_utils_1 = require("../../../utils/workingDays.utils");
-const payroll_adjustments_schema_1 = require("../schema/payroll-adjustments.schema");
 const salary_advance_service_1 = require("../salary-advance/salary-advance.service");
 const pusher_service_1 = require("../../notification/services/pusher.service");
 const decimal_js_1 = require("decimal.js");
-const deduction_schema_1 = require("../schema/deduction.schema");
 const salary_advance_schema_1 = require("../salary-advance/schema/salary-advance.schema");
 const expense_schema_1 = require("../../expenses/schema/expense.schema");
 const payroll_approval_service_1 = require("../../notification/services/payroll-approval.service");
 const config_1 = require("@nestjs/config");
+const hot_queries_1 = require("../../../drizzle/hot-queries");
+const D_ZERO = new decimal_js_1.default(0);
+const D_RATE_007 = new decimal_js_1.default(0.07);
+const D_RATE_011 = new decimal_js_1.default(0.11);
+const D_RATE_015 = new decimal_js_1.default(0.15);
+const D_RATE_019 = new decimal_js_1.default(0.19);
+const D_RATE_021 = new decimal_js_1.default(0.21);
+const D_RATE_024 = new decimal_js_1.default(0.24);
+const D_HUNDRED = new decimal_js_1.default(100);
+const toDec = (v) => v instanceof decimal_js_1.default ? v : new decimal_js_1.default(v);
+const BRACKETS = [
+    { limit: new decimal_js_1.default(300_000), rate: D_RATE_007 },
+    { limit: new decimal_js_1.default(600_000), rate: D_RATE_011 },
+    { limit: new decimal_js_1.default(1_100_000), rate: D_RATE_015 },
+    { limit: new decimal_js_1.default(1_600_000), rate: D_RATE_019 },
+    { limit: new decimal_js_1.default(3_200_000), rate: D_RATE_021 },
+    { limit: new decimal_js_1.default(Infinity), rate: D_RATE_024 },
+];
 let RunService = class RunService {
-    constructor(payrollQueue, db, auditService, payrollSettingsService, compensationService, taxService, payslipService, salaryAdvanceService, pusher, payrollApprovalEmailService, configService) {
+    constructor(payrollQueue, db, hot, auditService, payrollSettingsService, compensationService, taxService, payslipService, salaryAdvanceService, pusher, payrollApprovalEmailService, configService) {
         this.payrollQueue = payrollQueue;
         this.db = db;
+        this.hot = hot;
         this.auditService = auditService;
         this.payrollSettingsService = payrollSettingsService;
         this.compensationService = compensationService;
@@ -65,25 +79,19 @@ let RunService = class RunService {
         const relief = new decimal_js_1.default(taxRelief);
         const redefinedAnnualSalary = annual.minus(pension).minus(nhf);
         const personalAllowance = relief.plus(redefinedAnnualSalary.mul(0.2));
-        const taxableIncome = decimal_js_1.default.max(annual.minus(personalAllowance).minus(pension).minus(nhf), 0);
-        const brackets = [
-            { limit: new decimal_js_1.default(300_000), rate: 0.07 },
-            { limit: new decimal_js_1.default(600_000), rate: 0.11 },
-            { limit: new decimal_js_1.default(1_100_000), rate: 0.15 },
-            { limit: new decimal_js_1.default(1_600_000), rate: 0.19 },
-            { limit: new decimal_js_1.default(3_200_000), rate: 0.21 },
-            { limit: new decimal_js_1.default(Infinity), rate: 0.24 },
-        ];
-        let paye = new decimal_js_1.default(0);
-        let remaining = new decimal_js_1.default(taxableIncome);
-        let previousLimit = new decimal_js_1.default(0);
-        for (const bracket of brackets) {
-            if (remaining.lte(0))
+        const taxableIncome = decimal_js_1.default.max(annual.minus(personalAllowance).minus(pension).minus(nhf), D_ZERO);
+        let paye = D_ZERO;
+        let remaining = taxableIncome;
+        let previousLimit = D_ZERO;
+        for (let i = 0; i < BRACKETS.length && remaining.gt(D_ZERO); i++) {
+            const { limit, rate } = BRACKETS[i];
+            const span = limit.minus(previousLimit);
+            const range = remaining.lt(span) ? remaining : span;
+            if (range.lte(D_ZERO))
                 break;
-            const range = decimal_js_1.default.min(remaining, bracket.limit.minus(previousLimit));
-            paye = paye.plus(range.mul(bracket.rate));
+            paye = paye.plus(range.mul(rate));
             remaining = remaining.minus(range);
-            previousLimit = bracket.limit;
+            previousLimit = limit;
         }
         return {
             paye: paye.toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP),
@@ -91,81 +99,50 @@ let RunService = class RunService {
         };
     }
     percentOf(base, pct) {
-        return new decimal_js_1.default(base)
-            .mul(pct)
-            .div(100)
+        return toDec(base)
+            .mul(toDec(pct))
+            .div(D_HUNDRED)
             .toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP);
     }
     round2(value) {
-        return Number(new decimal_js_1.default(value).toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP).toFixed(2));
+        return Number(toDec(value).toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP).toFixed(2));
     }
     async calculatePayroll(employeeId, payrollDate, payrollRunId, companyId, userId, workflowId) {
         const payrollMonth = (0, date_fns_1.format)(payrollDate, 'yyyy-MM');
         const employee = await this.compensationService.findAll(employeeId);
         const payrollStart = new Date(`${payrollMonth}-01T00:00:00Z`);
-        const payrollEnd = new Date(payrollStart);
-        payrollEnd.setMonth(payrollEnd.getMonth() + 1);
-        payrollEnd.setDate(0);
         const startDate = payrollStart;
         const endDate = new Date(payrollStart);
         endDate.setMonth(endDate.getMonth() + 1);
         endDate.setDate(0);
-        const isStarter = new Date(employee.startDate) >= new Date(payrollStart) &&
-            new Date(employee.startDate) <= new Date(payrollEnd);
-        const [unpaidAdvance, activeDeductions, bonuses, payGroup, payrollSettings, groupRows, adjustments, activeExpenses,] = await Promise.all([
+        const startISO = startDate.toISOString().slice(0, 10);
+        const endISO = endDate.toISOString().slice(0, 10);
+        const isStarter = new Date(employee.startDate) >= startDate &&
+            new Date(employee.startDate) <= endDate;
+        const [unpaidAdvance, activeDeductions, bonuses, payGroupRow, payrollSettings, groupRows, adjustments, activeExpenses,] = await Promise.all([
             this.salaryAdvanceService.getUnpaidAdvanceDeductions(employee.employeeId),
-            this.db
-                .select()
-                .from(deduction_schema_1.employeeDeductions)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(deduction_schema_1.employeeDeductions.employeeId, employeeId), (0, drizzle_orm_1.eq)(deduction_schema_1.employeeDeductions.isActive, true), (0, drizzle_orm_1.lte)(deduction_schema_1.employeeDeductions.startDate, payrollDate), (0, drizzle_orm_1.or)((0, drizzle_orm_1.gte)(deduction_schema_1.employeeDeductions.endDate, payrollDate), (0, drizzle_orm_1.isNull)(deduction_schema_1.employeeDeductions.endDate)))),
-            this.db
-                .select()
-                .from(payroll_bonuses_schema_1.payrollBonuses)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_bonuses_schema_1.payrollBonuses.employeeId, employeeId), (0, drizzle_orm_1.gte)(payroll_bonuses_schema_1.payrollBonuses.effectiveDate, startDate.toISOString().slice(0, 10)), (0, drizzle_orm_1.lt)(payroll_bonuses_schema_1.payrollBonuses.effectiveDate, endDate.toISOString().slice(0, 10))))
-                .execute(),
-            this.db
-                .select()
-                .from(pay_groups_schema_1.payGroups)
-                .where((0, drizzle_orm_1.eq)(pay_groups_schema_1.payGroups.id, employee.payGroupId))
-                .execute(),
+            this.hot.activeDeductions(employeeId, payrollDate),
+            this.hot.bonusesByRange(employeeId, startISO, endISO),
+            this.hot.payGroupById(employee.payGroupId),
             this.payrollSettingsService.getAllPayrollSettings(companyId),
-            this.db
-                .select({
-                type: pay_group_allowances_schema_1.payGroupAllowances.allowanceType,
-                valueType: pay_group_allowances_schema_1.payGroupAllowances.valueType,
-                pct: pay_group_allowances_schema_1.payGroupAllowances.percentage,
-                fixed: pay_group_allowances_schema_1.payGroupAllowances.fixedAmount,
-            })
-                .from(pay_group_allowances_schema_1.payGroupAllowances)
-                .where((0, drizzle_orm_1.eq)(pay_group_allowances_schema_1.payGroupAllowances.payGroupId, employee.payGroupId))
-                .execute(),
-            this.db
-                .select()
-                .from(payroll_adjustments_schema_1.payrollAdjustments)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_adjustments_schema_1.payrollAdjustments.companyId, companyId), (0, drizzle_orm_1.eq)(payroll_adjustments_schema_1.payrollAdjustments.employeeId, employeeId), (0, drizzle_orm_1.eq)(payroll_adjustments_schema_1.payrollAdjustments.payrollDate, payrollDate)))
-                .execute(),
-            this.db
-                .select({
-                id: expense_schema_1.expenses.id,
-                category: expense_schema_1.expenses.category,
-                amount: expense_schema_1.expenses.amount,
-            })
-                .from(expense_schema_1.expenses)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(expense_schema_1.expenses.employeeId, employeeId), (0, drizzle_orm_1.eq)(expense_schema_1.expenses.status, 'pending'), (0, drizzle_orm_1.gte)(expense_schema_1.expenses.submittedAt, startDate), (0, drizzle_orm_1.lte)(expense_schema_1.expenses.submittedAt, endDate))),
+            this.hot.groupAllowances(employee.payGroupId),
+            this.hot.adjustmentsByDate(companyId, employeeId, payrollDate),
+            this.hot.expensesByRange(employeeId, startISO, endISO),
         ]);
-        const unpaidAdvanceAmount = new decimal_js_1.default(unpaidAdvance?.[0]?.monthlyDeduction || 0);
+        const unpaidAdvanceAmount = toDec(unpaidAdvance?.[0]?.monthlyDeduction || 0);
         const taxableAdjustments = adjustments.filter((a) => a.taxable);
         const nonTaxableAdjustments = adjustments.filter((a) => !a.taxable);
-        const totalTaxableAdjustments = taxableAdjustments.reduce((sum, a) => sum.plus(a.amount || 0), new decimal_js_1.default(0));
-        const totalBonuses = (bonuses || []).reduce((sum, b) => sum.plus(b.amount || 0), new decimal_js_1.default(0));
-        let grossPay = new decimal_js_1.default(employee.grossSalary).div(12);
+        const D_ZERO = new decimal_js_1.default(0);
+        const D_HUNDRED = new decimal_js_1.default(100);
+        const totalTaxableAdjustments = taxableAdjustments.reduce((sum, a) => sum.plus(a.amount || 0), D_ZERO);
+        const totalBonuses = (bonuses || []).reduce((sum, b) => sum.plus(b.amount || 0), D_ZERO);
+        let grossPay = toDec(employee.grossSalary).div(12);
         if (payrollSettings.enable_proration && isStarter) {
             const joinDate = new Date(employee.startDate);
             const leaveDate = employee.endDate ? new Date(employee.endDate) : null;
             let fromDate = startDate;
-            if (joinDate >= startDate && joinDate <= endDate) {
+            if (joinDate >= startDate && joinDate <= endDate)
                 fromDate = joinDate;
-            }
             let toDate = endDate;
             if (leaveDate && leaveDate >= startDate && leaveDate <= endDate) {
                 toDate = leaveDate;
@@ -186,7 +163,7 @@ let RunService = class RunService {
                 daysInPeriod = countDays(startDate, endDate);
                 daysWorked = countDays(fromDate, toDate);
             }
-            grossPay = grossPay.mul(new decimal_js_1.default(daysWorked).div(daysInPeriod));
+            grossPay = grossPay.mul(toDec(daysWorked).div(daysInPeriod));
         }
         const grossSalary = grossPay
             .plus(totalBonuses)
@@ -215,20 +192,24 @@ let RunService = class RunService {
         const fixedAllowances = merged
             .filter((a) => a.valueType === 'fixed')
             .map((a) => ({ type: a.type, fixed: Number(a.fixed) }));
-        const fixedSum = fixedAllowances.reduce((sum, a) => sum.plus(a.fixed), new decimal_js_1.default(0));
-        if (fixedSum > grossSalary) {
+        const fixedSum = fixedAllowances.reduce((sum, a) => sum.plus(a.fixed), D_ZERO);
+        if (fixedSum.gt(grossSalary)) {
             throw new common_1.BadRequestException(`Fixed allowances (₦${(fixedSum.toNumber() / 100).toFixed(2)}) exceed gross salary (₦${(grossSalary.toNumber() / 100).toFixed(2)}).`);
         }
         const budget = grossSalary.minus(fixedSum);
-        let basicAmt = this.percentOf(budget, payrollSettings.basic_percent);
-        const housingAmt = this.percentOf(budget, payrollSettings.housing_percent);
-        const transportAmt = this.percentOf(budget, payrollSettings.transport_percent);
+        const percentOf = (base, pct) => new decimal_js_1.default(base)
+            .mul(pct)
+            .div(100)
+            .toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP);
+        let basicAmt = percentOf(budget, basicPct);
+        const housingAmt = percentOf(budget, housingPct);
+        const transportAmt = percentOf(budget, transportPct);
         const pctAllowances = merged
             .filter((a) => a.valueType === 'percentage')
             .map((a) => ({
             type: a.type,
-            amount: new decimal_js_1.default(a.pct ?? 0)
-                .div(100)
+            amount: toDec(a.pct ?? 0)
+                .div(D_HUNDRED)
                 .mul(budget)
                 .toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP),
         }));
@@ -244,85 +225,66 @@ let RunService = class RunService {
             })),
         ];
         const sumBHT = basicAmt.plus(housingAmt).plus(transportAmt);
-        const sumPct = pctAllowances.reduce((s, a) => s.plus(a.amount), new decimal_js_1.default(0));
-        const sumFixed = fixedSum;
-        const totalUsed = sumBHT
-            .plus(new decimal_js_1.default(sumPct))
-            .plus(new decimal_js_1.default(sumFixed));
+        const sumPct = pctAllowances.reduce((s, a) => s.plus(a.amount), D_ZERO);
+        const totalUsed = sumBHT.plus(sumPct).plus(fixedSum);
         const diff = grossSalary.minus(totalUsed);
         basicAmt = basicAmt.plus(diff);
-        const payGroupSettings = payGroup[0] || {};
+        const payGroupSettings = payGroupRow || {};
         const relief = payrollSettings.default_tax_relief ?? 200000;
         const bhtTotal = basicAmt.plus(housingAmt).plus(transportAmt);
-        const empPct = new decimal_js_1.default(payrollSettings.default_pension_employee_percent || 8);
-        const erPct = new decimal_js_1.default(payrollSettings.default_pension_employer_percent || 10);
-        const nhfPct = new decimal_js_1.default(payrollSettings.nhf_percent || 2.5);
+        const empPct = toDec(payrollSettings.default_pension_employee_percent || 8);
+        const erPct = toDec(payrollSettings.default_pension_employer_percent || 10);
+        const nhfPct = toDec(payrollSettings.nhf_percent || 2.5);
         const applyPension = Boolean(payGroupSettings.applyPension ?? payrollSettings.apply_pension ?? false);
         const applyNHF = Boolean((payGroupSettings.applyNhf ?? payrollSettings.apply_nhf ?? false) &&
             employee.applyNhf);
         const employeePensionContribution = applyPension
-            ? this.percentOf(bhtTotal, empPct)
-            : new decimal_js_1.default(0);
+            ? percentOf(bhtTotal, empPct)
+            : D_ZERO;
         const employerPensionContribution = applyPension
-            ? this.percentOf(bhtTotal, erPct)
-            : new decimal_js_1.default(0);
-        const nhfContribution = applyNHF
-            ? this.percentOf(basicAmt, nhfPct)
-            : new decimal_js_1.default(0);
+            ? percentOf(bhtTotal, erPct)
+            : D_ZERO;
+        const nhfContribution = applyNHF ? percentOf(basicAmt, nhfPct) : D_ZERO;
         const annualizedGross = grossSalary.mul(12);
-        const { paye, taxableIncome } = this.calculatePAYE(annualizedGross, employeePensionContribution, nhfContribution, new decimal_js_1.default(relief));
-        const payeDec = new decimal_js_1.default(paye);
-        const taxableIncomeDec = new decimal_js_1.default(taxableIncome);
-        const monthlyPAYE = payeDec
+        const { paye, taxableIncome } = this.calculatePAYE(annualizedGross, employeePensionContribution, nhfContribution, toDec(relief));
+        const monthlyPAYE = toDec(paye)
             .div(12)
             .toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP);
-        const monthlyTaxableIncome = taxableIncomeDec
+        const monthlyTaxableIncome = toDec(taxableIncome)
             .div(12)
             .toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP);
         const deductionBreakdown = [];
         const totalPostTaxDeductions = (activeDeductions || []).reduce((sum, deduction) => {
             const value = deduction.rateType === 'percentage'
-                ? grossSalary.mul(new decimal_js_1.default(deduction.rateValue)).div(100)
-                : new decimal_js_1.default(deduction.rateValue);
+                ? grossSalary.mul(toDec(deduction.rateValue)).div(D_HUNDRED)
+                : toDec(deduction.rateValue);
             deductionBreakdown.push({
                 typeId: deduction.deductionTypeId,
                 amount: value.toFixed(2),
             });
             return sum.plus(value);
-        }, new decimal_js_1.default(0));
-        const totalNonTaxable = nonTaxableAdjustments.reduce((sum, a) => sum.plus(a.amount || 0), new decimal_js_1.default(0));
-        const reimbursedTotal = activeExpenses.reduce((sum, expense) => sum.plus(new decimal_js_1.default(expense.amount || 0)), new decimal_js_1.default(0));
+        }, D_ZERO);
+        const totalNonTaxable = nonTaxableAdjustments.reduce((sum, a) => sum.plus(a.amount || 0), D_ZERO);
+        const reimbursedTotal = activeExpenses.reduce((sum, expense) => sum.plus(toDec(expense.amount || 0)), D_ZERO);
         const reimbursedExpenses = activeExpenses.map((expense) => ({
             id: expense.id,
             expenseName: expense.category,
-            amount: new decimal_js_1.default(expense.amount || 0).toFixed(2),
+            amount: toDec(expense.amount || 0).toFixed(2),
         }));
-        const totalDeductions = new decimal_js_1.default(monthlyPAYE)
+        const totalDeductions = monthlyPAYE
             .plus(employeePensionContribution)
             .plus(nhfContribution)
             .plus(totalPostTaxDeductions);
-        const netSalary = decimal_js_1.default.max(new decimal_js_1.default(grossSalary)
+        const netSalary = decimal_js_1.default.max(grossSalary
             .plus(totalNonTaxable)
             .plus(reimbursedTotal)
             .minus(unpaidAdvanceAmount)
-            .minus(totalDeductions), 0).toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP);
+            .minus(totalDeductions), D_ZERO).toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP);
         const savedPayroll = await this.db.transaction(async (trx) => {
             const multi = payrollSettings.multi_level_approval;
             const approvalStatus = multi ? 'pending' : 'approved';
             const approvalDate = multi ? null : new Date().toISOString();
             const approvalRemarks = multi ? null : 'Auto-approved';
-            await trx
-                .delete(payroll_run_schema_1.payroll)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_run_schema_1.payroll.employeeId, employeeId), (0, drizzle_orm_1.eq)(payroll_run_schema_1.payroll.payrollDate, payrollDate), (0, drizzle_orm_1.eq)(payroll_run_schema_1.payroll.companyId, companyId)))
-                .execute();
-            await trx
-                .delete(payroll_ytd_schema_1.payrollYtd)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_ytd_schema_1.payrollYtd.employeeId, employeeId), (0, drizzle_orm_1.eq)(payroll_ytd_schema_1.payrollYtd.payrollDate, payrollDate), (0, drizzle_orm_1.eq)(payroll_ytd_schema_1.payrollYtd.companyId, companyId)))
-                .execute();
-            await trx
-                .delete(payroll_allowances_schema_1.payrollAllowances)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_allowances_schema_1.payrollAllowances.payrollId, payrollRunId), (0, drizzle_orm_1.eq)(payroll_allowances_schema_1.payrollAllowances.employeeId, employeeId)))
-                .execute();
             const [inserted] = await trx
                 .insert(payroll_run_schema_1.payroll)
                 .values({
@@ -346,23 +308,50 @@ let RunService = class RunService {
                 reimbursements: reimbursedExpenses,
                 payrollDate,
                 payrollMonth,
-                approvalStatus: approvalStatus,
+                approvalStatus,
                 approvalDate,
-                approvalRemarks: approvalRemarks,
+                approvalRemarks,
                 requestedBy: userId,
-                workflowId: workflowId,
+                workflowId,
                 currentStep: multi ? 0 : 1,
-                isStarter: isStarter ? true : false,
+                isStarter: !!isStarter,
+                updatedAt: new Date(),
+            })
+                .onConflictDoUpdate({
+                target: [payroll_run_schema_1.payroll.employeeId, payroll_run_schema_1.payroll.payrollDate, payroll_run_schema_1.payroll.companyId],
+                set: {
+                    payrollRunId: (0, drizzle_orm_1.sql) `EXCLUDED.payroll_run_id`,
+                    basic: (0, drizzle_orm_1.sql) `EXCLUDED.basic`,
+                    housing: (0, drizzle_orm_1.sql) `EXCLUDED.housing`,
+                    transport: (0, drizzle_orm_1.sql) `EXCLUDED.transport`,
+                    grossSalary: (0, drizzle_orm_1.sql) `EXCLUDED.gross_salary`,
+                    pensionContribution: (0, drizzle_orm_1.sql) `EXCLUDED.pension_contribution`,
+                    employerPensionContribution: (0, drizzle_orm_1.sql) `EXCLUDED.employer_pension_contribution`,
+                    bonuses: (0, drizzle_orm_1.sql) `EXCLUDED.bonuses`,
+                    nhfContribution: (0, drizzle_orm_1.sql) `EXCLUDED.nhf_contribution`,
+                    payeTax: (0, drizzle_orm_1.sql) `EXCLUDED.paye_tax`,
+                    voluntaryDeductions: (0, drizzle_orm_1.sql) `EXCLUDED.voluntary_deductions`,
+                    totalDeductions: (0, drizzle_orm_1.sql) `EXCLUDED.total_deductions`,
+                    taxableIncome: (0, drizzle_orm_1.sql) `EXCLUDED.taxable_income`,
+                    netSalary: (0, drizzle_orm_1.sql) `EXCLUDED.net_salary`,
+                    salaryAdvance: (0, drizzle_orm_1.sql) `EXCLUDED.salary_advance`,
+                    reimbursements: (0, drizzle_orm_1.sql) `EXCLUDED.reimbursements`,
+                    approvalStatus: (0, drizzle_orm_1.sql) `EXCLUDED.approval_status`,
+                    approvalDate: (0, drizzle_orm_1.sql) `EXCLUDED.approval_date`,
+                    approvalRemarks: (0, drizzle_orm_1.sql) `EXCLUDED.approval_remarks`,
+                    requestedBy: (0, drizzle_orm_1.sql) `EXCLUDED.requested_by`,
+                    workflowId: (0, drizzle_orm_1.sql) `EXCLUDED.workflow_id`,
+                    currentStep: (0, drizzle_orm_1.sql) `EXCLUDED.current_step`,
+                    isStarter: (0, drizzle_orm_1.sql) `EXCLUDED.is_starter`,
+                    updatedAt: (0, drizzle_orm_1.sql) `now()`,
+                    payrollMonth: (0, drizzle_orm_1.sql) `EXCLUDED.payroll_month`,
+                },
             })
                 .returning()
                 .execute();
-            const [emp] = await trx
-                .select({
-                firstName: schema_1.employees.firstName,
-                lastName: schema_1.employees.lastName,
-            })
-                .from(schema_1.employees)
-                .where((0, drizzle_orm_1.eq)(schema_1.employees.id, inserted.employeeId))
+            await trx
+                .delete(payroll_ytd_schema_1.payrollYtd)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_ytd_schema_1.payrollYtd.employeeId, employeeId), (0, drizzle_orm_1.eq)(payroll_ytd_schema_1.payrollYtd.payrollDate, payrollDate), (0, drizzle_orm_1.eq)(payroll_ytd_schema_1.payrollYtd.companyId, companyId)))
                 .execute();
             await trx
                 .insert(payroll_ytd_schema_1.payrollYtd)
@@ -386,21 +375,31 @@ let RunService = class RunService {
                 transport: transportAmt.toFixed(2),
             })
                 .execute();
+            await trx
+                .delete(payroll_allowances_schema_1.payrollAllowances)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_allowances_schema_1.payrollAllowances.payrollId, payrollRunId), (0, drizzle_orm_1.eq)(payroll_allowances_schema_1.payrollAllowances.employeeId, employeeId)))
+                .execute();
             if (payrollAllowancesData.length > 0) {
                 await trx
                     .insert(payroll_allowances_schema_1.payrollAllowances)
                     .values(payrollAllowancesData.map((a) => ({
                     payrollId: inserted.payrollRunId,
                     allowance_type: a.allowanceType,
-                    allowanceAmount: new decimal_js_1.default(a.allowanceAmount).toFixed(2),
+                    allowanceAmount: toDec(a.allowanceAmount).toFixed(2),
                     employeeId: inserted.employeeId,
                 })))
                     .execute();
             }
-            return {
-                ...inserted,
-                name: `${emp.firstName} ${emp.lastName}`,
-            };
+            const [empRow] = await trx
+                .select({
+                firstName: schema_1.employees.firstName,
+                lastName: schema_1.employees.lastName,
+            })
+                .from(schema_1.employees)
+                .where((0, drizzle_orm_1.eq)(schema_1.employees.id, inserted.employeeId))
+                .limit(1);
+            const fullName = empRow ? `${empRow.firstName} ${empRow.lastName}` : '';
+            return { ...inserted, name: fullName };
         });
         return savedPayroll;
     }
@@ -413,6 +412,7 @@ let RunService = class RunService {
             .select({
             id: schema_1.employees.id,
             employmentStatus: schema_1.employees.employmentStatus,
+            payGroupId: schema_1.employees.payGroupId,
         })
             .from(schema_1.employees)
             .where((0, drizzle_orm_1.and)(...baseConditions))
@@ -477,9 +477,7 @@ let RunService = class RunService {
             const createdSteps = await this.db
                 .insert(schema_1.approvalSteps)
                 .values(steps)
-                .returning({
-                id: schema_1.approvalSteps.id,
-            })
+                .returning({ id: schema_1.approvalSteps.id })
                 .execute();
             await this.db
                 .insert(payroll_run_schema_1.payrollApprovals)
@@ -513,13 +511,59 @@ let RunService = class RunService {
                     .execute();
             }
         }
-        const payrollResults = await (0, p_map_1.default)(employeesList, async (employee) => {
-            return this.calculatePayroll(employee.id, payrollDate, payrollRunId, companyId, user.id, workflowId);
-        }, { concurrency: 10 });
-        if (!multi) {
-            await this.payslipService.generatePayslipsForCompany(companyId, payrollResults[0].payrollMonth);
+        const empIds = employeesList.map((e) => e.id);
+        const payGroupIds = Array.from(new Set(employeesList.map((e) => e.payGroupId).filter(Boolean)));
+        const month = payrollDate.slice(0, 7);
+        const startISO = `${month}-01`;
+        const endISO = new Date(`${month}-01T00:00:00Z`);
+        endISO.setMonth(endISO.getMonth() + 1);
+        endISO.setDate(0);
+        const endISOstr = endISO.toISOString().slice(0, 10);
+        const [deductionsRows, bonusesRows, payGroupsRows, groupAllowRows, adjustmentsRows, expensesRows,] = await Promise.all([
+            this.hot.activeDeductionsForMany(empIds, payrollDate),
+            this.hot.bonusesByRangeForMany(empIds, startISO, endISOstr),
+            this.hot.payGroupsByIds(payGroupIds),
+            this.hot.groupAllowancesForPayGroups(payGroupIds),
+            this.hot.adjustmentsByDateForMany(companyId, empIds, payrollDate),
+            this.hot.expensesByRangeForMany(empIds, startISO, endISOstr),
+        ]);
+        const toMapArray = (rows, key) => {
+            const m = new Map();
+            for (const r of rows) {
+                const k = String(r[key]);
+                const arr = m.get(k);
+                if (arr)
+                    arr.push(r);
+                else
+                    m.set(k, [r]);
+            }
+            return m;
+        };
+        const deductionsByEmp = toMapArray(deductionsRows, 'employee_id');
+        const bonusesByEmp = toMapArray(bonusesRows, 'employee_id');
+        const adjustmentsByEmp = toMapArray(adjustmentsRows, 'employee_id');
+        const expensesByEmp = toMapArray(expensesRows, 'employee_id');
+        const payGroupById = new Map(payGroupsRows.map((r) => [String(r.id), r]));
+        const groupAllowByPg = toMapArray(groupAllowRows, 'pay_group_id');
+        const runCache = {
+            deductionsByEmp,
+            bonusesByEmp,
+            adjustmentsByEmp,
+            expensesByEmp,
+            payGroupById,
+            groupAllowByPg,
+        };
+        this.hot.setRunCache(runCache);
+        try {
+            const payrollResults = await (0, p_map_1.default)(employeesList, async (employee) => this.calculatePayroll(employee.id, payrollDate, payrollRunId, companyId, user.id, workflowId), { concurrency: 12 });
+            if (!multi) {
+                await this.payslipService.generatePayslipsForCompany(companyId, payrollResults[0].payrollMonth);
+            }
+            return payrollResults;
         }
-        return payrollResults;
+        finally {
+            this.hot.clearRunCache();
+        }
     }
     async findOnePayRun(runId) {
         const exists = await this.db
@@ -870,7 +914,9 @@ exports.RunService = RunService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, bullmq_2.InjectQueue)('payrollQueue')),
     __param(1, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [bullmq_1.Queue, Object, audit_service_1.AuditService,
+    __param(2, (0, common_1.Inject)(drizzle_module_1.HOT_QUERIES)),
+    __metadata("design:paramtypes", [bullmq_1.Queue, Object, hot_queries_1.HotQueries,
+        audit_service_1.AuditService,
         payroll_settings_service_1.PayrollSettingsService,
         compensation_service_1.CompensationService,
         tax_service_1.TaxService,

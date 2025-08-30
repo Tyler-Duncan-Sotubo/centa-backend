@@ -30,10 +30,10 @@ export declare class ExpensesService {
         updatedAt: Date | null;
         companyId: string;
         employeeId: string;
-        category: string;
-        purpose: string;
         amount: string;
         status: string;
+        category: string;
+        purpose: string;
         submittedAt: Date | null;
         receiptUrl: string | null;
         paymentMethod: string | null;
@@ -47,10 +47,10 @@ export declare class ExpensesService {
         updatedAt: Date | null;
         companyId: string;
         employeeId: string;
-        category: string;
-        purpose: string;
         amount: string;
         status: string;
+        category: string;
+        purpose: string;
         submittedAt: Date | null;
         receiptUrl: string | null;
         paymentMethod: string | null;

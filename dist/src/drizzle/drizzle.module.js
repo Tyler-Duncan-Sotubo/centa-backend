@@ -6,13 +6,16 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DrizzleModule = exports.DRIZZLE = void 0;
+exports.DrizzleModule = exports.HOT_QUERIES = exports.PG_POOL = exports.DRIZZLE = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const pg_1 = require("pg");
 const node_postgres_1 = require("drizzle-orm/node-postgres");
 const schema = require("./schema");
+const hot_queries_1 = require("./hot-queries");
 exports.DRIZZLE = Symbol('DRIZZLE');
+exports.PG_POOL = Symbol('PG_POOL');
+exports.HOT_QUERIES = Symbol('HOT_QUERIES');
 let DrizzleModule = class DrizzleModule {
 };
 exports.DrizzleModule = DrizzleModule;
@@ -22,7 +25,7 @@ exports.DrizzleModule = DrizzleModule = __decorate([
         imports: [config_1.ConfigModule],
         providers: [
             {
-                provide: 'PG_POOL',
+                provide: exports.PG_POOL,
                 inject: [config_1.ConfigService],
                 useFactory: (config) => {
                     const databaseURL = config.get('DATABASE_URL');
@@ -46,15 +49,20 @@ exports.DrizzleModule = DrizzleModule = __decorate([
             },
             {
                 provide: exports.DRIZZLE,
-                inject: ['PG_POOL'],
+                inject: [exports.PG_POOL],
                 useFactory: (pool) => {
                     const db = (0, node_postgres_1.drizzle)(pool, { schema });
                     return db;
                 },
             },
             {
+                provide: exports.HOT_QUERIES,
+                inject: [exports.PG_POOL],
+                useFactory: (pool) => new hot_queries_1.HotQueries(pool),
+            },
+            {
                 provide: 'DB_SHUTDOWN_HOOK',
-                inject: ['PG_POOL'],
+                inject: [exports.PG_POOL],
                 useFactory: (pool) => ({
                     async onApplicationShutdown() {
                         if (process.env.NODE_ENV === 'production') {
@@ -65,7 +73,7 @@ exports.DrizzleModule = DrizzleModule = __decorate([
                 }),
             },
         ],
-        exports: [exports.DRIZZLE],
+        exports: [exports.DRIZZLE, exports.PG_POOL, exports.HOT_QUERIES],
     })
 ], DrizzleModule);
 //# sourceMappingURL=drizzle.module.js.map

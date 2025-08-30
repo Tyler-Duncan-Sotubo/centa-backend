@@ -325,8 +325,8 @@ export declare class LocationsService {
         updatedAt: Date;
     }>;
     create(dto: CreateLocationDto, user: User, ip: string): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         isActive: boolean | null;

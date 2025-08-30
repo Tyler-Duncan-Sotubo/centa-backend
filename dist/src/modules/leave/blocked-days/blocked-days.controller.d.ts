@@ -7,9 +7,9 @@ export declare class BlockedDaysController extends BaseController {
     private readonly blockedDaysService;
     constructor(blockedDaysService: BlockedDaysService);
     create(createBlockedDayDto: CreateBlockedDayDto, user: User): Promise<{
+        name: string;
         date: string;
         id: string;
-        name: string;
         createdAt: Date | null;
         companyId: string | null;
         createdBy: string;

@@ -9,8 +9,8 @@ export declare class CategoryService {
     constructor(db: db, auditService: AuditService, cache: CacheService);
     private tags;
     createCategory(name: string, user: User): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         companyId: string;
     }>;

@@ -7,16 +7,16 @@ export declare class AssetsController extends BaseController {
     private readonly assetsService;
     constructor(assetsService: AssetsService);
     create(createAssetDto: CreateAssetDto, user: User): Promise<{
-        status: string;
-        id: string;
         name: string;
+        id: string;
         createdAt: string | null;
         updatedAt: string | null;
         companyId: string;
-        category: string;
         locationId: string;
         isDeleted: boolean | null;
         employeeId: string | null;
+        status: string;
+        category: string;
         internalId: string;
         modelName: string | null;
         color: string | null;
@@ -34,16 +34,16 @@ export declare class AssetsController extends BaseController {
     bulkCreate(rows: any[], user: User): Promise<{
         insertedCount: number;
         inserted: {
-            status: string;
-            id: string;
             name: string;
+            id: string;
             createdAt: string | null;
             updatedAt: string | null;
             companyId: string;
-            category: string;
             locationId: string;
             isDeleted: boolean | null;
             employeeId: string | null;
+            status: string;
+            category: string;
             internalId: string;
             modelName: string | null;
             color: string | null;

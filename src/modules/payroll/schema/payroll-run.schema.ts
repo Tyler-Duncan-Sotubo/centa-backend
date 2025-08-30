@@ -9,6 +9,7 @@ import {
   decimal,
   jsonb,
   index,
+  unique,
 } from 'drizzle-orm/pg-core';
 import { employees, companies, users } from 'src/drizzle/schema';
 import {
@@ -140,6 +141,25 @@ export const payroll = pgTable(
     index('payroll_workflow_id_idx').on(t.workflowId),
     index('payroll_current_step_idx').on(t.currentStep),
     index('payroll_created_at_idx').on(t.createdAt),
+    unique('payroll_emp_date_co_uniq').on(
+      t.employeeId,
+      t.payrollDate,
+      t.companyId,
+    ),
+    index('payroll_emp_date_co_idx').on(
+      t.employeeId,
+      t.payrollDate,
+      t.companyId,
+    ),
+    index('payroll_co_date_idx').on(t.companyId, t.payrollDate),
+    index('payroll_run_emp_idx').on(t.payrollRunId, t.employeeId),
+    index('payroll_co_month_idx').on(t.companyId, t.payrollMonth),
+    index('payroll_co_status_date_idx').on(
+      t.companyId,
+      t.approvalStatus,
+      t.payrollDate,
+    ),
+    index('payroll_workflow_step_idx').on(t.workflowId, t.currentStep),
   ],
 );
 

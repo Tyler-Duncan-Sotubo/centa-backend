@@ -17,13 +17,13 @@ export declare class PermissionsService {
         key: string;
     }>;
     createRole(companyId: string, name: string): Promise<{
-        id: string;
         name: string;
+        id: string;
         companyId: string;
     }>;
     createDefaultRoles(companyId: string): Promise<{
-        id: string;
         name: string;
+        id: string;
         companyId: string;
     }[]>;
     getRolesByCompany(companyId: string): Promise<{

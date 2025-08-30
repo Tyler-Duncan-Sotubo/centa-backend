@@ -9,14 +9,14 @@ export declare class PayrollAdjustmentsController {
         id: string;
         createdAt: string | null;
         companyId: string;
-        createdBy: string | null;
-        type: string;
         isDeleted: boolean | null;
         employeeId: string;
-        notes: string | null;
-        label: string | null;
         payrollDate: string;
         amount: number;
+        type: string;
+        createdBy: string | null;
+        notes: string | null;
+        label: string | null;
         taxable: boolean | null;
         proratable: boolean | null;
         recurring: boolean | null;

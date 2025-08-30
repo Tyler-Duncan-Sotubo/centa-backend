@@ -7,8 +7,8 @@ export declare class PayGroupsController extends BaseController {
     private readonly payGroupsService;
     constructor(payGroupsService: PayGroupsService);
     createEmployeeGroup(dto: CreatePayGroupDto, user: User, ip: string): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;

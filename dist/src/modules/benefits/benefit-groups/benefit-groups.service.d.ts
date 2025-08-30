@@ -11,8 +11,8 @@ export declare class BenefitGroupsService {
     constructor(db: db, auditService: AuditService, cache: CacheService);
     private tags;
     create(dto: CreateBenefitGroupDto, user: User): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         companyId: string;
         description: string | null;

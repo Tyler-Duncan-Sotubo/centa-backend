@@ -11,8 +11,8 @@ export declare class PipelineService {
     constructor(db: db, auditService: AuditService, cache: CacheService);
     private tags;
     createTemplate(user: User, dto: CreatePipelineDto): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         companyId: string | null;
         description: string | null;
@@ -54,8 +54,8 @@ export declare class PipelineService {
         createdAt: Date | null;
     }[]>;
     addStageToJob(jobId: string, stageName: string, order?: number): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         order: number;
         jobId: string;

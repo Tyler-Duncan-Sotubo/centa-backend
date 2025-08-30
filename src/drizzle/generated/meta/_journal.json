@@ -43,6 +43,13 @@
       "when": 1756318459773,
       "tag": "0005_melted_supernaut",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1756542703724,
+      "tag": "0006_next_scrambler",
+      "breakpoints": true
     }
   ]
 }

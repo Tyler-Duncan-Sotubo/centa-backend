@@ -7,8 +7,8 @@ export declare class LocationsController extends BaseController {
     private readonly locationsService;
     constructor(locationsService: LocationsService);
     create(createLocationDto: CreateLocationDto, user: User, ip: string): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         isActive: boolean | null;

@@ -8,8 +8,8 @@ export declare class DocumentsFolderService {
     private readonly audit;
     constructor(db: db, audit: AuditService);
     create(createDto: CreateDocumentFoldersDto, user: User): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         companyId: string;
         permissionControlled: boolean | null;
@@ -18,14 +18,14 @@ export declare class DocumentsFolderService {
     }>;
     findAll(companyId: string): Promise<{
         files: {
-            url: string;
-            id: string;
             name: string;
+            id: string;
             createdAt: Date | null;
             companyId: string;
-            folderId: string | null;
             type: string;
             category: string;
+            folderId: string | null;
+            url: string;
             uploadedBy: string | null;
         }[];
         roleIds: string[];

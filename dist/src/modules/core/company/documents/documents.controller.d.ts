@@ -18,8 +18,8 @@ export declare class DocumentsController extends BaseController {
         success: boolean;
     }>;
     createFolder(user: User, createFolderDto: CreateDocumentFoldersDto): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         companyId: string;
         permissionControlled: boolean | null;
@@ -28,14 +28,14 @@ export declare class DocumentsController extends BaseController {
     }>;
     findAllFolders(user: User): Promise<{
         files: {
-            url: string;
-            id: string;
             name: string;
+            id: string;
             createdAt: Date | null;
             companyId: string;
-            folderId: string | null;
             type: string;
             category: string;
+            folderId: string | null;
+            url: string;
             uploadedBy: string | null;
         }[];
         roleIds: string[];

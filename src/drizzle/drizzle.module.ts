@@ -5,22 +5,24 @@ import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { db } from './types/drizzle';
 import * as schema from './schema';
+import { HotQueries } from './hot-queries';
 
 export const DRIZZLE = Symbol('DRIZZLE');
+export const PG_POOL = Symbol('PG_POOL');
+export const HOT_QUERIES = Symbol('HOT_QUERIES');
 
 @Global()
 @Module({
-  imports: [ConfigModule], // ensures ConfigService is available even if not global
+  imports: [ConfigModule],
   providers: [
-    // Shared pg.Pool (HMR-safe)
+    // Shared pg.Pool
     {
-      provide: 'PG_POOL',
+      provide: PG_POOL,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const databaseURL = config.get<string>('DATABASE_URL');
         if (!databaseURL) throw new Error('DATABASE_URL is not set');
 
-        // Reuse the pool across dev hot-reloads
         const g = globalThis as any;
         if (!g.__PG_POOL__) {
           g.__PG_POOL__ = new Pool({
@@ -37,28 +39,33 @@ export const DRIZZLE = Symbol('DRIZZLE');
             keepAlive: true,
           });
         }
-
         return g.__PG_POOL__ as Pool;
       },
     },
 
-    // Drizzle instance built with schema (no runtime introspection)
+    // Drizzle instance
     {
       provide: DRIZZLE,
-      inject: ['PG_POOL'],
+      inject: [PG_POOL],
       useFactory: (pool: Pool) => {
         const db = drizzle(pool, { schema });
         return db as db;
       },
     },
 
+    // HotQueries wrapper (prepared statements)
+    {
+      provide: HOT_QUERIES,
+      inject: [PG_POOL],
+      useFactory: (pool: Pool) => new HotQueries(pool),
+    },
+
     // Graceful shutdown
     {
       provide: 'DB_SHUTDOWN_HOOK',
-      inject: ['PG_POOL'],
+      inject: [PG_POOL],
       useFactory: (pool: Pool): OnApplicationShutdown => ({
         async onApplicationShutdown() {
-          // Don’t close in dev HMR; Guard with env if you prefer
           if (process.env.NODE_ENV === 'production') {
             await pool.end();
             console.log('[PG] pool closed');
@@ -67,6 +74,6 @@ export const DRIZZLE = Symbol('DRIZZLE');
       }),
     },
   ],
-  exports: [DRIZZLE /*, 'PG_POOL'*/],
+  exports: [DRIZZLE, PG_POOL, HOT_QUERIES],
 })
 export class DrizzleModule {}

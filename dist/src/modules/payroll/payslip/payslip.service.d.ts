@@ -17,22 +17,22 @@ export declare class PayslipService {
         companyId: string;
         employeeId: string;
         payrollMonth: string;
-        payrollId: string;
         issuedAt: string | null;
         slipStatus: string | null;
         employerRemarks: string | null;
         pdfUrl: string | null;
+        payrollId: string;
     }>;
     generatePayslipsForCompany(company_id: string, payrollMonth: string): Promise<{
         id: string;
         companyId: string;
         employeeId: string;
         payrollMonth: string;
-        payrollId: string;
         issuedAt: string | null;
         slipStatus: string | null;
         employerRemarks: string | null;
         pdfUrl: string | null;
+        payrollId: string;
     }[] | {
         message: string;
     }>;

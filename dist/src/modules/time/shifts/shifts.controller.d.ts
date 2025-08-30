@@ -7,8 +7,8 @@ export declare class ShiftsController extends BaseController {
     private readonly shiftsService;
     constructor(shiftsService: ShiftsService);
     create(createShiftDto: CreateShiftDto, user: User, ip: string): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
