@@ -37,6 +37,9 @@ let RunController = class RunController extends base_controller_1.BaseController
     async getOnePayRun(payRunId) {
         return this.runService.findOnePayRun(payRunId);
     }
+    async getPayrollSummary(payRunId) {
+        return this.runService.getPayrollSummaryByRunId(payRunId);
+    }
     async sendForApproval(payRunId, user) {
         return this.runService.sendForApproval(payRunId, user.id);
     }
@@ -51,6 +54,9 @@ let RunController = class RunController extends base_controller_1.BaseController
     }
     async updatePayrollPaymentStatus(user, id, status) {
         return this.runService.updatePayrollPaymentStatus(user, id, status);
+    }
+    discardRun(user, runId) {
+        return this.runService.discardPayrollRun(user, runId);
     }
 };
 exports.RunController = RunController;
@@ -73,6 +79,15 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], RunController.prototype, "getOnePayRun", null);
+__decorate([
+    (0, common_1.Get)(':payRunId/summary'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('permission', ['payroll.run.read']),
+    __param(0, (0, common_1.Param)('payRunId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], RunController.prototype, "getPayrollSummary", null);
 __decorate([
     (0, common_1.Patch)(':payRunId/send-for-approval'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
@@ -124,6 +139,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], RunController.prototype, "updatePayrollPaymentStatus", null);
+__decorate([
+    (0, common_1.Delete)(':runId/discard'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('permission', ['payroll.run.update_payment_status']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('runId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], RunController.prototype, "discardRun", null);
 exports.RunController = RunController = __decorate([
     (0, common_1.Controller)('payroll'),
     __metadata("design:paramtypes", [run_service_1.RunService])

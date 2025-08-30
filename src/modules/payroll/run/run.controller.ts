@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Body,
+  Delete,
 } from '@nestjs/common';
 import { RunService } from './run.service';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
@@ -44,6 +45,13 @@ export class RunController extends BaseController {
   @SetMetadata('permission', ['payroll.run.read'])
   async getOnePayRun(@Param('payRunId') payRunId: string) {
     return this.runService.findOnePayRun(payRunId);
+  }
+
+  @Get(':payRunId/summary')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('permission', ['payroll.run.read'])
+  async getPayrollSummary(@Param('payRunId') payRunId: string) {
+    return this.runService.getPayrollSummaryByRunId(payRunId);
   }
 
   @Patch(':payRunId/send-for-approval')
@@ -93,5 +101,12 @@ export class RunController extends BaseController {
     @Body('status') status: 'paid' | 'pending',
   ) {
     return this.runService.updatePayrollPaymentStatus(user, id, status);
+  }
+
+  @Delete(':runId/discard')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('permission', ['payroll.run.update_payment_status'])
+  discardRun(@CurrentUser() user: User, @Param('runId') runId: string) {
+    return this.runService.discardPayrollRun(user, runId);
   }
 }

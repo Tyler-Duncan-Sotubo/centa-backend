@@ -1046,11 +1046,101 @@ export class RunService {
         );
       }
 
-      return payrollResults;
+      return {
+        payrollRunId,
+        payrollDate,
+        employeeCount: employeesList.length,
+        approvalWorkflowId: workflowId,
+      };
     } finally {
       // Always clear to avoid cross-request bleed
       this.hot.clearRunCache();
     }
+  }
+
+  async getPayrollSummaryByRunId(runId: string) {
+    // Pull everything you already persisted in `payroll`
+    const rows = await this.db
+      .select({
+        employeeId: payroll.employeeId,
+        payrollRunId: payroll.payrollRunId,
+        payrollDate: payroll.payrollDate,
+        payrollMonth: payroll.payrollMonth,
+
+        basic: payroll.basic,
+        housing: payroll.housing,
+        transport: payroll.transport,
+        grossSalary: payroll.grossSalary,
+        netSalary: payroll.netSalary,
+
+        bonuses: payroll.bonuses,
+        payeTax: payroll.payeTax,
+        pensionContribution: payroll.pensionContribution,
+        employerPensionContribution: payroll.employerPensionContribution,
+        nhfContribution: payroll.nhfContribution,
+
+        totalDeductions: payroll.totalDeductions,
+        taxableIncome: payroll.taxableIncome,
+        salaryAdvance: payroll.salaryAdvance,
+
+        reimbursements: payroll.reimbursements,
+        voluntaryDeductions: payroll.voluntaryDeductions,
+
+        isStarter: payroll.isStarter,
+        approvalStatus: payroll.approvalStatus,
+
+        firstName: employees.firstName,
+        lastName: employees.lastName,
+      })
+      .from(payroll)
+      .leftJoin(employees, eq(employees.id, payroll.employeeId))
+      .where(eq(payroll.payrollRunId, runId))
+      .execute();
+
+    // Compute isLeaver per employee for the payroll month window.
+    // (You can push this into SQL if you prefer.)
+    const out = rows.map((r) => {
+      const name = [r.firstName, r.lastName].filter(Boolean).join(' ');
+      const startDate = new Date(`${r.payrollMonth}-01T00:00:00Z`);
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + 1);
+      endDate.setDate(0);
+
+      return {
+        employeeId: r.employeeId,
+        payrollRunId: r.payrollRunId,
+        payrollDate: r.payrollDate,
+        payrollMonth: r.payrollMonth,
+        name,
+        isStarter: Boolean(r.isStarter),
+
+        basic: r.basic,
+        housing: r.housing,
+        transport: r.transport,
+        grossSalary: r.grossSalary,
+        netSalary: r.netSalary,
+
+        bonuses: r.bonuses,
+        payeTax: r.payeTax,
+        pensionContribution: r.pensionContribution,
+        employerPensionContribution: r.employerPensionContribution,
+        nhfContribution: r.nhfContribution,
+
+        totalDeductions: r.totalDeductions,
+        taxableIncome: r.taxableIncome,
+        salaryAdvance: r.salaryAdvance,
+
+        reimbursements: r.reimbursements ?? [],
+        voluntaryDeductions: r.voluntaryDeductions ?? [],
+
+        approvalStatus: r.approvalStatus,
+      };
+    });
+
+    // Optional: sort by name (or whatever the UI expects)
+    out.sort((a, b) => a.name.localeCompare(b.name));
+
+    return out;
   }
 
   async findOnePayRun(runId: string) {
@@ -1145,6 +1235,8 @@ export class RunService {
       payslip_pdf_url: r.payslip_pdf_url,
       reimbursements: r.reimbursements,
     }));
+
+    console.log('Payroll summary:', employeesDto);
 
     return {
       totalCostOfPayroll,
@@ -1556,5 +1648,94 @@ export class RunService {
     });
 
     return result;
+  }
+
+  async discardPayrollRun(user: User, payrollRunId: string) {
+    const companyId = user.companyId;
+    if (!payrollRunId)
+      throw new BadRequestException('payrollRunId is required');
+
+    return this.db.transaction(async (trx) => {
+      // 0) Gather rows (and the shared date/workflow)
+      const rows = await trx
+        .select({
+          id: payroll.id,
+          employeeId: payroll.employeeId,
+          payrollDate: payroll.payrollDate,
+          workflowId: payroll.workflowId,
+        })
+        .from(payroll)
+        .where(
+          and(
+            eq(payroll.companyId, companyId),
+            eq(payroll.payrollRunId, payrollRunId),
+          ),
+        );
+
+      if (rows.length === 0)
+        throw new NotFoundException(
+          'No payroll found for this run and company.',
+        );
+
+      const empIds = rows.map((r) => r.employeeId);
+      const payrollDate = rows[0].payrollDate;
+      const workflowId = rows[0].workflowId ?? null;
+
+      // 1) Remove run-scoped extras first
+      await trx
+        .delete(payrollAllowances)
+        .where(
+          and(
+            eq(payrollAllowances.payrollId, payrollRunId),
+            inArray(payrollAllowances.employeeId, empIds),
+          ),
+        );
+
+      await trx
+        .delete(payrollYtd)
+        .where(
+          and(
+            eq(payrollYtd.companyId, companyId),
+            eq(payrollYtd.payrollDate, payrollDate),
+            inArray(payrollYtd.employeeId, empIds),
+          ),
+        );
+
+      await trx
+        .delete(payrollApprovals)
+        .where(eq(payrollApprovals.payrollRunId, payrollRunId));
+
+      // 2) Remove the payroll rows (this frees the FK to approval_workflows)
+      await trx
+        .delete(payroll)
+        .where(
+          and(
+            eq(payroll.companyId, companyId),
+            eq(payroll.payrollRunId, payrollRunId),
+          ),
+        );
+
+      // 3) Now it’s safe to remove the workflow + steps
+      if (workflowId) {
+        await trx
+          .delete(approvalSteps)
+          .where(eq(approvalSteps.workflowId, workflowId));
+        await trx
+          .delete(approvalWorkflows)
+          .where(
+            and(
+              eq(approvalWorkflows.companyId, companyId),
+              eq(approvalWorkflows.entityId, payrollRunId),
+            ),
+          );
+      }
+
+      return {
+        payrollRunId,
+        deletedEmployees: rows.length,
+        payrollDate,
+        status: 'discarded',
+      };
+    });
   }
 }

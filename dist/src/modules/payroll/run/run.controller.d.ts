@@ -6,48 +6,11 @@ export declare class RunController extends BaseController {
     constructor(runService: RunService);
     private formattedDate;
     calculatePayrollForCompany(user: User, date: string): Promise<{
-        name: string;
-        id: string;
         payrollRunId: string;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-        companyId: string;
-        userId: string | null;
-        employeeId: string;
-        basic: string;
-        housing: string;
-        transport: string;
-        grossSalary: string;
-        pensionContribution: string;
-        employerPensionContribution: string;
-        bonuses: string | null;
-        reimbursements: unknown;
-        salaryAdvance: string | null;
-        nhfContribution: string | null;
-        payeTax: string;
-        customDeductions: string | null;
-        voluntaryDeductions: unknown;
-        totalDeductions: string;
-        netSalary: string;
-        taxableIncome: string;
         payrollDate: string;
-        payrollMonth: string;
-        paymentStatus: string | null;
-        paymentDate: string | null;
-        paymentReference: string | null;
-        approvalDate: string | null;
-        approvalRemarks: string | null;
-        isStarter: boolean | null;
-        isLeaver: boolean | null;
-        isOffCycle: boolean | null;
-        requestedBy: string;
-        requestedAt: Date;
-        approvalStatus: string;
-        lastApprovalAt: Date | null;
-        lastApprovedBy: string | null;
-        workflowId: string;
-        currentStep: number;
-    }[]>;
+        employeeCount: number;
+        approvalWorkflowId: string;
+    }>;
     getOnePayRun(payRunId: string): Promise<{
         totalCostOfPayroll: any;
         totalPensionContribution: number;
@@ -77,6 +40,30 @@ export declare class RunController extends BaseController {
             reimbursements: unknown;
         }[];
     }>;
+    getPayrollSummary(payRunId: string): Promise<{
+        employeeId: string;
+        payrollRunId: string;
+        payrollDate: string;
+        payrollMonth: string;
+        name: string;
+        isStarter: boolean;
+        basic: string;
+        housing: string;
+        transport: string;
+        grossSalary: string;
+        netSalary: string;
+        bonuses: string | null;
+        payeTax: string;
+        pensionContribution: string;
+        employerPensionContribution: string;
+        nhfContribution: string | null;
+        totalDeductions: string;
+        taxableIncome: string;
+        salaryAdvance: string | null;
+        reimbursements: {};
+        voluntaryDeductions: {};
+        approvalStatus: string;
+    }[]>;
     sendForApproval(payRunId: string, user: User): Promise<{
         updatedCount: any;
     }>;
@@ -101,4 +88,10 @@ export declare class RunController extends BaseController {
         employeeId: string;
         expenses: unknown;
     }[]>;
+    discardRun(user: User, runId: string): Promise<{
+        payrollRunId: string;
+        deletedEmployees: number;
+        payrollDate: string;
+        status: string;
+    }>;
 }

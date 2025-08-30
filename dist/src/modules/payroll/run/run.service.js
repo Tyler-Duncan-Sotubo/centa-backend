@@ -559,11 +559,81 @@ let RunService = class RunService {
             if (!multi) {
                 await this.payslipService.generatePayslipsForCompany(companyId, payrollResults[0].payrollMonth);
             }
-            return payrollResults;
+            return {
+                payrollRunId,
+                payrollDate,
+                employeeCount: employeesList.length,
+                approvalWorkflowId: workflowId,
+            };
         }
         finally {
             this.hot.clearRunCache();
         }
+    }
+    async getPayrollSummaryByRunId(runId) {
+        const rows = await this.db
+            .select({
+            employeeId: payroll_run_schema_1.payroll.employeeId,
+            payrollRunId: payroll_run_schema_1.payroll.payrollRunId,
+            payrollDate: payroll_run_schema_1.payroll.payrollDate,
+            payrollMonth: payroll_run_schema_1.payroll.payrollMonth,
+            basic: payroll_run_schema_1.payroll.basic,
+            housing: payroll_run_schema_1.payroll.housing,
+            transport: payroll_run_schema_1.payroll.transport,
+            grossSalary: payroll_run_schema_1.payroll.grossSalary,
+            netSalary: payroll_run_schema_1.payroll.netSalary,
+            bonuses: payroll_run_schema_1.payroll.bonuses,
+            payeTax: payroll_run_schema_1.payroll.payeTax,
+            pensionContribution: payroll_run_schema_1.payroll.pensionContribution,
+            employerPensionContribution: payroll_run_schema_1.payroll.employerPensionContribution,
+            nhfContribution: payroll_run_schema_1.payroll.nhfContribution,
+            totalDeductions: payroll_run_schema_1.payroll.totalDeductions,
+            taxableIncome: payroll_run_schema_1.payroll.taxableIncome,
+            salaryAdvance: payroll_run_schema_1.payroll.salaryAdvance,
+            reimbursements: payroll_run_schema_1.payroll.reimbursements,
+            voluntaryDeductions: payroll_run_schema_1.payroll.voluntaryDeductions,
+            isStarter: payroll_run_schema_1.payroll.isStarter,
+            approvalStatus: payroll_run_schema_1.payroll.approvalStatus,
+            firstName: schema_1.employees.firstName,
+            lastName: schema_1.employees.lastName,
+        })
+            .from(payroll_run_schema_1.payroll)
+            .leftJoin(schema_1.employees, (0, drizzle_orm_1.eq)(schema_1.employees.id, payroll_run_schema_1.payroll.employeeId))
+            .where((0, drizzle_orm_1.eq)(payroll_run_schema_1.payroll.payrollRunId, runId))
+            .execute();
+        const out = rows.map((r) => {
+            const name = [r.firstName, r.lastName].filter(Boolean).join(' ');
+            const startDate = new Date(`${r.payrollMonth}-01T00:00:00Z`);
+            const endDate = new Date(startDate);
+            endDate.setMonth(endDate.getMonth() + 1);
+            endDate.setDate(0);
+            return {
+                employeeId: r.employeeId,
+                payrollRunId: r.payrollRunId,
+                payrollDate: r.payrollDate,
+                payrollMonth: r.payrollMonth,
+                name,
+                isStarter: Boolean(r.isStarter),
+                basic: r.basic,
+                housing: r.housing,
+                transport: r.transport,
+                grossSalary: r.grossSalary,
+                netSalary: r.netSalary,
+                bonuses: r.bonuses,
+                payeTax: r.payeTax,
+                pensionContribution: r.pensionContribution,
+                employerPensionContribution: r.employerPensionContribution,
+                nhfContribution: r.nhfContribution,
+                totalDeductions: r.totalDeductions,
+                taxableIncome: r.taxableIncome,
+                salaryAdvance: r.salaryAdvance,
+                reimbursements: r.reimbursements ?? [],
+                voluntaryDeductions: r.voluntaryDeductions ?? [],
+                approvalStatus: r.approvalStatus,
+            };
+        });
+        out.sort((a, b) => a.name.localeCompare(b.name));
+        return out;
     }
     async findOnePayRun(runId) {
         const exists = await this.db
@@ -639,6 +709,7 @@ let RunService = class RunService {
             payslip_pdf_url: r.payslip_pdf_url,
             reimbursements: r.reimbursements,
         }));
+        console.log('Payroll summary:', employeesDto);
         return {
             totalCostOfPayroll,
             totalPensionContribution,
@@ -907,6 +978,53 @@ let RunService = class RunService {
             },
         });
         return result;
+    }
+    async discardPayrollRun(user, payrollRunId) {
+        const companyId = user.companyId;
+        if (!payrollRunId)
+            throw new common_1.BadRequestException('payrollRunId is required');
+        return this.db.transaction(async (trx) => {
+            const rows = await trx
+                .select({
+                id: payroll_run_schema_1.payroll.id,
+                employeeId: payroll_run_schema_1.payroll.employeeId,
+                payrollDate: payroll_run_schema_1.payroll.payrollDate,
+                workflowId: payroll_run_schema_1.payroll.workflowId,
+            })
+                .from(payroll_run_schema_1.payroll)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_run_schema_1.payroll.companyId, companyId), (0, drizzle_orm_1.eq)(payroll_run_schema_1.payroll.payrollRunId, payrollRunId)));
+            if (rows.length === 0)
+                throw new common_1.NotFoundException('No payroll found for this run and company.');
+            const empIds = rows.map((r) => r.employeeId);
+            const payrollDate = rows[0].payrollDate;
+            const workflowId = rows[0].workflowId ?? null;
+            await trx
+                .delete(payroll_allowances_schema_1.payrollAllowances)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_allowances_schema_1.payrollAllowances.payrollId, payrollRunId), (0, drizzle_orm_1.inArray)(payroll_allowances_schema_1.payrollAllowances.employeeId, empIds)));
+            await trx
+                .delete(payroll_ytd_schema_1.payrollYtd)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_ytd_schema_1.payrollYtd.companyId, companyId), (0, drizzle_orm_1.eq)(payroll_ytd_schema_1.payrollYtd.payrollDate, payrollDate), (0, drizzle_orm_1.inArray)(payroll_ytd_schema_1.payrollYtd.employeeId, empIds)));
+            await trx
+                .delete(payroll_run_schema_1.payrollApprovals)
+                .where((0, drizzle_orm_1.eq)(payroll_run_schema_1.payrollApprovals.payrollRunId, payrollRunId));
+            await trx
+                .delete(payroll_run_schema_1.payroll)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(payroll_run_schema_1.payroll.companyId, companyId), (0, drizzle_orm_1.eq)(payroll_run_schema_1.payroll.payrollRunId, payrollRunId)));
+            if (workflowId) {
+                await trx
+                    .delete(schema_1.approvalSteps)
+                    .where((0, drizzle_orm_1.eq)(schema_1.approvalSteps.workflowId, workflowId));
+                await trx
+                    .delete(schema_1.approvalWorkflows)
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.approvalWorkflows.companyId, companyId), (0, drizzle_orm_1.eq)(schema_1.approvalWorkflows.entityId, payrollRunId)));
+            }
+            return {
+                payrollRunId,
+                deletedEmployees: rows.length,
+                payrollDate,
+                status: 'discarded',
+            };
+        });
     }
 };
 exports.RunService = RunService;

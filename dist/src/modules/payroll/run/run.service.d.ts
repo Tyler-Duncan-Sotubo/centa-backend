@@ -72,47 +72,34 @@ export declare class RunService {
         currentStep: number;
     }>;
     calculatePayrollForCompany(user: User, payrollDate: string, groupId?: string): Promise<{
-        name: string;
-        id: string;
         payrollRunId: string;
-        createdAt: Date | null;
-        updatedAt: Date | null;
-        companyId: string;
-        userId: string | null;
+        payrollDate: string;
+        employeeCount: number;
+        approvalWorkflowId: string;
+    }>;
+    getPayrollSummaryByRunId(runId: string): Promise<{
         employeeId: string;
+        payrollRunId: string;
+        payrollDate: string;
+        payrollMonth: string;
+        name: string;
+        isStarter: boolean;
         basic: string;
         housing: string;
         transport: string;
         grossSalary: string;
+        netSalary: string;
+        bonuses: string | null;
+        payeTax: string;
         pensionContribution: string;
         employerPensionContribution: string;
-        bonuses: string | null;
-        reimbursements: unknown;
-        salaryAdvance: string | null;
         nhfContribution: string | null;
-        payeTax: string;
-        customDeductions: string | null;
-        voluntaryDeductions: unknown;
         totalDeductions: string;
-        netSalary: string;
         taxableIncome: string;
-        payrollDate: string;
-        payrollMonth: string;
-        paymentStatus: string | null;
-        paymentDate: string | null;
-        paymentReference: string | null;
-        approvalDate: string | null;
-        approvalRemarks: string | null;
-        isStarter: boolean | null;
-        isLeaver: boolean | null;
-        isOffCycle: boolean | null;
-        requestedBy: string;
-        requestedAt: Date;
+        salaryAdvance: string | null;
+        reimbursements: {};
+        voluntaryDeductions: {};
         approvalStatus: string;
-        lastApprovalAt: Date | null;
-        lastApprovedBy: string | null;
-        workflowId: string;
-        currentStep: number;
     }[]>;
     findOnePayRun(runId: string): Promise<{
         totalCostOfPayroll: any;
@@ -167,4 +154,10 @@ export declare class RunService {
         employeeId: string;
         expenses: unknown;
     }[]>;
+    discardPayrollRun(user: User, payrollRunId: string): Promise<{
+        payrollRunId: string;
+        deletedEmployees: number;
+        payrollDate: string;
+        status: string;
+    }>;
 }
