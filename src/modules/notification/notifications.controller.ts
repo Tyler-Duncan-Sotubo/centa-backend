@@ -17,6 +17,7 @@ import { User } from 'src/common/types/user.type';
 import { PushNotificationService } from './services/push-notification.service';
 import { SendToEmployeeDto } from './dto/send-to-employee.dto';
 import { RegisterDeviceDto } from './dto/register-device.dto';
+// import { BroadcastAppUpdateDto } from './dto/broadcast-app-update.dto';
 
 @Controller('')
 @UseGuards(JwtAuthGuard)
@@ -74,6 +75,16 @@ export class NotificationController extends BaseController {
     await this.push.createAndSendToEmployee(employeeId, dto);
     return { status: 'queued' };
   }
+
+  // @Post('broadcast-app-update')
+  // async broadcastAppUpdate(@Body() dto: BroadcastAppUpdateDto) {
+  //   const { platforms, durable, ...msg } = dto;
+  //   const res = await this.push.broadcastAppUpdate(msg, {
+  //     platforms,
+  //     durable,
+  //   });
+  //   return { status: 'queued', ...res };
+  // }
 
   @Get('expo-notifications/unread-count/:employeeId')
   async getUnreadCount(@Param('employeeId') employeeId: string) {

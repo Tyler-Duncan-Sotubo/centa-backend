@@ -30,8 +30,9 @@ const bullmq_2 = require("bullmq");
 const templates_service_1 = require("../../performance/templates/templates.service");
 const feedback_question_service_1 = require("../../performance/feedback/feedback-questions/feedback-question.service");
 const feedback_settings_service_1 = require("../../performance/feedback/feedback-settings/feedback-settings.service");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let UserService = class UserService {
-    constructor(db, verificationService, jwtService, configService, awsService, invitation, companySettingsService, permissionService, permissionSeedQueue, performance, feedbackQuestionService, feedbackSettingService) {
+    constructor(db, verificationService, jwtService, configService, awsService, invitation, companySettingsService, permissionService, permissionSeedQueue, performance, feedbackQuestionService, feedbackSettingService, cacheService) {
         this.db = db;
         this.verificationService = verificationService;
         this.jwtService = jwtService;
@@ -44,6 +45,7 @@ let UserService = class UserService {
         this.performance = performance;
         this.feedbackQuestionService = feedbackQuestionService;
         this.feedbackSettingService = feedbackSettingService;
+        this.cacheService = cacheService;
     }
     async checkCompanyExists(domain) {
         const existingCompany = await this.db
@@ -239,23 +241,35 @@ let UserService = class UserService {
     }
     async UpdateUserProfile(user_id, dto) {
         const userAvatar = await this.awsService.uploadImageToS3(dto.email, 'avatar', dto.avatar);
-        const updatedProfile = await this.db
-            .update(schema_1.users)
-            .set({
-            firstName: dto.first_name,
-            lastName: dto.last_name,
-            avatar: userAvatar,
-        })
-            .where((0, drizzle_orm_1.eq)(schema_1.users.id, user_id))
-            .returning({
-            id: schema_1.users.id,
-            email: schema_1.users.email,
-            first_name: schema_1.users.firstName,
-            last_name: schema_1.users.lastName,
-            avatar: schema_1.users.avatar,
-        })
-            .execute();
-        return updatedProfile[0];
+        return await this.db.transaction(async (tx) => {
+            const [userRow] = await tx
+                .update(schema_1.users)
+                .set({
+                firstName: dto.first_name,
+                lastName: dto.last_name,
+                avatar: userAvatar,
+            })
+                .where((0, drizzle_orm_1.eq)(schema_1.users.id, user_id))
+                .returning({
+                id: schema_1.users.id,
+                email: schema_1.users.email,
+                first_name: schema_1.users.firstName,
+                last_name: schema_1.users.lastName,
+                avatar: schema_1.users.avatar,
+                companyId: schema_1.users.companyId,
+            })
+                .execute();
+            await tx
+                .update(schema_1.employees)
+                .set({
+                firstName: dto.first_name,
+                lastName: dto.last_name,
+            })
+                .where((0, drizzle_orm_1.eq)(schema_1.employees.userId, user_id))
+                .execute();
+            await this.cacheService.bumpCompanyVersion(userRow.companyId);
+            return userRow;
+        });
     }
 };
 exports.UserService = UserService;
@@ -273,6 +287,7 @@ exports.UserService = UserService = __decorate([
         bullmq_2.Queue,
         templates_service_1.PerformanceTemplatesService,
         feedback_question_service_1.FeedbackQuestionService,
-        feedback_settings_service_1.FeedbackSettingsService])
+        feedback_settings_service_1.FeedbackSettingsService,
+        cache_service_1.CacheService])
 ], UserService);
 //# sourceMappingURL=user.service.js.map

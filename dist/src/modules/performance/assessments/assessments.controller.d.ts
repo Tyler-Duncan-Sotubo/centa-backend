@@ -8,16 +8,16 @@ export declare class AssessmentsController extends BaseController {
     private readonly assessmentsService;
     constructor(assessmentsService: AssessmentsService);
     create(dto: CreateAssessmentDto, user: User): Promise<{
+        status: "in_progress" | "submitted" | "not_started" | null;
         id: string;
         createdAt: Date | null;
         companyId: string;
-        status: "submitted" | "in_progress" | "not_started" | null;
         type: "manager" | "self" | "peer";
-        submittedAt: Date | null;
         templateId: string;
+        submittedAt: Date | null;
         cycleId: string;
-        reviewerId: string;
         revieweeId: string;
+        reviewerId: string;
     }>;
     start(id: string, user: User): Promise<void>;
     submit(id: string, dto: SubmitAssessmentDto, user: User): Promise<{
@@ -26,7 +26,7 @@ export declare class AssessmentsController extends BaseController {
     getDashboard(user: User, filters: GetDashboardAssessmentsDto): Promise<{
         id: string;
         type: "manager" | "self" | "peer";
-        status: "submitted" | "in_progress" | "not_started" | null;
+        status: "in_progress" | "submitted" | "not_started" | null;
         reviewer: string;
         employee: string;
         departmentName: any;
@@ -52,7 +52,7 @@ export declare class AssessmentsController extends BaseController {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "submitted" | "in_progress" | "not_started" | null;
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -64,7 +64,7 @@ export declare class AssessmentsController extends BaseController {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "submitted" | "in_progress" | "not_started" | null;
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -76,7 +76,7 @@ export declare class AssessmentsController extends BaseController {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "submitted" | "in_progress" | "not_started" | null;
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;

@@ -17,8 +17,8 @@ export declare class ShiftsService {
         endTime: string;
     }[]>;
     create(dto: CreateShiftDto, user: User, ip: string): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;

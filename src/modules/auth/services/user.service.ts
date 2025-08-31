@@ -15,6 +15,7 @@ import {
   companyFileFolders,
   companyLocations,
   companyRoles,
+  employees,
   users,
 } from 'src/drizzle/schema';
 import { RegisterDto } from '../dto/register-user.dto';
@@ -26,6 +27,7 @@ import { Queue } from 'bullmq';
 import { PerformanceTemplatesService } from 'src/modules/performance/templates/templates.service';
 import { FeedbackQuestionService } from 'src/modules/performance/feedback/feedback-questions/feedback-question.service';
 import { FeedbackSettingsService } from 'src/modules/performance/feedback/feedback-settings/feedback-settings.service';
+import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class UserService {
@@ -42,6 +44,7 @@ export class UserService {
     private readonly performance: PerformanceTemplatesService,
     private readonly feedbackQuestionService: FeedbackQuestionService,
     private readonly feedbackSettingService: FeedbackSettingsService,
+    private readonly cacheService: CacheService,
   ) {}
 
   private async checkCompanyExists(domain: string): Promise<void> {
@@ -319,7 +322,6 @@ export class UserService {
     return user[0];
   }
 
-  // edit user profile
   async UpdateUserProfile(user_id: string, dto: UpdateProfileDto) {
     const userAvatar = await this.awsService.uploadImageToS3(
       dto.email,
@@ -327,23 +329,40 @@ export class UserService {
       dto.avatar,
     );
 
-    const updatedProfile = await this.db
-      .update(users)
-      .set({
-        firstName: dto.first_name,
-        lastName: dto.last_name,
-        avatar: userAvatar,
-      })
-      .where(eq(users.id, user_id))
-      .returning({
-        id: users.id,
-        email: users.email,
-        first_name: users.firstName,
-        last_name: users.lastName,
-        avatar: users.avatar,
-      })
-      .execute();
+    return await this.db.transaction(async (tx) => {
+      // 1) update users
+      const [userRow] = await tx
+        .update(users)
+        .set({
+          firstName: dto.first_name,
+          lastName: dto.last_name,
+          avatar: userAvatar,
+        })
+        .where(eq(users.id, user_id))
+        .returning({
+          id: users.id,
+          email: users.email,
+          first_name: users.firstName,
+          last_name: users.lastName,
+          avatar: users.avatar,
+          companyId: users.companyId,
+        })
+        .execute();
 
-    return updatedProfile[0];
+      // 2) mirror names into employees (if you want employees to remain the source of truth for names)
+      await tx
+        .update(employees)
+        .set({
+          firstName: dto.first_name,
+          lastName: dto.last_name,
+        })
+        .where(eq(employees.userId, user_id))
+        .execute();
+
+      // 🔔 Invalidate all employee-by-user caches under this company
+      await this.cacheService.bumpCompanyVersion(userRow.companyId);
+
+      return userRow; // or shape however your controller expects
+    });
   }
 }

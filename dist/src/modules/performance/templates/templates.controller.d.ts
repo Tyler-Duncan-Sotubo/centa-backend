@@ -7,8 +7,8 @@ export declare class PerformanceTemplatesController extends BaseController {
     private readonly templatesService;
     constructor(templatesService: PerformanceTemplatesService);
     create(createTemplateDto: CreateTemplateDto, user: User): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         companyId: string;
         description: string | null;

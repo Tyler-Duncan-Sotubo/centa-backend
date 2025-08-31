@@ -591,4 +591,165 @@ export class PushNotificationService {
       }
     }
   }
+
+  /**
+   * Broadcast an "app update" (or any general) notification.
+   * - If opts.durable === true → creates an inbox row per employee and sets iOS badges.
+   * - Else → push-only (no DB inbox rows).
+   *
+   * dto.data is merged with { type: 'APP_UPDATE', url?: string } in the push payload.
+   */
+  // In PushNotificationService
+
+  async broadcastAppUpdate(
+    dto: {
+      title: string;
+      body: string;
+      url?: string; // optional link (store / release notes / deep link)
+      route?: string | null; // optional in-app route
+      data?: Record<string, any>; // extra client params
+    },
+    opts?: {
+      platforms?: Array<'ios' | 'android'>; // filter by platform; omit = all
+      durable?: boolean; // create inbox rows + iOS badges
+    },
+  ) {
+    const durable = !!opts?.durable;
+
+    // 1) Fetch ALL devices
+    const allDevices = await this.db
+      .select({
+        id: expoPushDevices.id,
+        token: expoPushDevices.expoPushToken,
+        platform: expoPushDevices.platform,
+        employeeId: expoPushDevices.employeeId,
+      })
+      .from(expoPushDevices)
+      .execute();
+
+    // 2) Filter: valid Expo token + platform (if provided)
+    const devices = allDevices.filter((d) => {
+      if (!Expo.isExpoPushToken(d.token)) return false;
+      if (
+        opts?.platforms?.length &&
+        !opts.platforms.includes((d.platform as any) || 'unknown')
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    if (!devices.length) {
+      return { created: 0, sentTo: 0, recipients: [] as string[] };
+    }
+
+    // 3) Base payload data
+    const baseData = {
+      type: 'APP_UPDATE',
+      url: dto.url,
+      ...(dto.data ?? {}),
+    } as Record<string, any>;
+
+    // 4A) Durable: insert inbox rows per employee + per-employee badge
+    if (durable) {
+      const employeeIds = Array.from(new Set(devices.map((d) => d.employeeId)));
+
+      const rowsToInsert = employeeIds.map((employeeId) => ({
+        employeeId,
+        title: dto.title,
+        body: dto.body ?? null,
+        type: 'SYSTEM',
+        route: dto.route ?? null,
+        data: baseData,
+        url: dto.url ?? null,
+      }));
+
+      const created = await this.db
+        .insert(expo_notifications)
+        .values(rowsToInsert)
+        .returning({
+          id: expo_notifications.id,
+          employeeId: expo_notifications.employeeId,
+        })
+        .execute();
+
+      const notifIdByEmployee = new Map<string, string>();
+      for (const row of created) notifIdByEmployee.set(row.employeeId, row.id);
+
+      // Unread counts for iOS badge (unread & not archived)
+      const unreadRows = await this.db
+        .select({
+          employeeId: expo_notifications.employeeId,
+          count: sql<number>`count(*)`,
+        })
+        .from(expo_notifications)
+        .where(
+          and(
+            inArray(expo_notifications.employeeId, employeeIds),
+            isNull(expo_notifications.readAt),
+            eq(expo_notifications.isArchived, false),
+          ),
+        )
+        .groupBy(expo_notifications.employeeId)
+        .execute();
+
+      const unreadByEmployee = new Map<string, number>();
+      for (const u of unreadRows)
+        unreadByEmployee.set(u.employeeId, Number(u.count));
+
+      // Group tokens per employee
+      const tokensByEmployee = new Map<string, string[]>();
+      const deviceRowsByEmployee = new Map<
+        string,
+        { id: string; token: string }[]
+      >();
+
+      for (const d of devices) {
+        const arr = tokensByEmployee.get(d.employeeId) ?? [];
+        if (!arr.includes(d.token)) arr.push(d.token);
+        tokensByEmployee.set(d.employeeId, arr);
+
+        const devArr = deviceRowsByEmployee.get(d.employeeId) ?? [];
+        devArr.push({ id: d.id, token: d.token });
+        deviceRowsByEmployee.set(d.employeeId, devArr);
+      }
+
+      let sentTo = 0;
+      for (const employeeId of employeeIds) {
+        const tokens = tokensByEmployee.get(employeeId) ?? [];
+        if (!tokens.length) continue;
+
+        sentTo += tokens.length;
+
+        const notifId = notifIdByEmployee.get(employeeId)!;
+        const badge = unreadByEmployee.get(employeeId) ?? 0;
+
+        await this.sendToTokens(
+          tokens,
+          {
+            title: dto.title,
+            body: dto.body ?? '',
+            data: { ...baseData, notificationId: notifId },
+            badge,
+          },
+          {
+            notificationId: notifId,
+            deviceRows: deviceRowsByEmployee.get(employeeId),
+          },
+        );
+      }
+
+      return { created: created.length, sentTo, recipients: employeeIds };
+    }
+
+    // 4B) Push-only: broadcast to all filtered tokens
+    const tokens = Array.from(new Set(devices.map((d) => d.token)));
+    await this.sendToTokens(tokens, {
+      title: dto.title,
+      body: dto.body ?? '',
+      data: baseData,
+    });
+
+    return { created: 0, sentTo: tokens.length, recipients: [] as string[] };
+  }
 }

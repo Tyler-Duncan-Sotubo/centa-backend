@@ -24,30 +24,30 @@ export declare class OnboardingSeederController extends BaseController {
             order: number | null;
             dueDaysAfterStart: number | null;
         }[];
-        name: string;
+        status: "draft" | "published" | null;
         id: string;
+        name: string;
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
     cloneTemplateForCompany(templateId: string, templateName: string, user: User): Promise<{
-        name: string;
+        status: "draft" | "published" | null;
         id: string;
+        name: string;
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
     createCompanyTemplate(dto: CreateOnboardingTemplateDto, user: User): Promise<{
-        name: string;
+        status: "draft" | "published" | null;
         id: string;
+        name: string;
         createdAt: Date;
         companyId: string | null;
         description: string | null;
-        status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
     getCompanyTemplates(user: User): Promise<{

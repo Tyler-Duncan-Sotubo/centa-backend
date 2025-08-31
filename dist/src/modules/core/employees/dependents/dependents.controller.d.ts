@@ -7,8 +7,8 @@ export declare class DependentsController extends BaseController {
     private readonly dependentsService;
     constructor(dependentsService: DependentsService);
     create(employeeId: string, dto: CreateDependentDto, user: User, ip: string): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date;
         employeeId: string;
         dateOfBirth: string;

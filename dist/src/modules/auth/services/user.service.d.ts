@@ -13,6 +13,7 @@ import { Queue } from 'bullmq';
 import { PerformanceTemplatesService } from 'src/modules/performance/templates/templates.service';
 import { FeedbackQuestionService } from 'src/modules/performance/feedback/feedback-questions/feedback-question.service';
 import { FeedbackSettingsService } from 'src/modules/performance/feedback/feedback-settings/feedback-settings.service';
+import { CacheService } from 'src/common/cache/cache.service';
 export declare class UserService {
     private db;
     private readonly verificationService;
@@ -26,7 +27,8 @@ export declare class UserService {
     private readonly performance;
     private readonly feedbackQuestionService;
     private readonly feedbackSettingService;
-    constructor(db: db, verificationService: VerificationService, jwtService: JwtService, configService: ConfigService, awsService: AwsService, invitation: InvitationService, companySettingsService: CompanySettingsService, permissionService: PermissionsService, permissionSeedQueue: Queue, performance: PerformanceTemplatesService, feedbackQuestionService: FeedbackQuestionService, feedbackSettingService: FeedbackSettingsService);
+    private readonly cacheService;
+    constructor(db: db, verificationService: VerificationService, jwtService: JwtService, configService: ConfigService, awsService: AwsService, invitation: InvitationService, companySettingsService: CompanySettingsService, permissionService: PermissionsService, permissionSeedQueue: Queue, performance: PerformanceTemplatesService, feedbackQuestionService: FeedbackQuestionService, feedbackSettingService: FeedbackSettingsService, cacheService: CacheService);
     private checkCompanyExists;
     private checkUserExists;
     private createCompany;
@@ -88,5 +90,6 @@ export declare class UserService {
         first_name: string | null;
         last_name: string | null;
         avatar: string | null;
+        companyId: string;
     }>;
 }

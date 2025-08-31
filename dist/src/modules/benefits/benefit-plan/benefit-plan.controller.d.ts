@@ -9,8 +9,8 @@ export declare class BenefitPlanController extends BaseController {
     private readonly benefitPlanService;
     constructor(benefitPlanService: BenefitPlanService);
     create(createBenefitPlanDto: CreateBenefitPlanDto, user: User): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         split: string;
         companyId: string;
@@ -18,10 +18,10 @@ export declare class BenefitPlanController extends BaseController {
         startDate: Date;
         endDate: Date | null;
         category: string;
-        employerContribution: number | null;
         benefitGroupId: string;
         coverageOptions: unknown;
         cost: unknown;
+        employerContribution: number | null;
     }>;
     findAll(user: User): Promise<{
         id: string;

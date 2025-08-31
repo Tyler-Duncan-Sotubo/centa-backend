@@ -24,12 +24,12 @@ export declare class AssetsRequestService {
         companyId: string;
         employeeId: string;
         status: string | null;
-        purpose: string;
-        rejectionReason: string | null;
-        notes: string | null;
         requestDate: string;
         assetType: string;
+        purpose: string;
         urgency: string;
+        notes: string | null;
+        rejectionReason: string | null;
     }>;
     findAll(companyId: string): Promise<({
         id: string;

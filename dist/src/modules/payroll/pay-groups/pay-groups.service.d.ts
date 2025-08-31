@@ -50,8 +50,8 @@ export declare class PayGroupsService {
         last_name: any;
     })[]>;
     create(user: User, dto: CreatePayGroupDto, ip: string): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;

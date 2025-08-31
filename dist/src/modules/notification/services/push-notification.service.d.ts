@@ -73,4 +73,18 @@ export declare class PushNotificationService {
         }[];
     }): Promise<void>;
     private checkReceiptsAndPrune;
+    broadcastAppUpdate(dto: {
+        title: string;
+        body: string;
+        url?: string;
+        route?: string | null;
+        data?: Record<string, any>;
+    }, opts?: {
+        platforms?: Array<'ios' | 'android'>;
+        durable?: boolean;
+    }): Promise<{
+        created: number;
+        sentTo: number;
+        recipients: string[];
+    }>;
 }

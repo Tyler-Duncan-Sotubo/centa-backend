@@ -79,6 +79,9 @@ let AppraisalsController = class AppraisalsController extends base_controller_1.
     async restartAppraisal(appraisalId, user) {
         return this.appraisalsService.restartAppraisal(appraisalId, user);
     }
+    async sendReminder(employeeId) {
+        return this.appraisalsService.sendReminder(employeeId);
+    }
 };
 exports.AppraisalsController = AppraisalsController;
 __decorate([
@@ -210,6 +213,13 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], AppraisalsController.prototype, "restartAppraisal", null);
+__decorate([
+    (0, common_1.Post)(':employeeId/reminder'),
+    __param(0, (0, common_1.Param)('employeeId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], AppraisalsController.prototype, "sendReminder", null);
 exports.AppraisalsController = AppraisalsController = __decorate([
     (0, common_1.Controller)('appraisals'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

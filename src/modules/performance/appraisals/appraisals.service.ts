@@ -18,6 +18,7 @@ import { validate as isUuid } from 'uuid';
 import { alias } from 'drizzle-orm/pg-core';
 import { appraisalEntries } from './schema/performance-appraisals-entries.schema';
 import { performanceAppraisalCycles } from './schema/performance-appraisal-cycle.schema';
+import { PushNotificationService } from 'src/modules/notification/services/push-notification.service';
 
 @Injectable()
 export class AppraisalsService {
@@ -25,6 +26,7 @@ export class AppraisalsService {
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
     private readonly companySettingsService: CompanySettingsService,
+    private readonly push: PushNotificationService,
   ) {}
 
   async create(
@@ -113,6 +115,7 @@ export class AppraisalsService {
     return this.db
       .select({
         id: appraisals.id,
+        employeeId: appraisals.employeeId,
         employeeName: sql<string>`CONCAT(${emp.firstName}, ' ', ${emp.lastName})`,
         managerName: sql<string>`CONCAT(${mgr.firstName}, ' ', ${mgr.lastName})`,
         submittedByEmployee: appraisals.submittedByEmployee,
@@ -417,7 +420,12 @@ export class AppraisalsService {
   }
 
   async sendReminder(employeeId: string) {
-    console.log(employeeId);
-    // TODO send reminder via email, push notifications
+    await this.push.createAndSendToEmployee(employeeId, {
+      title: 'Self Appraisal Reminder',
+      body: `Don't forget to complete your self appraisal.`,
+      route: '/screens/dashboard/performance/appraisals',
+      data: {},
+      type: 'message',
+    });
   }
 }

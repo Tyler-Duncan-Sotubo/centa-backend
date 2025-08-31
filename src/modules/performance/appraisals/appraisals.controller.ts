@@ -150,4 +150,9 @@ export class AppraisalsController extends BaseController {
   ) {
     return this.appraisalsService.restartAppraisal(appraisalId, user);
   }
+
+  @Post(':employeeId/reminder')
+  async sendReminder(@Param('employeeId') employeeId: string) {
+    return this.appraisalsService.sendReminder(employeeId);
+  }
 }

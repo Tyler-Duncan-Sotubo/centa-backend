@@ -22,12 +22,12 @@ export declare class AnnouncementController extends BaseController {
         departmentId: string | null;
         title: string;
         locationId: string | null;
-        createdBy: string;
         body: string;
         image: string | null;
         publishedAt: Date | null;
         expiresAt: Date | null;
         isPublished: boolean | null;
+        createdBy: string;
         categoryId: string;
     }>;
     findAll(user: User): Promise<{
@@ -120,8 +120,8 @@ export declare class AnnouncementController extends BaseController {
     }>;
     likeAnnouncement(id: string, reactionType: string, user: User): Promise<any>;
     createCategory(name: string, user: User): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         companyId: string;
     }>;

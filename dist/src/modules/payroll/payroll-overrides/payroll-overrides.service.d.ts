@@ -14,8 +14,8 @@ export declare class PayrollOverridesService {
         createdAt: string | null;
         companyId: string;
         employeeId: string;
-        payrollDate: string;
         notes: string | null;
+        payrollDate: string;
         forceInclude: boolean | null;
     }>;
     findAll(companyId: string): Promise<{

@@ -9,16 +9,16 @@ export declare class PipelineController extends BaseController {
     private readonly pipelineSeedService;
     constructor(pipelineService: PipelineService, pipelineSeedService: PipelineSeederService);
     cloneTemplateForCompany(templateId: string, templateName: string, user: User): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         companyId: string | null;
         description: string | null;
         isGlobal: boolean | null;
     }>;
     createTemplate(createPipelineDto: CreatePipelineDto, user: User): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         companyId: string | null;
         description: string | null;

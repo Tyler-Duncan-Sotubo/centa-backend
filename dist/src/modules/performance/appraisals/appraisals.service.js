@@ -24,11 +24,13 @@ const uuid_1 = require("uuid");
 const pg_core_1 = require("drizzle-orm/pg-core");
 const performance_appraisals_entries_schema_1 = require("./schema/performance-appraisals-entries.schema");
 const performance_appraisal_cycle_schema_1 = require("./schema/performance-appraisal-cycle.schema");
+const push_notification_service_1 = require("../../notification/services/push-notification.service");
 let AppraisalsService = class AppraisalsService {
-    constructor(db, auditService, companySettingsService) {
+    constructor(db, auditService, companySettingsService, push) {
         this.db = db;
         this.auditService = auditService;
         this.companySettingsService = companySettingsService;
+        this.push = push;
     }
     async create(createDto, companyId, userId) {
         const [employee] = await this.db
@@ -85,6 +87,7 @@ let AppraisalsService = class AppraisalsService {
         return this.db
             .select({
             id: performance_appraisals_schema_1.appraisals.id,
+            employeeId: performance_appraisals_schema_1.appraisals.employeeId,
             employeeName: (0, drizzle_orm_1.sql) `CONCAT(${emp.firstName}, ' ', ${emp.lastName})`,
             managerName: (0, drizzle_orm_1.sql) `CONCAT(${mgr.firstName}, ' ', ${mgr.lastName})`,
             submittedByEmployee: performance_appraisals_schema_1.appraisals.submittedByEmployee,
@@ -313,7 +316,13 @@ let AppraisalsService = class AppraisalsService {
         return { message: 'Appraisal restarted successfully' };
     }
     async sendReminder(employeeId) {
-        console.log(employeeId);
+        await this.push.createAndSendToEmployee(employeeId, {
+            title: 'Self Appraisal Reminder',
+            body: `Don't forget to complete your self appraisal.`,
+            route: '/screens/dashboard/performance/appraisals',
+            data: {},
+            type: 'message',
+        });
     }
 };
 exports.AppraisalsService = AppraisalsService;
@@ -321,6 +330,7 @@ exports.AppraisalsService = AppraisalsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
-        company_settings_service_1.CompanySettingsService])
+        company_settings_service_1.CompanySettingsService,
+        push_notification_service_1.PushNotificationService])
 ], AppraisalsService);
 //# sourceMappingURL=appraisals.service.js.map

@@ -38,7 +38,7 @@ export declare class FeedbackSettingsService {
         allowAnonymous: boolean | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-        rules: Record<"employee" | "manager", any[]>;
+        rules: Record<"manager" | "employee", any[]>;
     }>;
     update(companyId: string, dto: UpdateFeedbackSettingsDto, user: User): Promise<{
         id: string;

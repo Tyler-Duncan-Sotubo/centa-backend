@@ -30,14 +30,14 @@ export declare class ExpensesService {
         updatedAt: Date | null;
         companyId: string;
         employeeId: string;
-        amount: string;
         status: string;
         category: string;
         purpose: string;
+        rejectionReason: string | null;
+        amount: string;
         submittedAt: Date | null;
         receiptUrl: string | null;
         paymentMethod: string | null;
-        rejectionReason: string | null;
         deletedAt: Date | null;
     }>;
     bulkCreateExpenses(companyId: string, rows: any[], user: User): Promise<{
@@ -47,14 +47,14 @@ export declare class ExpensesService {
         updatedAt: Date | null;
         companyId: string;
         employeeId: string;
-        amount: string;
         status: string;
         category: string;
         purpose: string;
+        rejectionReason: string | null;
+        amount: string;
         submittedAt: Date | null;
         receiptUrl: string | null;
         paymentMethod: string | null;
-        rejectionReason: string | null;
         deletedAt: Date | null;
     }[]>;
     update(id: string, dto: UpdateExpenseDto, user: User): Promise<{

@@ -4,11 +4,13 @@ import { User } from 'src/common/types/user.type';
 import { CreateAppraisalDto } from './dto/create-appraisal.dto';
 import { UpdateAppraisalDto } from './dto/update-appraisal.dto';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
+import { PushNotificationService } from 'src/modules/notification/services/push-notification.service';
 export declare class AppraisalsService {
     private readonly db;
     private readonly auditService;
     private readonly companySettingsService;
-    constructor(db: db, auditService: AuditService, companySettingsService: CompanySettingsService);
+    private readonly push;
+    constructor(db: db, auditService: AuditService, companySettingsService: CompanySettingsService, push: PushNotificationService);
     create(createDto: CreateAppraisalDto, companyId: string, userId?: string): Promise<{
         id: string;
         createdAt: Date | null;
@@ -16,15 +18,16 @@ export declare class AppraisalsService {
         managerId: string;
         employeeId: string;
         cycleId: string;
-        finalScore: number | null;
-        promotionRecommendation: "promote" | "hold" | "exit" | null;
         submittedByEmployee: boolean | null;
         submittedByManager: boolean | null;
         finalized: boolean | null;
+        finalScore: number | null;
+        promotionRecommendation: "promote" | "hold" | "exit" | null;
         finalNote: string | null;
     }>;
     findAll(companyId: string, cycleId: string): Promise<({
         id: string;
+        employeeId: string;
         employeeName: string;
         managerName: string;
         submittedByEmployee: boolean | null;
@@ -35,6 +38,7 @@ export declare class AppraisalsService {
         jobRoleName: string | null;
     } | {
         id: string;
+        employeeId: string;
         employeeName: string;
         managerName: string;
         submittedByEmployee: boolean | null;
@@ -50,7 +54,7 @@ export declare class AppraisalsService {
             name: string;
             startDate: string;
             endDate: string;
-            status: "active" | "closed" | "upcoming";
+            status: "active" | "upcoming" | "closed";
         } | null;
         currentCycleAppraisal: {
             id: string;

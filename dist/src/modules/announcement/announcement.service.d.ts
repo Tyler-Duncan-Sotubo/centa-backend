@@ -27,12 +27,12 @@ export declare class AnnouncementService {
         departmentId: string | null;
         title: string;
         locationId: string | null;
-        createdBy: string;
         body: string;
         image: string | null;
         publishedAt: Date | null;
         expiresAt: Date | null;
         isPublished: boolean | null;
+        createdBy: string;
         categoryId: string;
     }>;
     findAll(companyId: string): Promise<{

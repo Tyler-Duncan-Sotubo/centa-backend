@@ -390,6 +390,107 @@ let PushNotificationService = PushNotificationService_1 = class PushNotification
             }
         }
     }
+    async broadcastAppUpdate(dto, opts) {
+        const durable = !!opts?.durable;
+        const allDevices = await this.db
+            .select({
+            id: expo_schema_1.expoPushDevices.id,
+            token: expo_schema_1.expoPushDevices.expoPushToken,
+            platform: expo_schema_1.expoPushDevices.platform,
+            employeeId: expo_schema_1.expoPushDevices.employeeId,
+        })
+            .from(expo_schema_1.expoPushDevices)
+            .execute();
+        const devices = allDevices.filter((d) => {
+            if (!expo_server_sdk_1.Expo.isExpoPushToken(d.token))
+                return false;
+            if (opts?.platforms?.length &&
+                !opts.platforms.includes(d.platform || 'unknown')) {
+                return false;
+            }
+            return true;
+        });
+        if (!devices.length) {
+            return { created: 0, sentTo: 0, recipients: [] };
+        }
+        const baseData = {
+            type: 'APP_UPDATE',
+            url: dto.url,
+            ...(dto.data ?? {}),
+        };
+        if (durable) {
+            const employeeIds = Array.from(new Set(devices.map((d) => d.employeeId)));
+            const rowsToInsert = employeeIds.map((employeeId) => ({
+                employeeId,
+                title: dto.title,
+                body: dto.body ?? null,
+                type: 'SYSTEM',
+                route: dto.route ?? null,
+                data: baseData,
+                url: dto.url ?? null,
+            }));
+            const created = await this.db
+                .insert(expo_schema_1.expo_notifications)
+                .values(rowsToInsert)
+                .returning({
+                id: expo_schema_1.expo_notifications.id,
+                employeeId: expo_schema_1.expo_notifications.employeeId,
+            })
+                .execute();
+            const notifIdByEmployee = new Map();
+            for (const row of created)
+                notifIdByEmployee.set(row.employeeId, row.id);
+            const unreadRows = await this.db
+                .select({
+                employeeId: expo_schema_1.expo_notifications.employeeId,
+                count: (0, drizzle_orm_1.sql) `count(*)`,
+            })
+                .from(expo_schema_1.expo_notifications)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.inArray)(expo_schema_1.expo_notifications.employeeId, employeeIds), (0, drizzle_orm_1.isNull)(expo_schema_1.expo_notifications.readAt), (0, drizzle_orm_1.eq)(expo_schema_1.expo_notifications.isArchived, false)))
+                .groupBy(expo_schema_1.expo_notifications.employeeId)
+                .execute();
+            const unreadByEmployee = new Map();
+            for (const u of unreadRows)
+                unreadByEmployee.set(u.employeeId, Number(u.count));
+            const tokensByEmployee = new Map();
+            const deviceRowsByEmployee = new Map();
+            for (const d of devices) {
+                const arr = tokensByEmployee.get(d.employeeId) ?? [];
+                if (!arr.includes(d.token))
+                    arr.push(d.token);
+                tokensByEmployee.set(d.employeeId, arr);
+                const devArr = deviceRowsByEmployee.get(d.employeeId) ?? [];
+                devArr.push({ id: d.id, token: d.token });
+                deviceRowsByEmployee.set(d.employeeId, devArr);
+            }
+            let sentTo = 0;
+            for (const employeeId of employeeIds) {
+                const tokens = tokensByEmployee.get(employeeId) ?? [];
+                if (!tokens.length)
+                    continue;
+                sentTo += tokens.length;
+                const notifId = notifIdByEmployee.get(employeeId);
+                const badge = unreadByEmployee.get(employeeId) ?? 0;
+                await this.sendToTokens(tokens, {
+                    title: dto.title,
+                    body: dto.body ?? '',
+                    data: { ...baseData, notificationId: notifId },
+                    badge,
+                }, {
+                    notificationId: notifId,
+                    deviceRows: deviceRowsByEmployee.get(employeeId),
+                });
+            }
+            return { created: created.length, sentTo, recipients: employeeIds };
+        }
+        const tokens = Array.from(new Set(devices.map((d) => d.token)));
+        await this.sendToTokens(tokens, {
+            title: dto.title,
+            body: dto.body ?? '',
+            data: baseData,
+        });
+        return { created: 0, sentTo: tokens.length, recipients: [] };
+    }
 };
 exports.PushNotificationService = PushNotificationService;
 exports.PushNotificationService = PushNotificationService = PushNotificationService_1 = __decorate([

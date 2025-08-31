@@ -11,9 +11,9 @@ export declare class BlockedDaysService {
     constructor(db: db, auditService: AuditService, cache: CacheService);
     private tags;
     create(dto: CreateBlockedDayDto, user: User): Promise<{
-        name: string;
         date: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         companyId: string | null;
         createdBy: string;

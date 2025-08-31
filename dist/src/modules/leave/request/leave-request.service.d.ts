@@ -24,21 +24,21 @@ export declare class LeaveRequestService {
     constructor(db: db, leavePolicyService: LeavePolicyService, leaveSettingsService: LeaveSettingsService, leaveBalanceService: LeaveBalanceService, employeesService: EmployeesService, auditService: AuditService, holidayService: HolidaysService, blockedDaysService: BlockedDaysService, reservedDaysService: ReservedDaysService, cache: CacheService);
     private tags;
     applyForLeave(dto: CreateLeaveRequestDto, user: User, ip: string): Promise<{
+        status: string;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
         startDate: string;
         employeeId: string;
-        requestedAt: Date | null;
         endDate: string;
-        status: string;
-        rejectionReason: string | null;
         reason: string | null;
+        requestedAt: Date | null;
         leaveTypeId: string;
         totalDays: string;
         approverId: string | null;
         approvedAt: Date | null;
+        rejectionReason: string | null;
         approvalChain: unknown;
         currentApprovalIndex: number | null;
         approvalHistory: unknown;

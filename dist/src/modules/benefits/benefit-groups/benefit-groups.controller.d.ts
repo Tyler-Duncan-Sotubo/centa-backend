@@ -7,8 +7,8 @@ export declare class BenefitGroupsController extends BaseController {
     private readonly benefitGroupsService;
     constructor(benefitGroupsService: BenefitGroupsService);
     create(dto: CreateBenefitGroupDto, user: User): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         companyId: string;
         description: string | null;
