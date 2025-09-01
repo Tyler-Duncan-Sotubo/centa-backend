@@ -15,7 +15,7 @@ import {
   employeeProfiles,
   employees,
 } from 'src/drizzle/schema';
-import { desc, eq, sql, and, ne } from 'drizzle-orm';
+import { desc, eq, sql, and, ne, inArray } from 'drizzle-orm';
 import { EmployeeOnboardingInputDto } from './dto/employee-onboarding-input.dto';
 import { AwsService } from 'src/common/aws/aws.service';
 
@@ -455,29 +455,23 @@ export class OnboardingService {
           .execute();
       }
 
-      // 6) Remaining items: LEFT JOIN so missing rows count as incomplete
-      const [{ remaining }] = await tx
-        .select({ remaining: sql<number>`count(*)` })
-        .from(onboardingTemplateChecklists)
-        .leftJoin(
-          employeeChecklistStatus,
-          and(
-            eq(
-              employeeChecklistStatus.checklistId,
-              onboardingTemplateChecklists.id,
-            ),
-            eq(employeeChecklistStatus.employeeId, employeeId),
-          ),
-        )
+      // Find at most one row still not completed
+      const pendingRow = await tx
+        .select({ one: sql`1` })
+        .from(employeeChecklistStatus)
         .where(
           and(
-            eq(onboardingTemplateChecklists.templateId, templateId),
-            sql`(${employeeChecklistStatus.status} IS NULL OR ${employeeChecklistStatus.status} <> 'completed')`,
+            eq(employeeChecklistStatus.employeeId, employeeId),
+            inArray(employeeChecklistStatus.checklistId, checklistIds),
+            sql`${employeeChecklistStatus.status} <> 'completed'`,
           ),
         )
+        .limit(1)
         .execute();
 
-      if (remaining === 0) {
+      const hasRemaining = pendingRow.length > 0;
+
+      if (!hasRemaining) {
         await tx
           .update(employeeOnboarding)
           .set({ status: 'completed', completedAt: now })
