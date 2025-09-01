@@ -209,7 +209,38 @@ export class OnboardingService {
     employeeId: string,
     payload: EmployeeOnboardingInputDto,
   ) {
-    /* ───── 1. Split payload into logical buckets ───────────────────────── */
+    /* 0) Resolve template & (optionally) enforce required file */
+    const onboardingRow = await this.db
+      .select({
+        templateId: employeeOnboarding.templateId,
+        companyId: employeeOnboarding.companyId,
+      })
+      .from(employeeOnboarding)
+      .where(eq(employeeOnboarding.employeeId, employeeId))
+      .limit(1)
+      .then((r) => r[0]);
+
+    if (!onboardingRow) throw new BadRequestException('Onboarding not found');
+
+    const { templateId } = onboardingRow;
+
+    // If your system fields define idUpload as required on this template, enforce it:
+    const idUploadRequired =
+      await this.db.query.onboardingTemplateFields.findFirst({
+        where: (f, { and, eq }) =>
+          and(
+            eq(f.templateId, templateId),
+            eq(f.fieldKey, 'idUpload'),
+            eq(f.required, true),
+          ),
+      });
+    if (idUploadRequired && !payload.idUpload) {
+      throw new BadRequestException(
+        'ID upload is required for this onboarding.',
+      );
+    }
+
+    /* 1) Split payload into buckets */
     const profileFields = {
       dateOfBirth: payload.dateOfBirth,
       gender: payload.gender,
@@ -219,6 +250,7 @@ export class OnboardingService {
       phone: payload.phone,
       emergencyName: payload.emergencyName,
       emergencyPhone: payload.emergencyPhone,
+      employeeId,
     };
 
     const financialFields = {
@@ -230,73 +262,102 @@ export class OnboardingService {
       tin: payload.tin,
       pensionPin: payload.pensionPin,
       nhfNumber: payload.nhfNumber,
+      employeeId,
     };
 
-    /* ───── 2. Upsert profile ───────────────────────────────────────────── */
-    await this.db
-      .insert(employeeProfiles)
-      .values({ ...profileFields, employeeId })
-      .execute();
+    /* 2) Upsert profile */
+    await this.db.insert(employeeProfiles).values(profileFields).execute();
 
-    /* ───── 3. Upsert financials ────────────────────────────────────────── */
-    await this.db
-      .insert(employeeFinancials)
-      .values({ ...financialFields, employeeId })
-      .execute();
+    /* 3) Upsert financials */
+    await this.db.insert(employeeFinancials).values(financialFields).execute();
 
-    /* ───── 4. Handle attachment (image or PDF) ─────────────────────────── */
+    /* 4) Optional attachment (image or PDF) */
     if (payload.idUpload) {
-      // 4-a. Parse the Base64 string: "data:<mime>;base64,<encoded>"
-      const [meta, base64Data] = payload.idUpload.split(',');
-      const isPdf = meta.includes('application/pdf');
-      const fileExt = isPdf ? 'pdf' : meta.includes('png') ? 'png' : 'jpg';
-      const fileName = `id-${employeeId}-${Date.now()}.${fileExt}`;
+      const upload = payload.idUpload as unknown;
 
-      // (Assuming you can fetch the employee email once—needed by your helpers)
-      const { email } = await this.db
+      // Fetch email once for S3 pathing
+      const emp = await this.db
         .select({ email: employees.email })
         .from(employees)
         .where(eq(employees.id, employeeId))
         .limit(1)
         .then((r) => r[0]);
+      if (!emp) throw new BadRequestException('Employee not found');
+      const { email } = emp;
 
-      let fileUrl: string;
+      let fileUrl: string | null = null;
+      let fileName = `id-${employeeId}-${Date.now()}`;
+      let docType: 'id_upload' | 'image_upload' = 'image_upload';
 
-      if (isPdf) {
-        // Convert raw Base64 → Buffer (PDF helper expects Buffer)
-        const pdfBuffer = Buffer.from(base64Data, 'base64');
-        fileUrl = await this.aws.uploadPdfToS3(email, fileName, pdfBuffer);
-      } else {
-        // Image helper already expects the full data URL
-        fileUrl = await this.aws.uploadImageToS3(
-          email,
-          fileName,
-          payload.idUpload,
-        );
+      // CASE A: string
+      if (typeof upload === 'string') {
+        if (upload.startsWith('data:')) {
+          // Validate data URL
+          const commaIdx = upload.indexOf(',');
+          if (commaIdx === -1) {
+            throw new BadRequestException('Invalid data URL for idUpload.');
+          }
+          const meta = upload.slice(5, commaIdx); // after "data:"
+          const base64Data = upload.slice(commaIdx + 1);
+
+          const isPdf = /application\/pdf/i.test(meta);
+          const isPng = /image\/png/i.test(meta);
+          const isJpg = /image\/jpe?g/i.test(meta);
+
+          const ext = isPdf ? 'pdf' : isPng ? 'png' : isJpg ? 'jpg' : 'bin';
+          fileName = `${fileName}.${ext}`;
+          docType = isPdf ? 'id_upload' : 'image_upload';
+
+          if (isPdf) {
+            const pdfBuffer = Buffer.from(base64Data, 'base64');
+            fileUrl = await this.aws.uploadPdfToS3(email, fileName, pdfBuffer);
+          } else {
+            // Your helper expects full data URL; pass `upload`
+            fileUrl = await this.aws.uploadImageToS3(email, fileName, upload);
+          }
+        } else if (/^https?:\/\//i.test(upload)) {
+          // Already uploaded somewhere — persist reference only
+          fileUrl = upload;
+          // try to infer ext for docType (optional)
+          if (upload.endsWith('.pdf')) docType = 'id_upload';
+        } else {
+          // Treat as an S3 key you already have (optional branch)
+          // Implement a helper to turn keys to signed/public URLs if you want
+          fileUrl = upload;
+        }
+      }
+      // CASE B: file-like object { buffer, mimetype } — if your client ever sends this
+      else if (
+        upload &&
+        typeof upload === 'object' &&
+        'buffer' in (upload as any)
+      ) {
+        const u = upload as { buffer: Buffer; mimetype?: string };
+        const isPdf = /pdf/i.test(u.mimetype || '');
+        const ext = isPdf ? 'pdf' : 'bin';
+        fileName = `${fileName}.${ext}`;
+        docType = isPdf ? 'id_upload' : 'image_upload';
+        fileUrl = await this.aws.uploadPdfToS3(email, fileName, u.buffer);
       }
 
-      // 4-b. Persist reference to DB
-      await this.db.insert(employeeDocuments).values({
-        employeeId,
-        type: isPdf ? 'id_upload' : 'image_upload',
-        fileName,
-        fileUrl,
-      });
+      if (fileUrl) {
+        await this.db
+          .insert(employeeDocuments)
+          .values({
+            employeeId,
+            type: docType,
+            fileName,
+            fileUrl,
+          })
+          .execute();
+      }
+      // If fileUrl is null, we silently skip; alternatively, throw to signal bad input
     }
-    /* ───── 5. Update checklist progress ───────────────────── */
 
-    const { templateId } = await this.db
-      .select({ templateId: employeeOnboarding.templateId })
-      .from(employeeOnboarding)
-      .where(eq(employeeOnboarding.employeeId, employeeId))
-      .limit(1)
-      .then((r) => r[0]);
-
-    // Re-use the helper we sketched earlier
+    /* 5) Update checklist progress */
     await this.upsertChecklistProgress(employeeId, templateId, payload);
 
-    /* ───── 6. Auto-close onboarding if nothing left ───────── */
-
+    /* 6) Auto-close onboarding if nothing left */
     const outstanding = await this.db
       .select({ cnt: sql<number>`count(*)` })
       .from(employeeChecklistStatus)
@@ -312,7 +373,8 @@ export class OnboardingService {
       await this.db
         .update(employeeOnboarding)
         .set({ status: 'completed', completedAt: new Date() })
-        .where(eq(employeeOnboarding.employeeId, employeeId));
+        .where(eq(employeeOnboarding.employeeId, employeeId))
+        .execute();
     }
 
     return { success: true };
@@ -323,84 +385,110 @@ export class OnboardingService {
     templateId: string,
     payload: EmployeeOnboardingInputDto,
   ) {
-    /* ① Pull every checklist row for the template */
-    const templateChecklist =
-      await this.db.query.onboardingTemplateChecklists.findMany({
+    // ① Pull checklist & fields once
+    const [templateChecklist, templateFields] = await Promise.all([
+      this.db.query.onboardingTemplateChecklists.findMany({
         where: (c, { eq }) => eq(c.templateId, templateId),
-      });
+      }),
+      this.db.query.onboardingTemplateFields.findMany({
+        where: (f, { eq }) => eq(f.templateId, templateId),
+      }),
+    ]);
 
-    /* ② Determine which items are satisfied */
+    // index fields by tag for robust fallback
+    const keysByTag: Record<string, string[]> = {};
+    for (const f of templateFields) {
+      if (!f.tag) continue;
+      (keysByTag[f.tag] ??= []).push(f.fieldKey);
+    }
+
     const now = new Date();
+    let anyCompleted = false;
+
     for (const item of templateChecklist) {
-      const fieldKeys = this.checklistFieldMap[item.title] ?? [];
+      // Prefer your static map; fallback to tag inference
+      const fromMap = this.checklistFieldMap?.[item.title] ?? [];
+      const tag = this.inferTagFromTitle(item.title);
+      const inferred = tag ? (keysByTag[tag] ?? []) : [];
+      const fieldKeys = fromMap.length ? fromMap : inferred;
 
-      /* 👉 NEW: require at least one key */
       const satisfied =
-        fieldKeys.length > 0 && // ← guard
-        fieldKeys.every((k) =>
-          k === 'idUpload'
-            ? Boolean(payload.idUpload)
-            : payload[k as keyof EmployeeOnboardingInputDto] != null &&
-              payload[k as keyof EmployeeOnboardingInputDto] !== '',
-        );
+        fieldKeys.length > 0 &&
+        fieldKeys.every((k) => {
+          if (k === 'idUpload') return !!payload.idUpload;
+          const v = (payload as any)[k];
+          return v !== undefined && v !== null && String(v).trim() !== '';
+        });
 
-      if (!satisfied) continue; // nothing to update
+      // Ensure there is at least a pending row (optional but nice)
+      await this.db
+        .insert(employeeChecklistStatus)
+        .values({
+          employeeId,
+          checklistId: item.id,
+          status: 'pending',
+        })
+        .execute();
 
-      /* ③ Check if the employee already has a status row for this item */
-      if (satisfied) {
-        /* UPSERT progress row */
-        await this.db
-          .update(employeeChecklistStatus)
-          .set({
-            status: 'completed',
-            completedAt: now,
-          })
-          .where(
-            and(
-              eq(employeeChecklistStatus.employeeId, employeeId),
-              eq(employeeChecklistStatus.checklistId, item.id),
-            ),
-          );
+      if (!satisfied) continue;
 
-        await this.db
-          .update(employees)
-          .set({
-            employmentStatus: 'active',
-          })
-          .where(eq(employees.id, employeeId));
-      }
+      // UPSERT to completed
+      await this.db
+        .insert(employeeChecklistStatus)
+        .values({
+          employeeId,
+          checklistId: item.id,
+          status: 'completed',
+          completedAt: now,
+        })
+        .execute();
 
-      const [{ remaining }] = await this.db
-        .select({ remaining: sql<number>`count(*)` })
-        .from(employeeChecklistStatus)
-        .innerJoin(
-          onboardingTemplateChecklists,
-          and(
-            eq(
-              onboardingTemplateChecklists.id,
-              employeeChecklistStatus.checklistId,
-            ),
-            eq(onboardingTemplateChecklists.templateId, templateId),
+      anyCompleted = true;
+    }
+
+    // Optionally set employee active once they’ve completed at least one item
+    if (anyCompleted) {
+      await this.db
+        .update(employees)
+        .set({ employmentStatus: 'active' })
+        .where(eq(employees.id, employeeId))
+        .execute();
+    }
+
+    // ② Compute remaining correctly (LEFT JOIN so missing rows count as incomplete)
+    const [{ remaining }] = await this.db
+      .select({ remaining: sql<number>`count(*)` })
+      .from(onboardingTemplateChecklists)
+      .leftJoin(
+        employeeChecklistStatus,
+        and(
+          eq(
+            employeeChecklistStatus.checklistId,
+            onboardingTemplateChecklists.id,
           ),
-        )
+          eq(employeeChecklistStatus.employeeId, employeeId),
+        ),
+      )
+      .where(
+        and(
+          eq(onboardingTemplateChecklists.templateId, templateId),
+          // status is null OR not completed
+          sql`(${employeeChecklistStatus.status} IS NULL OR ${employeeChecklistStatus.status} <> 'completed')`,
+        ),
+      )
+      .execute();
+
+    if (remaining === 0) {
+      await this.db
+        .update(employeeOnboarding)
+        .set({ status: 'completed', completedAt: now })
         .where(
           and(
-            eq(employeeChecklistStatus.employeeId, employeeId),
-            ne(employeeChecklistStatus.status, 'completed'),
+            eq(employeeOnboarding.employeeId, employeeId),
+            eq(employeeOnboarding.templateId, templateId),
           ),
         )
         .execute();
-      if (remaining === 0) {
-        await this.db
-          .update(employeeOnboarding)
-          .set({ status: 'completed', completedAt: now })
-          .where(
-            and(
-              eq(employeeOnboarding.employeeId, employeeId),
-              eq(employeeOnboarding.templateId, templateId),
-            ),
-          );
-      }
     }
   }
 

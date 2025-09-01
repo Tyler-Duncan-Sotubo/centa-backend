@@ -295,6 +295,24 @@ let OnboardingService = class OnboardingService {
         return { ...row, checklist: checklistWithFields };
     }
     async saveEmployeeOnboardingData(employeeId, payload) {
+        const onboardingRow = await this.db
+            .select({
+            templateId: schema_1.employeeOnboarding.templateId,
+            companyId: schema_1.employeeOnboarding.companyId,
+        })
+            .from(schema_1.employeeOnboarding)
+            .where((0, drizzle_orm_1.eq)(schema_1.employeeOnboarding.employeeId, employeeId))
+            .limit(1)
+            .then((r) => r[0]);
+        if (!onboardingRow)
+            throw new common_1.BadRequestException('Onboarding not found');
+        const { templateId } = onboardingRow;
+        const idUploadRequired = await this.db.query.onboardingTemplateFields.findFirst({
+            where: (f, { and, eq }) => and(eq(f.templateId, templateId), eq(f.fieldKey, 'idUpload'), eq(f.required, true)),
+        });
+        if (idUploadRequired && !payload.idUpload) {
+            throw new common_1.BadRequestException('ID upload is required for this onboarding.');
+        }
         const profileFields = {
             dateOfBirth: payload.dateOfBirth,
             gender: payload.gender,
@@ -304,6 +322,7 @@ let OnboardingService = class OnboardingService {
             phone: payload.phone,
             emergencyName: payload.emergencyName,
             emergencyPhone: payload.emergencyPhone,
+            employeeId,
         };
         const financialFields = {
             bankName: payload.bankName,
@@ -314,47 +333,77 @@ let OnboardingService = class OnboardingService {
             tin: payload.tin,
             pensionPin: payload.pensionPin,
             nhfNumber: payload.nhfNumber,
+            employeeId,
         };
-        await this.db
-            .insert(schema_2.employeeProfiles)
-            .values({ ...profileFields, employeeId })
-            .execute();
-        await this.db
-            .insert(schema_2.employeeFinancials)
-            .values({ ...financialFields, employeeId })
-            .execute();
+        await this.db.insert(schema_2.employeeProfiles).values(profileFields).execute();
+        await this.db.insert(schema_2.employeeFinancials).values(financialFields).execute();
         if (payload.idUpload) {
-            const [meta, base64Data] = payload.idUpload.split(',');
-            const isPdf = meta.includes('application/pdf');
-            const fileExt = isPdf ? 'pdf' : meta.includes('png') ? 'png' : 'jpg';
-            const fileName = `id-${employeeId}-${Date.now()}.${fileExt}`;
-            const { email } = await this.db
+            const upload = payload.idUpload;
+            const emp = await this.db
                 .select({ email: schema_2.employees.email })
                 .from(schema_2.employees)
                 .where((0, drizzle_orm_1.eq)(schema_2.employees.id, employeeId))
                 .limit(1)
                 .then((r) => r[0]);
-            let fileUrl;
-            if (isPdf) {
-                const pdfBuffer = Buffer.from(base64Data, 'base64');
-                fileUrl = await this.aws.uploadPdfToS3(email, fileName, pdfBuffer);
+            if (!emp)
+                throw new common_1.BadRequestException('Employee not found');
+            const { email } = emp;
+            let fileUrl = null;
+            let fileName = `id-${employeeId}-${Date.now()}`;
+            let docType = 'image_upload';
+            if (typeof upload === 'string') {
+                if (upload.startsWith('data:')) {
+                    const commaIdx = upload.indexOf(',');
+                    if (commaIdx === -1) {
+                        throw new common_1.BadRequestException('Invalid data URL for idUpload.');
+                    }
+                    const meta = upload.slice(5, commaIdx);
+                    const base64Data = upload.slice(commaIdx + 1);
+                    const isPdf = /application\/pdf/i.test(meta);
+                    const isPng = /image\/png/i.test(meta);
+                    const isJpg = /image\/jpe?g/i.test(meta);
+                    const ext = isPdf ? 'pdf' : isPng ? 'png' : isJpg ? 'jpg' : 'bin';
+                    fileName = `${fileName}.${ext}`;
+                    docType = isPdf ? 'id_upload' : 'image_upload';
+                    if (isPdf) {
+                        const pdfBuffer = Buffer.from(base64Data, 'base64');
+                        fileUrl = await this.aws.uploadPdfToS3(email, fileName, pdfBuffer);
+                    }
+                    else {
+                        fileUrl = await this.aws.uploadImageToS3(email, fileName, upload);
+                    }
+                }
+                else if (/^https?:\/\//i.test(upload)) {
+                    fileUrl = upload;
+                    if (upload.endsWith('.pdf'))
+                        docType = 'id_upload';
+                }
+                else {
+                    fileUrl = upload;
+                }
             }
-            else {
-                fileUrl = await this.aws.uploadImageToS3(email, fileName, payload.idUpload);
+            else if (upload &&
+                typeof upload === 'object' &&
+                'buffer' in upload) {
+                const u = upload;
+                const isPdf = /pdf/i.test(u.mimetype || '');
+                const ext = isPdf ? 'pdf' : 'bin';
+                fileName = `${fileName}.${ext}`;
+                docType = isPdf ? 'id_upload' : 'image_upload';
+                fileUrl = await this.aws.uploadPdfToS3(email, fileName, u.buffer);
             }
-            await this.db.insert(schema_2.employeeDocuments).values({
-                employeeId,
-                type: isPdf ? 'id_upload' : 'image_upload',
-                fileName,
-                fileUrl,
-            });
+            if (fileUrl) {
+                await this.db
+                    .insert(schema_2.employeeDocuments)
+                    .values({
+                    employeeId,
+                    type: docType,
+                    fileName,
+                    fileUrl,
+                })
+                    .execute();
+            }
         }
-        const { templateId } = await this.db
-            .select({ templateId: schema_1.employeeOnboarding.templateId })
-            .from(schema_1.employeeOnboarding)
-            .where((0, drizzle_orm_1.eq)(schema_1.employeeOnboarding.employeeId, employeeId))
-            .limit(1)
-            .then((r) => r[0]);
         await this.upsertChecklistProgress(employeeId, templateId, payload);
         const outstanding = await this.db
             .select({ cnt: (0, drizzle_orm_1.sql) `count(*)` })
@@ -365,51 +414,80 @@ let OnboardingService = class OnboardingService {
             await this.db
                 .update(schema_1.employeeOnboarding)
                 .set({ status: 'completed', completedAt: new Date() })
-                .where((0, drizzle_orm_1.eq)(schema_1.employeeOnboarding.employeeId, employeeId));
+                .where((0, drizzle_orm_1.eq)(schema_1.employeeOnboarding.employeeId, employeeId))
+                .execute();
         }
         return { success: true };
     }
     async upsertChecklistProgress(employeeId, templateId, payload) {
-        const templateChecklist = await this.db.query.onboardingTemplateChecklists.findMany({
-            where: (c, { eq }) => eq(c.templateId, templateId),
-        });
+        const [templateChecklist, templateFields] = await Promise.all([
+            this.db.query.onboardingTemplateChecklists.findMany({
+                where: (c, { eq }) => eq(c.templateId, templateId),
+            }),
+            this.db.query.onboardingTemplateFields.findMany({
+                where: (f, { eq }) => eq(f.templateId, templateId),
+            }),
+        ]);
+        const keysByTag = {};
+        for (const f of templateFields) {
+            if (!f.tag)
+                continue;
+            (keysByTag[f.tag] ??= []).push(f.fieldKey);
+        }
         const now = new Date();
+        let anyCompleted = false;
         for (const item of templateChecklist) {
-            const fieldKeys = this.checklistFieldMap[item.title] ?? [];
+            const fromMap = this.checklistFieldMap?.[item.title] ?? [];
+            const tag = this.inferTagFromTitle(item.title);
+            const inferred = tag ? (keysByTag[tag] ?? []) : [];
+            const fieldKeys = fromMap.length ? fromMap : inferred;
             const satisfied = fieldKeys.length > 0 &&
-                fieldKeys.every((k) => k === 'idUpload'
-                    ? Boolean(payload.idUpload)
-                    : payload[k] != null &&
-                        payload[k] !== '');
+                fieldKeys.every((k) => {
+                    if (k === 'idUpload')
+                        return !!payload.idUpload;
+                    const v = payload[k];
+                    return v !== undefined && v !== null && String(v).trim() !== '';
+                });
+            await this.db
+                .insert(schema_1.employeeChecklistStatus)
+                .values({
+                employeeId,
+                checklistId: item.id,
+                status: 'pending',
+            })
+                .execute();
             if (!satisfied)
                 continue;
-            if (satisfied) {
-                await this.db
-                    .update(schema_1.employeeChecklistStatus)
-                    .set({
-                    status: 'completed',
-                    completedAt: now,
-                })
-                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employeeChecklistStatus.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_1.employeeChecklistStatus.checklistId, item.id)));
-                await this.db
-                    .update(schema_2.employees)
-                    .set({
-                    employmentStatus: 'active',
-                })
-                    .where((0, drizzle_orm_1.eq)(schema_2.employees.id, employeeId));
-            }
-            const [{ remaining }] = await this.db
-                .select({ remaining: (0, drizzle_orm_1.sql) `count(*)` })
-                .from(schema_1.employeeChecklistStatus)
-                .innerJoin(schema_1.onboardingTemplateChecklists, (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.onboardingTemplateChecklists.id, schema_1.employeeChecklistStatus.checklistId), (0, drizzle_orm_1.eq)(schema_1.onboardingTemplateChecklists.templateId, templateId)))
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employeeChecklistStatus.employeeId, employeeId), (0, drizzle_orm_1.ne)(schema_1.employeeChecklistStatus.status, 'completed')))
+            await this.db
+                .insert(schema_1.employeeChecklistStatus)
+                .values({
+                employeeId,
+                checklistId: item.id,
+                status: 'completed',
+                completedAt: now,
+            })
                 .execute();
-            if (remaining === 0) {
-                await this.db
-                    .update(schema_1.employeeOnboarding)
-                    .set({ status: 'completed', completedAt: now })
-                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employeeOnboarding.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_1.employeeOnboarding.templateId, templateId)));
-            }
+            anyCompleted = true;
+        }
+        if (anyCompleted) {
+            await this.db
+                .update(schema_2.employees)
+                .set({ employmentStatus: 'active' })
+                .where((0, drizzle_orm_1.eq)(schema_2.employees.id, employeeId))
+                .execute();
+        }
+        const [{ remaining }] = await this.db
+            .select({ remaining: (0, drizzle_orm_1.sql) `count(*)` })
+            .from(schema_1.onboardingTemplateChecklists)
+            .leftJoin(schema_1.employeeChecklistStatus, (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employeeChecklistStatus.checklistId, schema_1.onboardingTemplateChecklists.id), (0, drizzle_orm_1.eq)(schema_1.employeeChecklistStatus.employeeId, employeeId)))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.onboardingTemplateChecklists.templateId, templateId), (0, drizzle_orm_1.sql) `(${schema_1.employeeChecklistStatus.status} IS NULL OR ${schema_1.employeeChecklistStatus.status} <> 'completed')`))
+            .execute();
+        if (remaining === 0) {
+            await this.db
+                .update(schema_1.employeeOnboarding)
+                .set({ status: 'completed', completedAt: now })
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employeeOnboarding.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_1.employeeOnboarding.templateId, templateId)))
+                .execute();
         }
     }
     async updateChecklistStatus(employeeId, checklistId, status) {
