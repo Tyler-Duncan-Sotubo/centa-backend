@@ -20,14 +20,14 @@ export declare class BenefitPlanService {
         createdAt: Date | null;
         split: string;
         companyId: string;
+        category: string;
         description: string | null;
         startDate: Date;
         endDate: Date | null;
-        category: string;
+        employerContribution: number | null;
         benefitGroupId: string;
         coverageOptions: unknown;
         cost: unknown;
-        employerContribution: number | null;
     }>;
     findAll(companyId: string): Promise<{
         id: string;

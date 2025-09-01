@@ -19,6 +19,8 @@ import { desc, eq, sql, and, ne } from 'drizzle-orm';
 import { EmployeeOnboardingInputDto } from './dto/employee-onboarding-input.dto';
 import { AwsService } from 'src/common/aws/aws.service';
 
+type Tag = 'profile' | 'finance' | 'uploads' | 'other';
+
 @Injectable()
 export class OnboardingService {
   constructor(
@@ -183,17 +185,21 @@ export class OnboardingService {
     );
 
     /* 3️⃣  fetch all fields for that template */
-    const templateFields =
+    const templateFieldsRaw =
       await this.db.query.onboardingTemplateFields.findMany({
         where: (f, { eq }) => eq(f.templateId, row.templateId),
       });
 
+    // Map order: null → undefined for type compatibility
+    const templateFields = templateFieldsRaw.map((f) => ({
+      ...f,
+      order: f.order === null ? undefined : f.order,
+    }));
+
     /* 4️⃣  stitch fields into the checklist items using the static map */
     const checklistWithFields = checklist.map((item) => ({
       ...item,
-      fields: (this.checklistFieldMap[item.title] || [])
-        .map((key) => templateFields.find((f) => f.fieldKey === key))
-        .filter(Boolean),
+      fields: this.resolveChecklistFields(item.title, templateFields),
     }));
 
     return { ...row, checklist: checklistWithFields };
@@ -311,80 +317,6 @@ export class OnboardingService {
 
     return { success: true };
   }
-
-  private checklistFieldMap: Record<string, string[]> = {
-    'Fill Personal Details': [
-      'dateOfBirth',
-      'gender',
-      'maritalStatus',
-      'address',
-      'country',
-      'phone',
-      'emergencyName',
-      'emergencyPhone',
-    ],
-    'Fill Basic Personal Details': [
-      'dateOfBirth',
-      'gender',
-      'maritalStatus',
-      'address',
-      'country',
-      'phone',
-    ],
-    'Complete Basic Info': ['dateOfBirth', 'gender', 'phone'],
-    'Fill Out Personal Details': [
-      'dateOfBirth',
-      'gender',
-      'phone',
-      'address',
-      'country',
-    ],
-    'Fill Personal Info': ['dateOfBirth', 'gender', 'phone', 'country'],
-    'Complete Personal Details': [
-      'dateOfBirth',
-      'gender',
-      'phone',
-      'address',
-      'country',
-      'emergencyName',
-    ],
-
-    'Add Bank and Tax Info': [
-      'bankName',
-      'bankAccountNumber',
-      'bankAccountName',
-      'bankBranch',
-      'currency',
-      'tin',
-      'pensionPin',
-      'nhfNumber',
-    ],
-    'Submit Tax and Banking Info': [
-      'bankName',
-      'bankAccountNumber',
-      'bankAccountName',
-      'bankBranch',
-      'tin',
-      'pensionPin',
-      'nhfNumber',
-    ],
-    'Complete Tax and Payment Setup': [
-      'tin',
-      'bankAccountNumber',
-      'bankAccountName',
-      'currency',
-    ],
-
-    'Upload Valid ID': ['idUpload'],
-    'Upload Student ID': ['idUpload'],
-    'Upload Signed Contract': ['idUpload'],
-    'Submit Medical Certifications': ['idUpload'],
-
-    // Optional steps that may not have fields:
-    'Add Dependents (Optional)': [],
-    'Upload Certifications (If Any)': [],
-    'Submit Social Media Handles (Optional)': [],
-  };
 
   async upsertChecklistProgress(
     employeeId: string,
@@ -526,4 +458,204 @@ export class OnboardingService {
       return updated; // same shape you returned before
     });
   }
+
+  // utils/onboardingFieldResolver.ts
+  private norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+
+  private exactTitleMap: Record<string, string[]> = {
+    // normalized keys
+    'fill personal details': [
+      'dateOfBirth',
+      'gender',
+      'maritalStatus',
+      'address',
+      'country',
+      'phone',
+      'emergencyName',
+      'emergencyPhone',
+    ],
+    'fill basic personal details': [
+      'dateOfBirth',
+      'gender',
+      'maritalStatus',
+      'address',
+      'country',
+      'phone',
+    ],
+    'complete basic info': ['dateOfBirth', 'gender', 'phone'],
+    'fill out personal details': [
+      'dateOfBirth',
+      'gender',
+      'phone',
+      'address',
+      'country',
+    ],
+    'fill personal info': ['dateOfBirth', 'gender', 'phone', 'country'],
+    'complete personal details': [
+      'dateOfBirth',
+      'gender',
+      'phone',
+      'address',
+      'country',
+      'emergencyName',
+    ],
+
+    'add bank and tax info': [
+      'bankName',
+      'bankAccountNumber',
+      'bankAccountName',
+      'bankBranch',
+      'currency',
+      'tin',
+      'pensionPin',
+      'nhfNumber',
+    ],
+    'submit tax and banking info': [
+      'bankName',
+      'bankAccountNumber',
+      'bankAccountName',
+      'bankBranch',
+      'tin',
+      'pensionPin',
+      'nhfNumber',
+    ],
+    'complete tax and payment setup': [
+      'tin',
+      'bankAccountNumber',
+      'bankAccountName',
+      'currency',
+    ],
+
+    'upload valid id': ['idUpload'],
+    'upload student id': ['idUpload'],
+    'upload signed contract': ['idUpload'],
+    'submit medical certifications': ['idUpload'],
+
+    'add dependents (optional)': [],
+    'upload certifications (if any)': [],
+    'submit social media handles (optional)': [],
+  };
+
+  TITLE_RULES: Array<{ test: (t: string) => boolean; tag: Tag }> = [
+    {
+      test: (t) => /(personal|profile|basic info|details)/i.test(t),
+      tag: 'profile',
+    },
+    {
+      test: (t) => /(bank|tax|payment|finance|pension|nhf)/i.test(t),
+      tag: 'finance',
+    },
+    {
+      test: (t) => /(upload|id|contract|certificate|certification)/i.test(t),
+      tag: 'uploads',
+    },
+  ];
+
+  private inferTagFromTitle(title: string): Tag | null {
+    const hit = this.TITLE_RULES.find((r) => r.test(title));
+    return hit?.tag ?? null;
+  }
+
+  private resolveChecklistFields(
+    title: string,
+    templateFields: Array<{ fieldKey: string; tag?: string; order?: number }>,
+  ) {
+    // 1) exact (normalized) title
+    const exactKeys = this.exactTitleMap[this.norm(title)];
+    if (exactKeys) {
+      return exactKeys
+        .map((k) => templateFields.find((f) => f.fieldKey === k))
+        .filter(Boolean)
+        .sort((a, b) => (a!.order ?? 0) - (b!.order ?? 0));
+    }
+
+    // 2) tag keyword inference
+    const tag = this.inferTagFromTitle(title);
+    if (tag) {
+      if (tag === 'uploads') {
+        const f = templateFields.find((f) => f.fieldKey === 'idUpload');
+        return f ? [f] : [];
+      }
+      return templateFields
+        .filter((f) => (f.tag as Tag | undefined) === tag)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    }
+
+    // 3) nothing matched
+    return [];
+  }
+
+  private checklistFieldMap: Record<string, string[]> = {
+    'Fill Personal Details': [
+      'dateOfBirth',
+      'gender',
+      'maritalStatus',
+      'address',
+      'country',
+      'phone',
+      'emergencyName',
+      'emergencyPhone',
+    ],
+    'Fill Basic Personal Details': [
+      'dateOfBirth',
+      'gender',
+      'maritalStatus',
+      'address',
+      'country',
+      'phone',
+    ],
+    'Complete Basic Info': ['dateOfBirth', 'gender', 'phone'],
+    'Fill Out Personal Details': [
+      'dateOfBirth',
+      'gender',
+      'phone',
+      'address',
+      'country',
+    ],
+    'Fill Personal Info': ['dateOfBirth', 'gender', 'phone', 'country'],
+    'Complete Personal Details': [
+      'dateOfBirth',
+      'gender',
+      'phone',
+      'address',
+      'country',
+      'emergencyName',
+    ],
+
+    'Add Bank and Tax Info': [
+      'bankName',
+      'bankAccountNumber',
+      'bankAccountName',
+      'bankBranch',
+      'currency',
+      'tin',
+      'pensionPin',
+      'nhfNumber',
+    ],
+    'Submit Tax and Banking Info': [
+      'bankName',
+      'bankAccountNumber',
+      'bankAccountName',
+      'bankBranch',
+      'tin',
+      'pensionPin',
+      'nhfNumber',
+    ],
+    'Complete Tax and Payment Setup': [
+      'tin',
+      'bankAccountNumber',
+      'bankAccountName',
+      'currency',
+    ],
+
+    'Upload Valid ID': ['idUpload'],
+    'Upload Student ID': ['idUpload'],
+    'Upload Signed Contract': ['idUpload'],
+    'Submit Medical Certifications': ['idUpload'],
+
+    // Optional steps that may not have fields:
+    'Add Dependents (Optional)': [],
+    'Upload Certifications (If Any)': [],
+    'Submit Social Media Handles (Optional)': [],
+  };
 }

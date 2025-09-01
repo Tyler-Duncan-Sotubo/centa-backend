@@ -1,12 +1,18 @@
-export const formatCurrency = (
-  amountInKobo: number,
-  currency: string = 'NGN',
-) => {
-  return new Intl.NumberFormat('en-NG', {
+export const formatCurrency = (amount: number, currency: string = 'NGN') => {
+  const formatter = new Intl.NumberFormat('en-NG', {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
-  }).format(amountInKobo); // Convert kobo to naira
+  });
+
+  let formatted = formatter.format(amount);
+
+  // Force replace NGN with ₦ if Intl didn't render it
+  if (currency === 'NGN') {
+    formatted = formatted.replace('NGN', '₦');
+  }
+
+  return formatted;
 };
 
 export const toNaira = (value: number | null | undefined) =>

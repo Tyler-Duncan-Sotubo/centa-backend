@@ -24,6 +24,7 @@ export declare class AnnouncementService {
         updatedAt: Date | null;
         link: string | null;
         companyId: string;
+        createdBy: string;
         departmentId: string | null;
         title: string;
         locationId: string | null;
@@ -32,7 +33,6 @@ export declare class AnnouncementService {
         publishedAt: Date | null;
         expiresAt: Date | null;
         isPublished: boolean | null;
-        createdBy: string;
         categoryId: string;
     }>;
     findAll(companyId: string): Promise<{

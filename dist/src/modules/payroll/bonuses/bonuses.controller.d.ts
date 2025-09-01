@@ -7,15 +7,15 @@ export declare class BonusesController extends BaseController {
     private readonly bonusesService;
     constructor(bonusesService: BonusesService);
     create(createBonusDto: CreateBonusDto, user: User): Promise<{
+        status: string | null;
         id: string;
         createdAt: Date | null;
         companyId: string;
-        employeeId: string;
-        status: string | null;
         createdBy: string;
+        employeeId: string;
+        effectiveDate: string;
         amount: string;
         bonusType: string;
-        effectiveDate: string;
     }[]>;
     findAll(user: User): Promise<({
         id: string;

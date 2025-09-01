@@ -26,6 +26,90 @@ let OnboardingService = class OnboardingService {
         this.db = db;
         this.config = config;
         this.aws = aws;
+        this.norm = (s) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+        this.exactTitleMap = {
+            'fill personal details': [
+                'dateOfBirth',
+                'gender',
+                'maritalStatus',
+                'address',
+                'country',
+                'phone',
+                'emergencyName',
+                'emergencyPhone',
+            ],
+            'fill basic personal details': [
+                'dateOfBirth',
+                'gender',
+                'maritalStatus',
+                'address',
+                'country',
+                'phone',
+            ],
+            'complete basic info': ['dateOfBirth', 'gender', 'phone'],
+            'fill out personal details': [
+                'dateOfBirth',
+                'gender',
+                'phone',
+                'address',
+                'country',
+            ],
+            'fill personal info': ['dateOfBirth', 'gender', 'phone', 'country'],
+            'complete personal details': [
+                'dateOfBirth',
+                'gender',
+                'phone',
+                'address',
+                'country',
+                'emergencyName',
+            ],
+            'add bank and tax info': [
+                'bankName',
+                'bankAccountNumber',
+                'bankAccountName',
+                'bankBranch',
+                'currency',
+                'tin',
+                'pensionPin',
+                'nhfNumber',
+            ],
+            'submit tax and banking info': [
+                'bankName',
+                'bankAccountNumber',
+                'bankAccountName',
+                'bankBranch',
+                'tin',
+                'pensionPin',
+                'nhfNumber',
+            ],
+            'complete tax and payment setup': [
+                'tin',
+                'bankAccountNumber',
+                'bankAccountName',
+                'currency',
+            ],
+            'upload valid id': ['idUpload'],
+            'upload student id': ['idUpload'],
+            'upload signed contract': ['idUpload'],
+            'submit medical certifications': ['idUpload'],
+            'add dependents (optional)': [],
+            'upload certifications (if any)': [],
+            'submit social media handles (optional)': [],
+        };
+        this.TITLE_RULES = [
+            {
+                test: (t) => /(personal|profile|basic info|details)/i.test(t),
+                tag: 'profile',
+            },
+            {
+                test: (t) => /(bank|tax|payment|finance|pension|nhf)/i.test(t),
+                tag: 'finance',
+            },
+            {
+                test: (t) => /(upload|id|contract|certificate|certification)/i.test(t),
+                tag: 'uploads',
+            },
+        ];
         this.checklistFieldMap = {
             'Fill Personal Details': [
                 'dateOfBirth',
@@ -197,14 +281,16 @@ let OnboardingService = class OnboardingService {
             where: (c, { eq }) => eq(c.templateId, row.templateId),
             orderBy: (c, { asc }) => asc(c.order),
         });
-        const templateFields = await this.db.query.onboardingTemplateFields.findMany({
+        const templateFieldsRaw = await this.db.query.onboardingTemplateFields.findMany({
             where: (f, { eq }) => eq(f.templateId, row.templateId),
         });
+        const templateFields = templateFieldsRaw.map((f) => ({
+            ...f,
+            order: f.order === null ? undefined : f.order,
+        }));
         const checklistWithFields = checklist.map((item) => ({
             ...item,
-            fields: (this.checklistFieldMap[item.title] || [])
-                .map((key) => templateFields.find((f) => f.fieldKey === key))
-                .filter(Boolean),
+            fields: this.resolveChecklistFields(item.title, templateFields),
         }));
         return { ...row, checklist: checklistWithFields };
     }
@@ -356,6 +442,30 @@ let OnboardingService = class OnboardingService {
             }
             return updated;
         });
+    }
+    inferTagFromTitle(title) {
+        const hit = this.TITLE_RULES.find((r) => r.test(title));
+        return hit?.tag ?? null;
+    }
+    resolveChecklistFields(title, templateFields) {
+        const exactKeys = this.exactTitleMap[this.norm(title)];
+        if (exactKeys) {
+            return exactKeys
+                .map((k) => templateFields.find((f) => f.fieldKey === k))
+                .filter(Boolean)
+                .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        }
+        const tag = this.inferTagFromTitle(title);
+        if (tag) {
+            if (tag === 'uploads') {
+                const f = templateFields.find((f) => f.fieldKey === 'idUpload');
+                return f ? [f] : [];
+            }
+            return templateFields
+                .filter((f) => f.tag === tag)
+                .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        }
+        return [];
     }
 };
 exports.OnboardingService = OnboardingService;
