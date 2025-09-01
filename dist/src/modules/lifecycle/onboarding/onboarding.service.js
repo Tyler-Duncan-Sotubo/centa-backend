@@ -405,90 +405,83 @@ let OnboardingService = class OnboardingService {
             }
         }
         await this.upsertChecklistProgress(employeeId, templateId, payload);
-        const outstanding = await this.db
-            .select({ cnt: (0, drizzle_orm_1.sql) `count(*)` })
-            .from(schema_1.employeeChecklistStatus)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employeeChecklistStatus.employeeId, employeeId), (0, drizzle_orm_1.ne)(schema_1.employeeChecklistStatus.status, 'completed')))
-            .then((r) => r[0].cnt);
-        if (outstanding === 0) {
-            await this.db
-                .update(schema_1.employeeOnboarding)
-                .set({ status: 'completed', completedAt: new Date() })
-                .where((0, drizzle_orm_1.eq)(schema_1.employeeOnboarding.employeeId, employeeId))
-                .execute();
-        }
         return { success: true };
     }
     async upsertChecklistProgress(employeeId, templateId, payload) {
-        const [templateChecklist, templateFields] = await Promise.all([
-            this.db.query.onboardingTemplateChecklists.findMany({
-                where: (c, { eq }) => eq(c.templateId, templateId),
-            }),
-            this.db.query.onboardingTemplateFields.findMany({
-                where: (f, { eq }) => eq(f.templateId, templateId),
-            }),
-        ]);
-        const keysByTag = {};
-        for (const f of templateFields) {
-            if (!f.tag)
-                continue;
-            (keysByTag[f.tag] ??= []).push(f.fieldKey);
-        }
         const now = new Date();
-        let anyCompleted = false;
-        for (const item of templateChecklist) {
-            const fromMap = this.checklistFieldMap?.[item.title] ?? [];
-            const tag = this.inferTagFromTitle(item.title);
-            const inferred = tag ? (keysByTag[tag] ?? []) : [];
-            const fieldKeys = fromMap.length ? fromMap : inferred;
-            const satisfied = fieldKeys.length > 0 &&
-                fieldKeys.every((k) => {
-                    if (k === 'idUpload')
-                        return !!payload.idUpload;
-                    const v = payload[k];
-                    return v !== undefined && v !== null && String(v).trim() !== '';
-                });
-            await this.db
-                .insert(schema_1.employeeChecklistStatus)
-                .values({
-                employeeId,
-                checklistId: item.id,
-                status: 'pending',
-            })
+        await this.db.transaction(async (tx) => {
+            const [templateChecklist, templateFields] = await Promise.all([
+                tx.query.onboardingTemplateChecklists.findMany({
+                    where: (c, { eq }) => eq(c.templateId, templateId),
+                }),
+                tx.query.onboardingTemplateFields.findMany({
+                    where: (f, { eq }) => eq(f.templateId, templateId),
+                }),
+            ]);
+            const keysByTag = {};
+            for (const f of templateFields) {
+                if (f.tag)
+                    (keysByTag[f.tag] ??= []).push(f.fieldKey);
+            }
+            const checklistIds = templateChecklist.map((it) => it.id);
+            const existingRows = await tx.query.employeeChecklistStatus.findMany({
+                where: (s, { and, eq, inArray }) => and(eq(s.employeeId, employeeId), inArray(s.checklistId, checklistIds)),
+            });
+            const byChecklistId = new Map(existingRows.map((r) => [r.checklistId, r]));
+            let anyCompletedThisRun = false;
+            for (const item of templateChecklist) {
+                const statusRow = byChecklistId.get(item.id);
+                if (!statusRow) {
+                    continue;
+                }
+                const fromMap = this.checklistFieldMap?.[item.title] ?? [];
+                const tag = this.inferTagFromTitle(item.title);
+                const inferred = tag ? (keysByTag[tag] ?? []) : [];
+                const fieldKeys = fromMap.length ? fromMap : inferred;
+                const satisfied = fieldKeys.length > 0 &&
+                    fieldKeys.every((k) => {
+                        if (k === 'idUpload')
+                            return !!payload.idUpload;
+                        const v = payload[k];
+                        return v !== undefined && v !== null && String(v).trim() !== '';
+                    });
+                const newStatus = satisfied
+                    ? 'completed'
+                    : 'pending';
+                if (statusRow.status !== newStatus) {
+                    await tx
+                        .update(schema_1.employeeChecklistStatus)
+                        .set({
+                        status: newStatus,
+                        completedAt: satisfied ? now : (statusRow.completedAt ?? null),
+                    })
+                        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employeeChecklistStatus.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_1.employeeChecklistStatus.checklistId, item.id)))
+                        .execute();
+                    if (satisfied)
+                        anyCompletedThisRun = true;
+                }
+            }
+            if (anyCompletedThisRun) {
+                await tx
+                    .update(schema_2.employees)
+                    .set({ employmentStatus: 'active' })
+                    .where((0, drizzle_orm_1.eq)(schema_2.employees.id, employeeId))
+                    .execute();
+            }
+            const [{ remaining }] = await tx
+                .select({ remaining: (0, drizzle_orm_1.sql) `count(*)` })
+                .from(schema_1.onboardingTemplateChecklists)
+                .leftJoin(schema_1.employeeChecklistStatus, (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employeeChecklistStatus.checklistId, schema_1.onboardingTemplateChecklists.id), (0, drizzle_orm_1.eq)(schema_1.employeeChecklistStatus.employeeId, employeeId)))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.onboardingTemplateChecklists.templateId, templateId), (0, drizzle_orm_1.sql) `(${schema_1.employeeChecklistStatus.status} IS NULL OR ${schema_1.employeeChecklistStatus.status} <> 'completed')`))
                 .execute();
-            if (!satisfied)
-                continue;
-            await this.db
-                .insert(schema_1.employeeChecklistStatus)
-                .values({
-                employeeId,
-                checklistId: item.id,
-                status: 'completed',
-                completedAt: now,
-            })
-                .execute();
-            anyCompleted = true;
-        }
-        if (anyCompleted) {
-            await this.db
-                .update(schema_2.employees)
-                .set({ employmentStatus: 'active' })
-                .where((0, drizzle_orm_1.eq)(schema_2.employees.id, employeeId))
-                .execute();
-        }
-        const [{ remaining }] = await this.db
-            .select({ remaining: (0, drizzle_orm_1.sql) `count(*)` })
-            .from(schema_1.onboardingTemplateChecklists)
-            .leftJoin(schema_1.employeeChecklistStatus, (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employeeChecklistStatus.checklistId, schema_1.onboardingTemplateChecklists.id), (0, drizzle_orm_1.eq)(schema_1.employeeChecklistStatus.employeeId, employeeId)))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.onboardingTemplateChecklists.templateId, templateId), (0, drizzle_orm_1.sql) `(${schema_1.employeeChecklistStatus.status} IS NULL OR ${schema_1.employeeChecklistStatus.status} <> 'completed')`))
-            .execute();
-        if (remaining === 0) {
-            await this.db
-                .update(schema_1.employeeOnboarding)
-                .set({ status: 'completed', completedAt: now })
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employeeOnboarding.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_1.employeeOnboarding.templateId, templateId)))
-                .execute();
-        }
+            if (remaining === 0) {
+                await tx
+                    .update(schema_1.employeeOnboarding)
+                    .set({ status: 'completed', completedAt: now })
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employeeOnboarding.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_1.employeeOnboarding.templateId, templateId)))
+                    .execute();
+            }
+        });
     }
     async updateChecklistStatus(employeeId, checklistId, status) {
         const now = new Date();
@@ -506,7 +499,6 @@ let OnboardingService = class OnboardingService {
                 .from(schema_1.employeeChecklistStatus)
                 .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employeeChecklistStatus.employeeId, employeeId), (0, drizzle_orm_1.ne)(schema_1.employeeChecklistStatus.status, 'completed')))
                 .execute();
-            console.log(remaining);
             if (Number(remaining) === 0) {
                 console.log(`All checklist items completed for employee ${employeeId}. Marking onboarding as completed.`);
                 await tx

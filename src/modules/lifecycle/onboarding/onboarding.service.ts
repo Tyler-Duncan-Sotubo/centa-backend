@@ -357,139 +357,139 @@ export class OnboardingService {
     /* 5) Update checklist progress */
     await this.upsertChecklistProgress(employeeId, templateId, payload);
 
-    /* 6) Auto-close onboarding if nothing left */
-    const outstanding = await this.db
-      .select({ cnt: sql<number>`count(*)` })
-      .from(employeeChecklistStatus)
-      .where(
-        and(
-          eq(employeeChecklistStatus.employeeId, employeeId),
-          ne(employeeChecklistStatus.status, 'completed'),
-        ),
-      )
-      .then((r) => r[0].cnt);
-
-    if (outstanding === 0) {
-      await this.db
-        .update(employeeOnboarding)
-        .set({ status: 'completed', completedAt: new Date() })
-        .where(eq(employeeOnboarding.employeeId, employeeId))
-        .execute();
-    }
-
     return { success: true };
   }
 
   async upsertChecklistProgress(
+    // keeps your signature
     employeeId: string,
     templateId: string,
     payload: EmployeeOnboardingInputDto,
   ) {
-    // ① Pull checklist & fields once
-    const [templateChecklist, templateFields] = await Promise.all([
-      this.db.query.onboardingTemplateChecklists.findMany({
-        where: (c, { eq }) => eq(c.templateId, templateId),
-      }),
-      this.db.query.onboardingTemplateFields.findMany({
-        where: (f, { eq }) => eq(f.templateId, templateId),
-      }),
-    ]);
-
-    // index fields by tag for robust fallback
-    const keysByTag: Record<string, string[]> = {};
-    for (const f of templateFields) {
-      if (!f.tag) continue;
-      (keysByTag[f.tag] ??= []).push(f.fieldKey);
-    }
-
     const now = new Date();
-    let anyCompleted = false;
 
-    for (const item of templateChecklist) {
-      // Prefer your static map; fallback to tag inference
-      const fromMap = this.checklistFieldMap?.[item.title] ?? [];
-      const tag = this.inferTagFromTitle(item.title);
-      const inferred = tag ? (keysByTag[tag] ?? []) : [];
-      const fieldKeys = fromMap.length ? fromMap : inferred;
+    await this.db.transaction(async (tx) => {
+      // 1) Load template checklist + fields (once)
+      const [templateChecklist, templateFields] = await Promise.all([
+        tx.query.onboardingTemplateChecklists.findMany({
+          where: (c, { eq }) => eq(c.templateId, templateId),
+        }),
+        tx.query.onboardingTemplateFields.findMany({
+          where: (f, { eq }) => eq(f.templateId, templateId),
+        }),
+      ]);
 
-      const satisfied =
-        fieldKeys.length > 0 &&
-        fieldKeys.every((k) => {
-          if (k === 'idUpload') return !!payload.idUpload;
-          const v = (payload as any)[k];
-          return v !== undefined && v !== null && String(v).trim() !== '';
-        });
+      // 2) Build fieldKey fallbacks by tag (for resilience if title map misses)
+      const keysByTag: Record<string, string[]> = {};
+      for (const f of templateFields) {
+        if (f.tag) (keysByTag[f.tag] ??= []).push(f.fieldKey);
+      }
 
-      // Ensure there is at least a pending row (optional but nice)
-      await this.db
-        .insert(employeeChecklistStatus)
-        .values({
-          employeeId,
-          checklistId: item.id,
-          status: 'pending',
-        })
-        .execute();
-
-      if (!satisfied) continue;
-
-      // UPSERT to completed
-      await this.db
-        .insert(employeeChecklistStatus)
-        .values({
-          employeeId,
-          checklistId: item.id,
-          status: 'completed',
-          completedAt: now,
-        })
-        .execute();
-
-      anyCompleted = true;
-    }
-
-    // Optionally set employee active once they’ve completed at least one item
-    if (anyCompleted) {
-      await this.db
-        .update(employees)
-        .set({ employmentStatus: 'active' })
-        .where(eq(employees.id, employeeId))
-        .execute();
-    }
-
-    // ② Compute remaining correctly (LEFT JOIN so missing rows count as incomplete)
-    const [{ remaining }] = await this.db
-      .select({ remaining: sql<number>`count(*)` })
-      .from(onboardingTemplateChecklists)
-      .leftJoin(
-        employeeChecklistStatus,
-        and(
-          eq(
-            employeeChecklistStatus.checklistId,
-            onboardingTemplateChecklists.id,
+      // 3) Load EXISTING status rows for those checklist items (no inserts)
+      const checklistIds = templateChecklist.map((it) => it.id);
+      const existingRows = await tx.query.employeeChecklistStatus.findMany({
+        where: (s, { and, eq, inArray }) =>
+          and(
+            eq(s.employeeId, employeeId),
+            inArray(s.checklistId, checklistIds),
           ),
-          eq(employeeChecklistStatus.employeeId, employeeId),
-        ),
-      )
-      .where(
-        and(
-          eq(onboardingTemplateChecklists.templateId, templateId),
-          // status is null OR not completed
-          sql`(${employeeChecklistStatus.status} IS NULL OR ${employeeChecklistStatus.status} <> 'completed')`,
-        ),
-      )
-      .execute();
+      });
+      const byChecklistId = new Map(
+        existingRows.map((r) => [r.checklistId, r]),
+      );
 
-    if (remaining === 0) {
-      await this.db
-        .update(employeeOnboarding)
-        .set({ status: 'completed', completedAt: now })
+      let anyCompletedThisRun = false;
+
+      // 4) Evaluate satisfaction and UPDATE only when needed
+      for (const item of templateChecklist) {
+        const statusRow = byChecklistId.get(item.id);
+        if (!statusRow) {
+          // No row to update; skip (counts as remaining later)
+          continue;
+        }
+
+        // Prefer your static map; fallback to tag-derived keys
+        const fromMap = this.checklistFieldMap?.[item.title] ?? [];
+        const tag = this.inferTagFromTitle(item.title);
+        const inferred = tag ? (keysByTag[tag] ?? []) : [];
+        const fieldKeys = fromMap.length ? fromMap : inferred;
+
+        const satisfied =
+          fieldKeys.length > 0 &&
+          fieldKeys.every((k) => {
+            if (k === 'idUpload') return !!payload.idUpload;
+            const v = (payload as any)[k];
+            return v !== undefined && v !== null && String(v).trim() !== '';
+          });
+
+        const newStatus: 'pending' | 'completed' = satisfied
+          ? 'completed'
+          : 'pending';
+
+        // Only write if status changed OR we need to set completedAt
+        if (statusRow.status !== newStatus) {
+          await tx
+            .update(employeeChecklistStatus)
+            .set({
+              status: newStatus,
+              completedAt: satisfied ? now : (statusRow.completedAt ?? null),
+            })
+            .where(
+              and(
+                eq(employeeChecklistStatus.employeeId, employeeId),
+                eq(employeeChecklistStatus.checklistId, item.id),
+              ),
+            )
+            .execute();
+
+          if (satisfied) anyCompletedThisRun = true;
+        }
+      }
+
+      // 5) Optional: set employee active if anything just completed
+      if (anyCompletedThisRun) {
+        await tx
+          .update(employees)
+          .set({ employmentStatus: 'active' })
+          .where(eq(employees.id, employeeId))
+          .execute();
+      }
+
+      // 6) Remaining items: LEFT JOIN so missing rows count as incomplete
+      const [{ remaining }] = await tx
+        .select({ remaining: sql<number>`count(*)` })
+        .from(onboardingTemplateChecklists)
+        .leftJoin(
+          employeeChecklistStatus,
+          and(
+            eq(
+              employeeChecklistStatus.checklistId,
+              onboardingTemplateChecklists.id,
+            ),
+            eq(employeeChecklistStatus.employeeId, employeeId),
+          ),
+        )
         .where(
           and(
-            eq(employeeOnboarding.employeeId, employeeId),
-            eq(employeeOnboarding.templateId, templateId),
+            eq(onboardingTemplateChecklists.templateId, templateId),
+            sql`(${employeeChecklistStatus.status} IS NULL OR ${employeeChecklistStatus.status} <> 'completed')`,
           ),
         )
         .execute();
-    }
+
+      if (remaining === 0) {
+        await tx
+          .update(employeeOnboarding)
+          .set({ status: 'completed', completedAt: now })
+          .where(
+            and(
+              eq(employeeOnboarding.employeeId, employeeId),
+              eq(employeeOnboarding.templateId, templateId),
+            ),
+          )
+          .execute();
+      }
+    });
   }
 
   async updateChecklistStatus(
@@ -526,8 +526,6 @@ export class OnboardingService {
           ),
         )
         .execute();
-
-      console.log(remaining);
 
       /* ── 3. If none remain, mark onboarding as completed ──────────────── */
       if (Number(remaining) === 0) {
