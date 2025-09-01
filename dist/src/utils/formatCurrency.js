@@ -1,15 +1,23 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.toNaira = exports.formatCurrency = void 0;
-const formatCurrency = (amount, currency = 'NGN') => {
-    const formatter = new Intl.NumberFormat('en-NG', {
+const CURRENCY_SYMBOLS = {
+    NGN: '₦',
+    USD: '$',
+    EUR: '€',
+    GBP: '£',
+};
+const formatCurrency = (amount, currency = 'NGN', locale = 'en-NG') => {
+    const formatter = new Intl.NumberFormat(locale, {
         style: 'currency',
         currency,
+        currencyDisplay: 'symbol',
         minimumFractionDigits: 2,
     });
     let formatted = formatter.format(amount);
-    if (currency === 'NGN') {
-        formatted = formatted.replace('NGN', '₦');
+    const symbol = CURRENCY_SYMBOLS[currency];
+    if (symbol && !formatted.includes(symbol)) {
+        formatted = formatted.replace(currency, symbol);
     }
     return formatted;
 };

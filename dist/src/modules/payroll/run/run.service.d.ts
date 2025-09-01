@@ -31,7 +31,6 @@ export declare class RunService {
     calculatePayroll(employeeId: string, payrollDate: string, payrollRunId: string, companyId: string, userId: string, workflowId: string): Promise<{
         name: string;
         id: string;
-        payrollMonth: string;
         payrollRunId: string;
         createdAt: Date | null;
         updatedAt: Date | null;
@@ -55,6 +54,7 @@ export declare class RunService {
         netSalary: string;
         taxableIncome: string;
         payrollDate: string;
+        payrollMonth: string;
         paymentStatus: string | null;
         paymentDate: string | null;
         paymentReference: string | null;
