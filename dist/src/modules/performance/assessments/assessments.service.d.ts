@@ -25,10 +25,10 @@ export declare class AssessmentsService {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        status: "in_progress" | "not_started" | "submitted" | null;
-        templateId: string;
         type: "manager" | "self" | "peer";
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
+        templateId: string;
         cycleId: string;
         reviewerId: string;
         revieweeId: string;
@@ -40,7 +40,7 @@ export declare class AssessmentsService {
     getAssessmentsForDashboard(companyId: string, filters?: GetDashboardAssessmentsDto): Promise<{
         id: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "not_started" | "submitted" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         reviewer: string;
         employee: string;
         departmentName: any;
@@ -65,7 +65,7 @@ export declare class AssessmentsService {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "not_started" | "submitted" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -77,7 +77,7 @@ export declare class AssessmentsService {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "not_started" | "submitted" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -89,7 +89,7 @@ export declare class AssessmentsService {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "not_started" | "submitted" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;

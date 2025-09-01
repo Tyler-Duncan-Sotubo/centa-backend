@@ -25,7 +25,7 @@ export class AutoCreatePerformanceCronService {
     private readonly employeeService: EmployeesService,
   ) {}
 
-  @Cron(CronExpression.EVERY_WEEK)
+  @Cron(CronExpression.EVERY_DAY_AT_2AM)
   async handlePerformanceAutomation() {
     const companies = await this.companyService.getAllCompanies();
     const MAX_APPRAISALS_PER_COMPANY = 100;

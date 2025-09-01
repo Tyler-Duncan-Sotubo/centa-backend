@@ -14,28 +14,19 @@ export declare class PayslipService {
     private getEmployeeCompanyId;
     createPayslip(employee_id: string, payrollMonth: string): Promise<{
         id: string;
-        companyId: string;
-        employeeId: string;
-        payrollMonth: string;
-        payrollId: string;
         issuedAt: string | null;
+        payrollMonth: string;
         slipStatus: string | null;
         employerRemarks: string | null;
         pdfUrl: string | null;
-    }>;
-    generatePayslipsForCompany(company_id: string, payrollMonth: string): Promise<{
-        id: string;
         companyId: string;
         employeeId: string;
-        payrollMonth: string;
         payrollId: string;
-        issuedAt: string | null;
-        slipStatus: string | null;
-        employerRemarks: string | null;
-        pdfUrl: string | null;
-    }[] | {
-        message: string;
+        checksum: string | null;
+        revision: number;
+        reissuedAt: Date | null;
     }>;
+    generatePayslipsForCompany(company_id: string, payrollMonth: string): Promise<any>;
     getCompanyPayslipsById(user_id: string, payroll_run_id: string): Promise<({
         payslip_id: string;
         payroll_run_id: string;

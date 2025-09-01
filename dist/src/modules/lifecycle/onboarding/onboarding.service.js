@@ -21,11 +21,13 @@ const jwt = require("jsonwebtoken");
 const schema_2 = require("../../../drizzle/schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const aws_service_1 = require("../../../common/aws/aws.service");
+const cache_service_1 = require("../../../common/cache/cache.service");
 let OnboardingService = class OnboardingService {
-    constructor(db, config, aws) {
+    constructor(db, config, aws, cacheService) {
         this.db = db;
         this.config = config;
         this.aws = aws;
+        this.cacheService = cacheService;
         this.norm = (s) => s.trim().toLowerCase().replace(/\s+/g, ' ');
         this.exactTitleMap = {
             'fill personal details': [
@@ -405,6 +407,7 @@ let OnboardingService = class OnboardingService {
             }
         }
         await this.upsertChecklistProgress(employeeId, templateId, payload);
+        await this.cacheService.bumpCompanyVersion(onboardingRow.companyId);
         return { success: true };
     }
     async upsertChecklistProgress(employeeId, templateId, payload) {
@@ -544,6 +547,7 @@ exports.OnboardingService = OnboardingService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, config_1.ConfigService,
-        aws_service_1.AwsService])
+        aws_service_1.AwsService,
+        cache_service_1.CacheService])
 ], OnboardingService);
 //# sourceMappingURL=onboarding.service.js.map

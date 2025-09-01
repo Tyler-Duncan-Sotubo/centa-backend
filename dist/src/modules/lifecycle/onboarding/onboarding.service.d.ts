@@ -2,12 +2,14 @@ import { db } from 'src/drizzle/types/drizzle';
 import { ConfigService } from '@nestjs/config';
 import { EmployeeOnboardingInputDto } from './dto/employee-onboarding-input.dto';
 import { AwsService } from 'src/common/aws/aws.service';
+import { CacheService } from 'src/common/cache/cache.service';
 type Tag = 'profile' | 'finance' | 'uploads' | 'other';
 export declare class OnboardingService {
     private readonly db;
     private readonly config;
     private readonly aws;
-    constructor(db: db, config: ConfigService, aws: AwsService);
+    private readonly cacheService;
+    constructor(db: db, config: ConfigService, aws: AwsService, cacheService: CacheService);
     private generateToken;
     assignOnboardingTemplate(employeeId: string, templateId: string, companyId: string, trx?: typeof this.db): Promise<void>;
     getEmployeesInOnboarding(companyId: string): Promise<{

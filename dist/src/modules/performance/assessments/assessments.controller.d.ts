@@ -11,10 +11,10 @@ export declare class AssessmentsController extends BaseController {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        status: "in_progress" | "not_started" | "submitted" | null;
-        templateId: string;
         type: "manager" | "self" | "peer";
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
+        templateId: string;
         cycleId: string;
         reviewerId: string;
         revieweeId: string;
@@ -26,7 +26,7 @@ export declare class AssessmentsController extends BaseController {
     getDashboard(user: User, filters: GetDashboardAssessmentsDto): Promise<{
         id: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "not_started" | "submitted" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         reviewer: string;
         employee: string;
         departmentName: any;
@@ -52,7 +52,7 @@ export declare class AssessmentsController extends BaseController {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "not_started" | "submitted" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -64,7 +64,7 @@ export declare class AssessmentsController extends BaseController {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "not_started" | "submitted" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -76,7 +76,7 @@ export declare class AssessmentsController extends BaseController {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "not_started" | "submitted" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;

@@ -120,8 +120,19 @@ let PayslipService = class PayslipService {
         const inserted = await this.db
             .insert(payslip_schema_1.paySlips)
             .values(newPayslips)
-            .returning()
-            .execute();
+            .onConflictDoUpdate({
+            target: [payslip_schema_1.paySlips.employeeId, payslip_schema_1.paySlips.payrollId],
+            where: (0, drizzle_orm_1.sql) `${payslip_schema_1.paySlips.checksum} IS DISTINCT FROM excluded.checksum`,
+            set: {
+                pdfUrl: (0, drizzle_orm_1.sql) `excluded.pdf_url`,
+                employerRemarks: (0, drizzle_orm_1.sql) `excluded.employer_remarks`,
+                checksum: (0, drizzle_orm_1.sql) `excluded.checksum`,
+                slipStatus: (0, drizzle_orm_1.sql) `'reissued'`,
+                issuedAt: (0, drizzle_orm_1.sql) `now()`,
+                reissuedAt: (0, drizzle_orm_1.sql) `now()`,
+                revision: (0, drizzle_orm_1.sql) `${payslip_schema_1.paySlips.revision} + 1`,
+            },
+        });
         await this.cache.bumpCompanyVersion(company_id);
         await this.cache.invalidateTags([
             'payslips',

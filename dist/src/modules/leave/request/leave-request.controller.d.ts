@@ -12,14 +12,14 @@ export declare class LeaveRequestController extends BaseController {
         companyId: string;
         startDate: string;
         employeeId: string;
+        requestedAt: Date | null;
         status: string;
         endDate: string;
-        reason: string | null;
         leaveTypeId: string;
+        reason: string | null;
         totalDays: string;
         approverId: string | null;
         approvedAt: Date | null;
-        requestedAt: Date | null;
         rejectionReason: string | null;
         approvalChain: unknown;
         currentApprovalIndex: number | null;

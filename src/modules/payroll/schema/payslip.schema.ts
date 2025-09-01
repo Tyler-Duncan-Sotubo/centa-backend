@@ -1,4 +1,13 @@
-import { date, pgTable, text, uuid, index } from 'drizzle-orm/pg-core';
+import {
+  date,
+  pgTable,
+  text,
+  uuid,
+  index,
+  unique,
+  integer,
+  timestamp,
+} from 'drizzle-orm/pg-core';
 import { employees, companies } from 'src/drizzle/schema';
 import { payroll } from './payroll-run.schema';
 
@@ -20,6 +29,10 @@ export const paySlips = pgTable(
     companyId: uuid('company_id')
       .notNull()
       .references(() => companies.id, { onDelete: 'cascade' }),
+
+    checksum: text('checksum'), // sha256 of the computed slip payload
+    revision: integer('revision').notNull().default(1),
+    reissuedAt: timestamp('reissued_at'),
   },
   (t) => [
     index('payslips_payroll_id_idx').on(t.payrollId),
@@ -28,5 +41,6 @@ export const paySlips = pgTable(
     index('payslips_payroll_month_idx').on(t.payrollMonth),
     index('payslips_slip_status_idx').on(t.slipStatus),
     index('payslips_issued_at_idx').on(t.issuedAt),
+    unique('payslips_employee_payroll_uk').on(t.employeeId, t.payrollId),
   ],
 );

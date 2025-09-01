@@ -50,6 +50,13 @@
       "when": 1756542703724,
       "tag": "0006_next_scrambler",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1756744744499,
+      "tag": "0007_tricky_jetstream",
+      "breakpoints": true
     }
   ]
 }

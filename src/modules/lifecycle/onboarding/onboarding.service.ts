@@ -18,6 +18,7 @@ import {
 import { desc, eq, sql, and, ne, inArray } from 'drizzle-orm';
 import { EmployeeOnboardingInputDto } from './dto/employee-onboarding-input.dto';
 import { AwsService } from 'src/common/aws/aws.service';
+import { CacheService } from 'src/common/cache/cache.service';
 
 type Tag = 'profile' | 'finance' | 'uploads' | 'other';
 
@@ -27,6 +28,7 @@ export class OnboardingService {
     @Inject(DRIZZLE) private readonly db: db,
     private readonly config: ConfigService,
     private readonly aws: AwsService,
+    private readonly cacheService: CacheService,
   ) {}
 
   private generateToken(payload: any): string {
@@ -356,6 +358,9 @@ export class OnboardingService {
 
     /* 5) Update checklist progress */
     await this.upsertChecklistProgress(employeeId, templateId, payload);
+
+    // 🔔 Invalidate all employee-by-user caches under this company
+    await this.cacheService.bumpCompanyVersion(onboardingRow.companyId);
 
     return { success: true };
   }

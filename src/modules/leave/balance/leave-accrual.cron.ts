@@ -150,7 +150,7 @@ export class LeaveAccrualCronService {
     }
   }
 
-  @Cron(CronExpression.EVERY_WEEK)
+  @Cron(CronExpression.EVERY_DAY_AT_1AM)
   async handleNonAccrualBalanceSetup() {
     const currentYear = new Date().getFullYear();
     const companies = await this.companyService.getAllCompanies();

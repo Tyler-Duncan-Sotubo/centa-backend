@@ -161,8 +161,21 @@ export class PayslipService {
     const inserted = await this.db
       .insert(paySlips)
       .values(newPayslips)
-      .returning()
-      .execute();
+      .onConflictDoUpdate({
+        target: [paySlips.employeeId, paySlips.payrollId],
+        // Only update if the payload changed
+        where: sql`${paySlips.checksum} IS DISTINCT FROM excluded.checksum`,
+        set: {
+          pdfUrl: sql`excluded.pdf_url`,
+          employerRemarks: sql`excluded.employer_remarks`,
+          checksum: sql`excluded.checksum`,
+          slipStatus: sql`'reissued'`,
+          issuedAt: sql`now()`,
+          reissuedAt: sql`now()`,
+          // increment revision
+          revision: sql`${paySlips.revision} + 1`,
+        },
+      });
 
     // cache invalidation: bump company version + tags
     await this.cache.bumpCompanyVersion(company_id);

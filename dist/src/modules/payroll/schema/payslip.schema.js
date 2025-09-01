@@ -20,6 +20,9 @@ exports.paySlips = (0, pg_core_1.pgTable)('payslips', {
     companyId: (0, pg_core_1.uuid)('company_id')
         .notNull()
         .references(() => schema_1.companies.id, { onDelete: 'cascade' }),
+    checksum: (0, pg_core_1.text)('checksum'),
+    revision: (0, pg_core_1.integer)('revision').notNull().default(1),
+    reissuedAt: (0, pg_core_1.timestamp)('reissued_at'),
 }, (t) => [
     (0, pg_core_1.index)('payslips_payroll_id_idx').on(t.payrollId),
     (0, pg_core_1.index)('payslips_employee_id_idx').on(t.employeeId),
@@ -27,5 +30,6 @@ exports.paySlips = (0, pg_core_1.pgTable)('payslips', {
     (0, pg_core_1.index)('payslips_payroll_month_idx').on(t.payrollMonth),
     (0, pg_core_1.index)('payslips_slip_status_idx').on(t.slipStatus),
     (0, pg_core_1.index)('payslips_issued_at_idx').on(t.issuedAt),
+    (0, pg_core_1.unique)('payslips_employee_payroll_uk').on(t.employeeId, t.payrollId),
 ]);
 //# sourceMappingURL=payslip.schema.js.map
