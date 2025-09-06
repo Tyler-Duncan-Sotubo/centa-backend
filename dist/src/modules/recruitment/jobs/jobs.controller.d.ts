@@ -12,18 +12,19 @@ export declare class JobsController extends BaseController {
     private readonly applicationFormService;
     constructor(jobsService: JobsService, applicationFormService: ApplicationFormService);
     create(createJobDto: CreateJobDto, user: User): Promise<{
-        status: "draft" | "open" | "closed" | "archived";
         id: string;
-        createdAt: Date | null;
-        updatedAt: Date | null;
         country: string | null;
         currency: string;
+        createdAt: Date | null;
+        updatedAt: Date | null;
         companyId: string;
+        description: string | null;
+        status: "draft" | "closed" | "archived" | "open";
+        title: string;
         city: string | null;
         state: string | null;
+        isArchived: boolean;
         createdBy: string;
-        description: string | null;
-        title: string;
         externalJobId: string | null;
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
@@ -38,14 +39,13 @@ export declare class JobsController extends BaseController {
         postedAt: Date | null;
         closedAt: Date | null;
         deadlineDate: string | null;
-        isArchived: boolean;
     }>;
     postJob(id: string, user: User): Promise<void>;
     findAll(user: User): Promise<{
         id: string;
         title: string;
         description: string | null;
-        status: "draft" | "open" | "closed" | "archived";
+        status: "draft" | "closed" | "archived" | "open";
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
         deadlineDate: string | null;
@@ -71,7 +71,7 @@ export declare class JobsController extends BaseController {
         benefits: string[] | null;
         currency: string;
         description: string | null;
-        status: "draft" | "open" | "closed" | "archived";
+        status: "draft" | "closed" | "archived" | "open";
         postedAt: Date | null;
         closedAt: Date | null;
         createdAt: Date | null;
@@ -100,7 +100,7 @@ export declare class JobsController extends BaseController {
         benefits: string[] | null;
         currency: string;
         description: string | null;
-        status: "draft" | "open" | "closed" | "archived";
+        status: "draft" | "closed" | "archived" | "open";
         postedAt: Date | null;
         closedAt: Date | null;
         createdAt: Date | null;
@@ -149,7 +149,7 @@ export declare class JobsController extends BaseController {
         id: string;
         title: string;
         description: string | null;
-        status: "draft" | "open" | "closed" | "archived";
+        status: "draft" | "closed" | "archived" | "open";
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
         deadlineDate: string | null;
@@ -183,7 +183,7 @@ export declare class JobsController extends BaseController {
         benefits: string[] | null;
         currency: string;
         description: string | null;
-        status: "draft" | "open" | "closed" | "archived";
+        status: "draft" | "closed" | "archived" | "open";
         postedAt: Date | null;
         closedAt: Date | null;
         createdAt: Date | null;
@@ -195,7 +195,7 @@ export declare class JobsController extends BaseController {
         id: string;
         title: string;
         description: string | null;
-        status: "draft" | "open" | "closed" | "archived";
+        status: "draft" | "closed" | "archived" | "open";
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
         deadlineDate: string | null;

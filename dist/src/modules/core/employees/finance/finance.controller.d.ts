@@ -6,9 +6,9 @@ export declare class FinanceController extends BaseController {
     private readonly financeService;
     constructor(financeService: FinanceService);
     create(employeeId: string, dto: CreateFinanceDto, user: User, ip: string): Promise<{
+        currency: string | null;
         createdAt: Date;
         updatedAt: Date;
-        currency: string | null;
         employeeId: string;
         bankName: string | null;
         bankAccountNumber: string | null;

@@ -813,8 +813,8 @@ export declare class GoalsController extends BaseController {
     addProgress(goalId: string, dto: AddGoalProgressDto, user: User): Promise<{
         id: string;
         createdAt: Date | null;
-        createdBy: string;
         goalId: string;
+        createdBy: string;
         progress: number;
         note: string | null;
     }>;
@@ -838,10 +838,10 @@ export declare class GoalsController extends BaseController {
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        goalId: string;
         fileName: string;
         fileUrl: string;
         comment: string;
-        goalId: string;
         uploadedById: string;
     }>;
     updateAttachment(attachmentId: string, dto: UpdateGoalAttachmentDto, user: User): Promise<{

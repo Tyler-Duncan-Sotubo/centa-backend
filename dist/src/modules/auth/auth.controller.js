@@ -48,7 +48,7 @@ let AuthController = class AuthController {
         return this.user.editUserRole(id, dto);
     }
     async login(dto, res, ip) {
-        const result = await this.auth.login(dto, 'DASHBOARD', ip);
+        const result = await this.auth.login(dto, 'AUTO', ip);
         if ('status' in result) {
             return result;
         }

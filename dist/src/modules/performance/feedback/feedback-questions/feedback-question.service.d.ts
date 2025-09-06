@@ -11,13 +11,13 @@ export declare class FeedbackQuestionService {
     private invalidate;
     create(dto: CreateFeedbackQuestionDto, user: User): Promise<{
         id: string;
-        createdAt: Date | null;
         isActive: boolean | null;
+        createdAt: Date | null;
         companyId: string;
         type: string;
-        order: number | null;
         question: string;
         inputType: string | null;
+        order: number | null;
     }>;
     findAll(companyId: string): Promise<{
         id: string;

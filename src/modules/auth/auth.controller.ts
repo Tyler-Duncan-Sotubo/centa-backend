@@ -94,7 +94,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Ip() ip: string,
   ) {
-    const result = await this.auth.login(dto, 'DASHBOARD', ip);
+    const result = await this.auth.login(dto, 'AUTO', ip);
     if ('status' in result) {
       return result; // short-circuit for 2FA setup/verify
     }

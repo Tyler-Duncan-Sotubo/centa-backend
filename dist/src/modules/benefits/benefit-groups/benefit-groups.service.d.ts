@@ -16,8 +16,8 @@ export declare class BenefitGroupsService {
         createdAt: Date | null;
         companyId: string;
         description: string | null;
-        rules: unknown;
         teamId: string | null;
+        rules: unknown;
     }>;
     findAll(companyId: string): Promise<{
         id: string;

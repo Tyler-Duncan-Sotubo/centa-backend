@@ -169,12 +169,12 @@ export declare class HistoryService {
     create(employeeId: string, dto: CreateHistoryDto, userId: string, ip: string): Promise<{
         id: string;
         createdAt: Date;
-        type: "employment" | "education" | "certification" | "promotion" | "transfer" | "termination";
         description: string | null;
-        title: string;
         startDate: string | null;
-        employeeId: string;
         endDate: string | null;
+        title: string;
+        type: "employment" | "education" | "certification" | "promotion" | "transfer" | "termination";
+        employeeId: string;
         institution: string | null;
     }>;
     findAll(employeeId: string): Promise<{

@@ -52,7 +52,7 @@ export declare class GroupsController extends BaseController {
         members: ({
             groupId: string;
             employeeId: string;
-            role: "member" | "lead" | "manager" | "contractor";
+            role: "manager" | "member" | "lead" | "contractor";
             isPrimary: boolean;
             title: string | null;
             startDate: string | null;
@@ -67,7 +67,7 @@ export declare class GroupsController extends BaseController {
         } | {
             groupId: string;
             employeeId: string;
-            role: "member" | "lead" | "manager" | "contractor";
+            role: "manager" | "member" | "lead" | "contractor";
             isPrimary: boolean;
             title: string | null;
             startDate: string | null;
@@ -87,7 +87,7 @@ export declare class GroupsController extends BaseController {
         members: ({
             groupId: string;
             employeeId: string;
-            role: "member" | "lead" | "manager" | "contractor";
+            role: "manager" | "member" | "lead" | "contractor";
             isPrimary: boolean;
             title: string | null;
             startDate: string | null;
@@ -102,7 +102,7 @@ export declare class GroupsController extends BaseController {
         } | {
             groupId: string;
             employeeId: string;
-            role: "member" | "lead" | "manager" | "contractor";
+            role: "manager" | "member" | "lead" | "contractor";
             isPrimary: boolean;
             title: string | null;
             startDate: string | null;

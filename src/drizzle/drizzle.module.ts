@@ -1,7 +1,7 @@
 // src/drizzle/drizzle.module.ts
 import { Global, Module, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { Pool } from 'pg';
+import { Pool, PoolConfig } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { db } from './types/drizzle';
 import * as schema from './schema';
@@ -11,33 +11,68 @@ export const DRIZZLE = Symbol('DRIZZLE');
 export const PG_POOL = Symbol('PG_POOL');
 export const HOT_QUERIES = Symbol('HOT_QUERIES');
 
+function buildPoolConfig(cfg: ConfigService): PoolConfig {
+  const isProd = process.env.NODE_ENV === 'production';
+  const connectionString = cfg.get<string>('DATABASE_URL');
+  if (!connectionString) throw new Error('DATABASE_URL is not set');
+
+  // SSL policy:
+  // - Prod: typically internal, so disable unless PGSSL_DISABLE=0 and you provide PG_CA_CERT.
+  // - Dev: allow self-signed unless you provide a CA.
+  const sslDisabled = cfg.get<string>('PGSSL_DISABLE') === '1';
+  const ca = cfg.get<string>('PG_CA_CERT'); // PEM chain (optional)
+
+  const ssl: PoolConfig['ssl'] = sslDisabled
+    ? false
+    : ca
+      ? { rejectUnauthorized: true, ca }
+      : isProd
+        ? false
+        : { rejectUnauthorized: false }; // dev fallback for self-signed
+
+  const config: PoolConfig = {
+    connectionString,
+    ssl,
+    max: Number(process.env.PG_POOL_MAX || (isProd ? 20 : 10)),
+    idleTimeoutMillis: Number(
+      process.env.PG_IDLE_TIMEOUT_MS || (isProd ? 30_000 : 10_000),
+    ),
+    connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 5_000),
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
+  };
+
+  // Optional: recycle clients in dev to reduce long-lived socket flakes (pg >= 8.11)
+  if (!isProd) {
+    (config as any).maxUses = Number(process.env.PG_MAX_USES || 500);
+  }
+
+  return config;
+}
+
 @Global()
 @Module({
   imports: [ConfigModule],
   providers: [
-    // Shared pg.Pool
+    // Shared pg.Pool (singleton, with error handler)
     {
       provide: PG_POOL,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const databaseURL = config.get<string>('DATABASE_URL');
-        if (!databaseURL) throw new Error('DATABASE_URL is not set');
-
         const g = globalThis as any;
         if (!g.__PG_POOL__) {
-          g.__PG_POOL__ = new Pool({
-            connectionString: databaseURL,
-            ssl:
-              process.env.NODE_ENV === 'production'
-                ? false
-                : { rejectUnauthorized: false },
-            max: Number(process.env.PG_POOL_MAX || 10),
-            idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30_000),
-            connectionTimeoutMillis: Number(
-              process.env.PG_CONN_TIMEOUT_MS || 5_000,
-            ),
-            keepAlive: true,
+          const pool = new Pool(buildPoolConfig(config));
+
+          // Prevent process crash when an idle client dies (dev proxies, hot reload, etc.)
+          pool.on('error', (err) => {
+            // eslint-disable-next-line no-console
+            console.warn(
+              '[pg pool] idle client error:',
+              err?.code || err?.message || err,
+            );
           });
+
+          g.__PG_POOL__ = pool;
         }
         return g.__PG_POOL__ as Pool;
       },
@@ -47,10 +82,7 @@ export const HOT_QUERIES = Symbol('HOT_QUERIES');
     {
       provide: DRIZZLE,
       inject: [PG_POOL],
-      useFactory: (pool: Pool) => {
-        const db = drizzle(pool, { schema });
-        return db as db;
-      },
+      useFactory: (pool: Pool) => drizzle(pool, { schema }) as db,
     },
 
     // HotQueries wrapper (prepared statements)
@@ -60,15 +92,20 @@ export const HOT_QUERIES = Symbol('HOT_QUERIES');
       useFactory: (pool: Pool) => new HotQueries(pool),
     },
 
-    // Graceful shutdown
+    // Graceful shutdown (only close in prod)
     {
       provide: 'DB_SHUTDOWN_HOOK',
       inject: [PG_POOL],
       useFactory: (pool: Pool): OnApplicationShutdown => ({
         async onApplicationShutdown() {
           if (process.env.NODE_ENV === 'production') {
-            await pool.end();
-            console.log('[PG] pool closed');
+            try {
+              await pool.end();
+              // eslint-disable-next-line no-console
+              console.log('[PG] pool closed');
+            } catch {
+              /* ignore */
+            }
           }
         },
       }),

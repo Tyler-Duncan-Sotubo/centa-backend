@@ -29,20 +29,39 @@ exports.CacheModule = CacheModule = __decorate([
                 inject: [config_1.ConfigService],
                 useFactory: async (config) => {
                     const host = config.get('REDIS_HOST');
-                    const port = config.get('REDIS_PORT');
+                    const port = Number(config.get('REDIS_PORT') ?? 6379);
                     const password = config.get('REDIS_PASSWORD') || '';
                     const db = Number(config.get('REDIS_DB') ?? 0);
                     const useTls = String(config.get('REDIS_TLS') ?? 'true').toLowerCase() === 'true';
+                    const allowSelfSigned = String(config.get('REDIS_SELF_SIGNED') ?? 'true').toLowerCase() ===
+                        'true';
                     const prefix = config.get('REDIS_PREFIX') ?? 'app:';
                     const ttlSeconds = Number(config.get('CACHE_TTL') ?? 7200);
                     const protocol = useTls ? 'redis' : 'redis';
                     const auth = password ? `:${encodeURIComponent(password)}@` : '';
                     const redisUrl = `${protocol}://${auth}${host}:${port}/${db}`;
-                    const redisStore = new redis_1.default(redisUrl, { namespace: prefix });
+                    const tlsish = useTls
+                        ? {
+                            socket: {
+                                tls: true,
+                                rejectUnauthorized: !allowSelfSigned,
+                                keepAlive: 1 << 16,
+                                reconnectStrategy: (retries) => Math.min(1000, retries * 50),
+                            },
+                            tls: { rejectUnauthorized: !allowSelfSigned },
+                        }
+                        : {};
+                    const redisStore = new redis_1.default(redisUrl, {
+                        namespace: prefix,
+                        ...tlsish,
+                    });
                     redisStore.on('error', (err) => {
-                        console.error('Redis connection error', err);
+                        console.warn('[redis] store error:', err);
                     });
                     const store = new keyv_1.default({ store: redisStore });
+                    store.on('error', (err) => {
+                        console.warn('[keyv] error:', err);
+                    });
                     return {
                         stores: [store],
                         ttl: ttlSeconds * 1000,

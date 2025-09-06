@@ -16,6 +16,34 @@ const hot_queries_1 = require("./hot-queries");
 exports.DRIZZLE = Symbol('DRIZZLE');
 exports.PG_POOL = Symbol('PG_POOL');
 exports.HOT_QUERIES = Symbol('HOT_QUERIES');
+function buildPoolConfig(cfg) {
+    const isProd = process.env.NODE_ENV === 'production';
+    const connectionString = cfg.get('DATABASE_URL');
+    if (!connectionString)
+        throw new Error('DATABASE_URL is not set');
+    const sslDisabled = cfg.get('PGSSL_DISABLE') === '1';
+    const ca = cfg.get('PG_CA_CERT');
+    const ssl = sslDisabled
+        ? false
+        : ca
+            ? { rejectUnauthorized: true, ca }
+            : isProd
+                ? false
+                : { rejectUnauthorized: false };
+    const config = {
+        connectionString,
+        ssl,
+        max: Number(process.env.PG_POOL_MAX || (isProd ? 20 : 10)),
+        idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || (isProd ? 30_000 : 10_000)),
+        connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 5_000),
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10_000,
+    };
+    if (!isProd) {
+        config.maxUses = Number(process.env.PG_MAX_USES || 500);
+    }
+    return config;
+}
 let DrizzleModule = class DrizzleModule {
 };
 exports.DrizzleModule = DrizzleModule;
@@ -28,21 +56,13 @@ exports.DrizzleModule = DrizzleModule = __decorate([
                 provide: exports.PG_POOL,
                 inject: [config_1.ConfigService],
                 useFactory: (config) => {
-                    const databaseURL = config.get('DATABASE_URL');
-                    if (!databaseURL)
-                        throw new Error('DATABASE_URL is not set');
                     const g = globalThis;
                     if (!g.__PG_POOL__) {
-                        g.__PG_POOL__ = new pg_1.Pool({
-                            connectionString: databaseURL,
-                            ssl: process.env.NODE_ENV === 'production'
-                                ? false
-                                : { rejectUnauthorized: false },
-                            max: Number(process.env.PG_POOL_MAX || 10),
-                            idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30_000),
-                            connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 5_000),
-                            keepAlive: true,
+                        const pool = new pg_1.Pool(buildPoolConfig(config));
+                        pool.on('error', (err) => {
+                            console.warn('[pg pool] idle client error:', err?.code || err?.message || err);
                         });
+                        g.__PG_POOL__ = pool;
                     }
                     return g.__PG_POOL__;
                 },
@@ -50,10 +70,7 @@ exports.DrizzleModule = DrizzleModule = __decorate([
             {
                 provide: exports.DRIZZLE,
                 inject: [exports.PG_POOL],
-                useFactory: (pool) => {
-                    const db = (0, node_postgres_1.drizzle)(pool, { schema });
-                    return db;
-                },
+                useFactory: (pool) => (0, node_postgres_1.drizzle)(pool, { schema }),
             },
             {
                 provide: exports.HOT_QUERIES,
@@ -66,8 +83,12 @@ exports.DrizzleModule = DrizzleModule = __decorate([
                 useFactory: (pool) => ({
                     async onApplicationShutdown() {
                         if (process.env.NODE_ENV === 'production') {
-                            await pool.end();
-                            console.log('[PG] pool closed');
+                            try {
+                                await pool.end();
+                                console.log('[PG] pool closed');
+                            }
+                            catch {
+                            }
                         }
                     },
                 }),

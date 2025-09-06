@@ -111,7 +111,7 @@ let AuthService = class AuthService {
         }
         return baseResponse;
     }
-    async login(dto, context, ip) {
+    async login(dto, context = 'AUTO', ip) {
         const user = await this.validateUser(dto.email, dto.password);
         const [role] = await this.db
             .select({ name: schema_1.companyRoles.name, id: schema_1.companyRoles.id })
@@ -123,9 +123,25 @@ let AuthService = class AuthService {
             throw new common_1.BadRequestException('Invalid credentials');
         }
         const loginPermissions = await this.permissionsService.getLoginPermissionsByRole(user.companyId, role.id);
-        const hasPermission = loginPermissions.some((p) => p.key === (context === 'ESS' ? 'ess.login' : 'dashboard.login'));
-        if (!hasPermission) {
-            this.logger.warn({ userId: user.id, email: dto.email, role: role.name, ip, context }, `Login rejected: missing ${context.toLowerCase()}.login permission`);
+        const hasEssGate = loginPermissions.some((p) => p.key === 'ess.login');
+        const hasDashGate = loginPermissions.some((p) => p.key === 'dashboard.login');
+        if (!hasEssGate && !hasDashGate) {
+            this.logger.warn({ userId: user.id, email: dto.email, role: role.name, ip }, 'Login rejected: missing both ess.login and dashboard.login');
+            throw new common_1.BadRequestException('Invalid credentials');
+        }
+        let target;
+        if (context === 'AUTO') {
+            target = hasDashGate ? 'DASHBOARD' : 'ESS';
+        }
+        else {
+            target = context;
+        }
+        if (target === 'ESS' && !hasEssGate) {
+            this.logger.warn({ userId: user.id, email: dto.email, role: role.name, ip, target }, 'Login rejected: requested ESS but missing ess.login');
+            throw new common_1.BadRequestException('Invalid credentials');
+        }
+        if (target === 'DASHBOARD' && !hasDashGate) {
+            this.logger.warn({ userId: user.id, email: dto.email, role: role.name, ip, target }, 'Login rejected: requested DASHBOARD but missing dashboard.login');
             throw new common_1.BadRequestException('Invalid credentials');
         }
         const now = new Date();

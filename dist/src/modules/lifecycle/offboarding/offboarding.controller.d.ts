@@ -8,9 +8,9 @@ export declare class OffboardingController extends BaseController {
     private readonly offboardingService;
     constructor(offboardingService: OffboardingService);
     begin(dto: CreateOffboardingBeginDto, user: User): Promise<{
-        status: string | null;
         id: string;
         companyId: string;
+        status: string | null;
         employeeId: string;
         notes: string | null;
         startedAt: Date | null;
@@ -81,15 +81,15 @@ export declare class OffboardingController extends BaseController {
             createdAt: Date | null;
             description: string | null;
             completed: boolean | null;
-            completedAt: Date | null;
             order: number | null;
+            completedAt: Date | null;
             isAssetReturnStep: boolean | null;
             sessionId: string;
             assetId: string | null;
         }[];
-        status: string | null;
         id: string;
         companyId: string;
+        status: string | null;
         employeeId: string;
         notes: string | null;
         startedAt: Date | null;

@@ -9,9 +9,9 @@ export declare class OffboardingService {
     private readonly auditService;
     constructor(db: db, auditService: AuditService);
     begin(createDto: CreateOffboardingBeginDto, user: User): Promise<{
-        status: string | null;
         id: string;
         companyId: string;
+        status: string | null;
         employeeId: string;
         notes: string | null;
         startedAt: Date | null;
@@ -78,15 +78,15 @@ export declare class OffboardingService {
             createdAt: Date | null;
             description: string | null;
             completed: boolean | null;
-            completedAt: Date | null;
             order: number | null;
+            completedAt: Date | null;
             isAssetReturnStep: boolean | null;
             sessionId: string;
             assetId: string | null;
         }[];
-        status: string | null;
         id: string;
         companyId: string;
+        status: string | null;
         employeeId: string;
         notes: string | null;
         startedAt: Date | null;

@@ -128,7 +128,11 @@ export class AuthService {
     return baseResponse;
   }
 
-  async login(dto: LoginDto, context: 'ESS' | 'DASHBOARD', ip: string) {
+  async login(
+    dto: LoginDto,
+    context: 'ESS' | 'DASHBOARD' | 'AUTO' = 'AUTO',
+    ip: string,
+  ) {
     const user = await this.validateUser(dto.email, dto.password);
 
     const [role] = await this.db
@@ -152,14 +156,40 @@ export class AuthService {
         role.id,
       );
 
-    const hasPermission = loginPermissions.some(
-      (p) => p.key === (context === 'ESS' ? 'ess.login' : 'dashboard.login'),
+    const hasEssGate = loginPermissions.some((p) => p.key === 'ess.login');
+    const hasDashGate = loginPermissions.some(
+      (p) => p.key === 'dashboard.login',
     );
 
-    if (!hasPermission) {
+    // Must have at least one gate
+    if (!hasEssGate && !hasDashGate) {
       this.logger.warn(
-        { userId: user.id, email: dto.email, role: role.name, ip, context },
-        `Login rejected: missing ${context.toLowerCase()}.login permission`,
+        { userId: user.id, email: dto.email, role: role.name, ip },
+        'Login rejected: missing both ess.login and dashboard.login',
+      );
+      throw new BadRequestException('Invalid credentials');
+    }
+
+    // If explicit context provided, enforce it; else AUTO choose
+    let target: 'ESS' | 'DASHBOARD';
+    if (context === 'AUTO') {
+      // Prefer dashboard if available (typical)
+      target = hasDashGate ? 'DASHBOARD' : 'ESS';
+    } else {
+      target = context;
+    }
+
+    if (target === 'ESS' && !hasEssGate) {
+      this.logger.warn(
+        { userId: user.id, email: dto.email, role: role.name, ip, target },
+        'Login rejected: requested ESS but missing ess.login',
+      );
+      throw new BadRequestException('Invalid credentials');
+    }
+    if (target === 'DASHBOARD' && !hasDashGate) {
+      this.logger.warn(
+        { userId: user.id, email: dto.email, role: role.name, ip, target },
+        'Login rejected: requested DASHBOARD but missing dashboard.login',
       );
       throw new BadRequestException('Invalid credentials');
     }
