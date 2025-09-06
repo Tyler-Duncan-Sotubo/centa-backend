@@ -13,9 +13,9 @@ export declare class FeedbackQuestionsController extends BaseController {
         createdAt: Date | null;
         companyId: string;
         type: string;
+        order: number | null;
         question: string;
         inputType: string | null;
-        order: number | null;
     }>;
     findAll(user: User): Promise<{
         id: string;

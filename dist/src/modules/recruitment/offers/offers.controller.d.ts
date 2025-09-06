@@ -16,10 +16,10 @@ export declare class OffersController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        startDate: string | null;
-        status: "pending" | "accepted" | "sent" | "declined" | "expired";
-        templateId: string | null;
         createdBy: string | null;
+        startDate: string | null;
+        templateId: string | null;
+        status: "pending" | "accepted" | "sent" | "declined" | "expired";
         expiresAt: Date | null;
         applicationId: string;
         signingMethod: string;

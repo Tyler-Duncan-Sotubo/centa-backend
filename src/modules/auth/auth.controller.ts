@@ -194,7 +194,6 @@ export class AuthController {
   @Audit({ action: 'Reset Password', entity: 'User' })
   @UseInterceptors(ResponseInterceptor)
   async resetPassword(
-    @Param('token') token: string,
     @Body() dto: PasswordResetDto,
     @Ip() ip: string,
   ): Promise<{ message: string }> {

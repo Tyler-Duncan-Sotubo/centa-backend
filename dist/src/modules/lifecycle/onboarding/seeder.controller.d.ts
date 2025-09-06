@@ -20,33 +20,33 @@ export declare class OnboardingSeederController extends BaseController {
             id: string;
             title: string;
             templateId: string;
-            order: number | null;
             assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         id: string;
         name: string;
+        description: string | null;
         createdAt: Date;
         companyId: string | null;
-        description: string | null;
         status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
     cloneTemplateForCompany(templateId: string, templateName: string, user: User): Promise<{
         id: string;
         name: string;
+        description: string | null;
         createdAt: Date;
         companyId: string | null;
-        description: string | null;
         status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
     createCompanyTemplate(dto: CreateOnboardingTemplateDto, user: User): Promise<{
         id: string;
         name: string;
+        description: string | null;
         createdAt: Date;
         companyId: string | null;
-        description: string | null;
         status: "draft" | "published" | null;
         isGlobal: boolean | null;
     }>;
@@ -87,8 +87,8 @@ export declare class OnboardingSeederController extends BaseController {
             id: string;
             title: string;
             templateId: string;
-            order: number | null;
             assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
             dueDaysAfterStart: number | null;
         }[];
         fieldCount: number;

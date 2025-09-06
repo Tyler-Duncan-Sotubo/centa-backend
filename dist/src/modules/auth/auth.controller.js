@@ -106,7 +106,7 @@ let AuthController = class AuthController {
     async passwordReset(dto) {
         return this.password.generatePasswordResetToken(dto.email);
     }
-    async resetPassword(token, dto, ip) {
+    async resetPassword(dto, ip) {
         return this.password.resetPassword(dto.token, dto.password, ip);
     }
     async resetInvitationPassword(token, dto) {
@@ -267,11 +267,10 @@ __decorate([
     (0, common_1.Post)('reset-password'),
     (0, audit_decorator_1.Audit)({ action: 'Reset Password', entity: 'User' }),
     (0, common_1.UseInterceptors)(error_interceptor_1.ResponseInterceptor),
-    __param(0, (0, common_1.Param)('token')),
-    __param(1, (0, common_1.Body)()),
-    __param(2, (0, common_1.Ip)()),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Ip)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, dto_1.PasswordResetDto, String]),
+    __metadata("design:paramtypes", [dto_1.PasswordResetDto, String]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "resetPassword", null);
 __decorate([

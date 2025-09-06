@@ -1,41 +1,51 @@
 export const ManagerPermissions = [
+  // Access
   'ess.login',
-  // Announcements (read)
+  'dashboard.login',
+
+  // Announcements
   'announcements.read',
   'announcements.category.read',
+  'announcements.comment',
+  'announcements.react',
+  'announcements.manage',
 
   // Attendance
+  'attendance.manage',
   'attendance.clockin',
   'attendance.clockout',
   'attendance.read',
 
-  // Assets
+  // Assets (team requests + read-only reports)
   'assets.read',
-  'assets.manage',
-  'assets.request.manage',
   'assets.request.read',
+  'assets.request.manage',
   'assets.report.read',
-  'assets.report.manage',
 
-  // Employee Shifts & Shifts (read)
+  // Shifts
   'employee_shifts.read',
+  'employee_shifts.assign',
   'shifts.read',
 
-  // Reports (attendance)
-  'reports.attendance.read',
-
-  // Expenses (read & create)
+  // Expenses (approve/manage team if your app uses this key for approvals)
+  // If this is too broad in your system, split into submit/approve perms later.
   'expenses.read',
-  'expenses.create',
-  'expenses.settings',
+  'expenses.manage',
 
-  // Leave (read & approve their team’s)
+  // Leave (self + approve team)
   'leave.balance.read',
-  'leave.request.read_all',
+  'leave.request.create',
   'leave.request.read_employee',
-  'leave.settings',
+  'leave.request.read_all',
+  'leave_approval.manage',
   'holidays.read',
   'reserved_days.read',
+  'reserved_days.manage',
+  'leave.blocked_days.read',
+  'leave.blocked_days.manage',
+  'leave.types.read',
+  'leave.policy.read',
+  'leave.reports',
 
   // Company & Org (read-only)
   'company.read',
@@ -45,30 +55,21 @@ export const ManagerPermissions = [
   'department.hierarchy',
   'org_chart.read',
 
-  // Job Roles (read-only)
-  'job_roles.read',
-
-  // Employees (read their direct reports)
-  'employees.read_employee',
+  // Employees (self + direct reports; server should restrict scope)
   'employees.read_self',
+  'employees.read_one',
+  'employees.search',
 
-  // Payroll – Payslips (self only)
+  // Payroll (self only)
   'payroll.payslips.read_self',
 
-  // Salary Advance (self only)
+  // Salary advance (self)
   'salary_advance.request',
   'salary_advance.read_employee',
-  'salary_advance.read_one',
   'salary_advance.repay',
   'salary_advance.history_employee',
 
-  // Tax (read-only)
-  'tax.read',
-
-  // Payroll Settings (read-only)
-  'payroll_settings.read',
-
-  // Performance (view own performance dashboard, manage team goals)
+  // Performance (team)
   'performance.read',
   'performance.goals.create',
   'performance.goals.edit',
@@ -79,4 +80,22 @@ export const ManagerPermissions = [
   'performance.reviews.submit_manager',
   'performance.reviews.read',
   'performance.reviews.read_team',
+  'performance.calibration.view',
+
+  // Hiring (light)
+  'jobs.read',
+  'applications.read',
+  'interviews.read',
+  'interviews.schedule',
+  'interviews.submit_feedback',
+  'offers.read',
+
+  // Benefits (self + read group info)
+  'benefits.read',
+  'benefits.enroll',
+  'benefit_groups.read',
+
+  // Read-only settings where safe
+  'payroll_settings.read',
+  'tax.read',
 ];

@@ -124,10 +124,10 @@ export declare class InterviewsController extends BaseController {
     createScorecardTemplate(dto: CreateScorecardTemplateDto, user: User): Promise<{
         id: string;
         name: string;
+        description: string | null;
         isActive: boolean | null;
         createdAt: Date | null;
         companyId: string | null;
-        description: string | null;
         isSystem: boolean | null;
     }>;
     deleteScorecardTemplate(templateId: string, user: User): Promise<{
@@ -136,10 +136,10 @@ export declare class InterviewsController extends BaseController {
     cloneScorecardTemplate(templateId: string, user: User): Promise<{
         id: string;
         name: string;
+        description: string | null;
         isActive: boolean | null;
         createdAt: Date | null;
         companyId: string | null;
-        description: string | null;
         isSystem: boolean | null;
     }>;
     getAllEmailTemplates(user: User): Promise<{
@@ -159,9 +159,9 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
-        isGlobal: boolean | null;
         createdBy: string | null;
         body: string;
+        isGlobal: boolean | null;
         subject: string;
     }>;
     cloneEmailTemplate(templateId: string, user: User): Promise<{
@@ -170,9 +170,9 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
-        isGlobal: boolean | null;
         createdBy: string | null;
         body: string;
+        isGlobal: boolean | null;
         subject: string;
     }>;
     deleteEmailTemplate(templateId: string, user: User): Promise<{

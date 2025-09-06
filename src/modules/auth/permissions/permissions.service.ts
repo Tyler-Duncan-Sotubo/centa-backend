@@ -127,21 +127,15 @@ export class PermissionsService {
       .values(defaultRoles.map((name) => ({ companyId, name })))
       .returning();
 
-    await this.cache.del(`company_roles:${companyId}`);
-    await this.cache.del(`company_permissions_summary:${companyId}`);
+    await this.cache.bumpCompanyVersion(companyId);
 
     return insertedRoles;
   }
 
   async getRolesByCompany(companyId: string) {
-    // Fetch all roles for a specific company.
-    const cacheKey = `company_roles:${companyId}`;
-    return this.cache.getOrSetCache(cacheKey, async () => {
+    return this.cache.getOrSetVersioned(companyId, ['roles'], async () => {
       return this.db
-        .select({
-          id: companyRoles.id,
-          name: companyRoles.name,
-        })
+        .select({ id: companyRoles.id, name: companyRoles.name })
         .from(companyRoles)
         .where(eq(companyRoles.companyId, companyId))
         .execute();
@@ -160,8 +154,7 @@ export class PermissionsService {
       .returning();
 
     // Clear the cache for company roles after updating a role.
-    await this.cache.del(`company_roles:${companyId}`);
-    await this.cache.del(`company_permissions_summary:${companyId}`);
+    await this.cache.bumpCompanyVersion(companyId);
 
     return updatedRole;
   }
@@ -234,7 +227,7 @@ export class PermissionsService {
     await this.cache.del(cacheKey);
     await this.cache.del(`role_permissions:${roleId}`);
     await this.cache.del(`company_permissions_summary:${companyId}`);
-
+    await this.cache.bumpCompanyVersion(companyId);
     return assignment;
   }
 
@@ -308,11 +301,7 @@ export class PermissionsService {
         .execute();
     }
 
-    // 6) Clear cached role→permission lookups if needed:
-    await this.cache.del(`company_roles:${companyId}`);
-    for (const role of roles) {
-      await this.cache.del(`role_permissions:${role.id}`);
-    }
+    await this.cache.bumpCompanyVersion(companyId);
   }
 
   async syncAllCompanyPermissions() {
@@ -320,44 +309,49 @@ export class PermissionsService {
 
     for (const company of allCompanies) {
       await this.seedDefaultPermissionsForCompany(company.id);
+      await this.cache.bumpCompanyVersion(company.id); //
     }
   }
 
   async getLoginPermissionsByRole(companyId: string, roleId: string) {
-    // ensure role exists
-    await this.findRoleById(companyId, roleId);
-    return this.db
-      .select({ key: permissions.key })
-      .from(companyRolePermissions)
-      .innerJoin(
-        permissions,
-        eq(companyRolePermissions.permissionId, permissions.id),
-      )
-      .where(
-        and(
-          eq(companyRolePermissions.companyRoleId, roleId),
-          inArray(permissions.key, ['ess.login', 'dashboard.login']), // 👈 filter only these
-        ),
-      )
-      .execute();
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['role', roleId, 'login-gates'],
+      async () => {
+        return this.db
+          .select({ key: permissions.key })
+          .from(companyRolePermissions)
+          .innerJoin(
+            permissions,
+            eq(companyRolePermissions.permissionId, permissions.id),
+          )
+          .where(
+            and(
+              eq(companyRolePermissions.companyRoleId, roleId),
+              inArray(permissions.key, ['ess.login', 'dashboard.login']),
+            ),
+          )
+          .execute();
+      },
+    );
   }
 
   async getPermissionsByRole(companyId: string, roleId: string) {
-    // Fetch all permissions assigned to a specific role.
-    await this.findRoleById(companyId, roleId);
-
-    const cacheKey = `role_permissions:${companyId}:${roleId}`;
-    return this.cache.getOrSetCache(cacheKey, async () => {
-      return this.db
-        .select({ key: permissions.key })
-        .from(companyRolePermissions)
-        .innerJoin(
-          permissions,
-          eq(companyRolePermissions.permissionId, permissions.id),
-        )
-        .where(eq(companyRolePermissions.companyRoleId, roleId))
-        .execute();
-    });
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['role', roleId, 'permissions'],
+      async () => {
+        return this.db
+          .select({ key: permissions.key })
+          .from(companyRolePermissions)
+          .innerJoin(
+            permissions,
+            eq(companyRolePermissions.permissionId, permissions.id),
+          )
+          .where(eq(companyRolePermissions.companyRoleId, roleId))
+          .execute();
+      },
+    );
   }
 
   async getPermissionsForUser(user: User) {
@@ -374,78 +368,73 @@ export class PermissionsService {
   }
 
   async getPermissionKeysForUser(roleId: string): Promise<string[]> {
-    const cacheKey = `role_permissions:${roleId}`;
-
-    // Fetch permissions assigned to this role
-    return await this.cache.getOrSetCache(cacheKey, async () => {
-      const rolePermissions = await this.db
-        .select({ permissionKey: permissions.key })
-        .from(companyRolePermissions)
-        .innerJoin(
-          permissions,
-          eq(companyRolePermissions.permissionId, permissions.id),
-        )
-        .where(eq(companyRolePermissions.companyRoleId, roleId));
-
-      return rolePermissions.map((p) => p.permissionKey);
+    // find the role to get companyId (needed to version the cache)
+    const role = await this.db.query.companyRoles.findFirst({
+      where: eq(companyRoles.id, roleId),
+      columns: { id: true, companyId: true },
     });
+    if (!role) return [];
+
+    return this.cache.getOrSetVersioned(
+      role.companyId,
+      ['role', roleId, 'permission-keys'],
+      async () => {
+        const rows = await this.db
+          .select({ permissionKey: permissions.key })
+          .from(companyRolePermissions)
+          .innerJoin(
+            permissions,
+            eq(companyRolePermissions.permissionId, permissions.id),
+          )
+          .where(eq(companyRolePermissions.companyRoleId, roleId))
+          .execute();
+
+        return rows.map((p) => p.permissionKey);
+      },
+    );
   }
 
   async getCompanyPermissionsSummary(companyId: string) {
-    const cacheKey = `company_permissions_summary:${companyId}`;
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['permissions-summary'],
+      async () => {
+        const roles = await this.db
+          .select({ id: companyRoles.id, name: companyRoles.name })
+          .from(companyRoles)
+          .where(eq(companyRoles.companyId, companyId))
+          .execute();
 
-    return await this.cache.getOrSetCache(cacheKey, async () => {
-      // Fetch roles
-      const roles = await this.db
-        .select({
-          id: companyRoles.id,
-          name: companyRoles.name,
-        })
-        .from(companyRoles)
-        .where(eq(companyRoles.companyId, companyId))
-        .execute();
+        const allPerms = await this.db
+          .select({ id: permissions.id, key: permissions.key })
+          .from(permissions)
+          .execute();
 
-      // Fetch permissions
-      const allPermissions = await this.db
-        .select({
-          id: permissions.id,
-          key: permissions.key,
-        })
-        .from(permissions)
-        .execute();
+        const assigned = await this.db
+          .select({
+            roleId: companyRolePermissions.companyRoleId,
+            permissionId: companyRolePermissions.permissionId,
+          })
+          .from(companyRolePermissions)
+          .innerJoin(
+            companyRoles,
+            eq(companyRoles.id, companyRolePermissions.companyRoleId),
+          )
+          .where(eq(companyRoles.companyId, companyId))
+          .execute();
 
-      // Fetch role-permission assignments
-      const assigned = await this.db
-        .select({
-          roleId: companyRolePermissions.companyRoleId,
-          permissionId: companyRolePermissions.permissionId,
-        })
-        .from(companyRolePermissions)
-        .innerJoin(
-          companyRoles,
-          eq(companyRoles.id, companyRolePermissions.companyRoleId),
-        )
-        .where(eq(companyRoles.companyId, companyId))
-        .execute();
+        const rolePermissionsMap: Record<string, string[]> = {};
+        for (const r of roles) rolePermissionsMap[r.id] = [];
+        for (const a of assigned)
+          rolePermissionsMap[a.roleId]?.push(a.permissionId);
 
-      // Build rolePermissions map (roleId -> permissionIds)
-      const rolePermissions: Record<string, string[]> = {};
-      for (const role of roles) {
-        rolePermissions[role.id] = [];
-      }
-
-      for (const row of assigned) {
-        if (rolePermissions[row.roleId]) {
-          rolePermissions[row.roleId].push(row.permissionId);
-        }
-      }
-
-      return {
-        roles,
-        permissions: allPermissions,
-        rolePermissions,
-      };
-    });
+        return {
+          roles,
+          permissions: allPerms,
+          rolePermissions: rolePermissionsMap,
+        };
+      },
+    );
   }
 
   async updateCompanyRolePermissions(
@@ -490,9 +479,9 @@ export class PermissionsService {
       });
 
       // Clear cache per role
-      await this.cache.del(`role_permissions:${role.id}`);
+      await this.cache.bumpCompanyVersion(user.companyId);
     }
 
-    await this.cache.del(`company_roles:${user.companyId}`);
+    await this.cache.bumpCompanyVersion(user.companyId);
   }
 }

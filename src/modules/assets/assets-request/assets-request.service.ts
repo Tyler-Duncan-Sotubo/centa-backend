@@ -290,9 +290,7 @@ export class AssetsRequestService {
       .execute();
 
     if (requests.length === 0) {
-      throw new BadRequestException(
-        `No asset requests found for employee ID ${employeeId}`,
-      );
+      return [];
     }
     return requests;
   }

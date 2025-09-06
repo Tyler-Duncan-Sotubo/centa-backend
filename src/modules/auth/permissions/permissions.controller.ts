@@ -29,10 +29,10 @@ export class PermissionsController extends BaseController {
     return this.permissionsService.create();
   }
 
-  // @Post('sync')
-  // syncAllCompanyPermissions() {
-  //   return this.permissionsService.syncAllCompanyPermissions();
-  // }
+  @Post('sync')
+  syncAllCompanyPermissions() {
+    return this.permissionsService.syncAllCompanyPermissions();
+  }
 
   @Get()
   @UseGuards(JwtAuthGuard)

@@ -29,6 +29,9 @@ let PermissionsController = class PermissionsController extends base_controller_
     seedPermissions() {
         return this.permissionsService.create();
     }
+    syncAllCompanyPermissions() {
+        return this.permissionsService.syncAllCompanyPermissions();
+    }
     findAllPermissions() {
         return this.permissionsService.findAll();
     }
@@ -63,6 +66,12 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], PermissionsController.prototype, "seedPermissions", null);
+__decorate([
+    (0, common_1.Post)('sync'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], PermissionsController.prototype, "syncAllCompanyPermissions", null);
 __decorate([
     (0, common_1.Get)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

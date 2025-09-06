@@ -9,9 +9,9 @@ export declare class PerformanceTemplatesController extends BaseController {
     create(createTemplateDto: CreateTemplateDto, user: User): Promise<{
         id: string;
         name: string;
+        description: string | null;
         createdAt: Date | null;
         companyId: string;
-        description: string | null;
         isDefault: boolean | null;
         includeGoals: boolean | null;
         includeAttendance: boolean | null;

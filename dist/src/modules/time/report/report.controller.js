@@ -78,7 +78,7 @@ exports.ReportController = ReportController;
 __decorate([
     (0, common_1.Get)('attendance/combined'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['attendance.manage']),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('startDate')),
     __param(2, (0, common_1.Query)('endDate')),
@@ -90,7 +90,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('attendance-summary'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['attendance.manage']),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -99,7 +99,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('monthly-attendance-summary'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['attendance.manage']),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('yearMonth')),
     __metadata("design:type", Function),
@@ -109,7 +109,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('shift-summary'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['attendance.manage']),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('yearMonth')),
     __param(2, (0, common_1.Query)('locationId')),
@@ -121,7 +121,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('late-arrivals'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['attendance.manage']),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('yearMonth')),
     __metadata("design:type", Function),
@@ -131,7 +131,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('absenteeism'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['attendance.manage']),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('startDate')),
     __param(2, (0, common_1.Query)('endDate')),
@@ -142,7 +142,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('overtime'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['attendance.manage']),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('yearMonth')),
     __metadata("design:type", Function),
@@ -152,7 +152,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('department-report'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['attendance.manage']),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('yearMonth')),
     __metadata("design:type", Function),
@@ -162,7 +162,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('gen-daily-attendance-summary'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['attendance.manage']),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -171,7 +171,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('gen-monthly-attendance-summary'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['attendance.manage']),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('yearMonth')),
     __metadata("design:type", Function),
@@ -181,7 +181,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('gen-late-arrivals'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['attendance.manage']),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('yearMonth')),
     __metadata("design:type", Function),
@@ -191,7 +191,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('gen-department-report'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['attendance.manage']),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('yearMonth')),
     __metadata("design:type", Function),
@@ -201,7 +201,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('gen-absenteeism'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['attendance.manage']),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('startDate')),
     __param(2, (0, common_1.Query)('endDate')),
@@ -212,7 +212,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('gen-overtime'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
-    (0, common_1.SetMetadata)('permissions', ['attendance.manage']),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('yearMonth')),
     __metadata("design:type", Function),

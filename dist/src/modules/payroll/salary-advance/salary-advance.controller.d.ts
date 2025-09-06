@@ -10,10 +10,10 @@ export declare class SalaryAdvanceController extends BaseController {
         name: string;
         createdAt: Date;
         companyId: string;
-        status: string;
         employeeId: string;
-        amount: string;
+        status: string;
         paymentStatus: string;
+        amount: string;
         loanNumber: string | null;
         totalPaid: string;
         tenureMonths: number;

@@ -221,7 +221,7 @@ let AssetsRequestService = class AssetsRequestService {
             .orderBy((0, drizzle_orm_1.desc)(asset_requests_schema_1.assetRequests.createdAt))
             .execute();
         if (requests.length === 0) {
-            throw new common_1.BadRequestException(`No asset requests found for employee ID ${employeeId}`);
+            return [];
         }
         return requests;
     }

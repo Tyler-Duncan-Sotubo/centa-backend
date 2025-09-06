@@ -40,7 +40,7 @@ export class AuthService {
     private readonly logger: PinoLogger,
   ) {}
 
-  private async completeLogin(user: any, ip: string) {
+  private async completeLogin(user: any, ip: string, hasBothGates?: boolean) {
     // Update lastLogin
     await this.db
       .update(users)
@@ -93,11 +93,50 @@ export class AuthService {
       permissions: permissionKeys,
     };
 
+    const notAdminOrSuperAdmin = !['admin', 'super_admin'].includes(
+      updatedUser.role,
+    );
+
+    const employeeOnly = updatedUser.role === 'employee';
+
     // Handle employee profile
-    if (updatedUser.role === 'employee') {
+    if (employeeOnly) {
       const [profile] = await this.db
         .select({
           id: employees.id,
+          firstName: employees.firstName,
+          lastName: employees.lastName,
+          email: users.email,
+          companyId: companies.id,
+          companyName: companies.name,
+          avatar: users.avatar,
+          role: companyRoles.name,
+          roleId: companyRoles.id,
+          employmentStatus: employees.employmentStatus,
+        })
+        .from(employees)
+        .innerJoin(users, eq(users.id, employees.userId))
+        .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
+        .innerJoin(companies, eq(companies.id, employees.companyId))
+        .where(eq(employees.userId, user.id))
+        .execute();
+
+      if (!profile) {
+        throw new NotFoundException('Employee profile not found');
+      }
+
+      return {
+        ...baseResponse,
+        user: profile,
+      };
+    }
+
+    // Handle employee profile
+    if (hasBothGates && notAdminOrSuperAdmin) {
+      const [profile] = await this.db
+        .select({
+          id: employees.id,
+          userId: users.id,
           firstName: employees.firstName,
           lastName: employees.lastName,
           email: users.email,
@@ -160,6 +199,8 @@ export class AuthService {
     const hasDashGate = loginPermissions.some(
       (p) => p.key === 'dashboard.login',
     );
+
+    const hasBothGates = hasEssGate && hasDashGate;
 
     // Must have at least one gate
     if (!hasEssGate && !hasDashGate) {
@@ -227,7 +268,7 @@ export class AuthService {
       'Login successful',
     );
 
-    return await this.completeLogin(user, ip);
+    return await this.completeLogin(user, ip, hasBothGates);
   }
 
   async verifyCode(tempToken: string, code: string, ip: string) {

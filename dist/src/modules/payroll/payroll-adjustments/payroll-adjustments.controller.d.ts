@@ -9,16 +9,16 @@ export declare class PayrollAdjustmentsController {
         id: string;
         createdAt: string | null;
         companyId: string;
-        isDeleted: boolean | null;
         type: string;
+        createdBy: string | null;
+        isDeleted: boolean | null;
         employeeId: string;
         notes: string | null;
-        createdBy: string | null;
         label: string | null;
+        payrollDate: string;
         amount: number;
         taxable: boolean | null;
         proratable: boolean | null;
-        payrollDate: string;
         recurring: boolean | null;
     }>;
     findAll(user: User): Promise<{

@@ -17,7 +17,7 @@ export class ReportController extends BaseController {
 
   @Get('attendance/combined')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['attendance.manage'])
+  @SetMetadata('permissions', ['attendance.settings'])
   async getCombinedAttendanceReport(
     @CurrentUser() user: User,
     @Query('startDate') startDate: string,
@@ -34,14 +34,14 @@ export class ReportController extends BaseController {
 
   @Get('attendance-summary')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['attendance.manage'])
+  @SetMetadata('permissions', ['attendance.settings'])
   async getAttendanceSummary(@CurrentUser() user: User) {
     return this.reportService.getDailyAttendanceSummary(user.companyId);
   }
 
   @Get('monthly-attendance-summary')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['attendance.manage'])
+  @SetMetadata('permissions', ['attendance.settings'])
   async getMonthlyAttendanceSummary(
     @CurrentUser() user: User,
     @Query('yearMonth') yearMonth: string, // "2025-04"
@@ -54,7 +54,7 @@ export class ReportController extends BaseController {
 
   @Get('shift-summary')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['attendance.manage'])
+  @SetMetadata('permissions', ['attendance.settings'])
   async getShiftDashboardSummaryByMonth(
     @CurrentUser() user: User,
     @Query('yearMonth') yearMonth: string, // e.g. "2025-06"
@@ -70,7 +70,7 @@ export class ReportController extends BaseController {
 
   @Get('late-arrivals')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['attendance.manage'])
+  @SetMetadata('permissions', ['attendance.settings'])
   async getLateArrivalsReport(
     @CurrentUser() user: User,
     @Query('yearMonth') yearMonth: string,
@@ -80,7 +80,7 @@ export class ReportController extends BaseController {
 
   @Get('absenteeism')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['attendance.manage'])
+  @SetMetadata('permissions', ['attendance.settings'])
   async getAbsenteeismReport(
     @CurrentUser() user: User,
     @Query('startDate') startDate: string,
@@ -95,7 +95,7 @@ export class ReportController extends BaseController {
 
   @Get('overtime')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['attendance.manage'])
+  @SetMetadata('permissions', ['attendance.settings'])
   async getOvertimeReport(
     @CurrentUser() user: User,
     @Query('yearMonth') yearMonth: string,
@@ -105,7 +105,7 @@ export class ReportController extends BaseController {
 
   @Get('department-report')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['attendance.manage'])
+  @SetMetadata('permissions', ['attendance.settings'])
   async getDepartmentReport(
     @CurrentUser() user: User,
     @Query('yearMonth') yearMonth: string,
@@ -120,7 +120,7 @@ export class ReportController extends BaseController {
 
   @Get('gen-daily-attendance-summary')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['attendance.manage'])
+  @SetMetadata('permissions', ['attendance.settings'])
   async downloadDailyAttendanceSummary(@CurrentUser() user: User) {
     const url =
       await this.generateReportsService.generateDailyAttendanceSummaryToS3(
@@ -131,7 +131,7 @@ export class ReportController extends BaseController {
 
   @Get('gen-monthly-attendance-summary')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['attendance.manage'])
+  @SetMetadata('permissions', ['attendance.settings'])
   async downloadMonthlyAttendanceSummary(
     @CurrentUser() user: User,
     @Query('yearMonth') yearMonth: string, // "2025-04"
@@ -146,7 +146,7 @@ export class ReportController extends BaseController {
 
   @Get('gen-late-arrivals')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['attendance.manage'])
+  @SetMetadata('permissions', ['attendance.settings'])
   async downloadLateArrivalsReport(
     @CurrentUser() user: User,
     @Query('yearMonth') yearMonth: string,
@@ -161,7 +161,7 @@ export class ReportController extends BaseController {
 
   @Get('gen-department-report')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['attendance.manage'])
+  @SetMetadata('permissions', ['attendance.settings'])
   async generateDepartmentReport(
     @CurrentUser() user: User,
     @Query('yearMonth') yearMonth: string,
@@ -176,7 +176,7 @@ export class ReportController extends BaseController {
 
   @Get('gen-absenteeism')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['attendance.manage'])
+  @SetMetadata('permissions', ['attendance.settings'])
   async downloadAbsenteeismReport(
     @CurrentUser() user: User,
     @Query('startDate') startDate: string,
@@ -192,7 +192,7 @@ export class ReportController extends BaseController {
 
   @Get('gen-overtime')
   @UseGuards(JwtAuthGuard)
-  @SetMetadata('permissions', ['attendance.manage'])
+  @SetMetadata('permissions', ['attendance.settings'])
   async downloadOvertimeReport(
     @CurrentUser() user: User,
     @Query('yearMonth') yearMonth: string,

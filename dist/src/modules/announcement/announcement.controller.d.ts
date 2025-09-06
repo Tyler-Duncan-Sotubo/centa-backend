@@ -19,10 +19,10 @@ export declare class AnnouncementController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
+        createdBy: string;
         departmentId: string | null;
         title: string;
         locationId: string | null;
-        createdBy: string;
         body: string;
         image: string | null;
         publishedAt: Date | null;

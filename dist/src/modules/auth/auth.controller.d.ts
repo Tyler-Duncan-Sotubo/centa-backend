@@ -48,6 +48,28 @@ export declare class AuthController {
             companyId: string;
             avatar: string | null;
             roleId: string;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;
@@ -73,6 +95,28 @@ export declare class AuthController {
             companyId: string;
             avatar: string | null;
             roleId: string;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;
@@ -100,7 +144,7 @@ export declare class AuthController {
     resendVerificationEmail(user: User): Promise<string>;
     verifyEmail(dto: TokenDto): Promise<object>;
     passwordReset(dto: RequestPasswordResetDto): Promise<string>;
-    resetPassword(token: string, dto: PasswordResetDto, ip: string): Promise<{
+    resetPassword(dto: PasswordResetDto, ip: string): Promise<{
         message: string;
     }>;
     resetInvitationPassword(token: string, dto: PasswordResetDto): Promise<{
@@ -134,6 +178,28 @@ export declare class AuthController {
             companyId: string;
             avatar: string | null;
             roleId: string;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;

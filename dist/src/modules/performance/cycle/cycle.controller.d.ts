@@ -9,9 +9,9 @@ export declare class CycleController extends BaseController {
     create(createCycleDto: CreateCycleDto, user: User): Promise<{
         id: string;
         name: string;
+        description: string | null;
         createdAt: Date | null;
         companyId: string;
-        description: string | null;
         startDate: string;
         endDate: string;
         status: string | null;

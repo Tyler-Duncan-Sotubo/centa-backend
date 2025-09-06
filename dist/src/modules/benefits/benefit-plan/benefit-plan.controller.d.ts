@@ -12,16 +12,16 @@ export declare class BenefitPlanController extends BaseController {
         id: string;
         name: string;
         split: string;
+        description: string | null;
         createdAt: Date | null;
         companyId: string;
-        description: string | null;
+        category: string;
         startDate: Date;
         endDate: Date | null;
-        category: string;
+        employerContribution: number | null;
         benefitGroupId: string;
         coverageOptions: unknown;
         cost: unknown;
-        employerContribution: number | null;
     }>;
     findAll(user: User): Promise<{
         id: string;

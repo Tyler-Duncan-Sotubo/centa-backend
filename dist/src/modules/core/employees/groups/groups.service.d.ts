@@ -52,7 +52,7 @@ export declare class GroupsService {
                 tableName: "employee_group_memberships";
                 dataType: "string";
                 columnType: "PgEnumColumn";
-                data: "manager" | "member" | "lead" | "contractor";
+                data: "member" | "lead" | "manager" | "contractor";
                 driverParam: string;
                 notNull: true;
                 hasDefault: true;
@@ -241,7 +241,7 @@ export declare class GroupsService {
         members: ({
             groupId: string;
             employeeId: string;
-            role: "manager" | "member" | "lead" | "contractor";
+            role: "member" | "lead" | "manager" | "contractor";
             isPrimary: boolean;
             title: string | null;
             startDate: string | null;
@@ -256,7 +256,7 @@ export declare class GroupsService {
         } | {
             groupId: string;
             employeeId: string;
-            role: "manager" | "member" | "lead" | "contractor";
+            role: "member" | "lead" | "manager" | "contractor";
             isPrimary: boolean;
             title: string | null;
             startDate: string | null;
@@ -276,7 +276,7 @@ export declare class GroupsService {
         members: ({
             groupId: string;
             employeeId: string;
-            role: "manager" | "member" | "lead" | "contractor";
+            role: "member" | "lead" | "manager" | "contractor";
             isPrimary: boolean;
             title: string | null;
             startDate: string | null;
@@ -291,7 +291,7 @@ export declare class GroupsService {
         } | {
             groupId: string;
             employeeId: string;
-            role: "manager" | "member" | "lead" | "contractor";
+            role: "member" | "lead" | "manager" | "contractor";
             isPrimary: boolean;
             title: string | null;
             startDate: string | null;
@@ -313,7 +313,7 @@ export declare class GroupsService {
         name: any;
         type: any;
         parentGroupId: any;
-        role: "manager" | "member" | "lead" | "contractor";
+        role: "member" | "lead" | "manager" | "contractor";
         isPrimary: boolean;
         startDate: string | null;
         endDate: string | null;
@@ -323,7 +323,7 @@ export declare class GroupsService {
         name: any;
         type: any;
         parentGroupId: any;
-        role: "manager" | "member" | "lead" | "contractor";
+        role: "member" | "lead" | "manager" | "contractor";
         isPrimary: boolean;
         startDate: string | null;
         endDate: string | null;

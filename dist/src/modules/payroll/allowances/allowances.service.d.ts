@@ -17,8 +17,8 @@ export declare class AllowancesService {
         createdAt: Date | null;
         updatedAt: Date | null;
         payGroupId: string;
-        allowanceType: string;
         percentage: string | null;
+        allowanceType: string;
         valueType: string;
         fixedAmount: number | null;
     }>;

@@ -42,7 +42,7 @@ let AuthService = class AuthService {
         this.permissionsService = permissionsService;
         this.logger = logger;
     }
-    async completeLogin(user, ip) {
+    async completeLogin(user, ip, hasBothGates) {
         await this.db
             .update(schema_1.users)
             .set({ lastLogin: new Date() })
@@ -81,10 +81,41 @@ let AuthService = class AuthService {
             },
             permissions: permissionKeys,
         };
-        if (updatedUser.role === 'employee') {
+        const notAdminOrSuperAdmin = !['admin', 'super_admin'].includes(updatedUser.role);
+        const employeeOnly = updatedUser.role === 'employee';
+        if (employeeOnly) {
             const [profile] = await this.db
                 .select({
                 id: schema_2.employees.id,
+                firstName: schema_2.employees.firstName,
+                lastName: schema_2.employees.lastName,
+                email: schema_1.users.email,
+                companyId: schema_3.companies.id,
+                companyName: schema_3.companies.name,
+                avatar: schema_1.users.avatar,
+                role: schema_1.companyRoles.name,
+                roleId: schema_1.companyRoles.id,
+                employmentStatus: schema_2.employees.employmentStatus,
+            })
+                .from(schema_2.employees)
+                .innerJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.users.id, schema_2.employees.userId))
+                .innerJoin(schema_1.companyRoles, (0, drizzle_orm_1.eq)(schema_1.users.companyRoleId, schema_1.companyRoles.id))
+                .innerJoin(schema_3.companies, (0, drizzle_orm_1.eq)(schema_3.companies.id, schema_2.employees.companyId))
+                .where((0, drizzle_orm_1.eq)(schema_2.employees.userId, user.id))
+                .execute();
+            if (!profile) {
+                throw new common_1.NotFoundException('Employee profile not found');
+            }
+            return {
+                ...baseResponse,
+                user: profile,
+            };
+        }
+        if (hasBothGates && notAdminOrSuperAdmin) {
+            const [profile] = await this.db
+                .select({
+                id: schema_2.employees.id,
+                userId: schema_1.users.id,
                 firstName: schema_2.employees.firstName,
                 lastName: schema_2.employees.lastName,
                 email: schema_1.users.email,
@@ -125,6 +156,7 @@ let AuthService = class AuthService {
         const loginPermissions = await this.permissionsService.getLoginPermissionsByRole(user.companyId, role.id);
         const hasEssGate = loginPermissions.some((p) => p.key === 'ess.login');
         const hasDashGate = loginPermissions.some((p) => p.key === 'dashboard.login');
+        const hasBothGates = hasEssGate && hasDashGate;
         if (!hasEssGate && !hasDashGate) {
             this.logger.warn({ userId: user.id, email: dto.email, role: role.name, ip }, 'Login rejected: missing both ess.login and dashboard.login');
             throw new common_1.BadRequestException('Invalid credentials');
@@ -162,7 +194,7 @@ let AuthService = class AuthService {
             };
         }
         this.logger.info({ userId: user.id, email: dto.email, role: role.name, ip, context }, 'Login successful');
-        return await this.completeLogin(user, ip);
+        return await this.completeLogin(user, ip, hasBothGates);
     }
     async verifyCode(tempToken, code, ip) {
         const payload = await this.jwtService.verifyAsync(tempToken, {
