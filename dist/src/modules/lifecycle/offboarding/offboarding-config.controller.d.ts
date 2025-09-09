@@ -39,8 +39,8 @@ export declare class OffboardingConfigController extends BaseController {
     createType(user: User, dto: CreateOffboardingConfigDto): Promise<{
         id: string;
         name: string;
-        description: string | null;
         companyId: string | null;
+        description: string | null;
         isGlobal: boolean | null;
     }[]>;
     updateType(id: string, user: User, dto: UpdateOffboardingConfigDto): Promise<{
@@ -54,8 +54,8 @@ export declare class OffboardingConfigController extends BaseController {
     createReason(user: User, dto: CreateOffboardingConfigDto): Promise<{
         id: string;
         name: string;
-        description: string | null;
         companyId: string | null;
+        description: string | null;
         isGlobal: boolean | null;
     }[]>;
     updateReason(id: string, user: User, dto: UpdateOffboardingConfigDto): Promise<{
@@ -69,9 +69,9 @@ export declare class OffboardingConfigController extends BaseController {
     createChecklistItem(user: User, dto: OffboardingChecklistItemDto): Promise<{
         id: string;
         name: string;
-        description: string | null;
         createdAt: Date | null;
         companyId: string | null;
+        description: string | null;
         isGlobal: boolean | null;
         order: number | null;
         isAssetReturnStep: boolean | null;

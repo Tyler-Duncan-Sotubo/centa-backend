@@ -21,11 +21,14 @@ const current_user_decorator_1 = require("../auth/decorator/current-user.decorat
 const push_notification_service_1 = require("./services/push-notification.service");
 const send_to_employee_dto_1 = require("./dto/send-to-employee.dto");
 const register_device_dto_1 = require("./dto/register-device.dto");
+const create_message_dto_1 = require("./dto/create-message.dto");
+const contact_email_service_1 = require("./services/contact-email.service");
 let NotificationController = class NotificationController extends base_controller_1.BaseController {
-    constructor(pusher, push) {
+    constructor(pusher, push, contactEmailService) {
         super();
         this.pusher = pusher;
         this.push = push;
+        this.contactEmailService = contactEmailService;
     }
     async getUserNotifications(user) {
         return this.pusher.getUserNotifications(user.companyId);
@@ -61,9 +64,14 @@ let NotificationController = class NotificationController extends base_controlle
     async markRead(id) {
         return this.push.markRead(id);
     }
+    async sendContactEmail(dto) {
+        await this.contactEmailService.sendContactEmail(dto);
+        return { status: 'queued' };
+    }
 };
 exports.NotificationController = NotificationController;
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Get)('my-notifications'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -71,6 +79,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "getUserNotifications", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Get)('employee-notifications/:employeeId'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('employeeId')),
@@ -79,6 +88,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "getEmployeeNotifications", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Put)('mark-as-read/:id'),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
@@ -86,6 +96,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "markAsRead", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Post)('push-devices/:id'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
@@ -95,6 +106,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "registerDevice", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Delete)('devices/:token'),
     __param(0, (0, common_1.Param)('token')),
     __metadata("design:type", Function),
@@ -102,6 +114,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "unregisterDevice", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Post)('send-notifications/:employeeId'),
     __param(0, (0, common_1.Param)('employeeId')),
     __param(1, (0, common_1.Body)()),
@@ -110,6 +123,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "sendToEmployee", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Get)('expo-notifications/unread-count/:employeeId'),
     __param(0, (0, common_1.Param)('employeeId')),
     __metadata("design:type", Function),
@@ -117,6 +131,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "getUnreadCount", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Get)('expo-notifications/:employeeId'),
     __param(0, (0, common_1.Param)('employeeId')),
     __metadata("design:type", Function),
@@ -124,16 +139,24 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "getNotificationsForEmployee", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Patch)('expo-notifications/:id/read'),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "markRead", null);
+__decorate([
+    (0, common_1.Post)('email-contact'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [create_message_dto_1.CreateMessageDto]),
+    __metadata("design:returntype", Promise)
+], NotificationController.prototype, "sendContactEmail", null);
 exports.NotificationController = NotificationController = __decorate([
     (0, common_1.Controller)(''),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     __metadata("design:paramtypes", [pusher_service_1.PusherService,
-        push_notification_service_1.PushNotificationService])
+        push_notification_service_1.PushNotificationService,
+        contact_email_service_1.ContactEmailService])
 ], NotificationController);
 //# sourceMappingURL=notifications.controller.js.map

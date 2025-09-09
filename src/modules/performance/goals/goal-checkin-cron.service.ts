@@ -8,8 +8,8 @@ export class GoalCheckinCronService {
 
   constructor(private readonly policyService: PolicyService) {}
 
-  // runs every hour (tweak as needed)
-  @Cron(CronExpression.EVERY_30_MINUTES)
+  // runs every week (tweak as needed)
+  @Cron(CronExpression.EVERY_WEEK)
   async handleGoalCheckins() {
     this.logger.log('⏰ Running goal check-in scheduler...');
     const result = await this.policyService.processDueGoalCheckins();

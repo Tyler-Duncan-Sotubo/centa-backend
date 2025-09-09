@@ -9,6 +9,7 @@ import { PusherService } from './services/pusher.service';
 import { PayrollApprovalEmailService } from './services/payroll-approval.service';
 import { GoalNotificationService } from './services/goal-notification.service';
 import { PushNotificationService } from './services/push-notification.service';
+import { ContactEmailService } from './services/contact-email.service';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { PushNotificationService } from './services/push-notification.service';
     PayrollApprovalEmailService,
     GoalNotificationService,
     PushNotificationService,
+    ContactEmailService,
   ],
   exports: [
     PasswordResetEmailService,

@@ -8,10 +8,10 @@ export declare class OffboardingController extends BaseController {
     private readonly offboardingService;
     constructor(offboardingService: OffboardingService);
     begin(dto: CreateOffboardingBeginDto, user: User): Promise<{
+        status: string | null;
         id: string;
         companyId: string;
         employeeId: string;
-        status: string | null;
         notes: string | null;
         startedAt: Date | null;
         completedAt: Date | null;
@@ -78,8 +78,8 @@ export declare class OffboardingController extends BaseController {
         checklist: {
             id: string;
             name: string;
-            description: string | null;
             createdAt: Date | null;
+            description: string | null;
             completed: boolean | null;
             completedAt: Date | null;
             order: number | null;
@@ -87,10 +87,10 @@ export declare class OffboardingController extends BaseController {
             sessionId: string;
             assetId: string | null;
         }[];
+        status: string | null;
         id: string;
         companyId: string;
         employeeId: string;
-        status: string | null;
         notes: string | null;
         startedAt: Date | null;
         completedAt: Date | null;

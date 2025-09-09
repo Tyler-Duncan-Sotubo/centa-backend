@@ -27,7 +27,7 @@ let GoalCheckinCronService = GoalCheckinCronService_1 = class GoalCheckinCronSer
 };
 exports.GoalCheckinCronService = GoalCheckinCronService;
 __decorate([
-    (0, schedule_1.Cron)(schedule_1.CronExpression.EVERY_30_MINUTES),
+    (0, schedule_1.Cron)(schedule_1.CronExpression.EVERY_WEEK),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)

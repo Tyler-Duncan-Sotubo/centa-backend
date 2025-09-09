@@ -8,9 +8,9 @@ export declare class HistoryController extends BaseController {
     constructor(historyService: HistoryService);
     create(employeeId: string, dto: CreateHistoryDto, user: User, ip: string): Promise<{
         id: string;
-        description: string | null;
         createdAt: Date;
         type: "employment" | "education" | "certification" | "promotion" | "transfer" | "termination";
+        description: string | null;
         title: string;
         startDate: string | null;
         employeeId: string;

@@ -4,10 +4,13 @@ import { User } from 'src/common/types/user.type';
 import { PushNotificationService } from './services/push-notification.service';
 import { SendToEmployeeDto } from './dto/send-to-employee.dto';
 import { RegisterDeviceDto } from './dto/register-device.dto';
+import { CreateMessageDto } from './dto/create-message.dto';
+import { ContactEmailService } from './services/contact-email.service';
 export declare class NotificationController extends BaseController {
     private pusher;
     private push;
-    constructor(pusher: PusherService, push: PushNotificationService);
+    private contactEmailService;
+    constructor(pusher: PusherService, push: PushNotificationService, contactEmailService: ContactEmailService);
     getUserNotifications(user: User): Promise<{
         id: string;
         message: string;
@@ -63,5 +66,8 @@ export declare class NotificationController extends BaseController {
     }[]>;
     markRead(id: string): Promise<{
         success: boolean;
+    }>;
+    sendContactEmail(dto: CreateMessageDto): Promise<{
+        status: string;
     }>;
 }
