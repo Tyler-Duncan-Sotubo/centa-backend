@@ -26,6 +26,7 @@ import {
 } from 'src/drizzle/schema';
 import { alias } from 'drizzle-orm/pg-core';
 import { PolicyService } from './goal-policy.service';
+import { GoalNotificationService } from 'src/modules/notification/services/goal-notification.service';
 
 @Injectable()
 export class GoalsService {
@@ -33,6 +34,7 @@ export class GoalsService {
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
     private readonly policy: PolicyService,
+    private readonly goalNotification: GoalNotificationService,
   ) {}
 
   async create(dto: CreateGoalDto, user: User) {
@@ -46,6 +48,8 @@ export class GoalsService {
       groupId,
       status,
     } = dto;
+
+    console.log('CreateGoalDto:', dto);
 
     if (!startDate) throw new Error('startDate is required.');
     if (!!employeeId === !!groupId) {
@@ -78,26 +82,29 @@ export class GoalsService {
       throw new Error('No performance cycle covers the provided startDate.');
     }
 
+    console.log('Using cycle:', cycle);
+
+    // Resolve the assigner (from users) to a name
+    const [assigner] = await this.db
+      .select({
+        id: users.id,
+        fullName: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
+      })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .execute();
+
+    const assignedByName = assigner?.fullName ?? `${user.id}`; // fallback
+
+    console.log('Assigned by:', assignedByName);
+
     return await this.db.transaction(async (tx) => {
       let goalsToInsert: (typeof performanceGoals.$inferInsert)[] = [];
+      let targetEmployeeIds: string[] = [];
 
       if (employeeId) {
-        goalsToInsert = [
-          {
-            title,
-            description: description ?? null,
-            startDate: startDateStr,
-            dueDate: dueDateStr,
-            companyId: user.companyId,
-            cycleId: cycle.id,
-            assignedAt: now,
-            assignedBy: user.id,
-            weight: weight ?? 0,
-            status: statusVal,
-            employeeId,
-            employeeGroupId: null,
-          },
-        ];
+        targetEmployeeIds = [employeeId];
+        console.log('Single employeeId:', employeeId);
       } else {
         // Resolve members of the group
         const members = await tx
@@ -111,37 +118,60 @@ export class GoalsService {
         if (uniqueEmployeeIds.length === 0) {
           throw new Error('Selected group has no members.');
         }
-
-        goalsToInsert = uniqueEmployeeIds.map((empId) => ({
-          title,
-          description: description ?? null,
-          startDate: startDateStr,
-          dueDate: dueDateStr,
-          companyId: user.companyId,
-          cycleId: cycle.id,
-          assignedAt: now,
-          assignedBy: user.id,
-          weight: weight ?? 0,
-          status: statusVal,
-          employeeId: empId,
-          employeeGroupId: groupId!, // lineage
-        }));
+        targetEmployeeIds = uniqueEmployeeIds;
       }
+
+      // Fetch the target employees (email + firstName) from employees table
+      const employeesInfo = await tx
+        .select({
+          id: employees.id,
+          firstName: employees.firstName,
+          email: employees.email, // adjust if your column is different
+        })
+        .from(employees)
+        .where(inArray(employees.id, targetEmployeeIds));
+
+      // Guard: ensure we found all the employees
+      const foundIds = new Set(employeesInfo.map((e) => e.id));
+      const missing = targetEmployeeIds.filter((id) => !foundIds.has(id));
+      if (missing.length) {
+        throw new Error(
+          `Some employees not found or missing email records: ${missing.join(', ')}`,
+        );
+      }
+
+      // Build inserts (one goal per employee)
+      goalsToInsert = employeesInfo.map((emp) => ({
+        title,
+        description: description ?? null,
+        startDate: startDateStr,
+        dueDate: dueDateStr,
+        companyId: user.companyId,
+        cycleId: cycle.id,
+        assignedAt: now,
+        assignedBy: user.id,
+        weight: weight ?? 0,
+        status: statusVal,
+        employeeId: emp.id,
+        employeeGroupId: groupId ?? null, // lineage for group case
+      }));
 
       const created = await tx
         .insert(performanceGoals)
         .values(goalsToInsert)
-        .returning();
+        .returning({
+          id: performanceGoals.id,
+          employeeId: performanceGoals.employeeId,
+        });
 
       // Create a check-in schedule for EACH created goal, in the same txn
       await Promise.all(
-        created.map(
-          (g: typeof performanceGoals.$inferInsert & { id: string }) =>
-            this.policy.upsertGoalScheduleFromPolicy(
-              g.id,
-              user.companyId,
-              tx as db,
-            ),
+        created.map((g) =>
+          this.policy.upsertGoalScheduleFromPolicy(
+            g.id,
+            user.companyId,
+            tx as db,
+          ),
         ),
       );
 
@@ -150,9 +180,10 @@ export class GoalsService {
         entity: 'performance_goal',
         entityId: created[0]?.id ?? null,
         userId: user.id,
-        details: employeeId
-          ? `Created goal "${title}" for 1 employee`
-          : `Created goal "${title}" for ${created.length} group member(s)`,
+        details:
+          targetEmployeeIds.length === 1
+            ? `Created goal "${title}" for 1 employee`
+            : `Created goal "${title}" for ${targetEmployeeIds.length} group member(s)`,
         changes: {
           startDate: startDateStr,
           dueDate: dueDateStr,
@@ -160,9 +191,34 @@ export class GoalsService {
           weight: weight ?? 0,
           status: statusVal,
           ownerType: employeeId ? 'employee' : 'group',
-          count: created.length,
+          count: targetEmployeeIds.length,
         },
       });
+
+      // --- Email fan-out: one email per employee, using employees table + names ---
+      // Map created goals by employeeId for goalId lookup
+      const goalIdByEmployee = new Map(
+        created.map((g) => [g.employeeId, g.id]),
+      );
+
+      // Send one email per employee with personalized fields
+      await Promise.all(
+        employeesInfo.map((emp) =>
+          this.goalNotification.sendGoalAssignment({
+            toEmail: emp.email,
+            subject: `New Goal Assigned: ${title}`,
+            assignedBy: assignedByName, // human-readable name from users table
+            assignedTo: emp.firstName ?? '', // employee first name from employees table
+            title,
+            dueDate: dueDateStr,
+            description: description ?? '',
+            progress: statusVal, // maps to your SendGrid `progress` field
+            meta: {
+              goalId: goalIdByEmployee.get(emp.id) ?? null,
+            },
+          }),
+        ),
+      );
 
       // Return the array (group fan-out) or single-item array (employee)
       return created;

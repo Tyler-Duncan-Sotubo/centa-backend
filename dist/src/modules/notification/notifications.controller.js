@@ -23,12 +23,15 @@ const send_to_employee_dto_1 = require("./dto/send-to-employee.dto");
 const register_device_dto_1 = require("./dto/register-device.dto");
 const create_message_dto_1 = require("./dto/create-message.dto");
 const contact_email_service_1 = require("./services/contact-email.service");
+const newsletter_email_service_1 = require("./services/newsletter-email.service");
+const newsletter_recipient_dto_1 = require("./dto/newsletter-recipient.dto");
 let NotificationController = class NotificationController extends base_controller_1.BaseController {
-    constructor(pusher, push, contactEmailService) {
+    constructor(pusher, push, contactEmailService, newsletterEmailService) {
         super();
         this.pusher = pusher;
         this.push = push;
         this.contactEmailService = contactEmailService;
+        this.newsletterEmailService = newsletterEmailService;
     }
     async getUserNotifications(user) {
         return this.pusher.getUserNotifications(user.companyId);
@@ -67,6 +70,11 @@ let NotificationController = class NotificationController extends base_controlle
     async sendContactEmail(dto) {
         await this.contactEmailService.sendContactEmail(dto);
         return { status: 'queued' };
+    }
+    async sendNewsletterEmail(dto) {
+        await this.newsletterEmailService.sendNewsletter(dto.recipients, {
+            campaignName: 'sept_launch',
+        });
     }
 };
 exports.NotificationController = NotificationController;
@@ -153,10 +161,18 @@ __decorate([
     __metadata("design:paramtypes", [create_message_dto_1.CreateMessageDto]),
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "sendContactEmail", null);
+__decorate([
+    (0, common_1.Post)('email-newsletter'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [newsletter_recipient_dto_1.SendNewsletterDto]),
+    __metadata("design:returntype", Promise)
+], NotificationController.prototype, "sendNewsletterEmail", null);
 exports.NotificationController = NotificationController = __decorate([
     (0, common_1.Controller)(''),
     __metadata("design:paramtypes", [pusher_service_1.PusherService,
         push_notification_service_1.PushNotificationService,
-        contact_email_service_1.ContactEmailService])
+        contact_email_service_1.ContactEmailService,
+        newsletter_email_service_1.NewsletterEmailService])
 ], NotificationController);
 //# sourceMappingURL=notifications.controller.js.map

@@ -19,6 +19,8 @@ const payroll_approval_service_1 = require("./services/payroll-approval.service"
 const goal_notification_service_1 = require("./services/goal-notification.service");
 const push_notification_service_1 = require("./services/push-notification.service");
 const contact_email_service_1 = require("./services/contact-email.service");
+const newsletter_email_service_1 = require("./services/newsletter-email.service");
+const email_queue_service_1 = require("./services/email-queue.service");
 let NotificationModule = class NotificationModule {
 };
 exports.NotificationModule = NotificationModule;
@@ -40,6 +42,8 @@ exports.NotificationModule = NotificationModule = __decorate([
             goal_notification_service_1.GoalNotificationService,
             push_notification_service_1.PushNotificationService,
             contact_email_service_1.ContactEmailService,
+            newsletter_email_service_1.NewsletterEmailService,
+            email_queue_service_1.EmailQueueService,
         ],
         exports: [
             password_reset_service_1.PasswordResetEmailService,

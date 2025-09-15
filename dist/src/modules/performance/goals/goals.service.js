@@ -25,14 +25,17 @@ const goal_comments_schema_1 = require("./schema/goal-comments.schema");
 const schema_1 = require("../../../drizzle/schema");
 const pg_core_1 = require("drizzle-orm/pg-core");
 const goal_policy_service_1 = require("./goal-policy.service");
+const goal_notification_service_1 = require("../../notification/services/goal-notification.service");
 let GoalsService = class GoalsService {
-    constructor(db, auditService, policy) {
+    constructor(db, auditService, policy, goalNotification) {
         this.db = db;
         this.auditService = auditService;
         this.policy = policy;
+        this.goalNotification = goalNotification;
     }
     async create(dto, user) {
         const { title, description, startDate, dueDate, weight, employeeId, groupId, status, } = dto;
+        console.log('CreateGoalDto:', dto);
         if (!startDate)
             throw new Error('startDate is required.');
         if (!!employeeId === !!groupId) {
@@ -51,25 +54,23 @@ let GoalsService = class GoalsService {
         if (!cycle) {
             throw new Error('No performance cycle covers the provided startDate.');
         }
+        console.log('Using cycle:', cycle);
+        const [assigner] = await this.db
+            .select({
+            id: schema_1.users.id,
+            fullName: (0, drizzle_orm_1.sql) `CONCAT(${schema_1.users.firstName}, ' ', ${schema_1.users.lastName})`,
+        })
+            .from(schema_1.users)
+            .where((0, drizzle_orm_1.eq)(schema_1.users.id, user.id))
+            .execute();
+        const assignedByName = assigner?.fullName ?? `${user.id}`;
+        console.log('Assigned by:', assignedByName);
         return await this.db.transaction(async (tx) => {
             let goalsToInsert = [];
+            let targetEmployeeIds = [];
             if (employeeId) {
-                goalsToInsert = [
-                    {
-                        title,
-                        description: description ?? null,
-                        startDate: startDateStr,
-                        dueDate: dueDateStr,
-                        companyId: user.companyId,
-                        cycleId: cycle.id,
-                        assignedAt: now,
-                        assignedBy: user.id,
-                        weight: weight ?? 0,
-                        status: statusVal,
-                        employeeId,
-                        employeeGroupId: null,
-                    },
-                ];
+                targetEmployeeIds = [employeeId];
+                console.log('Single employeeId:', employeeId);
             }
             else {
                 const members = await tx
@@ -82,34 +83,51 @@ let GoalsService = class GoalsService {
                 if (uniqueEmployeeIds.length === 0) {
                     throw new Error('Selected group has no members.');
                 }
-                goalsToInsert = uniqueEmployeeIds.map((empId) => ({
-                    title,
-                    description: description ?? null,
-                    startDate: startDateStr,
-                    dueDate: dueDateStr,
-                    companyId: user.companyId,
-                    cycleId: cycle.id,
-                    assignedAt: now,
-                    assignedBy: user.id,
-                    weight: weight ?? 0,
-                    status: statusVal,
-                    employeeId: empId,
-                    employeeGroupId: groupId,
-                }));
+                targetEmployeeIds = uniqueEmployeeIds;
             }
+            const employeesInfo = await tx
+                .select({
+                id: schema_1.employees.id,
+                firstName: schema_1.employees.firstName,
+                email: schema_1.employees.email,
+            })
+                .from(schema_1.employees)
+                .where((0, drizzle_orm_1.inArray)(schema_1.employees.id, targetEmployeeIds));
+            const foundIds = new Set(employeesInfo.map((e) => e.id));
+            const missing = targetEmployeeIds.filter((id) => !foundIds.has(id));
+            if (missing.length) {
+                throw new Error(`Some employees not found or missing email records: ${missing.join(', ')}`);
+            }
+            goalsToInsert = employeesInfo.map((emp) => ({
+                title,
+                description: description ?? null,
+                startDate: startDateStr,
+                dueDate: dueDateStr,
+                companyId: user.companyId,
+                cycleId: cycle.id,
+                assignedAt: now,
+                assignedBy: user.id,
+                weight: weight ?? 0,
+                status: statusVal,
+                employeeId: emp.id,
+                employeeGroupId: groupId ?? null,
+            }));
             const created = await tx
                 .insert(performance_goals_schema_1.performanceGoals)
                 .values(goalsToInsert)
-                .returning();
+                .returning({
+                id: performance_goals_schema_1.performanceGoals.id,
+                employeeId: performance_goals_schema_1.performanceGoals.employeeId,
+            });
             await Promise.all(created.map((g) => this.policy.upsertGoalScheduleFromPolicy(g.id, user.companyId, tx)));
             await this.auditService.logAction({
                 action: 'create',
                 entity: 'performance_goal',
                 entityId: created[0]?.id ?? null,
                 userId: user.id,
-                details: employeeId
+                details: targetEmployeeIds.length === 1
                     ? `Created goal "${title}" for 1 employee`
-                    : `Created goal "${title}" for ${created.length} group member(s)`,
+                    : `Created goal "${title}" for ${targetEmployeeIds.length} group member(s)`,
                 changes: {
                     startDate: startDateStr,
                     dueDate: dueDateStr,
@@ -117,9 +135,23 @@ let GoalsService = class GoalsService {
                     weight: weight ?? 0,
                     status: statusVal,
                     ownerType: employeeId ? 'employee' : 'group',
-                    count: created.length,
+                    count: targetEmployeeIds.length,
                 },
             });
+            const goalIdByEmployee = new Map(created.map((g) => [g.employeeId, g.id]));
+            await Promise.all(employeesInfo.map((emp) => this.goalNotification.sendGoalAssignment({
+                toEmail: emp.email,
+                subject: `New Goal Assigned: ${title}`,
+                assignedBy: assignedByName,
+                assignedTo: emp.firstName ?? '',
+                title,
+                dueDate: dueDateStr,
+                description: description ?? '',
+                progress: statusVal,
+                meta: {
+                    goalId: goalIdByEmployee.get(emp.id) ?? null,
+                },
+            })));
             return created;
         });
     }
@@ -535,6 +567,7 @@ exports.GoalsService = GoalsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_2.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
-        goal_policy_service_1.PolicyService])
+        goal_policy_service_1.PolicyService,
+        goal_notification_service_1.GoalNotificationService])
 ], GoalsService);
 //# sourceMappingURL=goals.service.js.map

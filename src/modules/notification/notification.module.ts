@@ -10,6 +10,8 @@ import { PayrollApprovalEmailService } from './services/payroll-approval.service
 import { GoalNotificationService } from './services/goal-notification.service';
 import { PushNotificationService } from './services/push-notification.service';
 import { ContactEmailService } from './services/contact-email.service';
+import { NewsletterEmailService } from './services/newsletter-email.service';
+import { EmailQueueService } from './services/email-queue.service';
 
 @Module({
   imports: [
@@ -28,6 +30,8 @@ import { ContactEmailService } from './services/contact-email.service';
     GoalNotificationService,
     PushNotificationService,
     ContactEmailService,
+    NewsletterEmailService,
+    EmailQueueService,
   ],
   exports: [
     PasswordResetEmailService,

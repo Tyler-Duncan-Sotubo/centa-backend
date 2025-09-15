@@ -19,6 +19,8 @@ import { SendToEmployeeDto } from './dto/send-to-employee.dto';
 import { RegisterDeviceDto } from './dto/register-device.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { ContactEmailService } from './services/contact-email.service';
+import { NewsletterEmailService } from './services/newsletter-email.service';
+import { SendNewsletterDto } from './dto/newsletter-recipient.dto';
 // import { BroadcastAppUpdateDto } from './dto/broadcast-app-update.dto';
 
 @Controller('')
@@ -27,6 +29,7 @@ export class NotificationController extends BaseController {
     private pusher: PusherService,
     private push: PushNotificationService,
     private contactEmailService: ContactEmailService,
+    private newsletterEmailService: NewsletterEmailService,
   ) {
     super();
   }
@@ -116,5 +119,12 @@ export class NotificationController extends BaseController {
   async sendContactEmail(@Body() dto: CreateMessageDto) {
     await this.contactEmailService.sendContactEmail(dto);
     return { status: 'queued' };
+  }
+
+  @Post('email-newsletter')
+  async sendNewsletterEmail(@Body() dto: SendNewsletterDto) {
+    await this.newsletterEmailService.sendNewsletter(dto.recipients, {
+      campaignName: 'sept_launch',
+    });
   }
 }

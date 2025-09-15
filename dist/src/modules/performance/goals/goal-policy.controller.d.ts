@@ -11,8 +11,8 @@ export declare class PerformancePolicyController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        defaultVisibility: "manager" | "private" | "company";
-        defaultCadence: "monthly" | "weekly" | "biweekly";
+        defaultVisibility: "private" | "manager" | "company";
+        defaultCadence: "weekly" | "biweekly" | "monthly";
         defaultTimezone: string | null;
         defaultAnchorDow: number | null;
         defaultAnchorHour: number | null;

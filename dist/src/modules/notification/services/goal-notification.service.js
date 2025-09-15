@@ -45,6 +45,39 @@ let GoalNotificationService = class GoalNotificationService {
             }
         }
     }
+    async sendGoalAssignment(payload) {
+        sgMail.setApiKey(this.config.get('SEND_GRID_KEY') || '');
+        const templateId = this.config.get('GOAL_ASSIGNMENT_TEMPLATE_ID');
+        const goalPage = `${this.config.get('EMPLOYEE_PORTAL_URL')}/dashboard/performance/goals/${payload.meta?.goalId || ''}`;
+        console.log(payload);
+        const msg = {
+            to: payload.toEmail,
+            from: {
+                name: 'Goal Assignment',
+                email: 'noreply@centahr.com',
+            },
+            templateId,
+            dynamicTemplateData: {
+                subject: payload.subject,
+                assignedBy: payload.assignedBy,
+                assignedTo: payload.assignedTo,
+                title: payload.title,
+                dueDate: payload.dueDate,
+                description: payload.description,
+                progress: payload.progress,
+                url: goalPage,
+            },
+        };
+        try {
+            await sgMail.send(msg);
+        }
+        catch (error) {
+            console.error('[NotificationService] sendGoalAssignment failed', error);
+            if (error.response) {
+                console.error(error.response.body);
+            }
+        }
+    }
 };
 exports.GoalNotificationService = GoalNotificationService;
 exports.GoalNotificationService = GoalNotificationService = __decorate([

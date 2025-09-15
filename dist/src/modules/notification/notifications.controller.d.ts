@@ -6,11 +6,14 @@ import { SendToEmployeeDto } from './dto/send-to-employee.dto';
 import { RegisterDeviceDto } from './dto/register-device.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { ContactEmailService } from './services/contact-email.service';
+import { NewsletterEmailService } from './services/newsletter-email.service';
+import { SendNewsletterDto } from './dto/newsletter-recipient.dto';
 export declare class NotificationController extends BaseController {
     private pusher;
     private push;
     private contactEmailService;
-    constructor(pusher: PusherService, push: PushNotificationService, contactEmailService: ContactEmailService);
+    private newsletterEmailService;
+    constructor(pusher: PusherService, push: PushNotificationService, contactEmailService: ContactEmailService, newsletterEmailService: NewsletterEmailService);
     getUserNotifications(user: User): Promise<{
         id: string;
         message: string;
@@ -70,4 +73,5 @@ export declare class NotificationController extends BaseController {
     sendContactEmail(dto: CreateMessageDto): Promise<{
         status: string;
     }>;
+    sendNewsletterEmail(dto: SendNewsletterDto): Promise<void>;
 }
