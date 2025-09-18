@@ -14,6 +14,8 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AnnouncementService = void 0;
 const common_1 = require("@nestjs/common");
+const bullmq_1 = require("@nestjs/bullmq");
+const bullmq_2 = require("bullmq");
 const drizzle_module_1 = require("../../drizzle/drizzle.module");
 const audit_service_1 = require("../audit/audit.service");
 const announcements_schema_1 = require("./schema/announcements.schema");
@@ -24,8 +26,10 @@ const aws_service_1 = require("../../common/aws/aws.service");
 const schema_1 = require("../../drizzle/schema");
 const cache_service_1 = require("../../common/cache/cache.service");
 const push_notification_service_1 = require("../notification/services/push-notification.service");
+const date_fns_1 = require("date-fns");
+const string_strip_html_1 = require("string-strip-html");
 let AnnouncementService = class AnnouncementService {
-    constructor(db, auditService, commentService, reactionService, awsService, cache, push) {
+    constructor(db, auditService, commentService, reactionService, awsService, cache, push, emailQueue) {
         this.db = db;
         this.auditService = auditService;
         this.commentService = commentService;
@@ -33,6 +37,7 @@ let AnnouncementService = class AnnouncementService {
         this.awsService = awsService;
         this.cache = cache;
         this.push = push;
+        this.emailQueue = emailQueue;
     }
     tags(companyId) {
         return [
@@ -70,7 +75,7 @@ let AnnouncementService = class AnnouncementService {
                 departmentId: dto.departmentId || null,
                 locationId: dto.locationId || null,
                 publishedAt: dto.publishedAt ? new Date(dto.publishedAt) : null,
-                isPublished: dto.isPublished ?? true,
+                isPublished: true,
                 categoryId: dto.categoryId,
             })
                 .returning()
@@ -91,12 +96,56 @@ let AnnouncementService = class AnnouncementService {
                 title: 'New Announcement',
                 body: newAnnouncement.title,
                 type: 'message',
-                data: {
-                    id: newAnnouncement.id,
-                },
+                data: { id: newAnnouncement.id },
                 route: `/screens/dashboard/announcements/announcement-detail`,
             });
             await this.cache.bumpCompanyVersion(user.companyId);
+            if (newAnnouncement) {
+                const recipientQuery = tx
+                    .select({
+                    id: schema_1.employees.id,
+                    email: schema_1.employees.email,
+                    firstName: schema_1.employees.firstName,
+                })
+                    .from(schema_1.employees)
+                    .where(dto.departmentId
+                    ? (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, user.companyId), (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, dto.departmentId), (0, drizzle_orm_1.isNotNull)(schema_1.employees.email))
+                    : (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, user.companyId), (0, drizzle_orm_1.isNotNull)(schema_1.employees.email)));
+                const recipients = await recipientQuery.execute();
+                const [company] = await tx
+                    .select({ name: schema_1.companies.name })
+                    .from(schema_1.companies)
+                    .where((0, drizzle_orm_1.eq)(schema_1.companies.id, user.companyId))
+                    .execute();
+                const companyName = company?.name || 'Your Company';
+                const publishedAtFormatted = newAnnouncement.publishedAt
+                    ? (0, date_fns_1.format)(newAnnouncement.publishedAt, 'PPP')
+                    : undefined;
+                const plainBody = (0, string_strip_html_1.stripHtml)(newAnnouncement.body).result;
+                const preview = plainBody.length > 200 ? plainBody.slice(0, 200) + '…' : plainBody;
+                const chunkSize = 500;
+                for (let i = 0; i < recipients.length; i += chunkSize) {
+                    const chunk = recipients.slice(i, i + chunkSize);
+                    await this.emailQueue.addBulk(chunk.map((r) => ({
+                        name: 'sendAnnouncement',
+                        data: {
+                            toEmail: r.email,
+                            subject: `New company announcement: ${newAnnouncement.title}`,
+                            firstName: r.firstName || 'there',
+                            title: newAnnouncement.title,
+                            body: preview,
+                            publishedAt: publishedAtFormatted,
+                            companyName,
+                            meta: { announcementId: newAnnouncement.id },
+                        },
+                        opts: {
+                            attempts: 3,
+                            removeOnComplete: true,
+                            removeOnFail: false,
+                        },
+                    })));
+                }
+            }
             return newAnnouncement;
         });
     }
@@ -363,11 +412,13 @@ exports.AnnouncementService = AnnouncementService;
 exports.AnnouncementService = AnnouncementService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
+    __param(7, (0, bullmq_1.InjectQueue)('emailQueue')),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
         comment_service_1.CommentService,
         reaction_service_1.ReactionService,
         aws_service_1.AwsService,
         cache_service_1.CacheService,
-        push_notification_service_1.PushNotificationService])
+        push_notification_service_1.PushNotificationService,
+        bullmq_2.Queue])
 ], AnnouncementService);
 //# sourceMappingURL=announcement.service.js.map

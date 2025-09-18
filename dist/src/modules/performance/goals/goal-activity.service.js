@@ -24,11 +24,13 @@ const goal_comments_schema_1 = require("./schema/goal-comments.schema");
 const goal_attachments_schema_1 = require("./schema/goal-attachments.schema");
 const schema_1 = require("../../../drizzle/schema");
 const s3_storage_service_1 = require("../../../common/aws/s3-storage.service");
+const goal_notification_service_1 = require("../../notification/services/goal-notification.service");
 let GoalActivityService = class GoalActivityService {
-    constructor(db, auditService, s3Service) {
+    constructor(db, auditService, s3Service, goalNotification) {
         this.db = db;
         this.auditService = auditService;
         this.s3Service = s3Service;
+        this.goalNotification = goalNotification;
     }
     async addProgressUpdate(goalId, dto, user) {
         const { id: userId, companyId } = user;
@@ -72,7 +74,7 @@ let GoalActivityService = class GoalActivityService {
         if (dto.progress === 100) {
             await this.db
                 .update(performance_goals_schema_1.performanceGoals)
-                .set({ status: 'completed', updatedAt: new Date(), updatedBy: userId })
+                .set({ status: 'completed', updatedAt: new Date() })
                 .where((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.id, goalId))
                 .returning();
         }
@@ -102,7 +104,7 @@ let GoalActivityService = class GoalActivityService {
         }
         const [updatedGoal] = await this.db
             .update(performance_goals_schema_1.performanceGoals)
-            .set({ note, updatedAt: new Date(), updatedBy: userId })
+            .set({ updatedAt: new Date() })
             .where((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.id, goalId))
             .returning();
         await this.auditService.logAction({
@@ -127,6 +129,29 @@ let GoalActivityService = class GoalActivityService {
         await this.db
             .insert(goal_comments_schema_1.goalComments)
             .values({ ...dto, authorId: userId, goalId });
+        const [commenter] = await this.db
+            .select({
+            name: (0, drizzle_orm_1.sql) `concat(${schema_1.users.firstName}, ' ', ${schema_1.users.lastName})`,
+        })
+            .from(schema_1.users)
+            .where((0, drizzle_orm_1.eq)(schema_1.users.id, goal.assignedBy));
+        const [goalOwner] = await this.db
+            .select({
+            firstName: schema_1.employees.firstName,
+            email: schema_1.employees.email,
+        })
+            .from(schema_1.employees)
+            .where((0, drizzle_orm_1.eq)(schema_1.employees.id, goal.employeeId));
+        await this.goalNotification.sendGoalUpdates({
+            toEmail: goalOwner.email,
+            subject: 'New Comment on Your Goal',
+            firstName: goalOwner.firstName,
+            addedBy: commenter.name,
+            title: goal.title,
+            meta: {
+                goalId,
+            },
+        });
         return { message: 'Comment added successfully' };
     }
     async updateComment(commentId, user, content) {
@@ -200,6 +225,36 @@ let GoalActivityService = class GoalActivityService {
             createdAt: new Date(),
         })
             .returning();
+        const [goal] = await this.db
+            .select()
+            .from(performance_goals_schema_1.performanceGoals)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.id, goalId), (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.companyId, companyId), (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.isArchived, false)));
+        if (!goal) {
+            throw new common_1.BadRequestException('Goal not found');
+        }
+        const [commenter] = await this.db
+            .select({
+            name: (0, drizzle_orm_1.sql) `concat(${schema_1.users.firstName}, ' ', ${schema_1.users.lastName})`,
+        })
+            .from(schema_1.users)
+            .where((0, drizzle_orm_1.eq)(schema_1.users.id, goal.assignedBy));
+        const [goalOwner] = await this.db
+            .select({
+            firstName: schema_1.employees.firstName,
+            email: schema_1.employees.email,
+        })
+            .from(schema_1.employees)
+            .where((0, drizzle_orm_1.eq)(schema_1.employees.id, goal.employeeId));
+        await this.goalNotification.sendGoalUpdates({
+            toEmail: goalOwner.email,
+            subject: 'New Comment on Your Goal',
+            firstName: goalOwner.firstName,
+            addedBy: commenter.name,
+            title: goal.title,
+            meta: {
+                goalId,
+            },
+        });
         await this.auditService.logAction({
             action: 'upload',
             entity: 'goal_attachment',
@@ -307,6 +362,7 @@ exports.GoalActivityService = GoalActivityService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_2.Inject)(drizzle_module_1.DRIZZLE)),
     __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
-        s3_storage_service_1.S3StorageService])
+        s3_storage_service_1.S3StorageService,
+        goal_notification_service_1.GoalNotificationService])
 ], GoalActivityService);
 //# sourceMappingURL=goal-activity.service.js.map

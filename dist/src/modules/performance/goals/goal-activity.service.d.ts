@@ -6,11 +6,13 @@ import { AddGoalCommentDto } from './dto/add-goal-comment.dto';
 import { S3StorageService } from 'src/common/aws/s3-storage.service';
 import { UploadGoalAttachmentDto } from './dto/upload-goal-attachment.dto';
 import { UpdateGoalAttachmentDto } from './dto/update-goal-attachment.dto';
+import { GoalNotificationService } from 'src/modules/notification/services/goal-notification.service';
 export declare class GoalActivityService {
     private readonly db;
     private readonly auditService;
     private readonly s3Service;
-    constructor(db: db, auditService: AuditService, s3Service: S3StorageService);
+    private readonly goalNotification;
+    constructor(db: db, auditService: AuditService, s3Service: S3StorageService, goalNotification: GoalNotificationService);
     addProgressUpdate(goalId: string, dto: AddGoalProgressDto, user: User): Promise<{
         id: string;
         createdAt: Date | null;

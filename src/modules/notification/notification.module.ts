@@ -11,7 +11,8 @@ import { GoalNotificationService } from './services/goal-notification.service';
 import { PushNotificationService } from './services/push-notification.service';
 import { ContactEmailService } from './services/contact-email.service';
 import { NewsletterEmailService } from './services/newsletter-email.service';
-import { EmailQueueService } from './services/email-queue.service';
+import { AnnouncementNotificationService } from './services/announcement-notification.service';
+import { EmailQueueProcessor } from './services/email-queue.processor';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { EmailQueueService } from './services/email-queue.service';
   ],
   controllers: [NotificationController],
   providers: [
+    EmailQueueProcessor,
     PasswordResetEmailService,
     InvitationService,
     EmailVerificationService,
@@ -31,7 +33,7 @@ import { EmailQueueService } from './services/email-queue.service';
     PushNotificationService,
     ContactEmailService,
     NewsletterEmailService,
-    EmailQueueService,
+    AnnouncementNotificationService,
   ],
   exports: [
     PasswordResetEmailService,

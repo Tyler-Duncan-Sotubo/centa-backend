@@ -2,15 +2,14 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { EmployeeInvitationService } from './employee-invitation.service';
 import { GoalNotificationService } from './goal-notification.service';
-import { NewsletterEmailService } from './newsletter-email.service';
-import { NewsletterRecipientDto } from '../dto/newsletter-recipient.dto';
+import { AnnouncementNotificationService } from './announcement-notification.service';
 
 @Processor('emailQueue')
 export class EmailQueueProcessor extends WorkerHost {
   constructor(
     private readonly employeeInvitationService: EmployeeInvitationService,
     private readonly goalNotificationService: GoalNotificationService,
-    private readonly newsletterEmailService: NewsletterEmailService,
+    private readonly announcementNotificationService: AnnouncementNotificationService,
   ) {
     super();
   }
@@ -26,8 +25,9 @@ export class EmailQueueProcessor extends WorkerHost {
           await this.handleGoalCheckin(job.data);
           break;
 
-        case 'sendNewsletter':
-          return this.handleSendNewsletter(job.data);
+        case 'sendAnnouncement':
+          await this.handleAnnouncement(job.data);
+          break;
 
         default:
           console.warn(`⚠️ Unhandled email job: ${job.name}`);
@@ -53,14 +53,7 @@ export class EmailQueueProcessor extends WorkerHost {
     await this.goalNotificationService.sendGoalCheckin(data);
   }
 
-  private async handleSendNewsletter(data: {
-    recipients: NewsletterRecipientDto[];
-    campaignName?: string;
-    categories?: string[];
-  }) {
-    await this.newsletterEmailService.sendNewsletter(data.recipients, {
-      campaignName: data.campaignName,
-      categories: data.categories,
-    });
+  private async handleAnnouncement(data: any) {
+    await this.announcementNotificationService.sendNewAnnouncement(data);
   }
 }

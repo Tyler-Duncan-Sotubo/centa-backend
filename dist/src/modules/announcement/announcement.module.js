@@ -13,11 +13,17 @@ const announcement_controller_1 = require("./announcement.controller");
 const comment_service_1 = require("./comment.service");
 const reaction_service_1 = require("./reaction.service");
 const category_service_1 = require("./category.service");
+const bullmq_1 = require("@nestjs/bullmq");
 let AnnouncementModule = class AnnouncementModule {
 };
 exports.AnnouncementModule = AnnouncementModule;
 exports.AnnouncementModule = AnnouncementModule = __decorate([
     (0, common_1.Module)({
+        imports: [
+            bullmq_1.BullModule.registerQueue({
+                name: 'emailQueue',
+            }),
+        ],
         controllers: [announcement_controller_1.AnnouncementController],
         providers: [
             announcement_service_1.AnnouncementService,

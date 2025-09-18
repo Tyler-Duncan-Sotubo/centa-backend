@@ -17,10 +17,19 @@ interface GoalAssignmentPayload {
     progress: string;
     meta?: Record<string, any>;
 }
+interface GoalUpdatePayload {
+    toEmail: string;
+    subject: string;
+    firstName: string;
+    addedBy: string;
+    title: string;
+    meta?: Record<string, any>;
+}
 export declare class GoalNotificationService {
     private readonly config;
     constructor(config: ConfigService);
     sendGoalCheckin(payload: GoalCheckinPayload): Promise<void>;
     sendGoalAssignment(payload: GoalAssignmentPayload): Promise<void>;
+    sendGoalUpdates(payload: GoalUpdatePayload): Promise<void>;
 }
 export {};

@@ -1,4 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
 import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
 import { User } from 'src/common/types/user.type';
@@ -11,18 +13,22 @@ import {
   announcementReactions,
   announcements,
 } from './schema/announcements.schema';
-import { desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { CommentService } from './comment.service';
 import { ReactionService } from './reaction.service';
 import { AwsService } from 'src/common/aws/aws.service';
 import {
+  companies,
   companyLocations,
   companyRoles,
   departments,
+  employees,
   users,
 } from 'src/drizzle/schema';
 import { CacheService } from 'src/common/cache/cache.service';
 import { PushNotificationService } from '../notification/services/push-notification.service';
+import { format } from 'date-fns';
+import { stripHtml } from 'string-strip-html'; // or write a quick regex
 
 @Injectable()
 export class AnnouncementService {
@@ -34,6 +40,7 @@ export class AnnouncementService {
     private readonly awsService: AwsService,
     private readonly cache: CacheService,
     private readonly push: PushNotificationService,
+    @InjectQueue('emailQueue') private readonly emailQueue: Queue,
   ) {}
 
   private tags(companyId: string) {
@@ -83,7 +90,7 @@ export class AnnouncementService {
           departmentId: dto.departmentId || null,
           locationId: dto.locationId || null,
           publishedAt: dto.publishedAt ? new Date(dto.publishedAt) : null,
-          isPublished: dto.isPublished ?? true,
+          isPublished: true,
           categoryId: dto.categoryId,
         })
         .returning()
@@ -106,14 +113,80 @@ export class AnnouncementService {
         title: 'New Announcement',
         body: newAnnouncement.title,
         type: 'message',
-        data: {
-          id: newAnnouncement.id,
-        },
+        data: { id: newAnnouncement.id },
         route: `/screens/dashboard/announcements/announcement-detail`,
       });
 
       // Invalidate all announcement-related caches for this company
       await this.cache.bumpCompanyVersion(user.companyId);
+
+      // === NEW: fan-out announcement emails ===
+      // Only send emails if the announcement is published
+      if (newAnnouncement) {
+        const recipientQuery = tx
+          .select({
+            id: employees.id,
+            email: employees.email,
+            firstName: employees.firstName, // or employees.name if that's your column
+          })
+          .from(employees)
+          .where(
+            dto.departmentId
+              ? and(
+                  eq(employees.companyId, user.companyId),
+                  eq(employees.departmentId, dto.departmentId),
+                  isNotNull(employees.email),
+                )
+              : and(
+                  eq(employees.companyId, user.companyId),
+                  isNotNull(employees.email),
+                ),
+          );
+
+        const recipients = await recipientQuery.execute();
+
+        const [company] = await tx
+          .select({ name: companies.name })
+          .from(companies)
+          .where(eq(companies.id, user.companyId))
+          .execute();
+
+        const companyName = company?.name || 'Your Company';
+        const publishedAtFormatted = newAnnouncement.publishedAt
+          ? format(newAnnouncement.publishedAt, 'PPP')
+          : undefined;
+
+        const plainBody = stripHtml(newAnnouncement.body).result;
+        const preview =
+          plainBody.length > 200 ? plainBody.slice(0, 200) + '…' : plainBody;
+
+        // Chunking to avoid massive single adds (tune chunk size as needed)
+        const chunkSize = 500;
+        for (let i = 0; i < recipients.length; i += chunkSize) {
+          const chunk = recipients.slice(i, i + chunkSize);
+
+          await this.emailQueue.addBulk(
+            chunk.map((r) => ({
+              name: 'sendAnnouncement',
+              data: {
+                toEmail: r.email,
+                subject: `New company announcement: ${newAnnouncement.title}`,
+                firstName: r.firstName || 'there',
+                title: newAnnouncement.title,
+                body: preview,
+                publishedAt: publishedAtFormatted,
+                companyName,
+                meta: { announcementId: newAnnouncement.id }, // optional
+              },
+              opts: {
+                attempts: 3,
+                removeOnComplete: true,
+                removeOnFail: false,
+              },
+            })),
+          );
+        }
+      }
 
       return newAnnouncement;
     });

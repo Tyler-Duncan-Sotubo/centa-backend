@@ -1,3 +1,4 @@
+import { Queue } from 'bullmq';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
 import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
 import { User } from 'src/common/types/user.type';
@@ -16,7 +17,8 @@ export declare class AnnouncementService {
     private readonly awsService;
     private readonly cache;
     private readonly push;
-    constructor(db: db, auditService: AuditService, commentService: CommentService, reactionService: ReactionService, awsService: AwsService, cache: CacheService, push: PushNotificationService);
+    private readonly emailQueue;
+    constructor(db: db, auditService: AuditService, commentService: CommentService, reactionService: ReactionService, awsService: AwsService, cache: CacheService, push: PushNotificationService, emailQueue: Queue);
     private tags;
     create(dto: CreateAnnouncementDto, user: User): Promise<{
         id: string;

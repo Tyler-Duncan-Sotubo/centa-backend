@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { Inject } from '@nestjs/common';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { performanceGoals } from './schema/performance-goals.schema';
@@ -11,10 +11,11 @@ import { AddGoalProgressDto } from './dto/add-goal-progress.dto';
 import { AddGoalCommentDto } from './dto/add-goal-comment.dto';
 import { goalComments } from './schema/goal-comments.schema';
 import { goalAttachments } from './schema/goal-attachments.schema';
-import { companyFileFolders } from 'src/drizzle/schema';
+import { companyFileFolders, employees, users } from 'src/drizzle/schema';
 import { S3StorageService } from 'src/common/aws/s3-storage.service';
 import { UploadGoalAttachmentDto } from './dto/upload-goal-attachment.dto';
 import { UpdateGoalAttachmentDto } from './dto/update-goal-attachment.dto';
+import { GoalNotificationService } from 'src/modules/notification/services/goal-notification.service';
 
 @Injectable()
 export class GoalActivityService {
@@ -22,6 +23,7 @@ export class GoalActivityService {
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
     private readonly s3Service: S3StorageService,
+    private readonly goalNotification: GoalNotificationService,
   ) {}
 
   async addProgressUpdate(goalId: string, dto: AddGoalProgressDto, user: User) {
@@ -90,7 +92,7 @@ export class GoalActivityService {
     if (dto.progress === 100) {
       await this.db
         .update(performanceGoals)
-        .set({ status: 'completed', updatedAt: new Date(), updatedBy: userId })
+        .set({ status: 'completed', updatedAt: new Date() })
         .where(eq(performanceGoals.id, goalId))
         .returning();
     }
@@ -145,7 +147,7 @@ export class GoalActivityService {
     // 2. Update the note
     const [updatedGoal] = await this.db
       .update(performanceGoals)
-      .set({ note, updatedAt: new Date(), updatedBy: userId })
+      .set({ updatedAt: new Date() })
       .where(eq(performanceGoals.id, goalId))
       .returning();
 
@@ -184,6 +186,33 @@ export class GoalActivityService {
     await this.db
       .insert(goalComments)
       .values({ ...dto, authorId: userId, goalId });
+
+    // get commenter's name
+    const [commenter] = await this.db
+      .select({
+        name: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
+      })
+      .from(users)
+      .where(eq(users.id, goal.assignedBy));
+
+    const [goalOwner] = await this.db
+      .select({
+        firstName: employees.firstName,
+        email: employees.email,
+      })
+      .from(employees)
+      .where(eq(employees.id, goal.employeeId));
+
+    await this.goalNotification.sendGoalUpdates({
+      toEmail: goalOwner.email,
+      subject: 'New Comment on Your Goal',
+      firstName: goalOwner.firstName,
+      addedBy: commenter.name,
+      title: goal.title,
+      meta: {
+        goalId,
+      },
+    });
 
     return { message: 'Comment added successfully' };
   }
@@ -307,6 +336,49 @@ export class GoalActivityService {
         createdAt: new Date(),
       })
       .returning();
+
+    // 1. Ensure the goal exists
+    const [goal] = await this.db
+      .select()
+      .from(performanceGoals)
+      .where(
+        and(
+          eq(performanceGoals.id, goalId),
+          eq(performanceGoals.companyId, companyId),
+          eq(performanceGoals.isArchived, false), // Ensure goal is not archived
+        ),
+      );
+
+    if (!goal) {
+      throw new BadRequestException('Goal not found');
+    }
+
+    // get commenter's name
+    const [commenter] = await this.db
+      .select({
+        name: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
+      })
+      .from(users)
+      .where(eq(users.id, goal.assignedBy));
+
+    const [goalOwner] = await this.db
+      .select({
+        firstName: employees.firstName,
+        email: employees.email,
+      })
+      .from(employees)
+      .where(eq(employees.id, goal.employeeId));
+
+    await this.goalNotification.sendGoalUpdates({
+      toEmail: goalOwner.email,
+      subject: 'New Comment on Your Goal',
+      firstName: goalOwner.firstName,
+      addedBy: commenter.name,
+      title: goal.title,
+      meta: {
+        goalId,
+      },
+    });
 
     // 5. Log action
     await this.auditService.logAction({

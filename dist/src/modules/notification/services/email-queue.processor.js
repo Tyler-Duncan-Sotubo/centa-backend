@@ -13,13 +13,13 @@ exports.EmailQueueProcessor = void 0;
 const bullmq_1 = require("@nestjs/bullmq");
 const employee_invitation_service_1 = require("./employee-invitation.service");
 const goal_notification_service_1 = require("./goal-notification.service");
-const newsletter_email_service_1 = require("./newsletter-email.service");
+const announcement_notification_service_1 = require("./announcement-notification.service");
 let EmailQueueProcessor = class EmailQueueProcessor extends bullmq_1.WorkerHost {
-    constructor(employeeInvitationService, goalNotificationService, newsletterEmailService) {
+    constructor(employeeInvitationService, goalNotificationService, announcementNotificationService) {
         super();
         this.employeeInvitationService = employeeInvitationService;
         this.goalNotificationService = goalNotificationService;
-        this.newsletterEmailService = newsletterEmailService;
+        this.announcementNotificationService = announcementNotificationService;
     }
     async process(job) {
         try {
@@ -30,8 +30,9 @@ let EmailQueueProcessor = class EmailQueueProcessor extends bullmq_1.WorkerHost 
                 case 'sendGoalCheckin':
                     await this.handleGoalCheckin(job.data);
                     break;
-                case 'sendNewsletter':
-                    return this.handleSendNewsletter(job.data);
+                case 'sendAnnouncement':
+                    await this.handleAnnouncement(job.data);
+                    break;
                 default:
                     console.warn(`⚠️ Unhandled email job: ${job.name}`);
             }
@@ -48,11 +49,8 @@ let EmailQueueProcessor = class EmailQueueProcessor extends bullmq_1.WorkerHost 
     async handleGoalCheckin(data) {
         await this.goalNotificationService.sendGoalCheckin(data);
     }
-    async handleSendNewsletter(data) {
-        await this.newsletterEmailService.sendNewsletter(data.recipients, {
-            campaignName: data.campaignName,
-            categories: data.categories,
-        });
+    async handleAnnouncement(data) {
+        await this.announcementNotificationService.sendNewAnnouncement(data);
     }
 };
 exports.EmailQueueProcessor = EmailQueueProcessor;
@@ -60,6 +58,6 @@ exports.EmailQueueProcessor = EmailQueueProcessor = __decorate([
     (0, bullmq_1.Processor)('emailQueue'),
     __metadata("design:paramtypes", [employee_invitation_service_1.EmployeeInvitationService,
         goal_notification_service_1.GoalNotificationService,
-        newsletter_email_service_1.NewsletterEmailService])
+        announcement_notification_service_1.AnnouncementNotificationService])
 ], EmailQueueProcessor);
 //# sourceMappingURL=email-queue.processor.js.map

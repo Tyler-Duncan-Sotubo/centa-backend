@@ -25,7 +25,7 @@ let GoalNotificationService = class GoalNotificationService {
             to: payload.toEmail,
             from: {
                 name: 'Goal Check-in',
-                email: 'noreply@centa.africa',
+                email: 'noreply@centahr.com',
             },
             templateId,
             dynamicTemplateData: {
@@ -49,7 +49,6 @@ let GoalNotificationService = class GoalNotificationService {
         sgMail.setApiKey(this.config.get('SEND_GRID_KEY') || '');
         const templateId = this.config.get('GOAL_ASSIGNMENT_TEMPLATE_ID');
         const goalPage = `${this.config.get('EMPLOYEE_PORTAL_URL')}/dashboard/performance/goals/${payload.meta?.goalId || ''}`;
-        console.log(payload);
         const msg = {
             to: payload.toEmail,
             from: {
@@ -65,6 +64,35 @@ let GoalNotificationService = class GoalNotificationService {
                 dueDate: payload.dueDate,
                 description: payload.description,
                 progress: payload.progress,
+                url: goalPage,
+            },
+        };
+        try {
+            await sgMail.send(msg);
+        }
+        catch (error) {
+            console.error('[NotificationService] sendGoalAssignment failed', error);
+            if (error.response) {
+                console.error(error.response.body);
+            }
+        }
+    }
+    async sendGoalUpdates(payload) {
+        sgMail.setApiKey(this.config.get('SEND_GRID_KEY') || '');
+        const templateId = this.config.get('GOAL_UPDATE_TEMPLATE_ID');
+        const goalPage = `${this.config.get('EMPLOYEE_PORTAL_URL')}/dashboard/performance/goals/${payload.meta?.goalId || ''}`;
+        const msg = {
+            to: payload.toEmail,
+            from: {
+                name: 'Goal Updates',
+                email: 'noreply@centahr.com',
+            },
+            templateId,
+            dynamicTemplateData: {
+                subject: payload.subject,
+                firstName: payload.firstName,
+                addedBy: payload.addedBy,
+                title: payload.title,
                 url: goalPage,
             },
         };
