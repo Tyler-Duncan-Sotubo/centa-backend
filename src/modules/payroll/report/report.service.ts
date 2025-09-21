@@ -25,12 +25,14 @@ import {
   repayments,
   salaryAdvance,
 } from '../salary-advance/schema/salary-advance.schema';
+import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 
 @Injectable()
 export class ReportService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly paySchedulesService: PaySchedulesService,
+    private readonly companySettings: CompanySettingsService,
   ) {}
 
   async getLatestPayrollSummaryWithVariance(companyId: string) {
@@ -519,12 +521,18 @@ export class ReportService {
       };
     });
 
+    const setting = await this.companySettings.getOnboardingModule(
+      companyId,
+      'payroll',
+    );
+
     return {
       runSummaries, // array of all runs (or current month only if `month` passed), with deltaGross & pctGross
       yearToDate, // YTD totals
       headcount, // active headcount
       totalCurrentSalary, // sum of active employees’ gross salary
       costTrend, // last 12 months cost + deltas
+      onboardingCompleted: setting?.completed || false, // onboarding status
     };
   }
 

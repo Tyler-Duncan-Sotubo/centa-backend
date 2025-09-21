@@ -112,6 +112,7 @@ export declare class ReportController extends BaseController {
             monthBonuses: number;
             monthNet: number;
         }[];
+        onboardingCompleted: any;
     }>;
     getCombinedPayroll(user: User): Promise<{
         payrollSummary: {

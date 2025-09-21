@@ -63,10 +63,11 @@ export class JobRolesService extends BaseCrudService<
       .execute();
 
     // make onboarding step complete
-    await this.companySettings.setSetting(
+    await this.companySettings.setOnboardingTask(
       companyId,
-      'onboarding_job_roles',
-      true,
+      'company',
+      'job_roles',
+      'done',
     );
 
     // invalidate versioned caches

@@ -24,6 +24,8 @@ const expense_1 = require("./settings/expense");
 const performance_1 = require("./settings/performance");
 const onboarding_1 = require("./settings/onboarding");
 const cache_service_1 = require("../common/cache/cache.service");
+const constants_1 = require("./constants/constants");
+const schema_1 = require("../drizzle/schema");
 let CompanySettingsService = class CompanySettingsService {
     constructor(db, cache) {
         this.db = db;
@@ -276,6 +278,164 @@ let CompanySettingsService = class CompanySettingsService {
             jobRoles: Boolean(map['onboarding_job_roles']),
             costCenter: Boolean(map['onboarding_cost_center']),
             uploadEmployees: Boolean(map['onboarding_upload_employees']),
+        };
+    }
+    async getOnboardingModule(companyId, module) {
+        const json = await this.getSetting(companyId, (0, constants_1.MODULE_SETTING_KEY)(module));
+        if (json) {
+            const completed = constants_1.REQUIRED[module].every((t) => json.tasks?.[t] === 'done');
+            return { ...json, completed: Boolean(completed) };
+        }
+        const legacy = await this.getOnboardingLegacy(companyId);
+        const tasks = {};
+        for (const t of constants_1.ALLOWED_TASKS[module]) {
+            const oldKey = legacy.mapKey[module][t];
+            tasks[t] = legacy.values[oldKey] ? 'done' : 'todo';
+        }
+        const completed = constants_1.REQUIRED[module].every((t) => tasks[t] === 'done');
+        return {
+            tasks,
+            required: constants_1.REQUIRED[module],
+            completed,
+            disabledWhenComplete: true,
+        };
+    }
+    async getOnboardingAll(companyId) {
+        const [payroll, company, employees] = await Promise.all([
+            this.getOnboardingModule(companyId, 'payroll'),
+            this.getOnboardingModule(companyId, 'company'),
+            this.getOnboardingModule(companyId, 'employees'),
+        ]);
+        return { payroll, company, employees };
+    }
+    async getOnboardingLegacy(companyId) {
+        const keys = [
+            'onboarding_pay_frequency',
+            'onboarding_pay_group',
+            'onboarding_tax_details',
+            'onboarding_company_locations',
+            'onboarding_departments',
+            'onboarding_job_roles',
+            'onboarding_cost_center',
+            'onboarding_upload_employees',
+        ];
+        const values = await this.fetchSettings(companyId, keys);
+        const mapKey = {
+            payroll: {
+                pay_schedule: 'onboarding_pay_frequency',
+                pay_group: 'onboarding_pay_group',
+                salary_structure: 'onboarding_salary_structure',
+                tax_details: 'onboarding_tax_details',
+                cost_center: 'onboarding_cost_center',
+            },
+            company: {
+                company_locations: 'onboarding_company_locations',
+                departments: 'onboarding_departments',
+                job_roles: 'onboarding_job_roles',
+            },
+            employees: {
+                upload_employees: 'onboarding_upload_employees',
+            },
+        };
+        return { values, mapKey };
+    }
+    async setOnboardingTask(companyId, module, taskKey, status) {
+        if (!constants_1.ALLOWED_TASKS[module].includes(taskKey)) {
+            throw new Error(`Invalid task "${taskKey}" for module "${module}"`);
+        }
+        if (!['todo', 'inProgress', 'done', 'skipped', 'blocked'].includes(status)) {
+            throw new Error(`Invalid status "${status}"`);
+        }
+        const mod = await this.getOnboardingModule(companyId, module);
+        const next = {
+            tasks: { ...(mod.tasks || {}), [taskKey]: status },
+            required: mod.required || constants_1.REQUIRED[module],
+            disabledWhenComplete: mod.disabledWhenComplete ?? true,
+        };
+        const completed = next.required.every((t) => next.tasks[t] === 'done');
+        await this.setSetting(companyId, (0, constants_1.MODULE_SETTING_KEY)(module), {
+            ...next,
+            completed,
+        });
+        const legacy = await this.getOnboardingLegacy(companyId);
+        const legacyKey = legacy.mapKey[module]?.[taskKey];
+        if (legacyKey) {
+            await this.setSetting(companyId, legacyKey, status === 'done');
+        }
+        await this.cache.bumpCompanyVersion(companyId);
+    }
+    async migrateOnboardingToModules(companyId) {
+        const existing = await this.fetchSettings(companyId, [
+            (0, constants_1.MODULE_SETTING_KEY)('payroll'),
+            (0, constants_1.MODULE_SETTING_KEY)('company'),
+            (0, constants_1.MODULE_SETTING_KEY)('employees'),
+        ]);
+        const legacy = await this.getOnboardingLegacy(companyId);
+        const build = (module) => {
+            if (existing[(0, constants_1.MODULE_SETTING_KEY)(module)]) {
+                return existing[(0, constants_1.MODULE_SETTING_KEY)(module)];
+            }
+            const tasks = {};
+            for (const t of constants_1.ALLOWED_TASKS[module]) {
+                const oldKey = legacy.mapKey[module]?.[t];
+                const oldVal = oldKey ? Boolean(legacy.values[oldKey]) : false;
+                tasks[t] = oldVal ? 'done' : 'todo';
+            }
+            const required = constants_1.REQUIRED[module];
+            const completed = required.every((t) => tasks[t] === 'done');
+            return { tasks, required, completed, disabledWhenComplete: true };
+        };
+        const payroll = build('payroll');
+        const company = build('company');
+        const employees = build('employees');
+        await this.db.transaction(async (tx) => {
+            for (const [k, v] of [
+                [(0, constants_1.MODULE_SETTING_KEY)('payroll'), payroll],
+                [(0, constants_1.MODULE_SETTING_KEY)('company'), company],
+                [(0, constants_1.MODULE_SETTING_KEY)('employees'), employees],
+            ]) {
+                await tx
+                    .insert(index_schema_1.companySettings)
+                    .values({ companyId, key: k, value: v })
+                    .onConflictDoUpdate({
+                    target: [index_schema_1.companySettings.companyId, index_schema_1.companySettings.key],
+                    set: { value: (0, drizzle_orm_1.sql) `EXCLUDED.value` },
+                });
+            }
+        });
+        await this.cache.bumpCompanyVersion(companyId);
+    }
+    async backfillOnboardingModulesForAllCompanies() {
+        const allCompanies = await this.db.select().from(schema_1.companies).execute();
+        for (const { id: companyId } of allCompanies) {
+            const legacyCount = await this.db
+                .select({ c: (0, drizzle_orm_1.sql) `COUNT(*)` })
+                .from(index_schema_1.companySettings)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.sql) `${index_schema_1.companySettings.key} LIKE 'onboarding\\_%'`))
+                .then((r) => r[0]?.c ?? 0);
+            const existing = await this.fetchSettings(companyId, [
+                (0, constants_1.MODULE_SETTING_KEY)('payroll'),
+                (0, constants_1.MODULE_SETTING_KEY)('company'),
+                (0, constants_1.MODULE_SETTING_KEY)('employees'),
+            ]);
+            const hasNew = Boolean(existing[(0, constants_1.MODULE_SETTING_KEY)('payroll')]) &&
+                Boolean(existing[(0, constants_1.MODULE_SETTING_KEY)('company')]) &&
+                Boolean(existing[(0, constants_1.MODULE_SETTING_KEY)('employees')]);
+            if (hasNew)
+                continue;
+            if (legacyCount > 0) {
+                await this.migrateOnboardingToModules(companyId);
+            }
+            else {
+                await this.setSettings(companyId);
+            }
+        }
+    }
+    async getOnboardingVisibility(companyId) {
+        const { payroll, company, employees } = await this.getOnboardingAll(companyId);
+        return {
+            staff: Boolean(company.completed) && Boolean(employees.completed),
+            payroll: Boolean(payroll.completed),
         };
     }
 };

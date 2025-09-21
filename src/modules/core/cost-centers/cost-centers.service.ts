@@ -47,10 +47,11 @@ export class CostCentersService extends BaseCrudService<
       .execute();
 
     // onboarding step complete
-    await this.companySettings.setSetting(
+    await this.companySettings.setOnboardingTask(
       companyId,
-      'onboarding_cost_center',
-      true,
+      'payroll',
+      'cost_center',
+      'done',
     );
 
     // invalidate versioned caches

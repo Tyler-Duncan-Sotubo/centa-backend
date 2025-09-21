@@ -208,7 +208,7 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
             }
             const inviteLink = `${this.config.get('EMPLOYEE_PORTAL_URL')}/auth/reset-password/${token}`;
             await this.employeeInvitationService.sendInvitationEmail(emp.email, emp.firstName, company.name, 'Employee', inviteLink);
-            await this.companySettingsService.setSetting(companyId, 'onboarding_upload_employees', true);
+            await this.companySettingsService.setOnboardingTask(companyId, 'employees', 'upload_employees', 'done');
             return emp;
         });
         await this.cacheService.bumpCompanyVersion(companyId);
@@ -287,6 +287,7 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 });
             }
         });
+        await this.companySettingsService.setOnboardingTask(user.companyId, 'employees', 'upload_employees', 'done');
         await this.cacheService.bumpCompanyVersion(user.companyId);
         await this.cacheService.invalidateTags([
             `employee:${employeeId}`,
@@ -1237,7 +1238,7 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                     ...imports[i].compDto,
                 }));
                 await trx.insert(compensation_schema_1.employeeCompensations).values(compValues).execute();
-                await this.companySettingsService.setSetting(user.companyId, 'onboarding_upload_employees', true);
+                await this.companySettingsService.setOnboardingTask(companyId, 'employees', 'upload_employees', 'done');
                 return createdEmps;
             });
             await this.cacheService.bumpCompanyVersion(companyId);

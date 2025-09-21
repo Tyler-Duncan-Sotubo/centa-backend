@@ -1,14 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onboarding = void 0;
+const constants_1 = require("../constants/constants");
 exports.onboarding = [
-    { key: 'onboarding_pay_frequency', value: false },
-    { key: 'onboarding_pay_group', value: false },
-    { key: 'onboarding_tax_details', value: false },
-    { key: 'onboarding_company_locations', value: false },
-    { key: 'onboarding_departments', value: false },
-    { key: 'onboarding_job_roles', value: false },
-    { key: 'onboarding_cost_center', value: false },
-    { key: 'onboarding_upload_employees', value: false },
+    { key: (0, constants_1.MODULE_SETTING_KEY)('payroll'), value: (0, constants_1.defaultModule)('payroll') },
+    { key: (0, constants_1.MODULE_SETTING_KEY)('company'), value: (0, constants_1.defaultModule)('company') },
+    { key: (0, constants_1.MODULE_SETTING_KEY)('employees'), value: (0, constants_1.defaultModule)('employees') },
 ];
 //# sourceMappingURL=onboarding.js.map

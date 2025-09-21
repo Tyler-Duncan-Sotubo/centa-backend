@@ -255,10 +255,11 @@ export class PaySchedulesService {
         .returning()
         .execute();
 
-      await this.companySettings.setSetting(
+      await this.companySettings.setOnboardingTask(
         companyId,
-        'onboarding_pay_frequency',
-        true,
+        'payroll',
+        'pay_schedule',
+        'done',
       );
 
       // Invalidate company pay-schedule caches

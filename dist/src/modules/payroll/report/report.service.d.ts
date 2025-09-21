@@ -1,10 +1,12 @@
 import { db } from 'src/drizzle/types/drizzle';
 import { PaySchedulesService } from '../pay-schedules/pay-schedules.service';
 import Decimal from 'decimal.js';
+import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 export declare class ReportService {
     private readonly db;
     private readonly paySchedulesService;
-    constructor(db: db, paySchedulesService: PaySchedulesService);
+    private readonly companySettings;
+    constructor(db: db, paySchedulesService: PaySchedulesService, companySettings: CompanySettingsService);
     getLatestPayrollSummaryWithVariance(companyId: string): Promise<{
         current: null;
         variance: null;
@@ -123,6 +125,7 @@ export declare class ReportService {
             monthBonuses: number;
             monthNet: number;
         }[];
+        onboardingCompleted: any;
     }>;
     getPayrollCostReport(companyId: string, month: string): Promise<{
         payGroupCost: ({

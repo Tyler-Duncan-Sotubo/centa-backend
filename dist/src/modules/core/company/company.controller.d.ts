@@ -176,7 +176,7 @@ export declare class CompanyController extends BaseController {
         };
         pendingChecklists: {
             statusId: string;
-            checkListStatus: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
+            checkListStatus: "skipped" | "pending" | "in_progress" | "completed" | "overdue" | "cancelled" | null;
             checklistId: string;
             title: string;
             dueDaysAfterStart: number | null;
@@ -192,10 +192,10 @@ export declare class CompanyController extends BaseController {
                 avatarUrl: string | null;
             } | null;
             employees: any[];
-            id: any;
-            name: any;
-            description: any;
-            createdAt: any;
+            id: string;
+            name: string;
+            description: string | null;
+            createdAt: Date;
         } | {
             head: {
                 id: any;
@@ -204,34 +204,10 @@ export declare class CompanyController extends BaseController {
                 avatarUrl: string | null;
             } | null;
             employees: any[];
-            id: any;
-            name: any;
-            description: any;
-            createdAt: any;
-        } | {
-            head: {
-                id: any;
-                name: unknown;
-                email: any;
-                avatarUrl: string | null;
-            } | null;
-            employees: any[];
-            id: any;
-            name: any;
-            description: any;
-            createdAt: any;
-        } | {
-            head: {
-                id: any;
-                name: unknown;
-                email: any;
-                avatarUrl: string | null;
-            } | null;
-            employees: any[];
-            id: any;
-            name: any;
-            description: any;
-            createdAt: any;
+            id: string;
+            name: string;
+            description: string | null;
+            createdAt: Date;
         })[];
         payGroups: {
             id: string;

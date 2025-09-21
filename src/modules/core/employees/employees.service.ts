@@ -316,10 +316,11 @@ export class EmployeesService {
         inviteLink,
       );
 
-      await this.companySettingsService.setSetting(
+      await this.companySettingsService.setOnboardingTask(
         companyId,
-        'onboarding_upload_employees',
-        true,
+        'employees',
+        'upload_employees',
+        'done',
       );
 
       return emp;
@@ -417,6 +418,13 @@ export class EmployeesService {
         });
       }
     });
+
+    await this.companySettingsService.setOnboardingTask(
+      user.companyId,
+      'employees',
+      'upload_employees',
+      'done',
+    );
 
     // 🔄 invalidate
     await this.cacheService.bumpCompanyVersion(user.companyId);
@@ -1750,10 +1758,11 @@ export class EmployeesService {
         }));
         await trx.insert(employeeCompensations).values(compValues).execute();
 
-        await this.companySettingsService.setSetting(
-          user.companyId,
-          'onboarding_upload_employees',
-          true,
+        await this.companySettingsService.setOnboardingTask(
+          companyId,
+          'employees',
+          'upload_employees',
+          'done',
         );
 
         return createdEmps;

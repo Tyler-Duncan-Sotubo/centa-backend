@@ -1,5 +1,6 @@
 import { db } from 'src/drizzle/types/drizzle';
 import { CacheService } from 'src/common/cache/cache.service';
+import { ModuleKey, TaskStatus } from './constants/constants';
 export declare class CompanySettingsService {
     private db;
     private readonly cache;
@@ -67,5 +68,19 @@ export declare class CompanySettingsService {
         jobRoles: boolean;
         costCenter: boolean;
         uploadEmployees: boolean;
+    }>;
+    getOnboardingModule(companyId: string, module: ModuleKey): Promise<any>;
+    getOnboardingAll(companyId: string): Promise<{
+        payroll: any;
+        company: any;
+        employees: any;
+    }>;
+    private getOnboardingLegacy;
+    setOnboardingTask(companyId: string, module: ModuleKey, taskKey: string, status: TaskStatus): Promise<void>;
+    migrateOnboardingToModules(companyId: string): Promise<void>;
+    backfillOnboardingModulesForAllCompanies(): Promise<void>;
+    getOnboardingVisibility(companyId: string): Promise<{
+        staff: boolean;
+        payroll: boolean;
     }>;
 }

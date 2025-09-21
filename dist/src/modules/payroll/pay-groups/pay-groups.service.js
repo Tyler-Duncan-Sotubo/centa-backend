@@ -165,7 +165,7 @@ let PayGroupsService = class PayGroupsService {
         if (dto.employees?.length) {
             await this.addEmployeesToGroup(dto.employees, newGroup.id, user, ip);
         }
-        await this.companySettings.setSetting(user.companyId, 'onboarding_pay_group', true);
+        await this.companySettings.setOnboardingTask(user.companyId, 'payroll', 'pay_group', 'done');
         await this.cacheService.bumpCompanyVersion(user.companyId);
         await this.cacheService.invalidateTags([
             'payGroups',

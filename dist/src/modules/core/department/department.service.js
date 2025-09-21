@@ -60,7 +60,7 @@ let DepartmentService = class DepartmentService extends base_crud_service_1.Base
             description: schema_1.departments.description,
         })
             .execute();
-        await this.companySettings.setSetting(companyId, 'onboarding_departments', true);
+        await this.companySettings.setOnboardingTask(companyId, 'company', 'departments', 'done');
         await this.cache.bumpCompanyVersion(companyId);
         return dept;
     }

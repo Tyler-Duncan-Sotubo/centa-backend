@@ -57,6 +57,20 @@
       "when": 1756744744499,
       "tag": "0007_tricky_jetstream",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1758445247616,
+      "tag": "0008_reflective_mindworm",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1758445364775,
+      "tag": "0009_natural_radioactive_man",
+      "breakpoints": true
     }
   ]
 }

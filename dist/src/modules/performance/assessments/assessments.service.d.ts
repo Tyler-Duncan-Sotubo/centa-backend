@@ -22,16 +22,16 @@ export declare class AssessmentsService {
     private invalidate;
     private serializeFilters;
     createAssessment(dto: CreateAssessmentDto, user: User): Promise<{
-        status: "in_progress" | "submitted" | "not_started" | null;
         id: string;
         createdAt: Date | null;
         companyId: string;
         type: "manager" | "self" | "peer";
+        status: "in_progress" | "submitted" | "not_started" | null;
         templateId: string;
         submittedAt: Date | null;
         cycleId: string;
-        revieweeId: string;
         reviewerId: string;
+        revieweeId: string;
     }>;
     startAssessment(assessmentId: string, userId: string): Promise<void>;
     saveSectionComments(assessmentId: string, userId: string, dto: SubmitAssessmentDto): Promise<{

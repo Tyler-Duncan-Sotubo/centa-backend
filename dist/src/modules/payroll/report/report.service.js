@@ -24,10 +24,12 @@ const compensation_schema_1 = require("../../core/employees/schema/compensation.
 const pay_schedules_service_1 = require("../pay-schedules/pay-schedules.service");
 const decimal_js_1 = require("decimal.js");
 const salary_advance_schema_1 = require("../salary-advance/schema/salary-advance.schema");
+const company_settings_service_1 = require("../../../company-settings/company-settings.service");
 let ReportService = class ReportService {
-    constructor(db, paySchedulesService) {
+    constructor(db, paySchedulesService, companySettings) {
         this.db = db;
         this.paySchedulesService = paySchedulesService;
+        this.companySettings = companySettings;
     }
     async getLatestPayrollSummaryWithVariance(companyId) {
         const summaries = await this.db
@@ -365,12 +367,14 @@ let ReportService = class ReportService {
                 pctChange,
             };
         });
+        const setting = await this.companySettings.getOnboardingModule(companyId, 'payroll');
         return {
             runSummaries,
             yearToDate,
             headcount,
             totalCurrentSalary,
             costTrend,
+            onboardingCompleted: setting?.completed || false,
         };
     }
     async getPayrollCostReport(companyId, month) {
@@ -710,6 +714,7 @@ exports.ReportService = ReportService;
 exports.ReportService = ReportService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, pay_schedules_service_1.PaySchedulesService])
+    __metadata("design:paramtypes", [Object, pay_schedules_service_1.PaySchedulesService,
+        company_settings_service_1.CompanySettingsService])
 ], ReportService);
 //# sourceMappingURL=report.service.js.map

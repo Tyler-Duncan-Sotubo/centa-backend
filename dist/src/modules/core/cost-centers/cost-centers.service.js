@@ -41,7 +41,7 @@ let CostCentersService = class CostCentersService extends base_crud_service_1.Ba
             .values({ code, name, budget, companyId })
             .returning({ id: schema_1.costCenters.id })
             .execute();
-        await this.companySettings.setSetting(companyId, 'onboarding_cost_center', true);
+        await this.companySettings.setOnboardingTask(companyId, 'payroll', 'cost_center', 'done');
         await this.cache.bumpCompanyVersion(companyId);
         return created;
     }

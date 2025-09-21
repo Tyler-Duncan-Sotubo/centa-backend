@@ -1,9 +1,11 @@
 import { CompanySettingsService } from './company-settings.service';
 import { User } from 'src/common/types/user.type';
 import { BaseController } from 'src/common/interceptor/base.controller';
+import { TaskStatus } from './constants/constants';
 export declare class CompanySettingsController extends BaseController {
     private readonly companySettingsService;
     constructor(companySettingsService: CompanySettingsService);
+    backfillOnboarding(): Promise<void>;
     getDefaultManager(user: User): Promise<{
         defaultManager: string;
     }>;
@@ -19,13 +21,13 @@ export declare class CompanySettingsController extends BaseController {
         key: string;
     }): Promise<void>;
     getOnboardingStep(user: User): Promise<{
-        payFrequency: boolean;
-        payGroup: boolean;
-        taxDetails: boolean;
-        companyLocations: boolean;
-        departments: boolean;
-        jobRoles: boolean;
-        costCenter: boolean;
-        uploadEmployees: boolean;
+        staff: boolean;
+        payroll: boolean;
     }>;
+    getOnboardingProgress(user: User, module: string): Promise<any>;
+    updateOnboardingProgress(user: User, body: {
+        module: string;
+        task: string;
+        status: TaskStatus;
+    }): Promise<void>;
 }

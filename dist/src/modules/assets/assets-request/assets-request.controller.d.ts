@@ -7,14 +7,14 @@ export declare class AssetsRequestController extends BaseController {
     private readonly assetsRequestService;
     constructor(assetsRequestService: AssetsRequestService);
     create(createAssetsRequestDto: CreateAssetsRequestDto, user: User): Promise<{
-        status: string | null;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
         employeeId: string;
-        notes: string | null;
+        status: string | null;
         rejectionReason: string | null;
+        notes: string | null;
         purpose: string;
         requestDate: string;
         assetType: string;

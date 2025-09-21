@@ -229,10 +229,11 @@ export class PayGroupsService {
     }
 
     // make onboarding step complete
-    await this.companySettings.setSetting(
+    await this.companySettings.setOnboardingTask(
       user.companyId,
-      'onboarding_pay_group',
-      true,
+      'payroll',
+      'pay_group',
+      'done',
     );
 
     // Invalidate cached views for this company

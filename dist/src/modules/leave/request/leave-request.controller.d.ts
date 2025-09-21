@@ -6,17 +6,17 @@ export declare class LeaveRequestController extends BaseController {
     private readonly leaveRequest;
     constructor(leaveRequest: LeaveRequestService);
     createLeaveRequest(dto: CreateLeaveRequestDto, user: User, ip: string): Promise<{
-        status: string;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
         startDate: string;
         employeeId: string;
-        endDate: string;
-        reason: string | null;
         requestedAt: Date | null;
+        status: string;
+        endDate: string;
         leaveTypeId: string;
+        reason: string | null;
         totalDays: string;
         approverId: string | null;
         approvedAt: Date | null;

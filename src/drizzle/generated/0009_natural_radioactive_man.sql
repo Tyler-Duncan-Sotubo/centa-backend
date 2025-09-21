@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "checklist_completion_company_key_unq" ON "checklist_completion" USING btree ("company_id","checklist_key");

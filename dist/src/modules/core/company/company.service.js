@@ -252,7 +252,7 @@ let CompanyService = class CompanyService {
                 return end >= prevStartDate && end <= prevEndDate;
             });
             const prevTotalEmployees = allEmployees.filter((e) => !e.employmentEndDate || new Date(e.employmentEndDate) > prevEndDate).length;
-            const onboardingSettings = await this.companySettingsService.getOnboardingSettings(companyId);
+            const onboardingSettings = await this.companySettingsService.getOnboardingVisibility(companyId);
             const tasksArray = Object.entries(onboardingSettings);
             const completed = tasksArray.filter(([, done]) => done).length;
             const total = tasksArray.length;

@@ -53,7 +53,7 @@ let JobRolesService = class JobRolesService extends base_crud_service_1.BaseCrud
         })
             .returning({ id: schema_1.jobRoles.id })
             .execute();
-        await this.companySettings.setSetting(companyId, 'onboarding_job_roles', true);
+        await this.companySettings.setOnboardingTask(companyId, 'company', 'job_roles', 'done');
         await this.cache.bumpCompanyVersion(companyId);
         return created;
     }

@@ -19,6 +19,7 @@ import { RecruitmentModule } from './recruitment/recruitment.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { SeederModule } from './seed/seeder.module';
 import { PerformanceModule } from './performance/performance.module';
+import { ChecklistModule } from './checklist/checklist.module';
 
 @Global()
 @Module({
@@ -43,6 +44,7 @@ import { PerformanceModule } from './performance/performance.module';
     IntegrationsModule,
     SeederModule,
     PerformanceModule,
+    ChecklistModule,
   ],
   exports: [
     CoreModule,

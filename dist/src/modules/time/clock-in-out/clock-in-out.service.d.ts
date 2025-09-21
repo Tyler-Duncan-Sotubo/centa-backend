@@ -59,7 +59,7 @@ export declare class ClockInOutService {
             employeeId: any;
             employeeNumber: any;
             name: string;
-            department: any;
+            department: string;
             checkInTime: string | null;
             checkOutTime: string | null;
             status: "absent" | "present" | "late";
@@ -79,7 +79,7 @@ export declare class ClockInOutService {
             employeeId: any;
             employeeNumber: any;
             name: string;
-            department: any;
+            department: string;
             checkInTime: string | null;
             checkOutTime: string | null;
             status: "absent" | "present" | "late";

@@ -95,10 +95,11 @@ export class DepartmentService extends BaseCrudService<
       .execute();
 
     // onboarding step complete
-    await this.companySettings.setSetting(
+    await this.companySettings.setOnboardingTask(
       companyId,
-      'onboarding_departments',
-      true,
+      'company',
+      'departments',
+      'done',
     );
 
     // invalidate department caches

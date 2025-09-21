@@ -84,10 +84,11 @@ export class LocationsService {
     });
 
     // mark onboarding step complete (CompanySettingsService will bump version for settings)
-    await this.companySettings.setSetting(
-      companyId,
-      'onboarding_company_locations',
-      true,
+    await this.companySettings.setOnboardingTask(
+      user.companyId,
+      'company',
+      'company_locations',
+      'done',
     );
 
     // bump for locations-related caches

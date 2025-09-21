@@ -354,7 +354,8 @@ export class CompanyService {
         ).length;
 
         const onboardingSettings =
-          await this.companySettingsService.getOnboardingSettings(companyId);
+          await this.companySettingsService.getOnboardingVisibility(companyId);
+
         const tasksArray = Object.entries(onboardingSettings);
         const completed = tasksArray.filter(([, done]) => done).length;
         const total = tasksArray.length;

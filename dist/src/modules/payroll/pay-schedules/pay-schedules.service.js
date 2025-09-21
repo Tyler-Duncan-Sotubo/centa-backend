@@ -168,7 +168,7 @@ let PaySchedulesService = class PaySchedulesService {
             })
                 .returning()
                 .execute();
-            await this.companySettings.setSetting(companyId, 'onboarding_pay_frequency', true);
+            await this.companySettings.setOnboardingTask(companyId, 'payroll', 'pay_schedule', 'done');
             await this.cache.bumpCompanyVersion(companyId);
             await this.cache.invalidateTags([
                 'paySchedules',

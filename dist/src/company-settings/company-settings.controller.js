@@ -24,6 +24,9 @@ let CompanySettingsController = class CompanySettingsController extends base_con
         super();
         this.companySettingsService = companySettingsService;
     }
+    async backfillOnboarding() {
+        return this.companySettingsService.backfillOnboardingModulesForAllCompanies();
+    }
     async getDefaultManager(user) {
         return this.companySettingsService.getDefaultManager(user.companyId);
     }
@@ -37,10 +40,22 @@ let CompanySettingsController = class CompanySettingsController extends base_con
         return this.companySettingsService.setSetting(user.companyId, body.key, body.value);
     }
     async getOnboardingStep(user) {
-        return this.companySettingsService.getOnboardingSettings(user.companyId);
+        return this.companySettingsService.getOnboardingVisibility(user.companyId);
+    }
+    async getOnboardingProgress(user, module) {
+        return this.companySettingsService.getOnboardingModule(user.companyId, module);
+    }
+    async updateOnboardingProgress(user, body) {
+        return this.companySettingsService.setOnboardingTask(user.companyId, body.module, body.task, body.status);
     }
 };
 exports.CompanySettingsController = CompanySettingsController;
+__decorate([
+    (0, common_1.Post)('backfill-onboarding'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], CompanySettingsController.prototype, "backfillOnboarding", null);
 __decorate([
     (0, common_2.Get)('default-manager'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
@@ -88,6 +103,26 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], CompanySettingsController.prototype, "getOnboardingStep", null);
+__decorate([
+    (0, common_2.Get)('onboarding-progress/:module'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('module')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], CompanySettingsController.prototype, "getOnboardingProgress", null);
+__decorate([
+    (0, common_1.Post)('onboarding-progress'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], CompanySettingsController.prototype, "updateOnboardingProgress", null);
 exports.CompanySettingsController = CompanySettingsController = __decorate([
     (0, common_1.Controller)('company-settings'),
     __metadata("design:paramtypes", [company_settings_service_1.CompanySettingsService])

@@ -8,16 +8,16 @@ export declare class AssessmentsController extends BaseController {
     private readonly assessmentsService;
     constructor(assessmentsService: AssessmentsService);
     create(dto: CreateAssessmentDto, user: User): Promise<{
-        status: "in_progress" | "submitted" | "not_started" | null;
         id: string;
         createdAt: Date | null;
         companyId: string;
         type: "manager" | "self" | "peer";
+        status: "in_progress" | "submitted" | "not_started" | null;
         templateId: string;
         submittedAt: Date | null;
         cycleId: string;
-        revieweeId: string;
         reviewerId: string;
+        revieweeId: string;
     }>;
     start(id: string, user: User): Promise<void>;
     submit(id: string, dto: SubmitAssessmentDto, user: User): Promise<{

@@ -71,7 +71,7 @@ let LocationsService = class LocationsService {
             details: 'New location created',
             changes: { before: null, after: created },
         });
-        await this.companySettings.setSetting(companyId, 'onboarding_company_locations', true);
+        await this.companySettings.setOnboardingTask(user.companyId, 'company', 'company_locations', 'done');
         await this.cache.bumpCompanyVersion(companyId);
         return created;
     }

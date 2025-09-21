@@ -11,6 +11,14 @@ import { expenses } from './settings/expense';
 import { performance } from './settings/performance';
 import { onboarding } from './settings/onboarding';
 import { CacheService } from 'src/common/cache/cache.service';
+import {
+  ALLOWED_TASKS,
+  MODULE_SETTING_KEY,
+  ModuleKey,
+  REQUIRED,
+  TaskStatus,
+} from './constants/constants';
+import { companies } from 'src/drizzle/schema';
 
 @Injectable()
 export class CompanySettingsService {
@@ -387,6 +395,219 @@ export class CompanySettingsService {
       jobRoles: Boolean(map['onboarding_job_roles']),
       costCenter: Boolean(map['onboarding_cost_center']),
       uploadEmployees: Boolean(map['onboarding_upload_employees']),
+    };
+  }
+
+  async getOnboardingModule(companyId: string, module: ModuleKey) {
+    // Try new JSON blob first
+    const json = await this.getSetting(companyId, MODULE_SETTING_KEY(module));
+    if (json) {
+      // Trust but verify: recompute completed server-side
+      const completed = REQUIRED[module].every(
+        (t) => json.tasks?.[t] === 'done',
+      );
+
+      return { ...json, completed: Boolean(completed) };
+    }
+    // Fallback to old booleans → synthesize a module blob
+    const legacy = await this.getOnboardingLegacy(companyId); // defined below
+    const tasks: Record<string, TaskStatus> = {};
+    for (const t of ALLOWED_TASKS[module]) {
+      const oldKey = legacy.mapKey[module][t];
+      tasks[t] = legacy.values[oldKey] ? 'done' : 'todo';
+    }
+    const completed = REQUIRED[module].every((t) => tasks[t] === 'done');
+
+    return {
+      tasks,
+      required: REQUIRED[module],
+      completed,
+      disabledWhenComplete: true,
+    };
+  }
+
+  async getOnboardingAll(companyId: string) {
+    const [payroll, company, employees] = await Promise.all([
+      this.getOnboardingModule(companyId, 'payroll'),
+      this.getOnboardingModule(companyId, 'company'),
+      this.getOnboardingModule(companyId, 'employees'),
+    ]);
+    return { payroll, company, employees };
+  }
+
+  // Legacy helper (reads existing flat keys once)
+  private async getOnboardingLegacy(companyId: string) {
+    const keys = [
+      'onboarding_pay_frequency',
+      'onboarding_pay_group',
+      'onboarding_tax_details',
+      'onboarding_company_locations',
+      'onboarding_departments',
+      'onboarding_job_roles',
+      'onboarding_cost_center',
+      'onboarding_upload_employees',
+    ];
+    const values = await this.fetchSettings(companyId, keys);
+
+    const mapKey = {
+      payroll: {
+        pay_schedule: 'onboarding_pay_frequency',
+        pay_group: 'onboarding_pay_group',
+        salary_structure: 'onboarding_salary_structure' as any, // if you never had it before, it will be undefined
+        tax_details: 'onboarding_tax_details',
+        cost_center: 'onboarding_cost_center',
+      },
+      company: {
+        company_locations: 'onboarding_company_locations',
+        departments: 'onboarding_departments',
+        job_roles: 'onboarding_job_roles',
+      },
+      employees: {
+        upload_employees: 'onboarding_upload_employees',
+      },
+    } as const;
+
+    return { values, mapKey };
+  }
+
+  async setOnboardingTask(
+    companyId: string,
+    module: ModuleKey,
+    taskKey: string,
+    status: TaskStatus,
+  ) {
+    // Validate inputs
+    if (!(ALLOWED_TASKS[module] as readonly string[]).includes(taskKey)) {
+      throw new Error(`Invalid task "${taskKey}" for module "${module}"`);
+    }
+    if (
+      !['todo', 'inProgress', 'done', 'skipped', 'blocked'].includes(status)
+    ) {
+      throw new Error(`Invalid status "${status}"`);
+    }
+
+    // Get current module blob (new if present, else synth from legacy)
+    const mod = await this.getOnboardingModule(companyId, module);
+    const next = {
+      tasks: { ...(mod.tasks || {}), [taskKey]: status },
+      required: mod.required || REQUIRED[module],
+      disabledWhenComplete: mod.disabledWhenComplete ?? true,
+    };
+    const completed = next.required.every((t) => next.tasks[t] === 'done');
+
+    // Persist new structure atomically
+    await this.setSetting(companyId, MODULE_SETTING_KEY(module), {
+      ...next,
+      completed,
+    });
+
+    // (Optional) Dual-write to legacy booleans during deprecation window
+    // Only mirror for tasks that had legacy keys
+    const legacy = await this.getOnboardingLegacy(companyId);
+    const legacyKey = (legacy.mapKey as any)[module]?.[taskKey];
+    if (legacyKey) {
+      await this.setSetting(companyId, legacyKey, status === 'done');
+    }
+
+    await this.cache.bumpCompanyVersion(companyId);
+  }
+
+  async migrateOnboardingToModules(companyId: string) {
+    // If all new keys exist, this is a no-op
+    const existing = await this.fetchSettings(companyId, [
+      MODULE_SETTING_KEY('payroll'),
+      MODULE_SETTING_KEY('company'),
+      MODULE_SETTING_KEY('employees'),
+    ]);
+
+    const legacy = await this.getOnboardingLegacy(companyId);
+
+    // Builder: make a module blob from legacy booleans
+    const build = (module: ModuleKey) => {
+      if (existing[MODULE_SETTING_KEY(module)]) {
+        return existing[MODULE_SETTING_KEY(module)]; // already migrated
+      }
+      const tasks: Record<string, TaskStatus> = {};
+      for (const t of ALLOWED_TASKS[module]) {
+        const oldKey = (legacy.mapKey as any)[module]?.[t];
+        const oldVal = oldKey ? Boolean(legacy.values[oldKey]) : false;
+        tasks[t] = oldVal ? 'done' : 'todo';
+      }
+      const required = REQUIRED[module];
+      const completed = required.every((t) => tasks[t] === 'done');
+      return { tasks, required, completed, disabledWhenComplete: true };
+    };
+
+    const payroll = build('payroll');
+    const company = build('company');
+    const employees = build('employees');
+
+    // Single transaction for atomicity
+    // (Use your drizzle transaction helper if available)
+    await this.db.transaction(async (tx) => {
+      for (const [k, v] of [
+        [MODULE_SETTING_KEY('payroll'), payroll],
+        [MODULE_SETTING_KEY('company'), company],
+        [MODULE_SETTING_KEY('employees'), employees],
+      ] as const) {
+        await tx
+          .insert(companySettings)
+          .values({ companyId, key: k, value: v })
+          .onConflictDoUpdate({
+            target: [companySettings.companyId, companySettings.key],
+            set: { value: sql`EXCLUDED.value` },
+          });
+      }
+    });
+
+    await this.cache.bumpCompanyVersion(companyId);
+  }
+
+  async backfillOnboardingModulesForAllCompanies() {
+    const allCompanies = await this.db.select().from(companies).execute();
+
+    for (const { id: companyId } of allCompanies) {
+      // Do we have any legacy onboarding_* keys for this company?
+      const legacyCount = await this.db
+        .select({ c: sql<number>`COUNT(*)` })
+        .from(companySettings)
+        .where(
+          and(
+            eq(companySettings.companyId, companyId),
+            sql`${companySettings.key} LIKE 'onboarding\\_%'`,
+          ),
+        )
+        .then((r) => r[0]?.c ?? 0);
+
+      // Do we already have new module blobs?
+      const existing = await this.fetchSettings(companyId, [
+        MODULE_SETTING_KEY('payroll'),
+        MODULE_SETTING_KEY('company'),
+        MODULE_SETTING_KEY('employees'),
+      ]);
+      const hasNew =
+        Boolean(existing[MODULE_SETTING_KEY('payroll')]) &&
+        Boolean(existing[MODULE_SETTING_KEY('company')]) &&
+        Boolean(existing[MODULE_SETTING_KEY('employees')]);
+
+      if (hasNew) continue; // already migrated/seeded
+
+      if (legacyCount > 0) {
+        // Preserve progress by mapping legacy → new JSON
+        await this.migrateOnboardingToModules(companyId);
+      } else {
+        // No legacy; just seed defaults (insert-only, no overwrite)
+        await this.setSettings(companyId); // must include onboarding.{module} defaults
+      }
+    }
+  }
+
+  async getOnboardingVisibility(companyId: string) {
+    const { payroll, company, employees } =
+      await this.getOnboardingAll(companyId);
+    return {
+      staff: Boolean(company.completed) && Boolean(employees.completed),
+      payroll: Boolean(payroll.completed),
     };
   }
 }

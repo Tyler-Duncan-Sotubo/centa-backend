@@ -1,10 +1,7 @@
+import { defaultModule, MODULE_SETTING_KEY } from '../constants/constants';
+
 export const onboarding = [
-  { key: 'onboarding_pay_frequency', value: false },
-  { key: 'onboarding_pay_group', value: false },
-  { key: 'onboarding_tax_details', value: false },
-  { key: 'onboarding_company_locations', value: false },
-  { key: 'onboarding_departments', value: false },
-  { key: 'onboarding_job_roles', value: false },
-  { key: 'onboarding_cost_center', value: false },
-  { key: 'onboarding_upload_employees', value: false },
+  { key: MODULE_SETTING_KEY('payroll'), value: defaultModule('payroll') },
+  { key: MODULE_SETTING_KEY('company'), value: defaultModule('company') },
+  { key: MODULE_SETTING_KEY('employees'), value: defaultModule('employees') },
 ];
