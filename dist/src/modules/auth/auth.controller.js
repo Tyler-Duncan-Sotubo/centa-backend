@@ -52,7 +52,7 @@ let AuthController = class AuthController {
         if ('status' in result) {
             return result;
         }
-        const { user, backendTokens, permissions } = result;
+        const { user, backendTokens, permissions, checklist } = result;
         res.cookie('Authentication', backendTokens.refreshToken, {
             httpOnly: true,
             secure: true,
@@ -64,6 +64,7 @@ let AuthController = class AuthController {
             user,
             backendTokens,
             permissions,
+            checklist,
         };
     }
     async employeeLogin(dto, res, ip) {

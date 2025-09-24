@@ -8,7 +8,7 @@ exports.benefitPlans = (0, pg_core_1.pgTable)('benefit_plans', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
     companyId: (0, pg_core_1.uuid)('company_id')
         .notNull()
-        .references(() => schema_1.companies.id),
+        .references(() => schema_1.companies.id, { onDelete: 'cascade' }),
     benefitGroupId: (0, pg_core_1.uuid)('benefit_group_id')
         .notNull()
         .references(() => benefit_groups_schema_1.benefitGroups.id),

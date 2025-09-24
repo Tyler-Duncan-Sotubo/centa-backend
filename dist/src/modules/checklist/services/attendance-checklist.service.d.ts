@@ -8,7 +8,7 @@ export declare class AttendanceChecklistService {
     private getExtraStatuses;
     getAttendanceChecklist(companyId: string): Promise<{
         tasks: Record<string, TaskStatus>;
-        required: string[];
+        required: ("attendance_setting" | "shift_management" | "assign_rota" | "add_office_location")[];
         completed: boolean;
         disabledWhenComplete: boolean;
     }>;

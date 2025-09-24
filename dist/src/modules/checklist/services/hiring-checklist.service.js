@@ -23,6 +23,7 @@ exports.HIRING_EXTRA_KEYS = [
     'email_templates',
     'offer_templates',
     'create_jobs',
+    'google_integration',
 ];
 let HiringChecklistService = class HiringChecklistService {
     constructor(db) {
@@ -40,23 +41,25 @@ let HiringChecklistService = class HiringChecklistService {
             email_templates: done.has('email_templates') ? 'done' : 'todo',
             offer_templates: done.has('offer_templates') ? 'done' : 'todo',
             create_jobs: done.has('create_jobs') ? 'done' : 'todo',
+            google_integration: done.has('google_integration') ? 'done' : 'todo',
         };
     }
     async getHiringChecklist(companyId) {
         const extras = await this.getExtraStatuses(companyId);
-        const required = [];
-        const completed = required.length === 0;
         const order = [
             'pipeline',
             'scorecards',
             'email_templates',
             'offer_templates',
             'create_jobs',
+            'google_integration',
         ];
         const orderedTasks = {};
         for (const key of order) {
             orderedTasks[key] = extras[key];
         }
+        const required = order;
+        const completed = required.every((key) => orderedTasks[key] === 'done');
         return {
             tasks: orderedTasks,
             required,

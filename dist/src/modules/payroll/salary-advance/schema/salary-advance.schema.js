@@ -7,7 +7,7 @@ exports.salaryAdvance = (0, pg_core_1.pgTable)('salary_advance', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
     loanNumber: (0, pg_core_1.text)('loan_number'),
     companyId: (0, pg_core_1.uuid)('company_id')
-        .references(() => schema_1.companies.id)
+        .references(() => schema_1.companies.id, { onDelete: 'cascade' })
         .notNull(),
     employeeId: (0, pg_core_1.uuid)('employee_id')
         .references(() => schema_1.employees.id)
@@ -44,7 +44,7 @@ exports.repayments = (0, pg_core_1.pgTable)('repayments', {
 exports.salaryAdvanceHistory = (0, pg_core_1.pgTable)('salary_advance_history', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
     companyId: (0, pg_core_1.uuid)('company_id')
-        .references(() => schema_1.companies.id)
+        .references(() => schema_1.companies.id, { onDelete: 'cascade' })
         .notNull(),
     salaryAdvanceId: (0, pg_core_1.uuid)('loan_id')
         .references(() => exports.salaryAdvance.id)

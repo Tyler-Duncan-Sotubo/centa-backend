@@ -17,9 +17,21 @@ const common_1 = require("@nestjs/common");
 const drizzle_module_1 = require("../../drizzle/drizzle.module");
 const drizzle_orm_1 = require("drizzle-orm");
 const checklist_schema_1 = require("./schema/checklist.schema");
+const attendance_checklist_service_1 = require("./services/attendance-checklist.service");
+const hiring_checklist_service_1 = require("./services/hiring-checklist.service");
+const leave_checklist_service_1 = require("./services/leave-checklist.service");
+const payroll_checklist_service_1 = require("./services/payroll-checklist.service");
+const performance_checklist_service_1 = require("./services/performance-checklist.service");
+const staff_checklist_service_1 = require("./services/staff-checklist.service");
 let ChecklistService = class ChecklistService {
-    constructor(db) {
+    constructor(db, svc, payroll, performance, hiring, attendance, leave) {
         this.db = db;
+        this.svc = svc;
+        this.payroll = payroll;
+        this.performance = performance;
+        this.hiring = hiring;
+        this.attendance = attendance;
+        this.leave = leave;
     }
     async markExtraDone(companyId, key, userId) {
         await this.db
@@ -36,11 +48,34 @@ let ChecklistService = class ChecklistService {
             },
         });
     }
+    async getOverallChecklistStatus(companyId) {
+        const [staff, payroll, performance, hiring, attendance, leave] = await Promise.all([
+            this.svc.getStaffChecklist(companyId),
+            this.payroll.getPayrollChecklist(companyId),
+            this.performance.getPerformanceChecklist(companyId),
+            this.hiring.getHiringChecklist(companyId),
+            this.attendance.getAttendanceChecklist(companyId),
+            this.leave.getLeaveChecklist(companyId),
+        ]);
+        return {
+            staff: staff.completed,
+            payroll: payroll.completed,
+            performance: performance.completed,
+            hiring: hiring.completed,
+            attendance: attendance.completed,
+            leave: leave.completed,
+        };
+    }
 };
 exports.ChecklistService = ChecklistService;
 exports.ChecklistService = ChecklistService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object])
+    __metadata("design:paramtypes", [Object, staff_checklist_service_1.StaffChecklistService,
+        payroll_checklist_service_1.PayrollChecklistService,
+        performance_checklist_service_1.PerformanceChecklistService,
+        hiring_checklist_service_1.HiringChecklistService,
+        attendance_checklist_service_1.AttendanceChecklistService,
+        leave_checklist_service_1.LeaveChecklistService])
 ], ChecklistService);
 //# sourceMappingURL=checklist.service.js.map

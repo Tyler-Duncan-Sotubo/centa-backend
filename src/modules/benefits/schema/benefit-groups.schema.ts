@@ -17,7 +17,7 @@ export const benefitGroups = pgTable(
 
     companyId: uuid('company_id')
       .notNull()
-      .references(() => companies.id),
+      .references(() => companies.id, { onDelete: 'cascade' }),
 
     teamId: uuid('team_id').references(() => groups.id),
 

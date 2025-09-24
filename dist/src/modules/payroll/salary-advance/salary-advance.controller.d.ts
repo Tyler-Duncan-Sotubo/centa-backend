@@ -8,16 +8,16 @@ export declare class SalaryAdvanceController extends BaseController {
     requestLoan(employeeId: string, dto: CreateSalaryAdvanceDto, user: User): Promise<{
         id: string;
         name: string;
+        loanNumber: string | null;
         createdAt: Date;
         companyId: string;
         employeeId: string;
-        paymentStatus: string;
-        loanNumber: string | null;
         amount: string;
         totalPaid: string;
         tenureMonths: number;
         preferredMonthlyPayment: string | null;
         status: string;
+        paymentStatus: string;
     }>;
     getLoans(user: User): Promise<({
         name: string;

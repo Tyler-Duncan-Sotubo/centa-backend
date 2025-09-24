@@ -52,8 +52,6 @@ let PerformanceChecklistService = class PerformanceChecklistService {
     }
     async getPerformanceChecklist(companyId) {
         const extras = await this.getExtraStatuses(companyId);
-        const required = [];
-        const completed = required.length === 0;
         const order = [
             'performance_general',
             'goal_policies',
@@ -67,6 +65,8 @@ let PerformanceChecklistService = class PerformanceChecklistService {
         for (const key of order) {
             orderedTasks[key] = extras[key];
         }
+        const required = order;
+        const completed = required.every((key) => orderedTasks[key] === 'done');
         return {
             tasks: orderedTasks,
             required,

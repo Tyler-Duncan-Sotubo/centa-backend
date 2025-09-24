@@ -26,8 +26,8 @@ export declare class AssessmentsService {
         createdAt: Date | null;
         companyId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
         templateId: string;
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         cycleId: string;
         reviewerId: string;

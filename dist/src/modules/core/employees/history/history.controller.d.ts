@@ -9,10 +9,10 @@ export declare class HistoryController extends BaseController {
     create(employeeId: string, dto: CreateHistoryDto, user: User, ip: string): Promise<{
         id: string;
         createdAt: Date;
-        type: "employment" | "education" | "certification" | "promotion" | "transfer" | "termination";
-        description: string | null;
         title: string;
+        description: string | null;
         startDate: string | null;
+        type: "employment" | "education" | "certification" | "promotion" | "transfer" | "termination";
         employeeId: string;
         endDate: string | null;
         institution: string | null;

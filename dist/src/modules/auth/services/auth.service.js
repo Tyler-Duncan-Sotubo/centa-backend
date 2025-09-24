@@ -29,8 +29,9 @@ const jwt_1 = require("@nestjs/jwt");
 const company_settings_service_1 = require("../../../company-settings/company-settings.service");
 const permissions_service_1 = require("../permissions/permissions.service");
 const nestjs_pino_1 = require("nestjs-pino");
+const checklist_service_1 = require("../../checklist/checklist.service");
 let AuthService = class AuthService {
-    constructor(db, userService, tokenGeneratorService, auditService, verifyLogin, configService, jwtService, companySettingsService, permissionsService, logger) {
+    constructor(db, userService, tokenGeneratorService, auditService, verifyLogin, configService, jwtService, companySettingsService, permissionsService, checklist, logger) {
         this.db = db;
         this.userService = userService;
         this.tokenGeneratorService = tokenGeneratorService;
@@ -40,6 +41,7 @@ let AuthService = class AuthService {
         this.jwtService = jwtService;
         this.companySettingsService = companySettingsService;
         this.permissionsService = permissionsService;
+        this.checklist = checklist;
         this.logger = logger;
     }
     async completeLogin(user, ip, hasBothGates) {
@@ -72,6 +74,7 @@ let AuthService = class AuthService {
         });
         const { accessToken, refreshToken } = await this.tokenGeneratorService.generateToken(user);
         const permissionKeys = await this.permissionsService.getPermissionKeysForUser(updatedUser.roleId);
+        const checklistStatus = await this.checklist.getOverallChecklistStatus(updatedUser.companyId);
         const baseResponse = {
             user: updatedUser,
             backendTokens: {
@@ -80,6 +83,7 @@ let AuthService = class AuthService {
                 expiresIn: Date.now() + 1000 * 60 * 10,
             },
             permissions: permissionKeys,
+            checklist: checklistStatus,
         };
         const notAdminOrSuperAdmin = !['admin', 'super_admin'].includes(updatedUser.role);
         const employeeOnly = updatedUser.role === 'employee';
@@ -269,6 +273,7 @@ exports.AuthService = AuthService = __decorate([
         jwt_1.JwtService,
         company_settings_service_1.CompanySettingsService,
         permissions_service_1.PermissionsService,
+        checklist_service_1.ChecklistService,
         nestjs_pino_1.PinoLogger])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

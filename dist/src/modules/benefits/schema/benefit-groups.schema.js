@@ -7,7 +7,7 @@ exports.benefitGroups = (0, pg_core_1.pgTable)('benefit_groups', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
     companyId: (0, pg_core_1.uuid)('company_id')
         .notNull()
-        .references(() => schema_1.companies.id),
+        .references(() => schema_1.companies.id, { onDelete: 'cascade' }),
     teamId: (0, pg_core_1.uuid)('team_id').references(() => schema_1.groups.id),
     name: (0, pg_core_1.text)('name').notNull(),
     description: (0, pg_core_1.text)('description'),

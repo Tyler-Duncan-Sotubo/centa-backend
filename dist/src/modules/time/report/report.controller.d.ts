@@ -21,7 +21,7 @@ export declare class ReportController extends BaseController {
                 employeeId: any;
                 employeeNumber: any;
                 name: string;
-                department: string;
+                department: any;
                 checkInTime: string | null;
                 checkOutTime: string | null;
                 status: "absent" | "present" | "late";
@@ -98,7 +98,7 @@ export declare class ReportController extends BaseController {
             employeeId: any;
             employeeNumber: any;
             name: string;
-            department: string;
+            department: any;
             checkInTime: string | null;
             checkOutTime: string | null;
             status: "absent" | "present" | "late";

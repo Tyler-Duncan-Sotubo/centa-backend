@@ -11,6 +11,7 @@ import { JwtService } from '@nestjs/jwt';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 import { PermissionsService } from '../permissions/permissions.service';
 import { PinoLogger } from 'nestjs-pino';
+import { ChecklistService } from 'src/modules/checklist/checklist.service';
 export declare class AuthService {
     private db;
     private readonly userService;
@@ -21,8 +22,9 @@ export declare class AuthService {
     private readonly jwtService;
     private readonly companySettingsService;
     private readonly permissionsService;
+    private readonly checklist;
     private readonly logger;
-    constructor(db: db, userService: UserService, tokenGeneratorService: TokenGeneratorService, auditService: AuditService, verifyLogin: LoginVerificationService, configService: ConfigService, jwtService: JwtService, companySettingsService: CompanySettingsService, permissionsService: PermissionsService, logger: PinoLogger);
+    constructor(db: db, userService: UserService, tokenGeneratorService: TokenGeneratorService, auditService: AuditService, verifyLogin: LoginVerificationService, configService: ConfigService, jwtService: JwtService, companySettingsService: CompanySettingsService, permissionsService: PermissionsService, checklist: ChecklistService, logger: PinoLogger);
     private completeLogin;
     login(dto: LoginDto, context: "ESS" | "DASHBOARD" | "AUTO" | undefined, ip: string): Promise<{
         user: {
@@ -41,36 +43,14 @@ export declare class AuthService {
             expiresIn: number;
         };
         permissions: string[];
-    } | {
-        user: {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
-        } | {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
+        checklist: {
+            staff: boolean;
+            payroll: any;
+            performance: boolean;
+            hiring: boolean;
+            attendance: boolean;
+            leave: boolean;
         };
-        backendTokens: {
-            accessToken: string;
-            refreshToken: string;
-            expiresIn: number;
-        };
-        permissions: string[];
     } | {
         status: string;
         requiresVerification: boolean;
@@ -94,36 +74,14 @@ export declare class AuthService {
             expiresIn: number;
         };
         permissions: string[];
-    } | {
-        user: {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
-        } | {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
+        checklist: {
+            staff: boolean;
+            payroll: any;
+            performance: boolean;
+            hiring: boolean;
+            attendance: boolean;
+            leave: boolean;
         };
-        backendTokens: {
-            accessToken: string;
-            refreshToken: string;
-            expiresIn: number;
-        };
-        permissions: string[];
     }>;
     refreshToken(user: JwtType): Promise<{
         accessToken: string;

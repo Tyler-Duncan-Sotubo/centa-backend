@@ -35,8 +35,9 @@ export declare class RunService {
         updatedAt: Date | null;
         companyId: string;
         userId: string | null;
-        payrollRunId: string;
         employeeId: string;
+        paymentStatus: string | null;
+        payrollRunId: string;
         basic: string;
         housing: string;
         transport: string;
@@ -55,7 +56,6 @@ export declare class RunService {
         taxableIncome: string;
         payrollDate: string;
         payrollMonth: string;
-        paymentStatus: string | null;
         paymentDate: string | null;
         paymentReference: string | null;
         approvalDate: string | null;

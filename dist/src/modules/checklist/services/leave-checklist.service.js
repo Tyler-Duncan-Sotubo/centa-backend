@@ -44,8 +44,6 @@ let LeaveChecklistService = class LeaveChecklistService {
     }
     async getLeaveChecklist(companyId) {
         const extras = await this.getExtraStatuses(companyId);
-        const required = [];
-        const completed = required.length === 0;
         const order = [
             'leave_settings',
             'leave_types_policies',
@@ -56,6 +54,8 @@ let LeaveChecklistService = class LeaveChecklistService {
         const tasks = {};
         for (const key of order)
             tasks[key] = extras[key];
+        const required = order;
+        const completed = required.every((key) => tasks[key] === 'done');
         return {
             tasks,
             required,

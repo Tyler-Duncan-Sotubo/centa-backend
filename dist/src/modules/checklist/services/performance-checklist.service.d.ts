@@ -8,7 +8,7 @@ export declare class PerformanceChecklistService {
     private getExtraStatuses;
     getPerformanceChecklist(companyId: string): Promise<{
         tasks: Record<string, TaskStatus>;
-        required: string[];
+        required: ("performance_general" | "goal_policies" | "feedback_settings" | "competency" | "performance_templates" | "appraisal_framework" | "start_1_1_checkin")[];
         completed: boolean;
         disabledWhenComplete: boolean;
     }>;

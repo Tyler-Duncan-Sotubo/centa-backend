@@ -19,7 +19,7 @@ export const benefitPlans = pgTable(
 
     companyId: uuid('company_id')
       .notNull()
-      .references(() => companies.id),
+      .references(() => companies.id, { onDelete: 'cascade' }),
 
     benefitGroupId: uuid('benefit_group_id')
       .notNull()

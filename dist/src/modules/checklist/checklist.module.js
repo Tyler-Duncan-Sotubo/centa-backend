@@ -31,6 +31,15 @@ exports.ChecklistModule = ChecklistModule = __decorate([
             attendance_checklist_service_1.AttendanceChecklistService,
             leave_checklist_service_1.LeaveChecklistService,
         ],
+        exports: [
+            checklist_service_1.ChecklistService,
+            staff_checklist_service_1.StaffChecklistService,
+            payroll_checklist_service_1.PayrollChecklistService,
+            performance_checklist_service_1.PerformanceChecklistService,
+            hiring_checklist_service_1.HiringChecklistService,
+            attendance_checklist_service_1.AttendanceChecklistService,
+            leave_checklist_service_1.LeaveChecklistService,
+        ],
     })
 ], ChecklistModule);
 //# sourceMappingURL=checklist.module.js.map

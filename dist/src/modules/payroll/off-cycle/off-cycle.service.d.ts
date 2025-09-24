@@ -17,12 +17,13 @@ export declare class OffCycleService {
         updatedAt: Date | null;
         companyId: string;
         userId: string | null;
-        payrollRunId: string;
         employeeId: string;
+        workflowId: string;
+        grossSalary: string;
+        payrollRunId: string;
         basic: string;
         housing: string;
         transport: string;
-        grossSalary: string;
         pensionContribution: string;
         employerPensionContribution: string;
         bonuses: string | null;
@@ -50,7 +51,6 @@ export declare class OffCycleService {
         approvalStatus: string;
         lastApprovalAt: Date | null;
         lastApprovedBy: string | null;
-        workflowId: string;
         currentStep: number;
     }[]>;
     create(createOffCycleDto: CreateOffCycleDto, user: User): Promise<({

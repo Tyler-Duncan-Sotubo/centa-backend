@@ -26,6 +26,12 @@ export const EXTRA_KEYS = [
   'holidays',
   'blocked_days',
   'reserved_days',
+  'pipeline',
+  'scorecards',
+  'email_templates',
+  'offer_templates',
+  'create_jobs',
+  'google_integration',
 ] as const;
 
 export type ExtraKey = (typeof EXTRA_KEYS)[number];

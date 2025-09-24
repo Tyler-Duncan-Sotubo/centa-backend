@@ -24,6 +24,7 @@ import { JwtService } from '@nestjs/jwt';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 import { PermissionsService } from '../permissions/permissions.service';
 import { PinoLogger } from 'nestjs-pino';
+import { ChecklistService } from 'src/modules/checklist/checklist.service';
 
 @Injectable()
 export class AuthService {
@@ -37,6 +38,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly companySettingsService: CompanySettingsService,
     private readonly permissionsService: PermissionsService,
+    private readonly checklist: ChecklistService,
     private readonly logger: PinoLogger,
   ) {}
 
@@ -83,6 +85,10 @@ export class AuthService {
         updatedUser.roleId,
       );
 
+    const checklistStatus = await this.checklist.getOverallChecklistStatus(
+      updatedUser.companyId,
+    );
+
     const baseResponse = {
       user: updatedUser,
       backendTokens: {
@@ -91,6 +97,7 @@ export class AuthService {
         expiresIn: Date.now() + 1000 * 60 * 10, //
       },
       permissions: permissionKeys,
+      checklist: checklistStatus,
     };
 
     const notAdminOrSuperAdmin = !['admin', 'super_admin'].includes(

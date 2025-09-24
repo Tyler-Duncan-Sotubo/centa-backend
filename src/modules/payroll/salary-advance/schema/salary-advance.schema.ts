@@ -15,7 +15,7 @@ export const salaryAdvance = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     loanNumber: text('loan_number'),
     companyId: uuid('company_id')
-      .references(() => companies.id)
+      .references(() => companies.id, { onDelete: 'cascade' })
       .notNull(),
     employeeId: uuid('employee_id')
       .references(() => employees.id)
@@ -66,7 +66,7 @@ export const salaryAdvanceHistory = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
     companyId: uuid('company_id')
-      .references(() => companies.id)
+      .references(() => companies.id, { onDelete: 'cascade' })
       .notNull(),
     salaryAdvanceId: uuid('loan_id')
       .references(() => salaryAdvance.id)

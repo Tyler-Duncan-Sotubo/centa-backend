@@ -13,6 +13,7 @@ export const HIRING_EXTRA_KEYS = [
   'email_templates',
   'offer_templates',
   'create_jobs',
+  'google_integration',
 ] as const;
 
 export type HiringExtraKey = (typeof HIRING_EXTRA_KEYS)[number];
@@ -42,15 +43,13 @@ export class HiringChecklistService {
       email_templates: done.has('email_templates') ? 'done' : 'todo',
       offer_templates: done.has('offer_templates') ? 'done' : 'todo',
       create_jobs: done.has('create_jobs') ? 'done' : 'todo',
+      google_integration: done.has('google_integration') ? 'done' : 'todo',
     };
   }
 
   /** Unified hiring checklist response (extras only) */
   async getHiringChecklist(companyId: string) {
     const extras = await this.getExtraStatuses(companyId);
-
-    const required: string[] = []; // all optional
-    const completed = required.length === 0;
 
     // enforce stable order
     const order: HiringExtraKey[] = [
@@ -59,6 +58,7 @@ export class HiringChecklistService {
       'email_templates',
       'offer_templates',
       'create_jobs',
+      'google_integration',
     ];
 
     const orderedTasks: Record<string, TaskStatus> = {};
@@ -66,6 +66,8 @@ export class HiringChecklistService {
       orderedTasks[key] = extras[key];
     }
 
+    const required = order; // all keys required
+    const completed = required.every((key) => orderedTasks[key] === 'done');
     return {
       tasks: orderedTasks,
       required,

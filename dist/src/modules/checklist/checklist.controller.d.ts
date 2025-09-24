@@ -31,25 +31,25 @@ export declare class ChecklistController extends BaseController {
     }>;
     performanceChecklist(user: User): Promise<{
         tasks: Record<string, import("./constants/constants").TaskStatus>;
-        required: string[];
+        required: ("performance_general" | "goal_policies" | "feedback_settings" | "competency" | "performance_templates" | "appraisal_framework" | "start_1_1_checkin")[];
         completed: boolean;
         disabledWhenComplete: boolean;
     }>;
     hiringChecklist(user: User): Promise<{
         tasks: Record<string, import("./constants/constants").TaskStatus>;
-        required: string[];
+        required: ("pipeline" | "scorecards" | "email_templates" | "offer_templates" | "create_jobs" | "google_integration")[];
         completed: boolean;
         disabledWhenComplete: boolean;
     }>;
     attendanceChecklist(user: User): Promise<{
         tasks: Record<string, import("./constants/constants").TaskStatus>;
-        required: string[];
+        required: ("attendance_setting" | "shift_management" | "assign_rota" | "add_office_location")[];
         completed: boolean;
         disabledWhenComplete: boolean;
     }>;
     leaveChecklist(user: User): Promise<{
         tasks: Record<string, import("./constants/constants").TaskStatus>;
-        required: string[];
+        required: ("leave_settings" | "leave_types_policies" | "holidays" | "blocked_days" | "reserved_days")[];
         completed: boolean;
         disabledWhenComplete: boolean;
     }>;

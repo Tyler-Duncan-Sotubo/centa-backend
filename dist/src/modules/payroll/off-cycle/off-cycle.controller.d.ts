@@ -371,12 +371,13 @@ export declare class OffCycleController extends BaseController {
         updatedAt: Date | null;
         companyId: string;
         userId: string | null;
-        payrollRunId: string;
         employeeId: string;
+        workflowId: string;
+        grossSalary: string;
+        payrollRunId: string;
         basic: string;
         housing: string;
         transport: string;
-        grossSalary: string;
         pensionContribution: string;
         employerPensionContribution: string;
         bonuses: string | null;
@@ -404,7 +405,6 @@ export declare class OffCycleController extends BaseController {
         approvalStatus: string;
         lastApprovalAt: Date | null;
         lastApprovedBy: string | null;
-        workflowId: string;
         currentStep: number;
     }[]>;
     remove(id: string, user: User): Promise<void>;

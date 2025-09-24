@@ -10,8 +10,8 @@ export declare class PayrollAdjustmentsController {
         createdAt: string | null;
         companyId: string;
         createdBy: string | null;
-        type: string;
         isDeleted: boolean | null;
+        type: string;
         employeeId: string;
         notes: string | null;
         label: string | null;

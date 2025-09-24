@@ -71,6 +71,41 @@
       "when": 1758445364775,
       "tag": "0009_natural_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1758704781759,
+      "tag": "0010_eager_mastermind",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1758704828312,
+      "tag": "0011_kind_the_fallen",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1758704863813,
+      "tag": "0012_damp_spiral",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1758704901451,
+      "tag": "0013_eminent_darkstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1758704981472,
+      "tag": "0014_giant_slayback",
+      "breakpoints": true
     }
   ]
 }

@@ -44,9 +44,6 @@ export class AttendanceChecklistService {
   async getAttendanceChecklist(companyId: string) {
     const extras = await this.getExtraStatuses(companyId);
 
-    const required: string[] = []; // all optional
-    const completed = required.length === 0;
-
     const order: AttendanceExtraKey[] = [
       'attendance_setting',
       'shift_management',
@@ -56,6 +53,9 @@ export class AttendanceChecklistService {
 
     const tasks: Record<string, TaskStatus> = {};
     for (const key of order) tasks[key] = extras[key];
+
+    const required = order; // all keys required
+    const completed = required.every((key) => tasks[key] === 'done');
 
     return {
       tasks,

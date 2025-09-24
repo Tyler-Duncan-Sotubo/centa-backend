@@ -19,5 +19,14 @@ import { LeaveChecklistService } from './services/leave-checklist.service';
     AttendanceChecklistService,
     LeaveChecklistService,
   ],
+  exports: [
+    ChecklistService,
+    StaffChecklistService,
+    PayrollChecklistService,
+    PerformanceChecklistService,
+    HiringChecklistService,
+    AttendanceChecklistService,
+    LeaveChecklistService,
+  ],
 })
 export class ChecklistModule {}

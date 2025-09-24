@@ -27,5 +27,11 @@ exports.EXTRA_KEYS = [
     'holidays',
     'blocked_days',
     'reserved_days',
+    'pipeline',
+    'scorecards',
+    'email_templates',
+    'offer_templates',
+    'create_jobs',
+    'google_integration',
 ];
 //# sourceMappingURL=constants.js.map

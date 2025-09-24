@@ -42,8 +42,6 @@ let AttendanceChecklistService = class AttendanceChecklistService {
     }
     async getAttendanceChecklist(companyId) {
         const extras = await this.getExtraStatuses(companyId);
-        const required = [];
-        const completed = required.length === 0;
         const order = [
             'attendance_setting',
             'shift_management',
@@ -53,6 +51,8 @@ let AttendanceChecklistService = class AttendanceChecklistService {
         const tasks = {};
         for (const key of order)
             tasks[key] = extras[key];
+        const required = order;
+        const completed = required.every((key) => tasks[key] === 'done');
         return {
             tasks,
             required,

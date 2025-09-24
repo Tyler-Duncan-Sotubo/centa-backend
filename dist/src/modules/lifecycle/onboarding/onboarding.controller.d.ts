@@ -7,7 +7,7 @@ export declare class OnboardingController extends BaseController {
     private readonly onboardingService;
     private readonly seeder;
     constructor(onboardingService: OnboardingService, seeder: OnboardingSeederService);
-    getEmployeesInOnboarding(user: User): Promise<{
+    getEmployeesInOnboarding(user: User): Promise<({
         checklist: {
             id: string;
             title: string;
@@ -17,13 +17,29 @@ export declare class OnboardingController extends BaseController {
             status: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
             completedAt: Date | null;
         }[];
-        employeeId: string;
+        employeeId: any;
         employeeName: unknown;
-        email: string;
+        email: any;
         templateId: string;
         status: "pending" | "in_progress" | "completed" | null;
         startedAt: Date | null;
-    }[]>;
+    } | {
+        checklist: {
+            id: string;
+            title: string;
+            assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
+            dueDaysAfterStart: number | null;
+            status: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
+            completedAt: Date | null;
+        }[];
+        employeeId: any;
+        employeeName: unknown;
+        email: any;
+        templateId: string;
+        status: "pending" | "in_progress" | "completed" | null;
+        startedAt: Date | null;
+    })[]>;
     createEmployeeOnboarding(user: User, dto: EmployeeOnboardingInputDto): Promise<{
         success: boolean;
     }>;
@@ -41,9 +57,29 @@ export declare class OnboardingController extends BaseController {
             order: number | null;
             dueDaysAfterStart: number | null;
         }[];
-        employeeId: string;
+        employeeId: any;
         employeeName: unknown;
-        email: string;
+        email: any;
+        templateId: string;
+        status: "pending" | "in_progress" | "completed" | null;
+        startedAt: Date | null;
+    } | {
+        checklist: {
+            fields: ({
+                fieldKey: string;
+                tag?: string;
+                order?: number;
+            } | undefined)[];
+            id: string;
+            title: string;
+            templateId: string;
+            assignee: "employee" | "hr" | "it" | "finance" | null;
+            order: number | null;
+            dueDaysAfterStart: number | null;
+        }[];
+        employeeId: any;
+        employeeName: unknown;
+        email: any;
         templateId: string;
         status: "pending" | "in_progress" | "completed" | null;
         startedAt: Date | null;

@@ -6,7 +6,7 @@ const schema_1 = require("../../../drizzle/schema");
 exports.announcementCategories = (0, pg_core_1.pgTable)('announcement_categories', {
     id: (0, pg_core_1.uuid)('id').primaryKey().defaultRandom(),
     companyId: (0, pg_core_1.uuid)('company_id')
-        .references(() => schema_1.companies.id)
+        .references(() => schema_1.companies.id, { onDelete: 'cascade' })
         .notNull(),
     name: (0, pg_core_1.varchar)('name', { length: 100 }).notNull(),
     createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow(),

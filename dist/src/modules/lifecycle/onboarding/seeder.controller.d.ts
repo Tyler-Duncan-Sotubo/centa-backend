@@ -8,12 +8,12 @@ export declare class OnboardingSeederController extends BaseController {
     getGlobalTemplates(templateId: string): Promise<{
         fields: {
             id: string;
+            required: boolean | null;
             templateId: string;
             order: number | null;
             fieldKey: string;
             label: string;
             fieldType: string;
-            required: boolean | null;
             tag: string;
         }[];
         checklist: {
@@ -24,31 +24,31 @@ export declare class OnboardingSeederController extends BaseController {
             order: number | null;
             dueDaysAfterStart: number | null;
         }[];
-        status: "draft" | "published" | null;
         id: string;
         name: string;
         createdAt: Date;
         companyId: string | null;
         description: string | null;
         isGlobal: boolean | null;
+        status: "draft" | "published" | null;
     }>;
     cloneTemplateForCompany(templateId: string, templateName: string, user: User): Promise<{
-        status: "draft" | "published" | null;
         id: string;
         name: string;
         createdAt: Date;
         companyId: string | null;
         description: string | null;
         isGlobal: boolean | null;
+        status: "draft" | "published" | null;
     }>;
     createCompanyTemplate(dto: CreateOnboardingTemplateDto, user: User): Promise<{
-        status: "draft" | "published" | null;
         id: string;
         name: string;
         createdAt: Date;
         companyId: string | null;
         description: string | null;
         isGlobal: boolean | null;
+        status: "draft" | "published" | null;
     }>;
     getCompanyTemplates(user: User): Promise<{
         templateSummaries: {
@@ -75,12 +75,12 @@ export declare class OnboardingSeederController extends BaseController {
     getTemplatesByCompanyWithDetails(user: User): Promise<{
         fields: {
             id: string;
+            required: boolean | null;
             templateId: string;
             order: number | null;
             fieldKey: string;
             label: string;
             fieldType: string;
-            required: boolean | null;
             tag: string;
         }[];
         checklist: {

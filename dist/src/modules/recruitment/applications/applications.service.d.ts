@@ -65,7 +65,7 @@ export declare class ApplicationsService {
             }[];
             id: string;
             applicationId: string;
-            stage: "phone_screen" | "tech" | "onsite" | "final";
+            stage: "onsite" | "phone_screen" | "tech" | "final";
             scheduledFor: Date;
             durationMins: number;
             meetingLink: string | null;

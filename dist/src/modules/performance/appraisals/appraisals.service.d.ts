@@ -54,7 +54,7 @@ export declare class AppraisalsService {
             name: string;
             startDate: string;
             endDate: string;
-            status: "active" | "upcoming" | "closed";
+            status: "active" | "closed" | "upcoming";
         } | null;
         currentCycleAppraisal: {
             id: string;

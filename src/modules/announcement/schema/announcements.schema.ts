@@ -19,7 +19,7 @@ export const announcementCategories = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     companyId: uuid('company_id')
-      .references(() => companies.id)
+      .references(() => companies.id, { onDelete: 'cascade' })
       .notNull(),
     name: varchar('name', { length: 100 }).notNull(),
     createdAt: timestamp('created_at').defaultNow(),

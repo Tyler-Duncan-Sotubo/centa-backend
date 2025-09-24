@@ -100,7 +100,7 @@ export class AuthController {
     }
 
     // Destructure only if login is complete
-    const { user, backendTokens, permissions } = result;
+    const { user, backendTokens, permissions, checklist } = result;
     // Set cookie or headers as needed:
     res.cookie('Authentication', backendTokens.refreshToken, {
       httpOnly: true,
@@ -113,6 +113,7 @@ export class AuthController {
       user,
       backendTokens,
       permissions,
+      checklist,
     };
   }
 

@@ -65,6 +65,7 @@ import { ChecklistModule } from './checklist/checklist.module';
     RecruitmentModule,
     IntegrationsModule,
     SeederModule,
+    ChecklistModule,
   ],
 })
 export class ModulesModule {}

@@ -77,6 +77,7 @@ exports.ModulesModule = ModulesModule = __decorate([
             recruitment_module_1.RecruitmentModule,
             integrations_module_1.IntegrationsModule,
             seeder_module_1.SeederModule,
+            checklist_module_1.ChecklistModule,
         ],
     })
 ], ModulesModule);
