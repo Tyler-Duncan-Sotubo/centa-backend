@@ -7,14 +7,12 @@ import { eq } from 'drizzle-orm';
 import { googleAccounts } from './schema/google.schema';
 import { User } from 'src/common/types/user.type';
 import { AuditService } from 'src/modules/audit/audit.service';
-import { CacheService } from 'src/common/cache/cache.service'; // adjust path if needed
 
 @Injectable()
 export class GoogleService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
-    private readonly cache: CacheService,
   ) {}
 
   private tags(companyId: string) {
@@ -62,9 +60,6 @@ export class GoogleService {
         },
       });
 
-      // invalidate versioned caches
-      await this.cache.bumpCompanyVersion(companyId);
-
       return updated;
     } else {
       const [inserted] = await this.db
@@ -89,34 +84,24 @@ export class GoogleService {
         },
       });
 
-      // invalidate versioned caches
-      await this.cache.bumpCompanyVersion(companyId);
-
       return inserted;
     }
   }
 
   async findOne(companyId: string) {
-    return this.cache.getOrSetVersioned(
-      companyId,
-      ['integrations', 'google', 'account'],
-      async () => {
-        const result = await this.db
-          .select()
-          .from(googleAccounts)
-          .where(eq(googleAccounts.companyId, companyId))
-          .execute();
+    const result = await this.db
+      .select()
+      .from(googleAccounts)
+      .where(eq(googleAccounts.companyId, companyId))
+      .execute();
 
-        if (!result.length) {
-          throw new NotFoundException(
-            `Google integration for company #${companyId} not found`,
-          );
-        }
+    if (!result.length) {
+      throw new NotFoundException(
+        `Google integration for company #${companyId} not found`,
+      );
+    }
 
-        return result[0];
-      },
-      { tags: this.tags(companyId) },
-    );
+    return result[0];
   }
 
   async update(user: User, updateGoogleDto: UpdateGoogleDto) {
@@ -148,9 +133,6 @@ export class GoogleService {
         updatedAt: new Date(),
       },
     });
-
-    // invalidate versioned caches
-    await this.cache.bumpCompanyVersion(companyId);
 
     return updated;
   }
