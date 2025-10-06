@@ -60,9 +60,12 @@ export class AuthService {
         companyId: users.companyId,
         avatar: users.avatar,
         roleId: users.companyRoleId,
+        subscriptionPlan: companies.subscriptionPlan,
+        trialEndsAt: companies.trialEndsAt,
       })
       .from(users)
       .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
+      .innerJoin(companies, eq(users.companyId, companies.id))
       .where(eq(users.id, user.id))
       .execute();
 
@@ -89,14 +92,41 @@ export class AuthService {
       updatedUser.companyId,
     );
 
+    const now = Date.now();
+    const MS_IN_DAY = 24 * 60 * 60 * 1000;
+
+    const trialEndsAtMs = updatedUser.trialEndsAt
+      ? new Date(updatedUser.trialEndsAt).getTime()
+      : null;
+
+    const trialDaysLeft = trialEndsAtMs
+      ? Math.max(0, Math.ceil((trialEndsAtMs - now) / MS_IN_DAY))
+      : null;
+
+    const trialActive = !!trialEndsAtMs && trialEndsAtMs > now;
+
+    const planTag = updatedUser.subscriptionPlan
+      ? `plan.${updatedUser.subscriptionPlan}` // e.g. plan.free | plan.pro | plan.enterprise
+      : 'plan.free';
+
+    const tags = [
+      planTag,
+      trialActive ? 'trial.active' : 'trial.expired',
+      ...(typeof trialDaysLeft === 'number'
+        ? [`trial.days_left:${trialDaysLeft}`]
+        : []),
+    ];
+
+    const permissions = Array.from(new Set([...permissionKeys, ...tags]));
+
     const baseResponse = {
       user: updatedUser,
       backendTokens: {
         accessToken,
         refreshToken,
-        expiresIn: Date.now() + 1000 * 60 * 10, //
+        expiresIn: Date.now() + 1000 * 60 * 10,
       },
-      permissions: permissionKeys,
+      permissions, // <-- includes plan.* and trial.* tags
       checklist: checklistStatus,
     };
 

@@ -11,8 +11,8 @@ export declare class FeedbackQuestionService {
     private invalidate;
     create(dto: CreateFeedbackQuestionDto, user: User): Promise<{
         id: string;
-        isActive: boolean | null;
         createdAt: Date | null;
+        isActive: boolean | null;
         companyId: string;
         type: string;
         order: number | null;

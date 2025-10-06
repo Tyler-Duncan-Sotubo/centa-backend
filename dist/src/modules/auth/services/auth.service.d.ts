@@ -36,6 +36,35 @@ export declare class AuthService {
             companyId: string;
             avatar: string | null;
             roleId: string;
+            subscriptionPlan: "free" | "pro" | "enterprise";
+            trialEndsAt: Date | null;
+        };
+        backendTokens: {
+            accessToken: string;
+            refreshToken: string;
+            expiresIn: number;
+        };
+        permissions: string[];
+        checklist: {
+            staff: boolean;
+            payroll: any;
+            performance: boolean;
+            hiring: boolean;
+            attendance: boolean;
+            leave: boolean;
+        };
+    } | {
+        user: {
+            id: string;
+            firstName: string;
+            lastName: string;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         };
         backendTokens: {
             accessToken: string;
@@ -67,6 +96,35 @@ export declare class AuthService {
             companyId: string;
             avatar: string | null;
             roleId: string;
+            subscriptionPlan: "free" | "pro" | "enterprise";
+            trialEndsAt: Date | null;
+        };
+        backendTokens: {
+            accessToken: string;
+            refreshToken: string;
+            expiresIn: number;
+        };
+        permissions: string[];
+        checklist: {
+            staff: boolean;
+            payroll: any;
+            performance: boolean;
+            hiring: boolean;
+            attendance: boolean;
+            leave: boolean;
+        };
+    } | {
+        user: {
+            id: string;
+            firstName: string;
+            lastName: string;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         };
         backendTokens: {
             accessToken: string;

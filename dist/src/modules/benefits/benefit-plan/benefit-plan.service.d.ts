@@ -17,17 +17,17 @@ export declare class BenefitPlanService {
     create(dto: CreateBenefitPlanDto, user: User): Promise<{
         id: string;
         name: string;
-        split: string;
         createdAt: Date | null;
+        split: string;
         companyId: string;
-        description: string | null;
-        benefitGroupId: string;
         category: string;
-        coverageOptions: unknown;
-        cost: unknown;
+        description: string | null;
         startDate: Date;
         endDate: Date | null;
         employerContribution: number | null;
+        benefitGroupId: string;
+        coverageOptions: unknown;
+        cost: unknown;
     }>;
     findAll(companyId: string): Promise<{
         id: string;

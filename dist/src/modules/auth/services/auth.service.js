@@ -60,9 +60,12 @@ let AuthService = class AuthService {
             companyId: schema_1.users.companyId,
             avatar: schema_1.users.avatar,
             roleId: schema_1.users.companyRoleId,
+            subscriptionPlan: schema_3.companies.subscriptionPlan,
+            trialEndsAt: schema_3.companies.trialEndsAt,
         })
             .from(schema_1.users)
             .innerJoin(schema_1.companyRoles, (0, drizzle_orm_1.eq)(schema_1.users.companyRoleId, schema_1.companyRoles.id))
+            .innerJoin(schema_3.companies, (0, drizzle_orm_1.eq)(schema_1.users.companyId, schema_3.companies.id))
             .where((0, drizzle_orm_1.eq)(schema_1.users.id, user.id))
             .execute();
         await this.auditService.logAction({
@@ -75,6 +78,26 @@ let AuthService = class AuthService {
         const { accessToken, refreshToken } = await this.tokenGeneratorService.generateToken(user);
         const permissionKeys = await this.permissionsService.getPermissionKeysForUser(updatedUser.roleId);
         const checklistStatus = await this.checklist.getOverallChecklistStatus(updatedUser.companyId);
+        const now = Date.now();
+        const MS_IN_DAY = 24 * 60 * 60 * 1000;
+        const trialEndsAtMs = updatedUser.trialEndsAt
+            ? new Date(updatedUser.trialEndsAt).getTime()
+            : null;
+        const trialDaysLeft = trialEndsAtMs
+            ? Math.max(0, Math.ceil((trialEndsAtMs - now) / MS_IN_DAY))
+            : null;
+        const trialActive = !!trialEndsAtMs && trialEndsAtMs > now;
+        const planTag = updatedUser.subscriptionPlan
+            ? `plan.${updatedUser.subscriptionPlan}`
+            : 'plan.free';
+        const tags = [
+            planTag,
+            trialActive ? 'trial.active' : 'trial.expired',
+            ...(typeof trialDaysLeft === 'number'
+                ? [`trial.days_left:${trialDaysLeft}`]
+                : []),
+        ];
+        const permissions = Array.from(new Set([...permissionKeys, ...tags]));
         const baseResponse = {
             user: updatedUser,
             backendTokens: {
@@ -82,7 +105,7 @@ let AuthService = class AuthService {
                 refreshToken,
                 expiresIn: Date.now() + 1000 * 60 * 10,
             },
-            permissions: permissionKeys,
+            permissions,
             checklist: checklistStatus,
         };
         const notAdminOrSuperAdmin = !['admin', 'super_admin'].includes(updatedUser.role);

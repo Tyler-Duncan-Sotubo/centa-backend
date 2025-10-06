@@ -12,20 +12,20 @@ export declare class DocumentsFolderService {
         name: string;
         createdAt: Date | null;
         companyId: string;
-        createdBy: string | null;
         permissionControlled: boolean | null;
+        createdBy: string | null;
         isSystem: boolean;
     }>;
     findAll(companyId: string): Promise<{
         files: {
+            url: string;
             id: string;
             name: string;
             createdAt: Date | null;
             companyId: string;
+            folderId: string | null;
             type: string;
             category: string;
-            url: string;
-            folderId: string | null;
             uploadedBy: string | null;
         }[];
         roleIds: string[];

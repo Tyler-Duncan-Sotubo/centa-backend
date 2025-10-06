@@ -24,7 +24,7 @@ export declare class PolicyService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        defaultVisibility: "company" | "manager" | "private";
+        defaultVisibility: "manager" | "private" | "company";
         defaultCadence: "monthly" | "weekly" | "biweekly";
         defaultTimezone: string | null;
         defaultAnchorDow: number | null;
@@ -41,7 +41,7 @@ export declare class PolicyService {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        defaultVisibility: "company" | "manager" | "private";
+        defaultVisibility: "manager" | "private" | "company";
         defaultCadence: "monthly" | "weekly" | "biweekly";
         defaultTimezone: string | null;
         defaultAnchorDow: number | null;

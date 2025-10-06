@@ -841,9 +841,9 @@ export declare class GoalsController extends BaseController {
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
-        comment: string;
         fileName: string;
         fileUrl: string;
+        comment: string;
         goalId: string;
         uploadedById: string;
     }>;

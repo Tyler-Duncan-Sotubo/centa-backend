@@ -13,12 +13,12 @@ export declare class GoogleService {
         createdAt: Date;
         updatedAt: Date;
         companyId: string;
-        googleEmail: string;
+        expiryDate: Date;
+        scope: string;
         accessToken: string;
         refreshToken: string;
+        googleEmail: string;
         tokenType: string;
-        scope: string;
-        expiryDate: Date;
         refreshTokenExpiry: number | null;
     }>;
     findOne(companyId: string): Promise<{

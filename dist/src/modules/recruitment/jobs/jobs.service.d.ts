@@ -17,19 +17,18 @@ export declare class JobsService {
     create(createDto: CreateJobDto & {
         pipelineTemplateId?: string;
     }, user: User): Promise<{
+        status: "draft" | "open" | "closed" | "archived";
         id: string;
-        country: string | null;
-        currency: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        country: string | null;
+        currency: string;
         companyId: string;
-        title: string;
-        createdBy: string;
-        description: string | null;
         city: string | null;
         state: string | null;
-        isArchived: boolean;
-        status: "draft" | "open" | "closed" | "archived";
+        createdBy: string;
+        description: string | null;
+        title: string;
         externalJobId: string | null;
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
@@ -44,6 +43,7 @@ export declare class JobsService {
         postedAt: Date | null;
         closedAt: Date | null;
         deadlineDate: string | null;
+        isArchived: boolean;
     }>;
     postJob(jobId: string, user: User): Promise<void>;
     findAll(companyId: string): Promise<{

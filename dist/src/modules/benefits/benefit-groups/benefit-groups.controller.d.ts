@@ -11,9 +11,9 @@ export declare class BenefitGroupsController extends BaseController {
         name: string;
         createdAt: Date | null;
         companyId: string;
-        teamId: string | null;
         description: string | null;
         rules: unknown;
+        teamId: string | null;
     }>;
     findAll(user: User): Promise<{
         id: string;

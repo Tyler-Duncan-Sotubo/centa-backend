@@ -14,8 +14,8 @@ export declare class PayrollAdjustmentsService {
         createdAt: string | null;
         companyId: string;
         createdBy: string | null;
-        isDeleted: boolean | null;
         type: string;
+        isDeleted: boolean | null;
         employeeId: string;
         notes: string | null;
         label: string | null;

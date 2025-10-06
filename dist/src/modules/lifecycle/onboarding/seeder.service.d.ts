@@ -9,22 +9,22 @@ export declare class OnboardingSeederService {
     seedAllGlobalTemplates(): Promise<void>;
     private seedTemplate;
     cloneTemplateForCompany(globalTemplateId: string, companyId: string, templateName?: string): Promise<{
+        status: "draft" | "published" | null;
         id: string;
         name: string;
         createdAt: Date;
         companyId: string | null;
         description: string | null;
         isGlobal: boolean | null;
-        status: "draft" | "published" | null;
     }>;
     createCompanyTemplate(companyId: string, dto: CreateOnboardingTemplateDto): Promise<{
+        status: "draft" | "published" | null;
         id: string;
         name: string;
         createdAt: Date;
         companyId: string | null;
         description: string | null;
         isGlobal: boolean | null;
-        status: "draft" | "published" | null;
     }>;
     updateTemplateById(templateId: string, dto: CreateOnboardingTemplateDto): Promise<{
         status: string;
@@ -58,12 +58,12 @@ export declare class OnboardingSeederService {
     getTemplatesByCompanyWithDetails(companyId: string): Promise<{
         fields: {
             id: string;
-            required: boolean | null;
             templateId: string;
             order: number | null;
             fieldKey: string;
             label: string;
             fieldType: string;
+            required: boolean | null;
             tag: string;
         }[];
         checklist: {
@@ -87,12 +87,12 @@ export declare class OnboardingSeederService {
     getTemplateByIdWithDetails(templateId: string): Promise<{
         fields: {
             id: string;
-            required: boolean | null;
             templateId: string;
             order: number | null;
             fieldKey: string;
             label: string;
             fieldType: string;
+            required: boolean | null;
             tag: string;
         }[];
         checklist: {
@@ -103,12 +103,12 @@ export declare class OnboardingSeederService {
             order: number | null;
             dueDaysAfterStart: number | null;
         }[];
+        status: "draft" | "published" | null;
         id: string;
         name: string;
         createdAt: Date;
         companyId: string | null;
         description: string | null;
         isGlobal: boolean | null;
-        status: "draft" | "published" | null;
     }>;
 }

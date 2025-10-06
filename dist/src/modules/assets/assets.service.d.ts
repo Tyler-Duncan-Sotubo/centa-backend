@@ -16,16 +16,16 @@ export declare class AssetsService {
     private tags;
     private categoryMap;
     create(dto: CreateAssetDto, user: User): Promise<{
+        status: string;
         id: string;
         name: string;
         createdAt: string | null;
         updatedAt: string | null;
         companyId: string;
+        category: string;
         locationId: string;
         isDeleted: boolean | null;
-        category: string;
         employeeId: string | null;
-        status: string;
         internalId: string;
         modelName: string | null;
         color: string | null;
@@ -43,16 +43,16 @@ export declare class AssetsService {
     bulkCreateAssets(companyId: string, rows: any[]): Promise<{
         insertedCount: number;
         inserted: {
+            status: string;
             id: string;
             name: string;
             createdAt: string | null;
             updatedAt: string | null;
             companyId: string;
+            category: string;
             locationId: string;
             isDeleted: boolean | null;
-            category: string;
             employeeId: string | null;
-            status: string;
             internalId: string;
             modelName: string | null;
             color: string | null;

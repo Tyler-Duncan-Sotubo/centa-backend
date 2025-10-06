@@ -48,57 +48,29 @@ export declare class CompanyController extends BaseController {
         }[];
         totalEmployees: number;
         allEmployees: ({
-            id: any;
-            employmentStartDate: any;
-            employmentEndDate: any;
-            employeeNumber: any;
-            email: any;
-            firstName: any;
-            lastName: any;
+            id: string;
+            employmentStartDate: string;
+            employmentEndDate: Date | null;
+            employeeNumber: string;
+            email: string;
+            firstName: string;
+            lastName: string;
             departments: any;
             jobRole: string | null;
             annualGross: number | null;
         } | {
-            id: any;
-            employmentStartDate: any;
-            employmentEndDate: any;
-            employeeNumber: any;
-            email: any;
-            firstName: any;
-            lastName: any;
-            departments: any;
-            jobRole: string | null;
-            annualGross: number | null;
-        } | {
-            id: any;
-            employmentStartDate: any;
-            employmentEndDate: any;
-            employeeNumber: any;
-            email: any;
-            firstName: any;
-            lastName: any;
-            departments: any;
-            jobRole: string | null;
-            annualGross: number | null;
-        } | {
-            id: any;
-            employmentStartDate: any;
-            employmentEndDate: any;
-            employeeNumber: any;
-            email: any;
-            firstName: any;
-            lastName: any;
+            id: string;
+            employmentStartDate: string;
+            employmentEndDate: Date | null;
+            employeeNumber: string;
+            email: string;
+            firstName: string;
+            lastName: string;
             departments: any;
             jobRole: string | null;
             annualGross: number | null;
         })[];
         allDepartments: ({
-            department: any;
-            employees: number;
-        } | {
-            department: any;
-            employees: number;
-        } | {
             department: any;
             employees: number;
         } | {
@@ -125,17 +97,12 @@ export declare class CompanyController extends BaseController {
             totalNetSalary: number;
             totalPayrollCost: number;
         }[];
-        recentLeaves: ({
+        recentLeaves: {
             name: string;
             leaveType: string;
             startDate: string;
             endDate: string;
-        } | {
-            name: string;
-            leaveType: string;
-            startDate: string;
-            endDate: string;
-        })[];
+        }[];
         attendanceSummary: {
             month: string;
             present: number;

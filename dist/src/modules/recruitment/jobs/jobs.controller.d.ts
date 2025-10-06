@@ -12,19 +12,18 @@ export declare class JobsController extends BaseController {
     private readonly applicationFormService;
     constructor(jobsService: JobsService, applicationFormService: ApplicationFormService);
     create(createJobDto: CreateJobDto, user: User): Promise<{
+        status: "draft" | "open" | "closed" | "archived";
         id: string;
-        country: string | null;
-        currency: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        country: string | null;
+        currency: string;
         companyId: string;
-        title: string;
-        createdBy: string;
-        description: string | null;
         city: string | null;
         state: string | null;
-        isArchived: boolean;
-        status: "draft" | "open" | "closed" | "archived";
+        createdBy: string;
+        description: string | null;
+        title: string;
         externalJobId: string | null;
         jobType: "onsite" | "remote" | "hybrid";
         employmentType: "permanent" | "temporary" | "contract" | "internship" | "freelance" | "part_time" | "full_time";
@@ -39,6 +38,7 @@ export declare class JobsController extends BaseController {
         postedAt: Date | null;
         closedAt: Date | null;
         deadlineDate: string | null;
+        isArchived: boolean;
     }>;
     postJob(id: string, user: User): Promise<void>;
     findAll(user: User): Promise<{
@@ -115,7 +115,7 @@ export declare class JobsController extends BaseController {
         formId: string;
     }>;
     getApplicationForm(jobId: string): Promise<{
-        style: "both" | "resume_only" | "form_only";
+        style: "resume_only" | "form_only" | "both";
         includeReferences: boolean | null;
         fields: {
             id: string;

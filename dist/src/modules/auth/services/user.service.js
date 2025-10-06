@@ -70,6 +70,7 @@ let UserService = class UserService {
             name: dto.companyName,
             country: dto.country,
             domain: dto.domain.toLowerCase(),
+            trialEndsAt: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000),
         })
             .returning({ id: schema_1.companies.id, name: schema_1.companies.name })
             .execute();

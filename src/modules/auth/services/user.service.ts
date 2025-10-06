@@ -75,6 +75,7 @@ export class UserService {
         name: dto.companyName,
         country: dto.country,
         domain: dto.domain.toLowerCase(),
+        trialEndsAt: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000), // 21 days from now
       })
       .returning({ id: companies.id, name: companies.name })
       .execute();
