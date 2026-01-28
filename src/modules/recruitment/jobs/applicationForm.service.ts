@@ -101,7 +101,6 @@ export class ApplicationFormService {
         .returning();
 
       formId = form.id;
-      // console.log('Created new application form config:', formId);
     }
 
     if (config.customFields?.length) {

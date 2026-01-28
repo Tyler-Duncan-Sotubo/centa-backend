@@ -58,7 +58,6 @@ let ResumeScoringProcessor = class ResumeScoringProcessor extends bullmq_1.Worke
             throw new Error('Missing required resume scoring data');
         }
         await this.resumeScoringService.analyzeResumeFromUrl(resumeUrl, job, applicationId);
-        console.log(`✅ Successfully processed resume scoring for application ${applicationId}`);
     }
 };
 exports.ResumeScoringProcessor = ResumeScoringProcessor;

@@ -10,7 +10,6 @@ import { payroll } from './settings/payroll';
 import { expenses } from './settings/expense';
 import { performance } from './settings/performance';
 import { onboarding } from './settings/onboarding';
-import { CacheService } from 'src/common/cache/cache.service';
 import {
   ALLOWED_TASKS,
   MODULE_SETTING_KEY,
@@ -22,10 +21,7 @@ import { companies } from 'src/drizzle/schema';
 
 @Injectable()
 export class CompanySettingsService {
-  constructor(
-    @Inject(DRIZZLE) private db: db,
-    private readonly cache: CacheService,
-  ) {}
+  constructor(@Inject(DRIZZLE) private db: db) {}
 
   private settings = [
     ...attendance,
@@ -55,46 +51,27 @@ export class CompanySettingsService {
   // Single setting (read w/ cache)
   // ---------------------------------
   async getSetting(companyId: string, key: string): Promise<any | null> {
-    return this.cache.getOrSetVersioned<any>(
-      companyId,
-      ['settings', 'get', key],
-      async () => {
-        const setting = await this.db
-          .select()
-          .from(companySettings)
-          .where(
-            and(
-              eq(companySettings.companyId, companyId),
-              eq(companySettings.key, key),
-            ),
-          );
-        return setting[0] ? setting[0].value : null;
-      },
-      {
-        tags: [
-          ...this.tagCompany(companyId),
-          ...this.tagGroup(companyId, key.split('.')[0] ?? 'root'),
-        ],
-      },
-    );
+    const setting = await this.db
+      .select()
+      .from(companySettings)
+      .where(
+        and(
+          eq(companySettings.companyId, companyId),
+          eq(companySettings.key, key),
+        ),
+      );
+    return setting[0] ? setting[0].value : null;
   }
 
   // ---------------------------------
   // All settings (read w/ cache)
   // ---------------------------------
   async getAllSettings(companyId: string) {
-    return this.cache.getOrSetVersioned<any[]>(
-      companyId,
-      ['settings', 'all'],
-      async () => {
-        return this.db
-          .select()
-          .from(companySettings)
-          .where(eq(companySettings.companyId, companyId))
-          .execute();
-      },
-      { tags: this.tagCompany(companyId) },
-    );
+    return this.db
+      .select()
+      .from(companySettings)
+      .where(eq(companySettings.companyId, companyId))
+      .execute();
   }
 
   // ---------------------------------
@@ -143,43 +120,28 @@ export class CompanySettingsService {
         value,
       });
     }
-
-    // Invalidate by version bump (atomic when Redis native client is present)
-    await this.cache.bumpCompanyVersion(companyId);
   }
 
   // Get all settings that belong to a certain group (e.g., leave.*)
   async getSettingsByGroup(companyId: string, prefix: string): Promise<any[]> {
-    return this.cache.getOrSetVersioned<any[]>(
-      companyId,
-      ['settings', 'group', prefix],
-      async () => {
-        const rows = await this.db
-          .select()
-          .from(companySettings)
-          .where(
-            and(
-              eq(companySettings.companyId, companyId),
-              like(companySettings.key, `${prefix}.%`),
-            ),
-          );
+    const rows = await this.db
+      .select()
+      .from(companySettings)
+      .where(
+        and(
+          eq(companySettings.companyId, companyId),
+          like(companySettings.key, `${prefix}.%`),
+        ),
+      );
 
-        const settings: { key: string; value: unknown }[] = [];
-        for (const row of rows) {
-          settings.push({
-            key: row.key.replace(`${prefix}.`, ''),
-            value: row.value,
-          });
-        }
-        return settings;
-      },
-      {
-        tags: [
-          ...this.tagCompany(companyId),
-          ...this.tagGroup(companyId, prefix),
-        ],
-      },
-    );
+    const settings: { key: string; value: unknown }[] = [];
+    for (const row of rows) {
+      settings.push({
+        key: row.key.replace(`${prefix}.`, ''),
+        value: row.value,
+      });
+    }
+    return settings;
   }
 
   async setSettings(companyId: string): Promise<void> {
@@ -198,8 +160,6 @@ export class CompanySettingsService {
         target: [companySettings.companyId, companySettings.key],
         set: { value: sql`EXCLUDED.value` },
       });
-
-    await this.cache.bumpCompanyVersion(companyId);
   }
 
   // Delete a setting
@@ -212,8 +172,6 @@ export class CompanySettingsService {
           eq(companySettings.key, key),
         ),
       );
-
-    await this.cache.bumpCompanyVersion(companyId);
   }
 
   // -------------------------
@@ -334,37 +292,21 @@ export class CompanySettingsService {
    * Fetch a subset of keys in one go, cached under a stable composite key.
    */
   async fetchSettings(companyId: string, keys: string[]) {
-    const sorted = [...keys].sort(); // ensure key is order-independent
-    return this.cache.getOrSetVersioned<Record<string, any>>(
-      companyId,
-      ['settings', 'subset', sorted.join('|')],
-      async () => {
-        const rows = await this.db
-          .select({ key: companySettings.key, value: companySettings.value })
-          .from(companySettings)
-          .where(
-            and(
-              eq(companySettings.companyId, companyId),
-              inArray(companySettings.key, keys),
-            ),
-          )
-          .execute();
+    const rows = await this.db
+      .select({ key: companySettings.key, value: companySettings.value })
+      .from(companySettings)
+      .where(
+        and(
+          eq(companySettings.companyId, companyId),
+          inArray(companySettings.key, keys),
+        ),
+      )
+      .execute();
 
-        return rows.reduce<Record<string, any>>((acc, { key, value }) => {
-          acc[key] = value;
-          return acc;
-        }, {});
-      },
-      {
-        // tag each group represented in the subset so tag invalidation remains targeted
-        tags: [
-          ...this.tagCompany(companyId),
-          ...Array.from(
-            new Set(sorted.map((k) => k.split('.')[0] ?? 'root')),
-          ).map((g) => `company:${companyId}:settings:group:${g}`),
-        ],
-      },
-    );
+    return rows.reduce<Record<string, any>>((acc, { key, value }) => {
+      acc[key] = value;
+      return acc;
+    }, {});
   }
 
   async getTwoFactorAuthSetting(companyId: string) {
@@ -399,30 +341,30 @@ export class CompanySettingsService {
   }
 
   async getOnboardingModule(companyId: string, module: ModuleKey) {
-    // Try new JSON blob first
-    const json = await this.getSetting(companyId, MODULE_SETTING_KEY(module));
-    if (json) {
-      // Trust but verify: recompute completed server-side
-      const completed = REQUIRED[module].every(
-        (t) => json.tasks?.[t] === 'done',
-      );
+    const legacy = await this.getOnboardingLegacy(companyId);
 
-      return { ...json, completed: Boolean(completed) };
-    }
-    // Fallback to old booleans → synthesize a module blob
-    const legacy = await this.getOnboardingLegacy(companyId); // defined below
-    const tasks: Record<string, TaskStatus> = {};
+    const json = await this.getSetting(companyId, MODULE_SETTING_KEY(module));
+    const tasks: Record<string, TaskStatus> = { ...(json?.tasks ?? {}) };
+
     for (const t of ALLOWED_TASKS[module]) {
-      const oldKey = legacy.mapKey[module][t];
-      tasks[t] = legacy.values[oldKey] ? 'done' : 'todo';
+      const oldKey = legacy.mapKey[module]?.[t];
+      const legacyDone = oldKey ? Boolean(legacy.values[oldKey]) : false;
+
+      // If legacy says it's done, make it done (prevents stale JSON from keeping todo forever)
+      if (legacyDone) tasks[t] = 'done';
+
+      // If still missing, default
+      if (!tasks[t]) tasks[t] = 'todo';
     }
+
     const completed = REQUIRED[module].every((t) => tasks[t] === 'done');
 
     return {
+      ...(json ?? {}),
       tasks,
       required: REQUIRED[module],
       completed,
-      disabledWhenComplete: true,
+      disabledWhenComplete: json?.disabledWhenComplete ?? true,
     };
   }
 
@@ -508,8 +450,6 @@ export class CompanySettingsService {
     if (legacyKey) {
       await this.setSetting(companyId, legacyKey, status === 'done');
     }
-
-    await this.cache.bumpCompanyVersion(companyId);
   }
 
   async migrateOnboardingToModules(companyId: string) {
@@ -559,8 +499,6 @@ export class CompanySettingsService {
           });
       }
     });
-
-    await this.cache.bumpCompanyVersion(companyId);
   }
 
   async backfillOnboardingModulesForAllCompanies() {
@@ -605,6 +543,7 @@ export class CompanySettingsService {
   async getOnboardingVisibility(companyId: string) {
     const { payroll, company, employees } =
       await this.getOnboardingAll(companyId);
+
     return {
       staff: Boolean(company.completed) && Boolean(employees.completed),
       payroll: Boolean(payroll.completed),

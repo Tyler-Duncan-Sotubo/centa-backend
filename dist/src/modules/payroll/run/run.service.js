@@ -709,7 +709,6 @@ let RunService = class RunService {
             payslip_pdf_url: r.payslip_pdf_url,
             reimbursements: r.reimbursements,
         }));
-        console.log('Payroll summary:', employeesDto);
         return {
             totalCostOfPayroll,
             totalPensionContribution,

@@ -49,8 +49,6 @@ export class GoalsService {
       status,
     } = dto;
 
-    console.log('CreateGoalDto:', dto);
-
     if (!startDate) throw new Error('startDate is required.');
     if (!!employeeId === !!groupId) {
       throw new Error('Provide exactly one owner: employeeId OR groupId.');
@@ -82,8 +80,6 @@ export class GoalsService {
       throw new Error('No performance cycle covers the provided startDate.');
     }
 
-    console.log('Using cycle:', cycle);
-
     // Resolve the assigner (from users) to a name
     const [assigner] = await this.db
       .select({
@@ -96,15 +92,12 @@ export class GoalsService {
 
     const assignedByName = assigner?.fullName ?? `${user.id}`; // fallback
 
-    console.log('Assigned by:', assignedByName);
-
     return await this.db.transaction(async (tx) => {
       let goalsToInsert: (typeof performanceGoals.$inferInsert)[] = [];
       let targetEmployeeIds: string[] = [];
 
       if (employeeId) {
         targetEmployeeIds = [employeeId];
-        console.log('Single employeeId:', employeeId);
       } else {
         // Resolve members of the group
         const members = await tx

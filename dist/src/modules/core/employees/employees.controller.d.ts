@@ -6,19 +6,49 @@ import { FastifyReply } from 'fastify';
 import { SearchEmployeesDto } from './dto/search-employees.dto';
 import { CreateEmployeeMultiDetailsDto } from './dto/create-employee-multi-details.dto';
 import { EmployeeProfileDto } from './dto/update-employee-details.dto';
+import { EmployeesBulkImportWriteService } from './employees-bulk-import-write.service';
 export declare class EmployeesController extends BaseController {
     private readonly employeesService;
-    constructor(employeesService: EmployeesService);
+    private readonly employeesBulk;
+    constructor(employeesService: EmployeesService, employeesBulk: EmployeesBulkImportWriteService);
     downloadTemplate(reply: FastifyReply): Promise<void>;
     bulkCreate(rows: any[], user: User): Promise<{
         successCount: number;
         failedCount: number;
-        failedRows: any[];
-        created: {
-            id: any;
-            employeeNumber: any;
-            email: any;
+        failedRows: {
+            rowIndex: number;
+            employeeNumber?: string;
+            email?: string;
+            error: string;
         }[];
+        warnings: {
+            rowIndex: number;
+            field: string;
+            message: string;
+        }[];
+        created: {
+            createdEmps: {
+                id: any;
+                email: any;
+            }[];
+            createdUsers: {
+                id: string;
+                email: string;
+            }[];
+            inviteTokens: {
+                user_id: string;
+                token: string;
+                expires_at: Date;
+                is_used: boolean;
+            }[];
+        };
+        inviteTokens: {
+            user_id: string;
+            token: string;
+            expires_at: Date;
+            is_used: boolean;
+        }[];
+        durationMs: number;
     }>;
     createEmployeeNumber(user: User): Promise<string>;
     create(createEmployeeDto: CreateEmployeeCoreDto, user: User): Promise<{

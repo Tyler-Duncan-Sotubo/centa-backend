@@ -35,7 +35,7 @@ export class BulkEmployeeDto {
   payGroupId?: string;
 
   @IsOptional()
-  costCenterId?: string;
+  costCenterId?: string | null;
 
   @IsEnum(employeeStatus)
   @IsOptional()

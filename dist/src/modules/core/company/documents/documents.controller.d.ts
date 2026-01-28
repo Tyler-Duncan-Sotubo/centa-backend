@@ -17,55 +17,13 @@ export declare class DocumentsController extends BaseController {
     remove(id: string, user: User): Promise<{
         success: boolean;
     }>;
-    createFolder(user: User, createFolderDto: CreateDocumentFoldersDto): Promise<{
-        id: string;
-        name: string;
-        createdAt: Date | null;
-        companyId: string;
-        permissionControlled: boolean | null;
-        createdBy: string | null;
-        isSystem: boolean;
-    }>;
-    findAllFolders(user: User): Promise<{
-        files: {
-            url: string;
-            id: string;
-            name: string;
-            createdAt: Date | null;
-            companyId: string;
-            folderId: string | null;
-            type: string;
-            category: string;
-            uploadedBy: string | null;
-        }[];
-        roleIds: string[];
-        departmentIds: string[];
-        officeIds: string[];
-        id: string;
-        companyId: string;
-        name: string;
-        permissionControlled: boolean | null;
-        createdBy: string | null;
-        isSystem: boolean;
-        createdAt: Date | null;
-    }[]>;
+    createFolder(user: User, createFolderDto: CreateDocumentFoldersDto): Promise<any>;
+    findAllFolders(user: User): Promise<any[]>;
     findOneFolder(id: string): Promise<{
-        id: string;
-        companyId: string;
-        name: string;
-        permissionControlled: boolean | null;
-        createdBy: string | null;
-        isSystem: boolean;
-        createdAt: Date | null;
+        [x: string]: any;
     }>;
     updateFolder(id: string, updateFolderDto: UpdateDocumentFoldersDto, user: User): Promise<{
-        id: string;
-        companyId: string;
-        name: string;
-        permissionControlled: boolean | null;
-        createdBy: string | null;
-        isSystem: boolean;
-        createdAt: Date | null;
+        [x: string]: any;
     }>;
     removeFolder(id: string, user: User): Promise<{
         success: boolean;

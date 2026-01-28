@@ -39,7 +39,7 @@ export class CreateEmployeeCoreDto {
 
   @IsString()
   @IsOptional()
-  costCenterId: string;
+  costCenterId?: string;
 
   @IsString()
   @IsOptional()

@@ -41,7 +41,7 @@ __decorate([
 ], BulkEmployeeDto.prototype, "payGroupId", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", String)
+    __metadata("design:type", Object)
 ], BulkEmployeeDto.prototype, "costCenterId", void 0);
 __decorate([
     (0, class_validator_1.IsEnum)(schema_1.employeeStatus),

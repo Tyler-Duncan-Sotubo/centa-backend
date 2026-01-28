@@ -231,25 +231,34 @@ export class ExpensesService {
   // ---------- writes (bump cache version) ----------
 
   async create(dto: CreateExpenseDto, user: User) {
-    let receiptUrl = dto.receiptUrl;
-    const [meta, base64Data] = dto.receiptUrl.split(',');
-    const isPdf = meta?.includes('application/pdf');
+    let receiptUrl: string | null | undefined = dto.receiptUrl;
 
-    if (isPdf) {
-      const pdfBuffer = Buffer.from(base64Data, 'base64');
-      const fileName = `receipt-${Date.now()}.pdf`;
-      receiptUrl = await this.awsService.uploadPdfToS3(
-        dto.employeeId,
-        fileName,
-        pdfBuffer,
-      );
-    } else {
-      const fileName = `receipt-${Date.now()}.jpg`;
-      receiptUrl = await this.awsService.uploadImageToS3(
-        dto.employeeId,
-        fileName,
-        receiptUrl,
-      );
+    // ✅ optional receipt
+    if (receiptUrl) {
+      const [meta, base64Data] = receiptUrl.split(',');
+
+      if (!meta || !base64Data) {
+        throw new BadRequestException('Invalid receipt format');
+      }
+
+      const isPdf = meta.includes('application/pdf');
+
+      if (isPdf) {
+        const pdfBuffer = Buffer.from(base64Data, 'base64');
+        const fileName = `receipt-${Date.now()}.pdf`;
+        receiptUrl = await this.awsService.uploadPdfToS3(
+          dto.employeeId,
+          fileName,
+          pdfBuffer,
+        );
+      } else {
+        const fileName = `receipt-${Date.now()}.jpg`;
+        receiptUrl = await this.awsService.uploadImageToS3(
+          dto.employeeId,
+          fileName,
+          receiptUrl,
+        );
+      }
     }
 
     const [expense] = await this.db
@@ -263,7 +272,7 @@ export class ExpensesService {
         amount: dto.amount,
         status: 'requested',
         submittedAt: new Date(),
-        receiptUrl,
+        receiptUrl: receiptUrl ?? null, // ✅
         paymentMethod: dto.paymentMethod,
       })
       .returning();
@@ -294,7 +303,6 @@ export class ExpensesService {
       },
     });
 
-    // write -> invalidate
     await this.cache.bumpCompanyVersion(user.companyId);
 
     return expense;

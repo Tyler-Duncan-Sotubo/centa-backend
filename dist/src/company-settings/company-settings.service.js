@@ -23,13 +23,11 @@ const payroll_1 = require("./settings/payroll");
 const expense_1 = require("./settings/expense");
 const performance_1 = require("./settings/performance");
 const onboarding_1 = require("./settings/onboarding");
-const cache_service_1 = require("../common/cache/cache.service");
 const constants_1 = require("./constants/constants");
 const schema_1 = require("../drizzle/schema");
 let CompanySettingsService = class CompanySettingsService {
-    constructor(db, cache) {
+    constructor(db) {
         this.db = db;
-        this.cache = cache;
         this.settings = [
             ...attendance_1.attendance,
             ...leave_1.leave,
@@ -51,27 +49,18 @@ let CompanySettingsService = class CompanySettingsService {
         return [`company:${companyId}:settings:group:${group}`];
     }
     async getSetting(companyId, key) {
-        return this.cache.getOrSetVersioned(companyId, ['settings', 'get', key], async () => {
-            const setting = await this.db
-                .select()
-                .from(index_schema_1.companySettings)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.eq)(index_schema_1.companySettings.key, key)));
-            return setting[0] ? setting[0].value : null;
-        }, {
-            tags: [
-                ...this.tagCompany(companyId),
-                ...this.tagGroup(companyId, key.split('.')[0] ?? 'root'),
-            ],
-        });
+        const setting = await this.db
+            .select()
+            .from(index_schema_1.companySettings)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.eq)(index_schema_1.companySettings.key, key)));
+        return setting[0] ? setting[0].value : null;
     }
     async getAllSettings(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['settings', 'all'], async () => {
-            return this.db
-                .select()
-                .from(index_schema_1.companySettings)
-                .where((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId))
-                .execute();
-        }, { tags: this.tagCompany(companyId) });
+        return this.db
+            .select()
+            .from(index_schema_1.companySettings)
+            .where((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId))
+            .execute();
     }
     async getSettingsOrDefaults(companyId, key, defaultValue) {
         const value = await this.getSetting(companyId, key);
@@ -97,28 +86,20 @@ let CompanySettingsService = class CompanySettingsService {
                 value,
             });
         }
-        await this.cache.bumpCompanyVersion(companyId);
     }
     async getSettingsByGroup(companyId, prefix) {
-        return this.cache.getOrSetVersioned(companyId, ['settings', 'group', prefix], async () => {
-            const rows = await this.db
-                .select()
-                .from(index_schema_1.companySettings)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.like)(index_schema_1.companySettings.key, `${prefix}.%`)));
-            const settings = [];
-            for (const row of rows) {
-                settings.push({
-                    key: row.key.replace(`${prefix}.`, ''),
-                    value: row.value,
-                });
-            }
-            return settings;
-        }, {
-            tags: [
-                ...this.tagCompany(companyId),
-                ...this.tagGroup(companyId, prefix),
-            ],
-        });
+        const rows = await this.db
+            .select()
+            .from(index_schema_1.companySettings)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.like)(index_schema_1.companySettings.key, `${prefix}.%`)));
+        const settings = [];
+        for (const row of rows) {
+            settings.push({
+                key: row.key.replace(`${prefix}.`, ''),
+                value: row.value,
+            });
+        }
+        return settings;
     }
     async setSettings(companyId) {
         if (!this.settings.length)
@@ -134,13 +115,11 @@ let CompanySettingsService = class CompanySettingsService {
             target: [index_schema_1.companySettings.companyId, index_schema_1.companySettings.key],
             set: { value: (0, drizzle_orm_1.sql) `EXCLUDED.value` },
         });
-        await this.cache.bumpCompanyVersion(companyId);
     }
     async deleteSetting(companyId, key) {
         await this.db
             .delete(index_schema_1.companySettings)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.eq)(index_schema_1.companySettings.key, key)));
-        await this.cache.bumpCompanyVersion(companyId);
     }
     async getDefaultManager(companyId) {
         const keys = ['default_manager_id'];
@@ -235,23 +214,15 @@ let CompanySettingsService = class CompanySettingsService {
         };
     }
     async fetchSettings(companyId, keys) {
-        const sorted = [...keys].sort();
-        return this.cache.getOrSetVersioned(companyId, ['settings', 'subset', sorted.join('|')], async () => {
-            const rows = await this.db
-                .select({ key: index_schema_1.companySettings.key, value: index_schema_1.companySettings.value })
-                .from(index_schema_1.companySettings)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.inArray)(index_schema_1.companySettings.key, keys)))
-                .execute();
-            return rows.reduce((acc, { key, value }) => {
-                acc[key] = value;
-                return acc;
-            }, {});
-        }, {
-            tags: [
-                ...this.tagCompany(companyId),
-                ...Array.from(new Set(sorted.map((k) => k.split('.')[0] ?? 'root'))).map((g) => `company:${companyId}:settings:group:${g}`),
-            ],
-        });
+        const rows = await this.db
+            .select({ key: index_schema_1.companySettings.key, value: index_schema_1.companySettings.value })
+            .from(index_schema_1.companySettings)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(index_schema_1.companySettings.companyId, companyId), (0, drizzle_orm_1.inArray)(index_schema_1.companySettings.key, keys)))
+            .execute();
+        return rows.reduce((acc, { key, value }) => {
+            acc[key] = value;
+            return acc;
+        }, {});
     }
     async getTwoFactorAuthSetting(companyId) {
         const map = await this.fetchSettings(companyId, ['two_factor_auth']);
@@ -281,23 +252,24 @@ let CompanySettingsService = class CompanySettingsService {
         };
     }
     async getOnboardingModule(companyId, module) {
-        const json = await this.getSetting(companyId, (0, constants_1.MODULE_SETTING_KEY)(module));
-        if (json) {
-            const completed = constants_1.REQUIRED[module].every((t) => json.tasks?.[t] === 'done');
-            return { ...json, completed: Boolean(completed) };
-        }
         const legacy = await this.getOnboardingLegacy(companyId);
-        const tasks = {};
+        const json = await this.getSetting(companyId, (0, constants_1.MODULE_SETTING_KEY)(module));
+        const tasks = { ...(json?.tasks ?? {}) };
         for (const t of constants_1.ALLOWED_TASKS[module]) {
-            const oldKey = legacy.mapKey[module][t];
-            tasks[t] = legacy.values[oldKey] ? 'done' : 'todo';
+            const oldKey = legacy.mapKey[module]?.[t];
+            const legacyDone = oldKey ? Boolean(legacy.values[oldKey]) : false;
+            if (legacyDone)
+                tasks[t] = 'done';
+            if (!tasks[t])
+                tasks[t] = 'todo';
         }
         const completed = constants_1.REQUIRED[module].every((t) => tasks[t] === 'done');
         return {
+            ...(json ?? {}),
             tasks,
             required: constants_1.REQUIRED[module],
             completed,
-            disabledWhenComplete: true,
+            disabledWhenComplete: json?.disabledWhenComplete ?? true,
         };
     }
     async getOnboardingAll(companyId) {
@@ -362,7 +334,6 @@ let CompanySettingsService = class CompanySettingsService {
         if (legacyKey) {
             await this.setSetting(companyId, legacyKey, status === 'done');
         }
-        await this.cache.bumpCompanyVersion(companyId);
     }
     async migrateOnboardingToModules(companyId) {
         const existing = await this.fetchSettings(companyId, [
@@ -403,7 +374,6 @@ let CompanySettingsService = class CompanySettingsService {
                 });
             }
         });
-        await this.cache.bumpCompanyVersion(companyId);
     }
     async backfillOnboardingModulesForAllCompanies() {
         const allCompanies = await this.db.select().from(schema_1.companies).execute();
@@ -443,6 +413,6 @@ exports.CompanySettingsService = CompanySettingsService;
 exports.CompanySettingsService = CompanySettingsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, cache_service_1.CacheService])
+    __metadata("design:paramtypes", [Object])
 ], CompanySettingsService);
 //# sourceMappingURL=company-settings.service.js.map

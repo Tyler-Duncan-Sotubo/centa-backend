@@ -6,7 +6,7 @@ export declare class CreateEmployeeCoreDto {
     jobRoleId?: string;
     departmentId: string;
     payGroupId: string;
-    costCenterId: string;
+    costCenterId?: string;
     employmentStatus: string;
     locationId: string;
     employmentStartDate: string;

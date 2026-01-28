@@ -504,7 +504,6 @@ let OnboardingService = class OnboardingService {
                 .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employeeChecklistStatus.employeeId, employeeId), (0, drizzle_orm_1.ne)(schema_1.employeeChecklistStatus.status, 'completed')))
                 .execute();
             if (Number(remaining) === 0) {
-                console.log(`All checklist items completed for employee ${employeeId}. Marking onboarding as completed.`);
                 await tx
                     .update(schema_1.employeeOnboarding)
                     .set({

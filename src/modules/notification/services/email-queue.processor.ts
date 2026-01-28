@@ -1,11 +1,14 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
+import { Logger } from '@nestjs/common';
 import { EmployeeInvitationService } from './employee-invitation.service';
 import { GoalNotificationService } from './goal-notification.service';
 import { AnnouncementNotificationService } from './announcement-notification.service';
 
 @Processor('emailQueue')
 export class EmailQueueProcessor extends WorkerHost {
+  private readonly logger = new Logger(EmailQueueProcessor.name);
+
   constructor(
     private readonly employeeInvitationService: EmployeeInvitationService,
     private readonly goalNotificationService: GoalNotificationService,
@@ -15,37 +18,96 @@ export class EmailQueueProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<void> {
+    const { id, name, attemptsMade, opts } = job;
+
+    this.logger.log({
+      op: 'email.job.start',
+      jobId: id,
+      jobName: name,
+      attemptsMade,
+      maxAttempts: opts?.attempts,
+      queue: job.queueName,
+    });
+
     try {
-      switch (job.name) {
+      switch (name) {
         case 'sendPasswordResetEmail':
+          this.logger.debug({
+            op: 'email.invite.payload',
+            jobId: id,
+            email: job.data?.email,
+            companyName: job.data?.companyName,
+            role: job.data?.role,
+          });
           await this.handleEmployeeInvitationEmail(job.data);
           break;
 
         case 'sendGoalCheckin':
+          this.logger.debug({
+            op: 'email.goalCheckin.payload',
+            jobId: id,
+            employeeId: job.data?.employeeId,
+            goalId: job.data?.goalId,
+          });
           await this.handleGoalCheckin(job.data);
           break;
 
         case 'sendAnnouncement':
+          this.logger.debug({
+            op: 'email.announcement.payload',
+            jobId: id,
+            announcementId: job.data?.announcementId,
+          });
           await this.handleAnnouncement(job.data);
           break;
 
         default:
-          console.warn(`⚠️ Unhandled email job: ${job.name}`);
+          this.logger.warn({
+            op: 'email.job.unhandled',
+            jobId: id,
+            jobName: name,
+          });
+          return;
       }
-    } catch (error) {
-      console.error(`❌ Failed to process email job (${job.name}):`, error);
-      throw error;
+
+      this.logger.log({
+        op: 'email.job.success',
+        jobId: id,
+        jobName: name,
+      });
+    } catch (error: any) {
+      this.logger.error(
+        {
+          op: 'email.job.failed',
+          jobId: id,
+          jobName: name,
+          attemptsMade,
+          willRetry: attemptsMade < (opts?.attempts ?? 1),
+          errorMessage: error?.message,
+        },
+        error?.stack,
+      );
+
+      throw error; // IMPORTANT: rethrow so BullMQ retries
     }
   }
 
   private async handleEmployeeInvitationEmail(data: any) {
-    const { email, name, companyName, role, resetLink } = data;
+    const { email, name, companyName, role } = data;
+
+    this.logger.log({
+      op: 'email.invite.send',
+      email,
+      companyName,
+      role,
+    });
+
     await this.employeeInvitationService.sendInvitationEmail(
       email,
       name,
       companyName,
       role,
-      resetLink,
+      data.resetLink, // don't log token
     );
   }
 

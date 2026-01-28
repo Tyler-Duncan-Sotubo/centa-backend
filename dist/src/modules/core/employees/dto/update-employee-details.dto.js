@@ -54,8 +54,8 @@ __decorate([
 ], EmployeeProfileDto.prototype, "companyRoleId", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
-    __metadata("design:type", String)
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Object)
 ], EmployeeProfileDto.prototype, "costCenterId", void 0);
 __decorate([
     (0, class_validator_1.IsEnum)(EmploymentStatus),

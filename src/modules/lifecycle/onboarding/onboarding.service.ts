@@ -528,9 +528,6 @@ export class OnboardingService {
 
       /* ── 3. If none remain, mark onboarding as completed ──────────────── */
       if (Number(remaining) === 0) {
-        console.log(
-          `All checklist items completed for employee ${employeeId}. Marking onboarding as completed.`,
-        );
         await tx
           .update(employeeOnboarding)
           .set({

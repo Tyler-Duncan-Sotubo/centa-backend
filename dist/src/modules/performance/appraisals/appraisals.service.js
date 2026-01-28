@@ -212,7 +212,6 @@ let AppraisalsService = class AppraisalsService {
         if (!record) {
             throw new common_1.NotFoundException(`Appraisal with ID ${id} not found`);
         }
-        console.log('Fetched Appraisal Record:', record);
         return record;
     }
     async updateManager(appraisalId, newManagerId, user) {

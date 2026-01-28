@@ -592,16 +592,6 @@ export declare class EmployeesService {
         id: any;
     }>;
     buildTemplateWorkbook(companyId: string): Promise<Workbook>;
-    bulkCreate(user: User, rows: any[]): Promise<{
-        successCount: number;
-        failedCount: number;
-        failedRows: any[];
-        created: {
-            id: any;
-            employeeNumber: any;
-            email: any;
-        }[];
-    }>;
     getManagers(companyId: string): Promise<({
         id: any;
         name: string;

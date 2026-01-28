@@ -85,7 +85,6 @@ exports.DrizzleModule = DrizzleModule = __decorate([
                         if (process.env.NODE_ENV === 'production') {
                             try {
                                 await pool.end();
-                                console.log('[PG] pool closed');
                             }
                             catch {
                             }

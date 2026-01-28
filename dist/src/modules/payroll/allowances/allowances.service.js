@@ -19,12 +19,10 @@ const drizzle_orm_1 = require("drizzle-orm");
 const audit_service_1 = require("../../audit/audit.service");
 const pay_group_allowances_schema_1 = require("../schema/pay-group-allowances.schema");
 const pay_groups_schema_1 = require("../schema/pay-groups.schema");
-const cache_service_1 = require("../../../common/cache/cache.service");
 let AllowancesService = class AllowancesService {
-    constructor(db, auditService, cache) {
+    constructor(db, auditService) {
         this.db = db;
         this.auditService = auditService;
-        this.cache = cache;
     }
     cents(n) {
         return n != null ? Math.round(n * 100) : 0;
@@ -83,39 +81,28 @@ let AllowancesService = class AllowancesService {
                 fixedAmount: dto.fixedAmount ?? 0,
             },
         });
-        await this.cache.bumpCompanyVersion(user.companyId);
-        await this.cache.invalidateTags([
-            `paygroup:${dto.payGroupId}`,
-            'allowances:list',
-        ]);
         return inserted;
     }
     async findAll(payGroupId) {
         if (!payGroupId) {
             return await this.db.select().from(pay_group_allowances_schema_1.payGroupAllowances).execute();
         }
-        const companyId = await this.getCompanyIdByPayGroupId(payGroupId);
-        return this.cache.getOrSetVersioned(companyId, ['paygroup', payGroupId, 'allowances'], async () => {
-            return await this.db
-                .select()
-                .from(pay_group_allowances_schema_1.payGroupAllowances)
-                .where((0, drizzle_orm_1.eq)(pay_group_allowances_schema_1.payGroupAllowances.payGroupId, payGroupId))
-                .execute();
-        }, { tags: ['allowances:list', `paygroup:${payGroupId}`] });
+        return await this.db
+            .select()
+            .from(pay_group_allowances_schema_1.payGroupAllowances)
+            .where((0, drizzle_orm_1.eq)(pay_group_allowances_schema_1.payGroupAllowances.payGroupId, payGroupId))
+            .execute();
     }
     async findOne(id) {
-        const companyId = await this.getCompanyIdByAllowanceId(id);
-        return this.cache.getOrSetVersioned(companyId, ['allowance', id], async () => {
-            const [allowance] = await this.db
-                .select()
-                .from(pay_group_allowances_schema_1.payGroupAllowances)
-                .where((0, drizzle_orm_1.eq)(pay_group_allowances_schema_1.payGroupAllowances.id, id))
-                .execute();
-            if (!allowance) {
-                throw new common_1.BadRequestException(`Allowance ${id} not found`);
-            }
-            return allowance;
-        }, { tags: [`allowance:${id}`] });
+        const [allowance] = await this.db
+            .select()
+            .from(pay_group_allowances_schema_1.payGroupAllowances)
+            .where((0, drizzle_orm_1.eq)(pay_group_allowances_schema_1.payGroupAllowances.id, id))
+            .execute();
+        if (!allowance) {
+            throw new common_1.BadRequestException(`Allowance ${id} not found`);
+        }
+        return allowance;
     }
     async update(id, dto, user) {
         await this.findOne(id);
@@ -144,19 +131,12 @@ let AllowancesService = class AllowancesService {
             details: `Updated allowance ${id}`,
             changes: { ...dto },
         });
-        const companyId = await this.getCompanyIdByAllowanceId(id);
-        const [row] = await this.db
+        await this.db
             .select({ payGroupId: pay_group_allowances_schema_1.payGroupAllowances.payGroupId })
             .from(pay_group_allowances_schema_1.payGroupAllowances)
             .where((0, drizzle_orm_1.eq)(pay_group_allowances_schema_1.payGroupAllowances.id, id))
             .limit(1)
             .execute();
-        await this.cache.bumpCompanyVersion(companyId);
-        await this.cache.invalidateTags([
-            `allowance:${id}`,
-            'allowances:list',
-            ...(row?.payGroupId ? [`paygroup:${row.payGroupId}`] : []),
-        ]);
         return { message: 'Allowance updated successfully' };
     }
     async remove(id, user) {
@@ -180,13 +160,6 @@ let AllowancesService = class AllowancesService {
             details: `Deleted allowance ${id}`,
             changes: { id },
         });
-        const companyId = await this.getCompanyIdByPayGroupId(existing.payGroupId);
-        await this.cache.bumpCompanyVersion(companyId);
-        await this.cache.invalidateTags([
-            `allowance:${id}`,
-            'allowances:list',
-            `paygroup:${existing.payGroupId}`,
-        ]);
         return { message: 'Allowance deleted successfully' };
     }
 };
@@ -194,7 +167,6 @@ exports.AllowancesService = AllowancesService;
 exports.AllowancesService = AllowancesService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(drizzle_module_1.DRIZZLE)),
-    __metadata("design:paramtypes", [Object, audit_service_1.AuditService,
-        cache_service_1.CacheService])
+    __metadata("design:paramtypes", [Object, audit_service_1.AuditService])
 ], AllowancesService);
 //# sourceMappingURL=allowances.service.js.map

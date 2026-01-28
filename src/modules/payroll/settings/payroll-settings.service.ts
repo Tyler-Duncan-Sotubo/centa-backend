@@ -1,43 +1,27 @@
 import { Injectable } from '@nestjs/common';
-import { CacheService } from 'src/common/cache/cache.service';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 
 @Injectable()
 export class PayrollSettingsService {
   constructor(
     private readonly companySettingsService: CompanySettingsService,
-    private readonly cache: CacheService,
   ) {}
-
-  private tags(companyId: string) {
-    return [
-      `company:${companyId}:settings`,
-      `company:${companyId}:settings:group:payroll`,
-    ];
-  }
 
   /**
    * All payroll.* settings as a flat object (prefix stripped).
    * Cached under company:{id}:v{ver}:payroll:all
    */
   async getAllPayrollSettings(companyId: string): Promise<Record<string, any>> {
-    return this.cache.getOrSetVersioned<Record<string, any>>(
-      companyId,
-      ['payroll', 'all'],
-      async () => {
-        const settings =
-          await this.companySettingsService.getAllSettings(companyId);
-        const payrollSettings: Record<string, any> = {};
-        for (const setting of settings) {
-          if (setting.key.startsWith('payroll.')) {
-            const strippedKey = setting.key.replace('payroll.', '');
-            payrollSettings[strippedKey] = setting.value;
-          }
-        }
-        return payrollSettings;
-      },
-      { tags: this.tags(companyId) },
-    );
+    const settings =
+      await this.companySettingsService.getAllSettings(companyId);
+    const payrollSettings: Record<string, any> = {};
+    for (const setting of settings) {
+      if (setting.key.startsWith('payroll.')) {
+        const strippedKey = setting.key.replace('payroll.', '');
+        payrollSettings[strippedKey] = setting.value;
+      }
+    }
+    return payrollSettings;
   }
 
   /**
@@ -45,12 +29,7 @@ export class PayrollSettingsService {
    * Cached under company:{id}:v{ver}:payroll:config
    */
   async payrollSettings(companyId: string): Promise<any> {
-    return this.cache.getOrSetVersioned(
-      companyId,
-      ['payroll', 'config'],
-      () => this.companySettingsService.getPayrollConfig(companyId),
-      { tags: this.tags(companyId) },
-    );
+    return this.companySettingsService.getPayrollConfig(companyId);
   }
 
   /**
@@ -58,12 +37,7 @@ export class PayrollSettingsService {
    * Cached under company:{id}:v{ver}:payroll:allowance
    */
   async allowanceSettings(companyId: string): Promise<any> {
-    return this.cache.getOrSetVersioned(
-      companyId,
-      ['payroll', 'allowance'],
-      () => this.companySettingsService.getAllowanceConfig(companyId),
-      { tags: this.tags(companyId) },
-    );
+    return this.companySettingsService.getAllowanceConfig(companyId);
   }
 
   /**
@@ -71,12 +45,8 @@ export class PayrollSettingsService {
    * Cached under company:{id}:v{ver}:payroll:approval_proration
    */
   async getApprovalAndProrationSettings(companyId: string) {
-    return this.cache.getOrSetVersioned(
+    return this.companySettingsService.getApprovalAndProrationSettings(
       companyId,
-      ['payroll', 'approval_proration'],
-      () =>
-        this.companySettingsService.getApprovalAndProrationSettings(companyId),
-      { tags: this.tags(companyId) },
     );
   }
 
@@ -85,12 +55,7 @@ export class PayrollSettingsService {
    * Cached under company:{id}:v{ver}:payroll:13th_month
    */
   async getThirteenthMonthSettings(companyId: string) {
-    return this.cache.getOrSetVersioned(
-      companyId,
-      ['payroll', '13th_month'],
-      () => this.companySettingsService.getThirteenthMonthSettings(companyId),
-      { tags: this.tags(companyId) },
-    );
+    return this.companySettingsService.getThirteenthMonthSettings(companyId);
   }
 
   /**
@@ -98,12 +63,7 @@ export class PayrollSettingsService {
    * Cached under company:{id}:v{ver}:payroll:loan
    */
   async getLoanSettings(companyId: string) {
-    return this.cache.getOrSetVersioned(
-      companyId,
-      ['payroll', 'loan'],
-      () => this.companySettingsService.getLoanSettings(companyId),
-      { tags: this.tags(companyId) },
-    );
+    return this.companySettingsService.getLoanSettings(companyId);
   }
 
   /**

@@ -25,10 +25,12 @@ const file_parse_interceptor_1 = require("../../../common/interceptor/file-parse
 const search_employees_dto_1 = require("./dto/search-employees.dto");
 const create_employee_multi_details_dto_1 = require("./dto/create-employee-multi-details.dto");
 const update_employee_details_dto_1 = require("./dto/update-employee-details.dto");
+const employees_bulk_import_write_service_1 = require("./employees-bulk-import-write.service");
 let EmployeesController = class EmployeesController extends base_controller_1.BaseController {
-    constructor(employeesService) {
+    constructor(employeesService, employeesBulk) {
         super();
         this.employeesService = employeesService;
+        this.employeesBulk = employeesBulk;
     }
     async downloadTemplate(reply) {
         const workbook = await this.employeesService.buildTemplateWorkbook('bf82fb49-2d08-4a2b-a117-be9039041f5f');
@@ -39,7 +41,7 @@ let EmployeesController = class EmployeesController extends base_controller_1.Ba
             .send(buffer);
     }
     async bulkCreate(rows, user) {
-        return this.employeesService.bulkCreate(user, rows);
+        return this.employeesBulk.bulkCreate(user, rows);
     }
     async createEmployeeNumber(user) {
         return this.employeesService.createEmployeeNumber(user.companyId);
@@ -324,6 +326,7 @@ __decorate([
 exports.EmployeesController = EmployeesController = __decorate([
     (0, common_1.UseInterceptors)(audit_interceptor_1.AuditInterceptor),
     (0, common_1.Controller)('employees'),
-    __metadata("design:paramtypes", [employees_service_1.EmployeesService])
+    __metadata("design:paramtypes", [employees_service_1.EmployeesService,
+        employees_bulk_import_write_service_1.EmployeesBulkImportWriteService])
 ], EmployeesController);
 //# sourceMappingURL=employees.controller.js.map

@@ -3,12 +3,10 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
 import { CreateAllowanceDto } from './dto/create-allowance.dto';
 import { UpdateAllowanceDto } from './dto/update-allowance.dto';
-import { CacheService } from 'src/common/cache/cache.service';
 export declare class AllowancesService {
     private readonly db;
     private readonly auditService;
-    private readonly cache;
-    constructor(db: db, auditService: AuditService, cache: CacheService);
+    constructor(db: db, auditService: AuditService);
     private cents;
     private getCompanyIdByPayGroupId;
     private getCompanyIdByAllowanceId;
@@ -17,8 +15,8 @@ export declare class AllowancesService {
         createdAt: Date | null;
         updatedAt: Date | null;
         payGroupId: string;
-        percentage: string | null;
         allowanceType: string;
+        percentage: string | null;
         valueType: string;
         fixedAmount: number | null;
     }>;

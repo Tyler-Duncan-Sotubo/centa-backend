@@ -33,6 +33,7 @@ export declare class UserService {
     private checkUserExists;
     private createCompany;
     private createUserAndSetup;
+    private ensureEmployeeForUser;
     private postRegistration;
     register(dto: RegisterDto): Promise<{
         user: any;

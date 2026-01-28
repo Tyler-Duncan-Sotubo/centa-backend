@@ -25,6 +25,11 @@ export class HolidaysController extends BaseController {
     super();
   }
 
+  // @Get('year-public-holidays')
+  // async getYearPublicHolidays() {
+  //   return this.holidaysService.insertHolidaysForCurrentYear('NG');
+  // }
+
   @Get('custom-holidays')
   @UseGuards(JwtAuthGuard)
   @SetMetadata('permissions', ['holidays.read'])

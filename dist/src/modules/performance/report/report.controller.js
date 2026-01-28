@@ -57,10 +57,6 @@ let ReportController = class ReportController extends base_controller_1.BaseCont
         return this.reportService.getCompetencyHeatmap(user, filters);
     }
     async exportAppraisalReport(user, format = 'csv', filters) {
-        console.log('Exporting appraisal report', {
-            format,
-            filters,
-        });
         const url = format === 'pdf'
             ? await this.pdf.exportAppraisalReportToPDF(user, filters)
             : await this.csv.exportAppraisalReportToS3(user, filters);

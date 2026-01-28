@@ -7,7 +7,7 @@ export declare class BulkEmployeeDto {
     departmentId?: string;
     jobRoleId?: string;
     payGroupId?: string;
-    costCenterId?: string;
+    costCenterId?: string | null;
     employmentStatus?: keyof typeof employeeStatus;
     firstName: string;
     lastName: string;

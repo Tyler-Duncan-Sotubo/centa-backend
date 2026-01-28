@@ -1,12 +1,17 @@
 export class OrgChartNodeDto {
-  id: string; // employee id
-  name: string; // full name
-  title: string; // job role title
-  managerId?: string | null; // optional manager reference
-  children: OrgChartNodeDto[]; // nested direct reports
+  id: string;
+  name: string;
+  title: string;
+  department: string;
+  managerId: string | null;
 
-  // (Optional fields you can add later)
-  department?: string;
-  locationName?: string;
-  avatarUrl?: string;
+  avatar?: string | null;
+  isDepartmentHead?: boolean;
+
+  // ✅ required for your UI + service
+  hasChildren: boolean;
+  childrenCount: number;
+
+  // ✅ for roots/preview responses
+  children: OrgChartNodeDto[];
 }

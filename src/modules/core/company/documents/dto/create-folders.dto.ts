@@ -13,6 +13,10 @@ export class CreateDocumentFoldersDto {
   name: string;
 
   @IsOptional()
+  @IsUUID()
+  parentId?: string;
+
+  @IsOptional()
   @IsBoolean()
   permissionControlled?: boolean;
 

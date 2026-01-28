@@ -38,7 +38,7 @@ let LeaveTypesService = class LeaveTypesService {
             const dto = (0, class_transformer_1.plainToInstance)(create_leave_type_dto_1.CreateLeaveTypeDto, {
                 name: row['Name'] || row['name'],
                 isPaid: row['IsPaid'] !== undefined
-                    ? row['IsPaid'] === 'true' || row['IsPaid'] === true
+                    ? ['true', '1', 'yes'].includes(String(row['IsPaid']).toLowerCase())
                     : undefined,
                 colorTag: row['ColorTag'] || row['colorTag'],
             });

@@ -1060,8 +1060,6 @@ export class RunService {
       reimbursements: r.reimbursements,
     }));
 
-    console.log('Payroll summary:', employeesDto);
-
     return {
       totalCostOfPayroll,
       totalPensionContribution,

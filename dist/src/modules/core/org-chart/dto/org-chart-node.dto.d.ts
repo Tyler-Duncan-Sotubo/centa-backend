@@ -2,9 +2,11 @@ export declare class OrgChartNodeDto {
     id: string;
     name: string;
     title: string;
-    managerId?: string | null;
+    department: string;
+    managerId: string | null;
+    avatar?: string | null;
+    isDepartmentHead?: boolean;
+    hasChildren: boolean;
+    childrenCount: number;
     children: OrgChartNodeDto[];
-    department?: string;
-    locationName?: string;
-    avatarUrl?: string;
 }

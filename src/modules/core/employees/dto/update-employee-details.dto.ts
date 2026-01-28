@@ -41,8 +41,8 @@ export class EmployeeProfileDto {
   companyRoleId: string;
 
   @IsString()
-  @IsNotEmpty()
-  costCenterId: string;
+  @IsOptional()
+  costCenterId?: string | null;
 
   @IsEnum(EmploymentStatus)
   employmentStatus: EmploymentStatus;

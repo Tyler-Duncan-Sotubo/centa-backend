@@ -7,6 +7,7 @@ export declare class EmailQueueProcessor extends WorkerHost {
     private readonly employeeInvitationService;
     private readonly goalNotificationService;
     private readonly announcementNotificationService;
+    private readonly logger;
     constructor(employeeInvitationService: EmployeeInvitationService, goalNotificationService: GoalNotificationService, announcementNotificationService: AnnouncementNotificationService);
     process(job: Job): Promise<void>;
     private handleEmployeeInvitationEmail;

@@ -62,9 +62,5 @@ export class ResumeScoringProcessor extends WorkerHost {
       job,
       applicationId,
     );
-
-    console.log(
-      `✅ Successfully processed resume scoring for application ${applicationId}`,
-    );
   }
 }

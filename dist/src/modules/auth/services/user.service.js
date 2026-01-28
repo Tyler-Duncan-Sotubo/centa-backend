@@ -98,6 +98,7 @@ let UserService = class UserService {
         if (!user) {
             throw new common_1.BadRequestException('User creation failed.');
         }
+        await this.ensureEmployeeForUser(trx, company.id, user, dto);
         await Promise.all([
             trx.insert(schema_1.companyFileFolders).values({
                 companyId: company.id,
@@ -116,6 +117,36 @@ let UserService = class UserService {
             this.feedbackSettingService.create(company.id),
         ]);
         return user;
+    }
+    async ensureEmployeeForUser(trx, companyId, user, dto) {
+        const staffRoles = new Set([
+            'super_admin',
+            'director',
+            'hrmanager',
+            'manager',
+        ]);
+        if (!staffRoles.has(dto.role))
+            return;
+        const existing = await trx
+            .select({ id: schema_1.employees.id })
+            .from(schema_1.employees)
+            .where((0, drizzle_orm_1.eq)(schema_1.employees.userId, user.id))
+            .limit(1)
+            .execute()
+            .then((r) => r[0]);
+        if (existing)
+            return;
+        await trx.insert(schema_1.employees).values({
+            companyId,
+            userId: user.id,
+            employeeNumber: `EMP-TEMP`,
+            email: user.email.toLowerCase(),
+            firstName: dto.firstName,
+            lastName: dto.lastName,
+            managerId: null,
+            confirmed: true,
+            employmentStartDate: new Date().toISOString().split('T')[0],
+        });
     }
     async postRegistration(company, user) {
         await this.permissionSeedQueue.add('seed-permissions', { companyId: company.id }, { delay: 3000 });

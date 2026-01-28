@@ -24,11 +24,15 @@ import { AssignCostCenterDto } from './dto/assign-cost-center.dto';
 import { AssignParentDto } from './dto/assign-parent.dto';
 import { BaseController } from 'src/common/interceptor/base.controller';
 import { FileParseInterceptor } from 'src/common/interceptor/file-parse.interceptor';
+import { DepartmentWriteService } from './department-write.service';
 
 @UseInterceptors(AuditInterceptor)
 @Controller('department')
 export class DepartmentController extends BaseController {
-  constructor(private readonly departmentService: DepartmentService) {
+  constructor(
+    private readonly departmentService: DepartmentService,
+    private readonly departmentWriteService: DepartmentWriteService,
+  ) {
     super();
   }
 
@@ -53,7 +57,7 @@ export class DepartmentController extends BaseController {
   @Audit({ action: 'Department Bulk Up', entity: 'Departments' })
   @UseInterceptors(FileParseInterceptor({ field: 'file', maxRows: 200 }))
   async bulkCreate(@Body() rows: any[], @CurrentUser() user: User) {
-    return this.departmentService.bulkCreate(user.companyId, rows);
+    return this.departmentWriteService.bulkCreate(user.companyId, rows);
   }
 
   @Get()

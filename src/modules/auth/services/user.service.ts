@@ -113,6 +113,8 @@ export class UserService {
       throw new BadRequestException('User creation failed.');
     }
 
+    await this.ensureEmployeeForUser(trx, company.id, user, dto);
+
     await Promise.all([
       trx.insert(companyFileFolders).values({
         companyId: company.id,
@@ -133,6 +135,45 @@ export class UserService {
     ]);
 
     return user;
+  }
+
+  private async ensureEmployeeForUser(
+    trx: any,
+    companyId: string,
+    user: { id: string; email: string },
+    dto: RegisterDto,
+  ) {
+    // Only create employee profile for roles that are actual staff
+    const staffRoles = new Set([
+      'super_admin',
+      'director',
+      'hrmanager',
+      'manager',
+    ]);
+    if (!staffRoles.has(dto.role)) return;
+
+    // If employee already exists for this user, skip
+    const existing = await trx
+      .select({ id: employees.id })
+      .from(employees)
+      .where(eq(employees.userId, user.id))
+      .limit(1)
+      .execute()
+      .then((r) => r[0]);
+
+    if (existing) return;
+
+    await trx.insert(employees).values({
+      companyId,
+      userId: user.id,
+      employeeNumber: `EMP-TEMP`, // simple unique emp number
+      email: user.email.toLowerCase(), // recommended column
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      managerId: null,
+      confirmed: true,
+      employmentStartDate: new Date().toISOString().split('T')[0],
+    });
   }
 
   private async postRegistration(

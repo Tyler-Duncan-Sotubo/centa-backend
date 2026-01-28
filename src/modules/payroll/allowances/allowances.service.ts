@@ -7,24 +7,18 @@ import {
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
 import { eq } from 'drizzle-orm';
-
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
-
 import { payGroupAllowances } from '../schema/pay-group-allowances.schema';
 import { payGroups } from 'src/modules/payroll/schema/pay-groups.schema';
-
 import { CreateAllowanceDto } from './dto/create-allowance.dto';
 import { UpdateAllowanceDto } from './dto/update-allowance.dto';
-
-import { CacheService } from 'src/common/cache/cache.service';
 
 @Injectable()
 export class AllowancesService {
   constructor(
     @Inject(DRIZZLE) private readonly db: db,
     private readonly auditService: AuditService,
-    private readonly cache: CacheService,
   ) {}
 
   // ------------------------
@@ -103,13 +97,6 @@ export class AllowancesService {
       },
     });
 
-    // 🔄 Invalidate caches for this company/paygroup
-    await this.cache.bumpCompanyVersion(user.companyId);
-    await this.cache.invalidateTags([
-      `paygroup:${dto.payGroupId}`,
-      'allowances:list',
-    ]);
-
     return inserted;
   }
 
@@ -123,42 +110,24 @@ export class AllowancesService {
       return await this.db.select().from(payGroupAllowances).execute();
     }
 
-    const companyId = await this.getCompanyIdByPayGroupId(payGroupId);
-
-    return this.cache.getOrSetVersioned(
-      companyId,
-      ['paygroup', payGroupId, 'allowances'],
-      async () => {
-        return await this.db
-          .select()
-          .from(payGroupAllowances)
-          .where(eq(payGroupAllowances.payGroupId, payGroupId))
-          .execute();
-      },
-      { tags: ['allowances:list', `paygroup:${payGroupId}`] },
-    );
+    return await this.db
+      .select()
+      .from(payGroupAllowances)
+      .where(eq(payGroupAllowances.payGroupId, payGroupId))
+      .execute();
   }
 
   /** Get a single allowance by its ID */
   async findOne(id: string) {
-    const companyId = await this.getCompanyIdByAllowanceId(id);
-
-    return this.cache.getOrSetVersioned(
-      companyId,
-      ['allowance', id],
-      async () => {
-        const [allowance] = await this.db
-          .select()
-          .from(payGroupAllowances)
-          .where(eq(payGroupAllowances.id, id))
-          .execute();
-        if (!allowance) {
-          throw new BadRequestException(`Allowance ${id} not found`);
-        }
-        return allowance;
-      },
-      { tags: [`allowance:${id}`] },
-    );
+    const [allowance] = await this.db
+      .select()
+      .from(payGroupAllowances)
+      .where(eq(payGroupAllowances.id, id))
+      .execute();
+    if (!allowance) {
+      throw new BadRequestException(`Allowance ${id} not found`);
+    }
+    return allowance;
   }
 
   // ------------------------
@@ -202,23 +171,13 @@ export class AllowancesService {
       changes: { ...dto },
     });
 
-    // 🔄 Invalidate caches (bump company, clear item + list by paygroup)
-    const companyId = await this.getCompanyIdByAllowanceId(id);
-
     // find payGroupId to tag-invalidate list
-    const [row] = await this.db
+    await this.db
       .select({ payGroupId: payGroupAllowances.payGroupId })
       .from(payGroupAllowances)
       .where(eq(payGroupAllowances.id, id))
       .limit(1)
       .execute();
-
-    await this.cache.bumpCompanyVersion(companyId);
-    await this.cache.invalidateTags([
-      `allowance:${id}`,
-      'allowances:list',
-      ...(row?.payGroupId ? [`paygroup:${row.payGroupId}`] : []),
-    ]);
 
     return { message: 'Allowance updated successfully' };
   }
@@ -252,15 +211,6 @@ export class AllowancesService {
       details: `Deleted allowance ${id}`,
       changes: { id },
     });
-
-    // 🔄 Invalidate caches
-    const companyId = await this.getCompanyIdByPayGroupId(existing.payGroupId);
-    await this.cache.bumpCompanyVersion(companyId);
-    await this.cache.invalidateTags([
-      `allowance:${id}`,
-      'allowances:list',
-      `paygroup:${existing.payGroupId}`,
-    ]);
 
     return { message: 'Allowance deleted successfully' };
   }

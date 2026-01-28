@@ -26,16 +26,18 @@ const assign_cost_center_dto_1 = require("./dto/assign-cost-center.dto");
 const assign_parent_dto_1 = require("./dto/assign-parent.dto");
 const base_controller_1 = require("../../../common/interceptor/base.controller");
 const file_parse_interceptor_1 = require("../../../common/interceptor/file-parse.interceptor");
+const department_write_service_1 = require("./department-write.service");
 let DepartmentController = class DepartmentController extends base_controller_1.BaseController {
-    constructor(departmentService) {
+    constructor(departmentService, departmentWriteService) {
         super();
         this.departmentService = departmentService;
+        this.departmentWriteService = departmentWriteService;
     }
     create(user, createDepartmentDto) {
         return this.departmentService.create(user.companyId, createDepartmentDto);
     }
     async bulkCreate(rows, user) {
-        return this.departmentService.bulkCreate(user.companyId, rows);
+        return this.departmentWriteService.bulkCreate(user.companyId, rows);
     }
     findAll(user) {
         return this.departmentService.findAll(user.companyId);
@@ -198,6 +200,7 @@ __decorate([
 exports.DepartmentController = DepartmentController = __decorate([
     (0, common_1.UseInterceptors)(audit_interceptor_1.AuditInterceptor),
     (0, common_1.Controller)('department'),
-    __metadata("design:paramtypes", [department_service_1.DepartmentService])
+    __metadata("design:paramtypes", [department_service_1.DepartmentService,
+        department_write_service_1.DepartmentWriteService])
 ], DepartmentController);
 //# sourceMappingURL=department.controller.js.map

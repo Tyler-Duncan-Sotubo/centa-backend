@@ -21,18 +21,7 @@ import {
   jobRoles,
 } from '../schema';
 import { employeeSequences } from './schema/employee-sequences.schema';
-import {
-  eq,
-  and,
-  inArray,
-  or,
-  ilike,
-  SQL,
-  sql,
-  ne,
-  gte,
-  lte,
-} from 'drizzle-orm';
+import { eq, and, or, ilike, SQL, sql, ne, gte, lte } from 'drizzle-orm';
 import { User } from 'src/common/types/user.type';
 import {
   attendanceRecords,
@@ -40,8 +29,6 @@ import {
   PasswordResetToken,
   users,
 } from 'src/drizzle/schema';
-import * as bcrypt from 'bcryptjs';
-import { randomBytes } from 'crypto';
 import { ProfileService } from './profile/profile.service';
 import { HistoryService } from './history/history.service';
 import { DependentsService } from './dependents/dependents.service';
@@ -53,10 +40,7 @@ import { DepartmentService } from '../department/department.service';
 import { JobRolesService } from '../job-roles/job-roles.service';
 import { CostCentersService } from '../cost-centers/cost-centers.service';
 import { employeeCompensations } from './schema/compensation.schema';
-import { validateOrReject } from 'class-validator';
-import { plainToInstance } from 'class-transformer';
 import { CreateCompensationDto } from './compensation/dto/create-compensation.dto';
-import { CreateFinanceDto } from './finance/dto/create-finance.dto';
 import { CreateEmployeeCoreDto } from './dto/create-employee-core.dto';
 import { SearchEmployeesDto } from './dto/search-employees.dto';
 import { GroupsService } from './groups/groups.service';
@@ -804,52 +788,42 @@ export class EmployeesService {
   }
 
   async findAllEmployees(companyId: string) {
-    return this.cacheService.getOrSetVersioned(
-      companyId,
-      this.kCompany(companyId, 'employees', 'active'),
-      async () => {
-        return this.db
-          .select({
-            id: employees.id,
-            firstName: employees.firstName,
-            lastName: employees.lastName,
-            employeeNumber: employees.employeeNumber,
-            email: employees.email,
-            departmentId: employees.departmentId,
-            department: departments.name,
-            employmentStatus: employees.employmentStatus,
-            jobRole: jobRoles.title,
-            costCenter: costCenters.name,
-            location: companyLocations.name,
-            annualGross: employeeCompensations.grossSalary,
-            groupId: employees.payGroupId,
-            applyNHf: employeeCompensations.applyNHf,
-            role: companyRoles.name,
-          })
-          .from(employees)
-          .innerJoin(users, eq(employees.userId, users.id))
-          .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
-          .leftJoin(
-            employeeCompensations,
-            eq(employees.id, employeeCompensations.employeeId),
-          )
-          .leftJoin(departments, eq(employees.departmentId, departments.id))
-          .leftJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
-          .leftJoin(costCenters, eq(employees.costCenterId, costCenters.id))
-          .leftJoin(
-            companyLocations,
-            eq(employees.locationId, companyLocations.id),
-          )
-          .where(
-            and(
-              eq(employees.companyId, companyId),
-              eq(employees.employmentStatus, 'active'),
-            ),
-          )
-          .execute();
-      },
-      { tags: ['employees:list'] },
-    );
+    return this.db
+      .select({
+        id: employees.id,
+        firstName: employees.firstName,
+        lastName: employees.lastName,
+        employeeNumber: employees.employeeNumber,
+        email: employees.email,
+        departmentId: employees.departmentId,
+        department: departments.name,
+        employmentStatus: employees.employmentStatus,
+        jobRole: jobRoles.title,
+        costCenter: costCenters.name,
+        location: companyLocations.name,
+        annualGross: employeeCompensations.grossSalary,
+        groupId: employees.payGroupId,
+        applyNHf: employeeCompensations.applyNHf,
+        role: companyRoles.name,
+      })
+      .from(employees)
+      .innerJoin(users, eq(employees.userId, users.id))
+      .innerJoin(companyRoles, eq(users.companyRoleId, companyRoles.id))
+      .leftJoin(
+        employeeCompensations,
+        eq(employees.id, employeeCompensations.employeeId),
+      )
+      .leftJoin(departments, eq(employees.departmentId, departments.id))
+      .leftJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
+      .leftJoin(costCenters, eq(employees.costCenterId, costCenters.id))
+      .leftJoin(companyLocations, eq(employees.locationId, companyLocations.id))
+      .where(
+        and(
+          eq(employees.companyId, companyId),
+          eq(employees.employmentStatus, 'active'),
+        ),
+      )
+      .execute();
   }
 
   async findAllCompanyEmployeesSummary(companyId: string, search?: string) {
@@ -1208,7 +1182,7 @@ export class EmployeesService {
         payGroupId: dto.payGroupId,
         employmentStartDate: dto.employmentStartDate,
         confirmed: dto.confirmed,
-        costCenterId: dto.costCenterId,
+        costCenterId: dto.costCenterId || null,
       })
       .where(eq(this.table.id, employeeId))
       .returning()
@@ -1379,437 +1353,6 @@ export class EmployeesService {
     }
 
     return wb;
-  }
-
-  async bulkCreate(user: User, rows: any[]) {
-    const t0 = Date.now();
-    const { companyId } = user;
-
-    this.logger.info(
-      {
-        op: 'employees.bulkCreate.start',
-        companyId,
-        rowsCount: rows?.length ?? 0,
-      },
-      'Bulk create started',
-    );
-
-    try {
-      const [allDepts, allRoles, allCenters, allLocations, allPayGroups] =
-        await Promise.all([
-          this.db
-            .select({ id: departments.id, name: departments.name })
-            .from(departments)
-            .where(eq(departments.companyId, companyId))
-            .execute(),
-          this.db
-            .select({ id: jobRoles.id, title: jobRoles.title })
-            .from(jobRoles)
-            .where(eq(jobRoles.companyId, companyId))
-            .execute(),
-          this.db
-            .select({ id: costCenters.id, name: costCenters.name })
-            .from(costCenters)
-            .where(eq(costCenters.companyId, companyId))
-            .execute(),
-          this.db
-            .select({ id: companyLocations.id, name: companyLocations.name })
-            .from(companyLocations)
-            .where(eq(companyLocations.companyId, companyId))
-            .execute(),
-          this.db
-            .select({ id: payGroups.id, name: payGroups.name })
-            .from(payGroups)
-            .where(eq(payGroups.companyId, companyId))
-            .execute(),
-        ]);
-
-      const roles = await this.permissionService.getRolesByCompany(companyId);
-
-      const companyRoleMap = new Map(roles.map((r) => [r.name, r.id]));
-      const deptMap = new Map(allDepts.map((d) => [d.name, d.id]));
-      const roleMap = new Map(allRoles.map((r) => [r.title, r.id]));
-      const centerMap = new Map(allCenters.map((c) => [c.name, c.id]));
-      const locationMap = new Map(allLocations.map((l) => [l.name, l.id]));
-      const groupMap = new Map(
-        allPayGroups.map((g) => [g.name.toLowerCase(), g.id]),
-      );
-
-      const empNums = rows.map((r) => r['Employee Number']?.trim());
-      const emails = rows.map((r) => r['Email']?.trim().toLowerCase());
-
-      const dupes = await this.db
-        .select({ number: employees.employeeNumber, email: employees.email })
-        .from(employees)
-        .where(
-          and(
-            eq(employees.companyId, companyId),
-            or(
-              inArray(employees.employeeNumber, empNums),
-              inArray(employees.email, emails),
-            ),
-          ),
-        )
-        .execute();
-
-      if (dupes.length) {
-        this.logger.warn(
-          {
-            op: 'employees.bulkCreate.dupes',
-            companyId,
-            dupesCount: dupes.length,
-            examples: dupes.slice(0, 10), // keep small
-          },
-          'Duplicate employees found; aborting import',
-        );
-        throw new BadRequestException(
-          `These employees already exist: ` +
-            dupes.map((d) => `${d.number}/${d.email}`).join(', '),
-        );
-      }
-
-      const managerEmailMap = new Map<string, string>();
-      const roleMapFromCSV = new Map<string, string>();
-
-      type ImportRow = {
-        empDto: CreateEmployeeCoreDto;
-        finDto: CreateFinanceDto;
-        compDto: CreateCompensationDto;
-      };
-      const imports: ImportRow[] = [];
-      const failedRows: any[] = [];
-
-      const normalizedRoleMap = new Map(
-        Array.from(
-          new Map<string, string>([
-            ['HR Manager', 'hr_manager'],
-            ['HR Assistant', 'hr_assistant'],
-            ['Recruiter', 'recruiter'],
-            ['Payroll Specialist', 'payroll_specialist'],
-            ['Benefits Admin', 'benefits_admin'],
-            ['Finance Manager', 'finance_manager'],
-            ['Admin', 'admin'],
-            ['Employee', 'employee'],
-            ['Manager', 'manager'],
-          ]).entries(),
-        ).map(([label, key]) => [label.trim().toLowerCase(), key]),
-      );
-
-      // Parse & validate rows (log per-row issues at warn)
-      for (const [index, row] of rows.entries()) {
-        try {
-          const email = row['Email']?.trim().toLowerCase();
-          const managerEmail =
-            row['Manager Email']?.trim()?.toLowerCase() || '';
-          const rawRole = row['Role']?.trim().toLowerCase();
-
-          const role = normalizedRoleMap.get(rawRole) ?? 'employee';
-          if (!normalizedRoleMap.has(rawRole)) {
-            this.logger.warn(
-              {
-                op: 'employees.bulkCreate.unknownRole',
-                rowIndex: index + 1,
-                email,
-                rawRole,
-              },
-              'Unknown role in CSV — defaulting to "employee"',
-            );
-          }
-
-          if (managerEmail && email === managerEmail) {
-            throw new BadRequestException(
-              'An employee cannot be their own manager.',
-            );
-          }
-
-          if (managerEmail) managerEmailMap.set(email, managerEmail);
-          roleMapFromCSV.set(email, role);
-
-          const departmentId = deptMap.get(row['Department']?.trim() ?? '');
-          const jobRoleId = roleMap.get(row['Job Role']?.trim() ?? '');
-          const costCenterId = centerMap.get(row['Cost Center']?.trim() ?? '');
-          const locationId = locationMap.get(row['Location']?.trim() ?? '');
-          const payGroupName = row['Pay Group']?.trim().toLowerCase() ?? '';
-          const payGroupId = groupMap.get(payGroupName);
-
-          if (!payGroupId) {
-            throw new BadRequestException(
-              `Unknown Pay Group “${payGroupName}”`,
-            );
-          }
-
-          const today = new Date();
-          const rawDate = row['Effective Date'];
-          const rawProbationDate = row['Probation End Date'];
-
-          function excelSerialToDate(serial: string): string | null {
-            const excelEpoch = new Date(1899, 11, 30);
-            const days = parseInt(serial, 10);
-            if (isNaN(days)) {
-              const parsed = new Date(serial);
-              if (isNaN(parsed.getTime())) return null;
-              return parsed.toISOString().split('T')[0];
-            }
-            const date = new Date(excelEpoch.getTime() + days * 86400000);
-            return date.toISOString().split('T')[0];
-          }
-
-          const empDto = plainToInstance(CreateEmployeeCoreDto, {
-            employeeNumber: row['Employee Number']?.trim(),
-            departmentId,
-            jobRoleId,
-            costCenterId: costCenterId ?? null,
-            employmentStatus: row['Employment Status']?.trim(),
-            firstName: row['First Name']?.trim(),
-            lastName: row['Last Name']?.trim(),
-            confirmed: row['Confirmed']?.toLowerCase() === 'yes' ? true : false,
-            probationEndDate: excelSerialToDate(rawProbationDate) ?? today,
-            email,
-            companyId,
-            locationId,
-            payGroupId,
-            employmentStartDate: excelSerialToDate(rawDate) ?? today,
-          });
-
-          const finDto = plainToInstance(CreateFinanceDto, {
-            bankName: row['Bank Name']?.trim(),
-            bankAccountNumber: row['Bank Account Number']?.toString().trim(),
-            bankBranch: row['Bank Branch']?.toString().trim(),
-            bankAccountName: `${row['First Name']?.trim()} ${row['Last Name']?.trim()}`,
-            tin: row['TIN']?.toString().trim(),
-            pensionPin: row['Pension PIN']?.toString().trim(),
-            nhfNumber: row['NHF Number']?.toString().trim(),
-          });
-
-          const compDto = plainToInstance(CreateCompensationDto, {
-            effectiveDate: excelSerialToDate(row['Effective Date']),
-            grossSalary: parseInt(
-              row['Gross Salary']?.toString().trim() ?? '0',
-              10,
-            ),
-            currency: row['Currency'] ? row['Currency'].trim() : 'NGN',
-            payFrequency: row['Pay Frequency']
-              ? row['Pay Frequency'].trim()
-              : 'Monthly',
-          });
-
-          await validateOrReject(empDto);
-          await validateOrReject(finDto);
-          await validateOrReject(compDto);
-
-          imports.push({ empDto, finDto, compDto });
-        } catch (error) {
-          const msg = Array.isArray(error)
-            ? error.map((e) => e.toString()).join('; ')
-            : (error as Error).message;
-          failedRows.push({
-            rowIndex: index + 1,
-            employeeNumber: row['Employee Number'],
-            email: row['Email'],
-            error: msg,
-          });
-          this.logger.warn(
-            {
-              op: 'employees.bulkCreate.rowFailed',
-              companyId,
-              rowIndex: index + 1,
-              email: row['Email'],
-              error: msg,
-            },
-            'Row validation failed',
-          );
-        }
-      }
-
-      this.logger.info(
-        {
-          op: 'employees.bulkCreate.validated',
-          companyId,
-          rows: rows.length,
-          readyToImport: imports.length,
-          failedRows: failedRows.length,
-        },
-        'Bulk create validation completed',
-      );
-
-      if (imports.length === 0) {
-        const durationMs = Date.now() - t0;
-        this.logger.warn(
-          {
-            op: 'employees.bulkCreate.empty',
-            companyId,
-            failedRows: failedRows.length,
-            durationMs,
-          },
-          'No valid rows to import',
-        );
-        return {
-          successCount: 0,
-          failedCount: failedRows.length,
-          failedRows,
-          created: [],
-        };
-      }
-
-      const fallbackManagerUserId =
-        await this.resolveFallbackManager(companyId);
-
-      // Execute import
-      let createdUsersCount = 0;
-      let createdEmpsCount = 0;
-
-      const result = await this.db.transaction(async (trx) => {
-        const plainPasswords = imports.map(() =>
-          randomBytes(12).toString('hex'),
-        );
-        const hashedPasswords = await Promise.all(
-          plainPasswords.map((pw) => bcrypt.hash(pw, 6)),
-        );
-
-        const userValues = imports.map(({ empDto }, idx) => ({
-          email: empDto.email.toLowerCase(),
-          firstName: empDto.firstName,
-          lastName: empDto.lastName,
-          password: hashedPasswords[idx],
-          companyRoleId: companyRoleMap.get(
-            roleMapFromCSV.get(empDto.email.toLowerCase()) ?? 'employee',
-          )!,
-          companyId,
-        }));
-
-        const createdUsers = await trx
-          .insert(users)
-          .values(userValues)
-          .returning({ id: users.id, email: users.email })
-          .execute();
-        createdUsersCount = createdUsers.length;
-
-        const userIdMap = new Map(createdUsers.map((u) => [u.email, u.id]));
-        const empValues = imports.map(({ empDto }) => ({
-          ...empDto,
-          userId: userIdMap.get(empDto.email.toLowerCase())!,
-          companyId,
-          employmentStatus: empDto.employmentStatus as any,
-        }));
-
-        const createdEmps = await trx
-          .insert(employees)
-          .values(empValues)
-          .returning({
-            id: employees.id,
-            employeeNumber: employees.employeeNumber,
-            email: employees.email,
-          })
-          .execute();
-        createdEmpsCount = createdEmps.length;
-
-        const empEmailIdMap = new Map<string, string>();
-        createdEmps.forEach((e, i) =>
-          empEmailIdMap.set(userValues[i].email, e.id),
-        );
-
-        function hasCircularReference(
-          empEmail: string,
-          visited = new Set<string>(),
-        ): boolean {
-          let current = empEmail;
-          while (managerEmailMap.has(current)) {
-            const manager = managerEmailMap.get(current)!;
-            if (manager === empEmail || visited.has(manager)) return true;
-            visited.add(manager);
-            current = manager;
-          }
-          return false;
-        }
-
-        for (const [email] of managerEmailMap.entries()) {
-          if (hasCircularReference(email)) {
-            this.logger.error(
-              { op: 'employees.bulkCreate.circular', companyId, email },
-              'Circular manager reference detected',
-            );
-            throw new BadRequestException(
-              `Circular reference detected for ${email}`,
-            );
-          }
-        }
-
-        for (const [empEmail, mgrEmail] of managerEmailMap.entries()) {
-          const empId = empEmailIdMap.get(empEmail);
-          const mgrId = empEmailIdMap.get(mgrEmail) ?? fallbackManagerUserId;
-          if (empId && mgrId) {
-            await trx
-              .update(employees)
-              .set({ managerId: mgrId })
-              .where(eq(employees.id, empId))
-              .execute();
-          }
-        }
-
-        const finValues = createdEmps.map((e, i) => ({
-          employeeId: e.id,
-          ...imports[i].finDto,
-        }));
-        await trx.insert(employeeFinancials).values(finValues).execute();
-
-        const compValues = createdEmps.map((e, i) => ({
-          employeeId: e.id,
-          ...imports[i].compDto,
-        }));
-        await trx.insert(employeeCompensations).values(compValues).execute();
-
-        await this.companySettingsService.setOnboardingTask(
-          companyId,
-          'employees',
-          'upload_employees',
-          'done',
-        );
-
-        return createdEmps;
-      });
-
-      // 🔄 company-wide invalidation
-      await this.cacheService.bumpCompanyVersion(companyId);
-      await this.cacheService.invalidateTags([
-        'employees:list',
-        'employees:summary',
-      ]);
-
-      const durationMs = Date.now() - t0;
-      this.logger.info(
-        {
-          op: 'employees.bulkCreate.success',
-          companyId,
-          createdUsers: createdUsersCount,
-          createdEmployees: createdEmpsCount,
-          failedRows: failedRows.length,
-          durationMs,
-        },
-        'Bulk create finished',
-      );
-
-      return {
-        successCount: result.length,
-        failedCount: failedRows.length,
-        failedRows,
-        created: result,
-      };
-    } catch (err) {
-      const durationMs = Date.now() - t0;
-      this.logger.error(
-        {
-          op: 'employees.bulkCreate.error',
-          companyId,
-          durationMs,
-          error:
-            err instanceof Error
-              ? { name: err.name, message: err.message, stack: err.stack }
-              : err,
-        },
-        'Bulk create failed',
-      );
-      throw err; // keep behavior
-    }
   }
 
   async getManagers(companyId: string) {

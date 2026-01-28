@@ -280,7 +280,6 @@ export class AppraisalsService {
       throw new NotFoundException(`Appraisal with ID ${id} not found`);
     }
 
-    console.log('Fetched Appraisal Record:', record);
     return record;
   }
 

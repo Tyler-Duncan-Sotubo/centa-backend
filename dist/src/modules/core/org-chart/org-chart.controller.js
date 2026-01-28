@@ -23,8 +23,17 @@ let OrgChartController = class OrgChartController extends base_controller_1.Base
         super();
         this.orgChartService = orgChartService;
     }
-    async getOrgChart(user) {
-        return this.orgChartService.buildOrgChart(user.companyId);
+    async getOrgChartRoots(user) {
+        return this.orgChartService.getRoots(user.companyId);
+    }
+    async getPreview(user, depth) {
+        return this.orgChartService.getPreview(user.companyId, Number(depth) || 4);
+    }
+    async getOrgChartChildren(user, managerId) {
+        return this.orgChartService.getChildren(user.companyId, managerId);
+    }
+    async getEmployeeOrgChart(user, employeeId) {
+        return this.orgChartService.getEmployeeOrgChart(user.companyId, employeeId);
     }
 };
 exports.OrgChartController = OrgChartController;
@@ -36,7 +45,37 @@ __decorate([
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
-], OrgChartController.prototype, "getOrgChart", null);
+], OrgChartController.prototype, "getOrgChartRoots", null);
+__decorate([
+    (0, common_1.Get)('preview/:depth'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('depth')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], OrgChartController.prototype, "getPreview", null);
+__decorate([
+    (0, common_1.Get)('children/:managerId'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('managerId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], OrgChartController.prototype, "getOrgChartChildren", null);
+__decorate([
+    (0, common_1.Get)('employee/:employeeId'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('roles', ['super_admin', 'admin', 'hr_manager']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('employeeId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], OrgChartController.prototype, "getEmployeeOrgChart", null);
 exports.OrgChartController = OrgChartController = __decorate([
     (0, common_1.Controller)('org-chart'),
     __metadata("design:paramtypes", [org_chart_service_1.OrgChartService])

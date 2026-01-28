@@ -10,10 +10,17 @@ import { CompensationModule } from './compensation/compensation.module';
 import { GroupsModule } from './groups/groups.module';
 import { PermissionsService } from 'src/modules/auth/permissions/permissions.service';
 import { OnboardingService } from 'src/modules/lifecycle/onboarding/onboarding.service';
+import { EmployeesBulkImportWriteService } from './employees-bulk-import-write.service';
+import { BullModule } from '@nestjs/bullmq';
 
 @Module({
   controllers: [EmployeesController],
-  providers: [EmployeesService, PermissionsService, OnboardingService],
+  providers: [
+    EmployeesService,
+    PermissionsService,
+    OnboardingService,
+    EmployeesBulkImportWriteService,
+  ],
   imports: [
     ProfileModule,
     DependentsModule,
@@ -22,6 +29,7 @@ import { OnboardingService } from 'src/modules/lifecycle/onboarding/onboarding.s
     FinanceModule,
     CompensationModule,
     GroupsModule,
+    BullModule.registerQueue({ name: 'emailQueue' }),
   ],
   exports: [
     EmployeesService,

@@ -26,11 +26,15 @@ import { FileParseInterceptor } from 'src/common/interceptor/file-parse.intercep
 import { SearchEmployeesDto } from './dto/search-employees.dto';
 import { CreateEmployeeMultiDetailsDto } from './dto/create-employee-multi-details.dto';
 import { EmployeeProfileDto } from './dto/update-employee-details.dto';
+import { EmployeesBulkImportWriteService } from './employees-bulk-import-write.service';
 
 @UseInterceptors(AuditInterceptor)
 @Controller('employees')
 export class EmployeesController extends BaseController {
-  constructor(private readonly employeesService: EmployeesService) {
+  constructor(
+    private readonly employeesService: EmployeesService,
+    private readonly employeesBulk: EmployeesBulkImportWriteService,
+  ) {
     super();
   }
 
@@ -59,7 +63,7 @@ export class EmployeesController extends BaseController {
   @SetMetadata('permission', ['employees.bulk_create'])
   @UseInterceptors(FileParseInterceptor({ field: 'file', maxRows: 600 }))
   async bulkCreate(@Body() rows: any[], @CurrentUser() user: User) {
-    return this.employeesService.bulkCreate(user, rows);
+    return this.employeesBulk.bulkCreate(user, rows);
   }
 
   @Post('generate-id')

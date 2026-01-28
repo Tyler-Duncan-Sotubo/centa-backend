@@ -1,4 +1,4 @@
-import { Controller, Get, SetMetadata, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, SetMetadata, UseGuards } from '@nestjs/common';
 import { OrgChartService } from './org-chart.service';
 import { BaseController } from 'src/common/interceptor/base.controller';
 import { User } from 'src/common/types/user.type';
@@ -14,7 +14,35 @@ export class OrgChartController extends BaseController {
   @Get()
   @UseGuards(JwtAuthGuard)
   @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
-  async getOrgChart(@CurrentUser() user: User) {
-    return this.orgChartService.buildOrgChart(user.companyId);
+  async getOrgChartRoots(@CurrentUser() user: User) {
+    return this.orgChartService.getRoots(user.companyId);
+  }
+
+  @Get('preview/:depth')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  async getPreview(@CurrentUser() user: User, @Param('depth') depth: string) {
+    return this.orgChartService.getPreview(user.companyId, Number(depth) || 4);
+  }
+
+  @Get('children/:managerId')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  async getOrgChartChildren(
+    @CurrentUser() user: User,
+    @Param('managerId') managerId: string,
+  ) {
+    return this.orgChartService.getChildren(user.companyId, managerId);
+  }
+
+  // ✅ Employee-focused org chart (chain + direct reports)
+  @Get('employee/:employeeId')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('roles', ['super_admin', 'admin', 'hr_manager'])
+  async getEmployeeOrgChart(
+    @CurrentUser() user: User,
+    @Param('employeeId') employeeId: string,
+  ) {
+    return this.orgChartService.getEmployeeOrgChart(user.companyId, employeeId);
   }
 }

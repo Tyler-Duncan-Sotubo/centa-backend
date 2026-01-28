@@ -102,7 +102,6 @@ function buildPoolConfig(cfg: ConfigService): PoolConfig {
             try {
               await pool.end();
               // eslint-disable-next-line no-console
-              console.log('[PG] pool closed');
             } catch {
               /* ignore */
             }

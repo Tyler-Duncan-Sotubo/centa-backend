@@ -25,17 +25,15 @@ let AttendanceSettingsService = class AttendanceSettingsService {
         ];
     }
     async getAllAttendanceSettings(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['attendance', 'all'], async () => {
-            const settings = await this.companySettingsService.getAllSettings(companyId);
-            const attendanceSettings = {};
-            for (const setting of settings) {
-                if (setting.key.startsWith('attendance.')) {
-                    const strippedKey = setting.key.replace('attendance.', '');
-                    attendanceSettings[strippedKey] = setting.value;
-                }
+        const settings = await this.companySettingsService.getAllSettings(companyId);
+        const attendanceSettings = {};
+        for (const setting of settings) {
+            if (setting.key.startsWith('attendance.')) {
+                const strippedKey = setting.key.replace('attendance.', '');
+                attendanceSettings[strippedKey] = setting.value;
             }
-            return attendanceSettings;
-        });
+        }
+        return attendanceSettings;
     }
     async getAttendanceSettings(companyId) {
         return this.cache.getOrSetVersioned(companyId, ['attendance', 'config'], async () => {

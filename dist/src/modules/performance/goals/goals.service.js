@@ -35,7 +35,6 @@ let GoalsService = class GoalsService {
     }
     async create(dto, user) {
         const { title, description, startDate, dueDate, weight, employeeId, groupId, status, } = dto;
-        console.log('CreateGoalDto:', dto);
         if (!startDate)
             throw new Error('startDate is required.');
         if (!!employeeId === !!groupId) {
@@ -54,7 +53,6 @@ let GoalsService = class GoalsService {
         if (!cycle) {
             throw new Error('No performance cycle covers the provided startDate.');
         }
-        console.log('Using cycle:', cycle);
         const [assigner] = await this.db
             .select({
             id: schema_1.users.id,
@@ -64,13 +62,11 @@ let GoalsService = class GoalsService {
             .where((0, drizzle_orm_1.eq)(schema_1.users.id, user.id))
             .execute();
         const assignedByName = assigner?.fullName ?? `${user.id}`;
-        console.log('Assigned by:', assignedByName);
         return await this.db.transaction(async (tx) => {
             let goalsToInsert = [];
             let targetEmployeeIds = [];
             if (employeeId) {
                 targetEmployeeIds = [employeeId];
-                console.log('Single employeeId:', employeeId);
             }
             else {
                 const members = await tx

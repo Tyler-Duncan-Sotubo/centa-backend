@@ -90,10 +90,6 @@ export class ReportController extends BaseController {
     @Query('format') format: 'csv' | 'pdf' = 'csv',
     @Query() filters: GetAppraisalReportDto,
   ) {
-    console.log('Exporting appraisal report', {
-      format,
-      filters,
-    });
     const url =
       format === 'pdf'
         ? await this.pdf.exportAppraisalReportToPDF(user, filters)

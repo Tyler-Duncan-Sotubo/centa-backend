@@ -38,7 +38,7 @@ export class LeaveTypesService {
         name: row['Name'] || row['name'],
         isPaid:
           row['IsPaid'] !== undefined
-            ? row['IsPaid'] === 'true' || row['IsPaid'] === true
+            ? ['true', '1', 'yes'].includes(String(row['IsPaid']).toLowerCase())
             : undefined,
         colorTag: row['ColorTag'] || row['colorTag'],
       });

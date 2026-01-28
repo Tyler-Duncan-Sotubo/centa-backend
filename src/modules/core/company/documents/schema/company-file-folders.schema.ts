@@ -6,26 +6,38 @@ import {
   varchar,
   timestamp,
   boolean,
+  index,
 } from 'drizzle-orm/pg-core';
 import { companies } from '../../schema/company.schema';
 import { users } from 'src/drizzle/schema';
 
-export const companyFileFolders = pgTable('company_file_folders', {
-  id: uuid('id').defaultRandom().primaryKey(),
+export const companyFileFolders = pgTable(
+  'company_file_folders',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
 
-  companyId: uuid('company_id')
-    .notNull()
-    .references(() => companies.id, { onDelete: 'cascade' }),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, { onDelete: 'cascade' }),
 
-  name: varchar('name', { length: 255 }).notNull(),
+    parentId: uuid('parent_id').references(() => companyFileFolders.id, {
+      onDelete: 'cascade',
+    }),
 
-  permissionControlled: boolean('permission_controlled').default(false),
+    name: varchar('name', { length: 255 }).notNull(),
 
-  createdBy: uuid('created_by').references(() => users.id, {
-    onDelete: 'set null',
-  }),
+    permissionControlled: boolean('permission_controlled').default(false),
 
-  isSystem: boolean('is_system').default(false).notNull(),
+    createdBy: uuid('created_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
 
-  createdAt: timestamp('created_at').defaultNow(),
-});
+    isSystem: boolean('is_system').default(false).notNull(),
+
+    createdAt: timestamp('created_at').defaultNow(),
+  },
+  (t) => [
+    index('company_file_folders_company_id_idx').on(t.companyId),
+    index('company_file_folders_parent_id_idx').on(t.parentId),
+  ],
+);

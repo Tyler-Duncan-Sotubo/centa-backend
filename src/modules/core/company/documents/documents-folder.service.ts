@@ -6,7 +6,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { companyFileFolders } from './schema/company-file-folders.schema';
@@ -19,6 +19,17 @@ import { companyFileFolderRoles } from './schema/company-file-folder-roles.schem
 import { companyFileFolderDepartments } from './schema/company-file-folder-departments.schema';
 import { companyFileFolderOffices } from './schema/company-file-folder-offices.schema';
 
+type Folder = typeof companyFileFolders.$inferSelect;
+type File = typeof companyFiles.$inferSelect;
+
+type EnrichedFolder = Folder & {
+  files: File[];
+  roleIds: string[];
+  departmentIds: string[];
+  officeIds: string[];
+  children: EnrichedFolder[];
+};
+
 @Injectable()
 export class DocumentsFolderService {
   constructor(
@@ -26,28 +37,113 @@ export class DocumentsFolderService {
     private readonly audit: AuditService,
   ) {}
 
-  async create(createDto: CreateDocumentFoldersDto, user: User) {
-    const { id: userId, companyId } = user;
-    // 1. Check for duplicates in the same company
-    const existing = await this.db
+  private async getFolderOrThrow(id: string) {
+    const [folder] = await this.db
       .select()
+      .from(companyFileFolders)
+      .where(eq(companyFileFolders.id, id));
+
+    if (!folder) throw new NotFoundException('Folder not found');
+    return folder;
+  }
+
+  private async assertValidParentOrNull(
+    companyId: string,
+    folderId: string | null,
+    parentId: string | null,
+  ) {
+    if (!parentId) return;
+    if (parentId === folderId) {
+      throw new BadRequestException('Folder cannot be its own parent.');
+    }
+
+    const [parent] = await this.db
+      .select({ id: companyFileFolders.id })
+      .from(companyFileFolders)
+      .where(
+        and(
+          eq(companyFileFolders.id, parentId),
+          eq(companyFileFolders.companyId, companyId),
+        ),
+      )
+      .limit(1);
+
+    if (!parent) {
+      throw new BadRequestException('Invalid parent folder.');
+    }
+  }
+
+  private async assertNoCycle(
+    companyId: string,
+    folderId: string,
+    nextParentId: string | null,
+  ) {
+    // walk up parents from nextParentId; if we hit folderId => cycle
+    let current = nextParentId;
+    while (current) {
+      if (current === folderId) {
+        throw new BadRequestException(
+          'Cannot move folder into its own subtree.',
+        );
+      }
+      const [row] = await this.db
+        .select({ parentId: companyFileFolders.parentId })
+        .from(companyFileFolders)
+        .where(
+          and(
+            eq(companyFileFolders.id, current),
+            eq(companyFileFolders.companyId, companyId),
+          ),
+        );
+
+      if (!row) break;
+      current = row.parentId ?? null;
+    }
+  }
+
+  private async assertUniqueNameInParent(
+    companyId: string,
+    name: string,
+    parentId: string | null,
+    ignoreId?: string,
+  ) {
+    const dup = await this.db
+      .select({ id: companyFileFolders.id })
       .from(companyFileFolders)
       .where(
         and(
           eq(companyFileFolders.companyId, companyId),
-          eq(companyFileFolders.name, createDto.name),
+          eq(companyFileFolders.name, name),
+          parentId
+            ? eq(companyFileFolders.parentId, parentId)
+            : isNull(companyFileFolders.parentId),
         ),
       );
 
-    if (existing.length > 0) {
+    if (dup.some((d) => d.id !== ignoreId)) {
       throw new ConflictException('A folder with this name already exists.');
     }
+  }
+
+  async create(createDto: CreateDocumentFoldersDto, user: User) {
+    const { id: userId, companyId } = user;
+    const parentId = createDto.parentId;
+
+    if (parentId === undefined) {
+      throw new BadRequestException(
+        'ParentId must be provided, use null for root folders.',
+      );
+    }
+
+    await this.assertValidParentOrNull(companyId, null, parentId);
+    await this.assertUniqueNameInParent(companyId, createDto.name, parentId);
 
     const [newFolder] = await this.db
       .insert(companyFileFolders)
       .values({
         name: createDto.name,
         companyId,
+        parentId,
         createdBy: userId,
         permissionControlled: createDto.permissionControlled ?? false,
         isSystem: false,
@@ -57,7 +153,6 @@ export class DocumentsFolderService {
     const folderId = newFolder.id;
 
     if (createDto.permissionControlled) {
-      // Roles
       if (createDto.roleIds?.length) {
         await this.db.insert(companyFileFolderRoles).values(
           createDto.roleIds.map((roleId) => ({
@@ -67,7 +162,6 @@ export class DocumentsFolderService {
         );
       }
 
-      // Departments
       if (createDto.departmentIds?.length) {
         await this.db.insert(companyFileFolderDepartments).values(
           createDto.departmentIds.map((departmentId) => ({
@@ -77,7 +171,6 @@ export class DocumentsFolderService {
         );
       }
 
-      // Offices
       if (createDto.officeIds?.length) {
         await this.db.insert(companyFileFolderOffices).values(
           createDto.officeIds.map((officeId) => ({
@@ -97,6 +190,7 @@ export class DocumentsFolderService {
       changes: {
         name: newFolder.name,
         companyId: newFolder.companyId,
+        parentId: newFolder.parentId ?? null,
         permissionControlled: newFolder.permissionControlled,
       },
     });
@@ -105,17 +199,15 @@ export class DocumentsFolderService {
   }
 
   async findAll(companyId: string) {
-    // 1. Get all folders for the company
     const folders = await this.db
       .select()
       .from(companyFileFolders)
       .where(eq(companyFileFolders.companyId, companyId));
 
-    if (folders.length === 0) return [];
+    if (!folders.length) return [];
 
     const folderIds = folders.map((f) => f.id);
 
-    // 2. Get all files for these folders
     const files = await this.db
       .select()
       .from(companyFiles)
@@ -126,18 +218,13 @@ export class DocumentsFolderService {
         ),
       );
 
-    // 3. Group files by folderId
     const filesByFolder: Record<string, (typeof companyFiles.$inferSelect)[]> =
       {};
     for (const file of files) {
       const folderId = file.folderId!;
-      if (!filesByFolder[folderId]) {
-        filesByFolder[folderId] = [];
-      }
-      filesByFolder[folderId].push(file);
+      (filesByFolder[folderId] ??= []).push(file);
     }
 
-    // 4. Get associated roleIds
     const roles = await this.db
       .select()
       .from(companyFileFolderRoles)
@@ -145,11 +232,9 @@ export class DocumentsFolderService {
 
     const rolesByFolder: Record<string, string[]> = {};
     for (const { folderId, roleId } of roles) {
-      if (!rolesByFolder[folderId]) rolesByFolder[folderId] = [];
-      rolesByFolder[folderId].push(roleId);
+      (rolesByFolder[folderId] ??= []).push(roleId);
     }
 
-    // 5. Get associated departmentIds
     const departments = await this.db
       .select()
       .from(companyFileFolderDepartments)
@@ -157,11 +242,9 @@ export class DocumentsFolderService {
 
     const departmentsByFolder: Record<string, string[]> = {};
     for (const { folderId, departmentId } of departments) {
-      if (!departmentsByFolder[folderId]) departmentsByFolder[folderId] = [];
-      departmentsByFolder[folderId].push(departmentId);
+      (departmentsByFolder[folderId] ??= []).push(departmentId);
     }
 
-    // 6. Get associated officeIds
     const offices = await this.db
       .select()
       .from(companyFileFolderOffices)
@@ -169,63 +252,69 @@ export class DocumentsFolderService {
 
     const officesByFolder: Record<string, string[]> = {};
     for (const { folderId, officeId } of offices) {
-      if (!officesByFolder[folderId]) officesByFolder[folderId] = [];
-      officesByFolder[folderId].push(officeId);
+      (officesByFolder[folderId] ??= []).push(officeId);
     }
 
-    // 7. Merge all data into folders
-    return folders.map((folder) => ({
+    const enriched: EnrichedFolder[] = folders.map((folder) => ({
       ...folder,
       files: filesByFolder[folder.id] ?? [],
       roleIds: rolesByFolder[folder.id] ?? [],
       departmentIds: departmentsByFolder[folder.id] ?? [],
       officeIds: officesByFolder[folder.id] ?? [],
+      children: [] as any[],
     }));
+
+    const map = new Map<string, any>();
+    enriched.forEach((f) => map.set(f.id, f));
+
+    const roots: any[] = [];
+    enriched.forEach((f) => {
+      if (f.parentId) map.get(f.parentId)?.children.push(f);
+      else roots.push(f);
+    });
+
+    return roots;
   }
 
   async findOne(id: string) {
-    const [folder] = await this.db
-      .select()
-      .from(companyFileFolders)
-      .where(eq(companyFileFolders.id, id));
-
-    if (!folder) throw new NotFoundException('Folder not found');
-
-    return folder;
+    return this.getFolderOrThrow(id);
   }
 
   async update(id: string, dto: UpdateDocumentFoldersDto, user: User) {
     const userId = user.id;
-    const folder = await this.findOne(id);
+    const folder = await this.getFolderOrThrow(id);
 
     if (folder.isSystem) {
       throw new ForbiddenException('System folders cannot be updated.');
     }
 
-    // Optional: prevent renaming to a duplicate
-    if (dto.name && dto.name !== folder.name) {
-      const dup = await this.db
-        .select()
-        .from(companyFileFolders)
-        .where(
-          and(
-            eq(companyFileFolders.companyId, folder.companyId),
-            eq(companyFileFolders.name, dto.name),
-          ),
-        );
+    const nextParentId =
+      dto.parentId === undefined
+        ? (folder.parentId ?? null)
+        : (dto.parentId ?? null);
+    const nextName = dto.name ?? folder.name;
 
-      if (dup.length > 0) {
-        throw new ConflictException('A folder with this name already exists.');
-      }
-    }
+    await this.assertValidParentOrNull(folder.companyId, id, nextParentId);
+    await this.assertNoCycle(folder.companyId, id, nextParentId);
+    await this.assertUniqueNameInParent(
+      folder.companyId,
+      nextName,
+      nextParentId,
+      id,
+    );
 
     const [updated] = await this.db
       .update(companyFileFolders)
-      .set({ name: dto.name, permissionControlled: dto.permissionControlled })
+      .set({
+        name: dto.name,
+        parentId: dto.parentId,
+        permissionControlled: dto.permissionControlled,
+      })
       .where(eq(companyFileFolders.id, id))
       .returning();
 
-    // clear existing permissions
+    if (!updated) throw new NotFoundException('Folder not found');
+
     await Promise.all([
       this.db
         .delete(companyFileFolderRoles)
@@ -238,7 +327,6 @@ export class DocumentsFolderService {
         .where(eq(companyFileFolderOffices.folderId, id)),
     ]);
 
-    // re-insert updated values (same logic as in create)
     if (dto.permissionControlled) {
       if (dto.roleIds?.length) {
         await this.db
@@ -264,10 +352,6 @@ export class DocumentsFolderService {
       }
     }
 
-    if (!updated) {
-      throw new NotFoundException('Folder not found');
-    }
-
     await this.audit.logAction({
       action: 'update',
       entityId: updated.id,
@@ -276,6 +360,7 @@ export class DocumentsFolderService {
       details: 'Folder updated',
       changes: {
         name: updated.name,
+        parentId: updated.parentId ?? null,
         permissionControlled: updated.permissionControlled,
       },
     });
@@ -284,7 +369,7 @@ export class DocumentsFolderService {
   }
 
   async remove(id: string, userId: string) {
-    const folder = await this.findOne(id);
+    const folder = await this.getFolderOrThrow(id);
 
     if (folder.isSystem) {
       throw new ForbiddenException('System folders cannot be deleted.');
@@ -296,18 +381,28 @@ export class DocumentsFolderService {
       .where(eq(companyFiles.folderId, id))
       .limit(1);
 
-    if (filesInFolder.length > 0) {
+    if (filesInFolder.length) {
       throw new BadRequestException(
         'Cannot delete folder that contains files.',
       );
     }
 
-    // ✅ Safe to delete
+    const child = await this.db
+      .select({ id: companyFileFolders.id })
+      .from(companyFileFolders)
+      .where(eq(companyFileFolders.parentId, id))
+      .limit(1);
+
+    if (child.length) {
+      throw new BadRequestException(
+        'Cannot delete folder that contains subfolders.',
+      );
+    }
+
     await this.db
       .delete(companyFileFolders)
       .where(eq(companyFileFolders.id, id));
 
-    // clear existing permissions
     await Promise.all([
       this.db
         .delete(companyFileFolderRoles)

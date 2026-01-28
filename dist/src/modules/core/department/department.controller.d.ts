@@ -6,9 +6,11 @@ import { AssignHeadDto } from './dto/assign-head.dto';
 import { AssignCostCenterDto } from './dto/assign-cost-center.dto';
 import { AssignParentDto } from './dto/assign-parent.dto';
 import { BaseController } from 'src/common/interceptor/base.controller';
+import { DepartmentWriteService } from './department-write.service';
 export declare class DepartmentController extends BaseController {
     private readonly departmentService;
-    constructor(departmentService: DepartmentService);
+    private readonly departmentWriteService;
+    constructor(departmentService: DepartmentService, departmentWriteService: DepartmentWriteService);
     create(user: User, createDepartmentDto: CreateDepartmentDto): Promise<{
         id: any;
         name: any;

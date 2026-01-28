@@ -23,22 +23,16 @@ export class AttendanceSettingsService {
   async getAllAttendanceSettings(
     companyId: string,
   ): Promise<Record<string, any>> {
-    return this.cache.getOrSetVersioned<Record<string, any>>(
-      companyId,
-      ['attendance', 'all'],
-      async () => {
-        const settings =
-          await this.companySettingsService.getAllSettings(companyId);
-        const attendanceSettings: Record<string, any> = {};
-        for (const setting of settings) {
-          if (setting.key.startsWith('attendance.')) {
-            const strippedKey = setting.key.replace('attendance.', '');
-            attendanceSettings[strippedKey] = setting.value;
-          }
-        }
-        return attendanceSettings;
-      },
-    );
+    const settings =
+      await this.companySettingsService.getAllSettings(companyId);
+    const attendanceSettings: Record<string, any> = {};
+    for (const setting of settings) {
+      if (setting.key.startsWith('attendance.')) {
+        const strippedKey = setting.key.replace('attendance.', '');
+        attendanceSettings[strippedKey] = setting.value;
+      }
+    }
+    return attendanceSettings;
   }
 
   /**

@@ -19,13 +19,20 @@ const compensation_module_1 = require("./compensation/compensation.module");
 const groups_module_1 = require("./groups/groups.module");
 const permissions_service_1 = require("../../auth/permissions/permissions.service");
 const onboarding_service_1 = require("../../lifecycle/onboarding/onboarding.service");
+const employees_bulk_import_write_service_1 = require("./employees-bulk-import-write.service");
+const bullmq_1 = require("@nestjs/bullmq");
 let EmployeesModule = class EmployeesModule {
 };
 exports.EmployeesModule = EmployeesModule;
 exports.EmployeesModule = EmployeesModule = __decorate([
     (0, common_1.Module)({
         controllers: [employees_controller_1.EmployeesController],
-        providers: [employees_service_1.EmployeesService, permissions_service_1.PermissionsService, onboarding_service_1.OnboardingService],
+        providers: [
+            employees_service_1.EmployeesService,
+            permissions_service_1.PermissionsService,
+            onboarding_service_1.OnboardingService,
+            employees_bulk_import_write_service_1.EmployeesBulkImportWriteService,
+        ],
         imports: [
             profile_module_1.ProfileModule,
             dependents_module_1.DependentsModule,
@@ -34,6 +41,7 @@ exports.EmployeesModule = EmployeesModule = __decorate([
             finance_module_1.FinanceModule,
             compensation_module_1.CompensationModule,
             groups_module_1.GroupsModule,
+            bullmq_1.BullModule.registerQueue({ name: 'emailQueue' }),
         ],
         exports: [
             employees_service_1.EmployeesService,

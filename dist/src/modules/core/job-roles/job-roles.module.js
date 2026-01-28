@@ -10,14 +10,15 @@ exports.JobRolesModule = void 0;
 const common_1 = require("@nestjs/common");
 const job_roles_service_1 = require("./job-roles.service");
 const job_roles_controller_1 = require("./job-roles.controller");
+const job_roles_write_service_1 = require("./job-roles-write.service");
 let JobRolesModule = class JobRolesModule {
 };
 exports.JobRolesModule = JobRolesModule;
 exports.JobRolesModule = JobRolesModule = __decorate([
     (0, common_1.Module)({
         controllers: [job_roles_controller_1.JobRolesController],
-        providers: [job_roles_service_1.JobRolesService],
-        exports: [job_roles_service_1.JobRolesService],
+        providers: [job_roles_service_1.JobRolesService, job_roles_write_service_1.JobRolesWriteService],
+        exports: [job_roles_service_1.JobRolesService, job_roles_write_service_1.JobRolesWriteService],
     })
 ], JobRolesModule);
 //# sourceMappingURL=job-roles.module.js.map

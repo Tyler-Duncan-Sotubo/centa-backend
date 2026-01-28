@@ -12,7 +12,7 @@ export declare class EmployeeProfileDto {
     payGroupId: string;
     jobRoleId: string;
     companyRoleId: string;
-    costCenterId: string;
+    costCenterId?: string | null;
     employmentStatus: EmploymentStatus;
     employmentStartDate: string;
     employmentEndDate?: string;
