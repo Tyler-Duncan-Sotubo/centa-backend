@@ -97,21 +97,12 @@ let LeaveBalanceService = class LeaveBalanceService {
         }, { tags: this.tags(companyId) });
     }
     async findBalanceByLeaveType(companyId, employeeId, leaveTypeId, currentYear) {
-        return this.cache.getOrSetVersioned(companyId, [
-            'leave',
-            'balances',
-            'one',
-            employeeId,
-            leaveTypeId,
-            String(currentYear),
-        ], async () => {
-            const [balance] = await this.db
-                .select()
-                .from(this.table)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.companyId, companyId), (0, drizzle_orm_1.eq)(this.table.leaveTypeId, leaveTypeId), (0, drizzle_orm_1.eq)(this.table.year, Number(currentYear)), (0, drizzle_orm_1.eq)(this.table.employeeId, employeeId)))
-                .execute();
-            return balance ?? null;
-        }, { tags: this.tags(companyId) });
+        const [balance] = await this.db
+            .select()
+            .from(this.table)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(this.table.companyId, companyId), (0, drizzle_orm_1.eq)(this.table.leaveTypeId, leaveTypeId), (0, drizzle_orm_1.eq)(this.table.year, Number(currentYear)), (0, drizzle_orm_1.eq)(this.table.employeeId, employeeId)))
+            .execute();
+        return balance ?? null;
     }
     async update(balanceId, dto) {
         const [existing] = await this.db

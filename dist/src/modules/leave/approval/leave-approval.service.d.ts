@@ -7,6 +7,7 @@ import { LeaveSettingsService } from '../settings/leave-settings.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
 import { CacheService } from 'src/common/cache/cache.service';
 import { PushNotificationService } from 'src/modules/notification/services/push-notification.service';
+import { LeaveNotificationService } from 'src/modules/notification/services/leave-notification.service';
 export declare class LeaveApprovalService {
     private readonly db;
     private readonly auditService;
@@ -15,7 +16,8 @@ export declare class LeaveApprovalService {
     private readonly pusher;
     private readonly cache;
     private readonly push;
-    constructor(db: db, auditService: AuditService, leaveBalanceService: LeaveBalanceService, leaveSettingsService: LeaveSettingsService, pusher: PusherService, cache: CacheService, push: PushNotificationService);
+    private readonly leaveNotificationService;
+    constructor(db: db, auditService: AuditService, leaveBalanceService: LeaveBalanceService, leaveSettingsService: LeaveSettingsService, pusher: PusherService, cache: CacheService, push: PushNotificationService, leaveNotificationService: LeaveNotificationService);
     private tags;
     findOneById(leaveRequestId: string, companyId: string): Promise<{
         id: string;
@@ -80,4 +82,6 @@ export declare class LeaveApprovalService {
         createdAt: Date | null;
         updatedAt: Date | null;
     }[]>;
+    private getLeaveEmailContext;
+    private getEmployeeContactForApproval;
 }

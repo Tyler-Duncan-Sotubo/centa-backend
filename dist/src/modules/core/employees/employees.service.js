@@ -719,7 +719,9 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
     }
     async findEmployeeSummaryByUserId(employeeId) {
         const [row] = await this.db
-            .select({ companyId: schema_1.employees.companyId })
+            .select({
+            companyId: schema_1.employees.companyId,
+        })
             .from(schema_1.employees)
             .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId))
             .limit(1)
@@ -730,7 +732,9 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
             const [employee] = await this.db
                 .select({
                 id: schema_1.employees.id,
+                firstName: schema_1.employees.firstName,
                 confirmed: schema_1.employees.confirmed,
+                managerId: schema_1.employees.managerId,
                 gender: schema_1.employeeProfiles.gender,
                 level: schema_1.jobRoles.level,
                 country: schema_1.employeeProfiles.country,

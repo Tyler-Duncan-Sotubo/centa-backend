@@ -6,6 +6,20 @@ import { UpdateHolidayDto } from './dto/update-holiday.dto';
 export declare class HolidaysController extends BaseController {
     private readonly holidaysService;
     constructor(holidaysService: HolidaysService);
+    getYearPublicHolidays(dto: CreateHolidayDto[]): Promise<{
+        date: string;
+        id: string;
+        name: string;
+        country: string | null;
+        createdAt: Date | null;
+        updatedAt: Date | null;
+        companyId: string | null;
+        year: string;
+        type: string;
+        countryCode: string | null;
+        isWorkingDayOverride: boolean | null;
+        source: string | null;
+    }[]>;
     getCustomHolidays(user: User): Promise<{
         id: string;
         companyId: string | null;

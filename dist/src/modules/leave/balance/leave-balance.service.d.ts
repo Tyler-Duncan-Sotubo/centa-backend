@@ -191,10 +191,10 @@ export declare class LeaveBalanceService {
         updatedAt: Date | null;
         companyId: string;
         employeeId: string;
-        used: string;
-        year: number;
         leaveTypeId: string;
+        year: number;
         entitlement: string;
+        used: string;
         balance: string;
     }[]>;
     findAll(companyId: string): Promise<({

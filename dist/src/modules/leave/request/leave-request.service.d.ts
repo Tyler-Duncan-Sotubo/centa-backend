@@ -10,6 +10,7 @@ import { LeaveBalanceService } from '../balance/leave-balance.service';
 import { BlockedDaysService } from '../blocked-days/blocked-days.service';
 import { ReservedDaysService } from '../reserved-days/reserved-days.service';
 import { CacheService } from 'src/common/cache/cache.service';
+import { LeaveNotificationService } from 'src/modules/notification/services/leave-notification.service';
 export declare class LeaveRequestService {
     private readonly db;
     private readonly leavePolicyService;
@@ -21,24 +22,25 @@ export declare class LeaveRequestService {
     private readonly blockedDaysService;
     private readonly reservedDaysService;
     private readonly cache;
-    constructor(db: db, leavePolicyService: LeavePolicyService, leaveSettingsService: LeaveSettingsService, leaveBalanceService: LeaveBalanceService, employeesService: EmployeesService, auditService: AuditService, holidayService: HolidaysService, blockedDaysService: BlockedDaysService, reservedDaysService: ReservedDaysService, cache: CacheService);
+    private readonly leaveNotificationService;
+    constructor(db: db, leavePolicyService: LeavePolicyService, leaveSettingsService: LeaveSettingsService, leaveBalanceService: LeaveBalanceService, employeesService: EmployeesService, auditService: AuditService, holidayService: HolidaysService, blockedDaysService: BlockedDaysService, reservedDaysService: ReservedDaysService, cache: CacheService, leaveNotificationService: LeaveNotificationService);
     private tags;
     applyForLeave(dto: CreateLeaveRequestDto, user: User, ip: string): Promise<{
         status: string;
+        startDate: string;
+        endDate: string;
+        totalDays: string;
+        reason: string | null;
+        rejectionReason: string | null;
+        employeeId: string;
+        approverId: string | null;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        startDate: string;
-        employeeId: string;
-        endDate: string;
-        reason: string | null;
-        requestedAt: Date | null;
         leaveTypeId: string;
-        totalDays: string;
-        approverId: string | null;
         approvedAt: Date | null;
-        rejectionReason: string | null;
+        requestedAt: Date | null;
         approvalChain: unknown;
         currentApprovalIndex: number | null;
         approvalHistory: unknown;
@@ -112,4 +114,5 @@ export declare class LeaveRequestService {
         requestId: string;
         status: string;
     }>;
+    private getLeaveEmailContext;
 }

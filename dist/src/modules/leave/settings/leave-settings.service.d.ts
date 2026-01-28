@@ -1,9 +1,7 @@
-import { CacheService } from 'src/common/cache/cache.service';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 export declare class LeaveSettingsService {
     private readonly companySettingsService;
-    private readonly cache;
-    constructor(companySettingsService: CompanySettingsService, cache: CacheService);
+    constructor(companySettingsService: CompanySettingsService);
     private tags;
     getAllLeaveSettings(companyId: string): Promise<Record<string, any>>;
     getSettingOrDefault<T = any>(companyId: string, key: string, defaultValue: T): Promise<T>;

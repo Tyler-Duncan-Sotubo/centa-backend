@@ -7,20 +7,20 @@ export declare class LeaveRequestController extends BaseController {
     constructor(leaveRequest: LeaveRequestService);
     createLeaveRequest(dto: CreateLeaveRequestDto, user: User, ip: string): Promise<{
         status: string;
+        startDate: string;
+        endDate: string;
+        totalDays: string;
+        reason: string | null;
+        rejectionReason: string | null;
+        employeeId: string;
+        approverId: string | null;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        startDate: string;
-        employeeId: string;
-        endDate: string;
-        reason: string | null;
-        requestedAt: Date | null;
         leaveTypeId: string;
-        totalDays: string;
-        approverId: string | null;
         approvedAt: Date | null;
-        rejectionReason: string | null;
+        requestedAt: Date | null;
         approvalChain: unknown;
         currentApprovalIndex: number | null;
         approvalHistory: unknown;

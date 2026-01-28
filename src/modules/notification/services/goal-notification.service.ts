@@ -44,7 +44,7 @@ export class GoalNotificationService {
 
     const goalPage = `${this.config.get(
       'EMPLOYEE_PORTAL_URL',
-    )}/dashboard/performance/goals/${payload.meta?.goalId || ''}`;
+    )}/ess/performance/goals/${payload.meta?.goalId || ''}`;
 
     const msg = {
       to: payload.toEmail,
@@ -79,7 +79,7 @@ export class GoalNotificationService {
 
     const goalPage = `${this.config.get(
       'EMPLOYEE_PORTAL_URL',
-    )}/dashboard/performance/goals/${payload.meta?.goalId || ''}`;
+    )}/ess/performance/goals/${payload.meta?.goalId || ''}`;
 
     const msg = {
       to: payload.toEmail,
@@ -117,7 +117,7 @@ export class GoalNotificationService {
 
     const goalPage = `${this.config.get(
       'EMPLOYEE_PORTAL_URL',
-    )}/dashboard/performance/goals/${payload.meta?.goalId || ''}`;
+    )}/ess/performance/goals/${payload.meta?.goalId || ''}`;
 
     const msg = {
       to: payload.toEmail,

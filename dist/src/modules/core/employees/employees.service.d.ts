@@ -550,7 +550,9 @@ export declare class EmployeesService {
     }>;
     findEmployeeSummaryByUserId(employeeId: string): Promise<{
         id: any;
+        firstName: any;
         confirmed: any;
+        managerId: any;
         gender: string | null;
         level: string | null;
         country: string | null;
@@ -558,7 +560,9 @@ export declare class EmployeesService {
         userId: any;
     } | {
         id: any;
+        firstName: any;
         confirmed: any;
+        managerId: any;
         gender: string | null;
         level: string | null;
         country: string | null;
@@ -566,7 +570,9 @@ export declare class EmployeesService {
         userId: any;
     } | {
         id: any;
+        firstName: any;
         confirmed: any;
+        managerId: any;
         gender: string | null;
         level: string | null;
         country: string | null;
@@ -574,7 +580,9 @@ export declare class EmployeesService {
         userId: any;
     } | {
         id: any;
+        firstName: any;
         confirmed: any;
+        managerId: any;
         gender: string | null;
         level: string | null;
         country: string | null;

@@ -28,8 +28,9 @@ const leave_types_schema_1 = require("../schema/leave-types.schema");
 const blocked_days_service_1 = require("../blocked-days/blocked-days.service");
 const reserved_days_service_1 = require("../reserved-days/reserved-days.service");
 const cache_service_1 = require("../../../common/cache/cache.service");
+const leave_notification_service_1 = require("../../notification/services/leave-notification.service");
 let LeaveRequestService = class LeaveRequestService {
-    constructor(db, leavePolicyService, leaveSettingsService, leaveBalanceService, employeesService, auditService, holidayService, blockedDaysService, reservedDaysService, cache) {
+    constructor(db, leavePolicyService, leaveSettingsService, leaveBalanceService, employeesService, auditService, holidayService, blockedDaysService, reservedDaysService, cache, leaveNotificationService) {
         this.db = db;
         this.leavePolicyService = leavePolicyService;
         this.leaveSettingsService = leaveSettingsService;
@@ -40,6 +41,7 @@ let LeaveRequestService = class LeaveRequestService {
         this.blockedDaysService = blockedDaysService;
         this.reservedDaysService = reservedDaysService;
         this.cache = cache;
+        this.leaveNotificationService = leaveNotificationService;
     }
     tags(companyId) {
         return [
@@ -163,6 +165,21 @@ let LeaveRequestService = class LeaveRequestService {
             approvalChain,
         })
             .returning();
+        const ctx = await this.getLeaveEmailContext(employee.id, companyId, dto.leaveTypeId);
+        if (ctx.managerEmail) {
+            await this.leaveNotificationService.sendLeaveApprovalRequestEmail({
+                toEmail: ctx.managerEmail,
+                managerName: ctx.managerName,
+                employeeName: ctx.employeeName,
+                leaveType: ctx.leaveTypeName,
+                startDate: dto.startDate,
+                endDate: dto.endDate,
+                totalDays: effectiveLeaveDays.toString(),
+                reason: dto.reason,
+                companyName: ctx.companyName,
+                leaveRequestId: leaveRequest.id,
+            });
+        }
         await this.auditService.logAction({
             action: 'create',
             entity: 'leave_request',
@@ -313,6 +330,61 @@ let LeaveRequestService = class LeaveRequestService {
             return row;
         }, { tags: this.tags(companyId) });
     }
+    async getLeaveEmailContext(employeeId, companyId, leaveTypeId) {
+        const [employee] = await this.db
+            .select({
+            id: schema_1.employees.id,
+            firstName: schema_1.employees.firstName,
+            email: schema_1.employees.email,
+            managerId: schema_1.employees.managerId,
+        })
+            .from(schema_1.employees)
+            .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId))
+            .execute();
+        if (!employee) {
+            throw new common_1.NotFoundException('Employee not found');
+        }
+        let managerName = 'Manager';
+        let managerEmail = null;
+        if (employee.managerId) {
+            const [manager] = await this.db
+                .select({
+                firstName: schema_1.employees.firstName,
+                email: schema_1.employees.email,
+            })
+                .from(schema_1.employees)
+                .where((0, drizzle_orm_1.eq)(schema_1.employees.id, employee.managerId))
+                .execute();
+            if (manager) {
+                managerName = manager.firstName || managerName;
+                managerEmail = manager.email || null;
+            }
+        }
+        const [companyRow] = await this.db
+            .select({ name: schema_1.companies.name })
+            .from(schema_1.companies)
+            .where((0, drizzle_orm_1.eq)(schema_1.companies.id, companyId))
+            .execute();
+        const companyName = companyRow?.name ?? 'CentaHR';
+        const [leaveType] = await this.db
+            .select({
+            name: leave_types_schema_1.leaveTypes.name,
+        })
+            .from(leave_types_schema_1.leaveTypes)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(leave_types_schema_1.leaveTypes.id, leaveTypeId), (0, drizzle_orm_1.eq)(leave_types_schema_1.leaveTypes.companyId, companyId)))
+            .execute();
+        const leaveTypeName = leaveType?.name ?? 'Leave';
+        return {
+            employeeId: employee.id,
+            employeeName: employee.firstName,
+            employeeEmail: employee.email,
+            managerId: employee.managerId ?? null,
+            managerName,
+            managerEmail,
+            companyName,
+            leaveTypeName,
+        };
+    }
 };
 exports.LeaveRequestService = LeaveRequestService;
 exports.LeaveRequestService = LeaveRequestService = __decorate([
@@ -326,6 +398,7 @@ exports.LeaveRequestService = LeaveRequestService = __decorate([
         holidays_service_1.HolidaysService,
         blocked_days_service_1.BlockedDaysService,
         reserved_days_service_1.ReservedDaysService,
-        cache_service_1.CacheService])
+        cache_service_1.CacheService,
+        leave_notification_service_1.LeaveNotificationService])
 ], LeaveRequestService);
 //# sourceMappingURL=leave-request.service.js.map

@@ -17,11 +17,17 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { HolidaysService } from 'src/modules/leave/holidays/holidays.service';
 import { and, eq, sql } from 'drizzle-orm';
 import { LeaveBalanceService } from '../balance/leave-balance.service';
-import { departments, employees, jobRoles } from 'src/drizzle/schema';
+import {
+  companies,
+  departments,
+  employees,
+  jobRoles,
+} from 'src/drizzle/schema';
 import { leaveTypes } from '../schema/leave-types.schema';
 import { BlockedDaysService } from '../blocked-days/blocked-days.service';
 import { ReservedDaysService } from '../reserved-days/reserved-days.service';
 import { CacheService } from 'src/common/cache/cache.service';
+import { LeaveNotificationService } from 'src/modules/notification/services/leave-notification.service';
 
 @Injectable()
 export class LeaveRequestService {
@@ -36,6 +42,7 @@ export class LeaveRequestService {
     private readonly blockedDaysService: BlockedDaysService,
     private readonly reservedDaysService: ReservedDaysService,
     private readonly cache: CacheService,
+    private readonly leaveNotificationService: LeaveNotificationService,
   ) {}
 
   /** Common cache tags for this domain */
@@ -300,7 +307,26 @@ export class LeaveRequestService {
       })
       .returning();
 
-    // 13. Notifications (optional)
+    const ctx = await this.getLeaveEmailContext(
+      employee.id,
+      companyId,
+      dto.leaveTypeId,
+    );
+
+    if (ctx.managerEmail) {
+      await this.leaveNotificationService.sendLeaveApprovalRequestEmail({
+        toEmail: ctx.managerEmail,
+        managerName: ctx.managerName,
+        employeeName: ctx.employeeName,
+        leaveType: ctx.leaveTypeName,
+        startDate: dto.startDate,
+        endDate: dto.endDate,
+        totalDays: effectiveLeaveDays.toString(),
+        reason: dto.reason,
+        companyName: ctx.companyName,
+        leaveRequestId: leaveRequest.id,
+      });
+    }
 
     // 14. Audit
     await this.auditService.logAction({
@@ -524,5 +550,87 @@ export class LeaveRequestService {
       },
       { tags: this.tags(companyId) },
     );
+  }
+
+  // Put this inside your LeaveApprovalService class
+
+  private async getLeaveEmailContext(
+    employeeId: string,
+    companyId: string,
+    leaveTypeId: string,
+  ) {
+    // 1) Employee
+    const [employee] = await this.db
+      .select({
+        id: employees.id,
+        firstName: employees.firstName,
+        email: employees.email,
+        managerId: employees.managerId,
+      })
+      .from(employees)
+      .where(eq(employees.id, employeeId))
+      .execute();
+
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    // 2) Manager (also an employee)
+    let managerName = 'Manager';
+    let managerEmail: string | null = null;
+
+    if (employee.managerId) {
+      const [manager] = await this.db
+        .select({
+          firstName: employees.firstName,
+          email: employees.email,
+        })
+        .from(employees)
+        .where(eq(employees.id, employee.managerId))
+        .execute();
+
+      if (manager) {
+        managerName = manager.firstName || managerName;
+        managerEmail = manager.email || null;
+      }
+    }
+
+    // 3) Company
+    const [companyRow] = await this.db
+      .select({ name: companies.name })
+      .from(companies)
+      .where(eq(companies.id, companyId))
+      .execute();
+
+    const companyName = companyRow?.name ?? 'CentaHR';
+
+    // 4) Leave Type
+    const [leaveType] = await this.db
+      .select({
+        name: leaveTypes.name,
+      })
+      .from(leaveTypes)
+      .where(
+        and(
+          eq(leaveTypes.id, leaveTypeId),
+          eq(leaveTypes.companyId, companyId),
+        ),
+      )
+      .execute();
+
+    const leaveTypeName = leaveType?.name ?? 'Leave';
+
+    return {
+      employeeId: employee.id,
+      employeeName: employee.firstName,
+      employeeEmail: employee.email,
+
+      managerId: employee.managerId ?? null,
+      managerName,
+      managerEmail,
+
+      companyName,
+      leaveTypeName,
+    };
   }
 }

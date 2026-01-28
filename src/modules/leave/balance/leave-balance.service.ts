@@ -133,34 +133,20 @@ export class LeaveBalanceService {
     leaveTypeId: string,
     currentYear: number,
   ) {
-    return this.cache.getOrSetVersioned(
-      companyId,
-      [
-        'leave',
-        'balances',
-        'one',
-        employeeId,
-        leaveTypeId,
-        String(currentYear),
-      ],
-      async () => {
-        const [balance] = await this.db
-          .select()
-          .from(this.table)
-          .where(
-            and(
-              eq(this.table.companyId, companyId),
-              eq(this.table.leaveTypeId, leaveTypeId),
-              eq(this.table.year, Number(currentYear)),
-              eq(this.table.employeeId, employeeId),
-            ),
-          )
-          .execute();
+    const [balance] = await this.db
+      .select()
+      .from(this.table)
+      .where(
+        and(
+          eq(this.table.companyId, companyId),
+          eq(this.table.leaveTypeId, leaveTypeId),
+          eq(this.table.year, Number(currentYear)),
+          eq(this.table.employeeId, employeeId),
+        ),
+      )
+      .execute();
 
-        return balance ?? null;
-      },
-      { tags: this.tags(companyId) },
-    );
+    return balance ?? null;
   }
 
   async update(balanceId: string, dto: UpdateLeaveBalanceDto) {

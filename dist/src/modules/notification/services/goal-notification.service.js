@@ -20,7 +20,7 @@ let GoalNotificationService = class GoalNotificationService {
     async sendGoalCheckin(payload) {
         sgMail.setApiKey(this.config.get('SEND_GRID_KEY') || '');
         const templateId = this.config.get('GOAL_CHECKIN_TEMPLATE_ID') || '';
-        const goalPage = `${this.config.get('EMPLOYEE_PORTAL_URL')}/dashboard/performance/goals/${payload.meta?.goalId || ''}`;
+        const goalPage = `${this.config.get('EMPLOYEE_PORTAL_URL')}/ess/performance/goals/${payload.meta?.goalId || ''}`;
         const msg = {
             to: payload.toEmail,
             from: {
@@ -48,7 +48,7 @@ let GoalNotificationService = class GoalNotificationService {
     async sendGoalAssignment(payload) {
         sgMail.setApiKey(this.config.get('SEND_GRID_KEY') || '');
         const templateId = this.config.get('GOAL_ASSIGNMENT_TEMPLATE_ID');
-        const goalPage = `${this.config.get('EMPLOYEE_PORTAL_URL')}/dashboard/performance/goals/${payload.meta?.goalId || ''}`;
+        const goalPage = `${this.config.get('EMPLOYEE_PORTAL_URL')}/ess/performance/goals/${payload.meta?.goalId || ''}`;
         const msg = {
             to: payload.toEmail,
             from: {
@@ -80,7 +80,7 @@ let GoalNotificationService = class GoalNotificationService {
     async sendGoalUpdates(payload) {
         sgMail.setApiKey(this.config.get('SEND_GRID_KEY') || '');
         const templateId = this.config.get('GOAL_UPDATE_TEMPLATE_ID');
-        const goalPage = `${this.config.get('EMPLOYEE_PORTAL_URL')}/dashboard/performance/goals/${payload.meta?.goalId || ''}`;
+        const goalPage = `${this.config.get('EMPLOYEE_PORTAL_URL')}/ess/performance/goals/${payload.meta?.goalId || ''}`;
         const msg = {
             to: payload.toEmail,
             from: {

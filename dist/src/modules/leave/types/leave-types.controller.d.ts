@@ -9,11 +9,11 @@ export declare class LeaveTypesController extends BaseController {
     create(dto: CreateLeaveTypeDto, user: User, ip: string): Promise<{
         id: string;
         name: string;
-        isPaid: boolean | null;
-        colorTag: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
+        isPaid: boolean | null;
+        colorTag: string | null;
     }>;
     bulkCreateLeaveTypes(rows: any[], user: User): Promise<{
         id: string;

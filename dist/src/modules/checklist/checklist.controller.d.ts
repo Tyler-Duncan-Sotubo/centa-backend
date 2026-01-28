@@ -49,7 +49,7 @@ export declare class ChecklistController extends BaseController {
     }>;
     leaveChecklist(user: User): Promise<{
         tasks: Record<string, import("./constants/constants").TaskStatus>;
-        required: ("holidays" | "blocked_days" | "leave_settings" | "leave_types_policies" | "reserved_days")[];
+        required: ("leave_settings" | "leave_types_policies" | "holidays" | "blocked_days" | "reserved_days")[];
         completed: boolean;
         disabledWhenComplete: boolean;
     }>;

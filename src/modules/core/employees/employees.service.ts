@@ -1037,7 +1037,9 @@ export class EmployeesService {
 
   async findEmployeeSummaryByUserId(employeeId: string) {
     const [row] = await this.db
-      .select({ companyId: employees.companyId })
+      .select({
+        companyId: employees.companyId,
+      })
       .from(employees)
       .where(eq(employees.id, employeeId))
       .limit(1)
@@ -1051,7 +1053,9 @@ export class EmployeesService {
         const [employee] = await this.db
           .select({
             id: employees.id,
+            firstName: employees.firstName,
             confirmed: employees.confirmed,
+            managerId: employees.managerId,
             gender: employeeProfiles.gender,
             level: jobRoles.level,
             country: employeeProfiles.country,

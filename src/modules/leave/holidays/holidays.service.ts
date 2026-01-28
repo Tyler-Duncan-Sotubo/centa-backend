@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { db } from 'src/drizzle/types/drizzle';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import axios from 'axios';
-import { and, eq, gte, isNull, lte, or, asc } from 'drizzle-orm';
+import { and, eq, gte, isNull, lte, or, asc, inArray } from 'drizzle-orm';
 import { CreateHolidayDto } from './dto/create-holiday.dto';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { User } from 'src/common/types/user.type';
@@ -204,8 +204,100 @@ export class HolidaysService {
     return inserted;
   }
 
-  async createHoliday(dto: CreateHolidayDto, user: User) {
+  async createHolidaysBulk(dtos: CreateHolidayDto[], user?: User) {
+    if (!dtos?.length) return [];
+
+    const companyId = user?.companyId;
+    const source = user ? 'manual' : 'system_default';
+
+    // Build a stable "key" so we can de-dupe input and compare with existing rows
+    const makeKey = (d: CreateHolidayDto) =>
+      `${d.name}__${d.date}__${d.year}__${d.type}__${companyId ?? 'null'}`;
+
+    // 1) De-dupe input (avoid inserting duplicates within the same request)
+    const uniqueMap = new Map<string, CreateHolidayDto>();
+    for (const dto of dtos) uniqueMap.set(makeKey(dto), dto);
+    const uniqueDtos = [...uniqueMap.values()];
+
+    // 2) Fetch existing rows that could conflict
+    // We can’t match on 4 fields easily with a single IN, so we fetch candidates and filter in-memory.
+    const names = [...new Set(uniqueDtos.map((d) => d.name))];
+    const years = [...new Set(uniqueDtos.map((d) => d.year))];
+
+    const candidates = await this.db
+      .select({
+        id: holidays.id,
+        name: holidays.name,
+        date: holidays.date,
+        year: holidays.year,
+        type: holidays.type,
+        companyId: holidays.companyId,
+      })
+      .from(holidays)
+      .where(
+        and(
+          inArray(holidays.name, names),
+          inArray(holidays.year, years),
+          companyId ? eq(holidays.companyId, companyId) : undefined,
+        ),
+      )
+      .execute();
+
+    const existingKeys = new Set(
+      candidates.map(
+        (r) =>
+          `${r.name}__${r.date}__${r.year}__${r.type}__${companyId ?? 'null'}`,
+      ),
+    );
+
+    const toInsert = uniqueDtos.filter((d) => !existingKeys.has(makeKey(d)));
+
+    // If you want strict behavior (fail if any already exist), uncomment this:
+    // if (toInsert.length !== uniqueDtos.length) throw new Error('One or more holidays already exist');
+
+    if (!toInsert.length) return [];
+
+    // 3) Insert
+    const inserted = await this.db
+      .insert(holidays)
+      .values(
+        toInsert.map((dto) => ({
+          ...dto,
+          companyId,
+          isWorkingDayOverride: true,
+          source,
+        })),
+      )
+      .returning()
+      .execute();
+
+    // 4) Audit + cache bump
+    if (user) {
+      await this.auditService.logAction({
+        action: 'create_bulk',
+        entity: 'holiday',
+        entityId: null as any, // or omit if your audit schema allows
+        userId: user.id,
+        details: `Created ${inserted.length} holidays`,
+        changes: {
+          count: inserted.length,
+          holidayIds: inserted.map((h) => h.id),
+          source,
+          companyId,
+        },
+      });
+
+      await this.cache.bumpCompanyVersion(user.companyId);
+    }
+
+    return inserted;
+  }
+
+  async createHoliday(dto: CreateHolidayDto, user?: User) {
     const { name, date, year, type } = dto;
+
+    const companyId = user?.companyId;
+    const source = user ? 'manual' : 'system_default';
 
     const existing = await this.db
       .select()
@@ -216,7 +308,7 @@ export class HolidaysService {
           eq(holidays.date, date),
           eq(holidays.year, year),
           eq(holidays.type, type),
-          eq(holidays.companyId, user.companyId),
+          companyId ? eq(holidays.companyId, companyId) : undefined,
         ),
       )
       .execute();
@@ -229,31 +321,34 @@ export class HolidaysService {
       .insert(holidays)
       .values({
         ...dto,
-        companyId: user.companyId,
+        companyId,
         isWorkingDayOverride: true,
-        source: 'manual',
+        source,
       })
       .returning()
       .execute();
 
-    await this.auditService.logAction({
-      action: 'create',
-      entity: 'holiday',
-      entityId: holiday.id,
-      userId: user.id,
-      details: 'Created new holiday',
-      changes: {
-        name: holiday.name,
-        date: holiday.date,
-        year: holiday.year,
-        type: holiday.type,
-        companyId: holiday.companyId,
-        isWorkingDayOverride: holiday.isWorkingDayOverride,
-        source: holiday.source,
-      },
-    });
+    if (user) {
+      await this.auditService.logAction({
+        action: 'create',
+        entity: 'holiday',
+        entityId: holiday.id,
+        userId: user.id,
+        details: 'Created new holiday',
+        changes: {
+          name: holiday.name,
+          date: holiday.date,
+          year: holiday.year,
+          type: holiday.type,
+          companyId: holiday.companyId,
+          isWorkingDayOverride: holiday.isWorkingDayOverride,
+          source: holiday.source,
+        },
+      });
 
-    await this.cache.bumpCompanyVersion(user.companyId);
+      await this.cache.bumpCompanyVersion(user.companyId);
+    }
+
     return holiday;
   }
 

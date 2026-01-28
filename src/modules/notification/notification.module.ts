@@ -13,6 +13,7 @@ import { ContactEmailService } from './services/contact-email.service';
 import { NewsletterEmailService } from './services/newsletter-email.service';
 import { AnnouncementNotificationService } from './services/announcement-notification.service';
 import { EmailQueueProcessor } from './services/email-queue.processor';
+import { LeaveNotificationService } from './services/leave-notification.service';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { EmailQueueProcessor } from './services/email-queue.processor';
     ContactEmailService,
     NewsletterEmailService,
     AnnouncementNotificationService,
+    LeaveNotificationService,
   ],
   exports: [
     PasswordResetEmailService,
@@ -44,6 +46,7 @@ import { EmailQueueProcessor } from './services/email-queue.processor';
     PayrollApprovalEmailService,
     GoalNotificationService,
     PushNotificationService,
+    LeaveNotificationService,
   ],
 })
 export class NotificationModule {}

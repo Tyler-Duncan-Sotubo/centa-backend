@@ -159,12 +159,70 @@ let HolidaysService = class HolidaysService {
         await this.cache.bumpCompanyVersion(companyId);
         return inserted;
     }
+    async createHolidaysBulk(dtos, user) {
+        if (!dtos?.length)
+            return [];
+        const companyId = user?.companyId;
+        const source = user ? 'manual' : 'system_default';
+        const makeKey = (d) => `${d.name}__${d.date}__${d.year}__${d.type}__${companyId ?? 'null'}`;
+        const uniqueMap = new Map();
+        for (const dto of dtos)
+            uniqueMap.set(makeKey(dto), dto);
+        const uniqueDtos = [...uniqueMap.values()];
+        const names = [...new Set(uniqueDtos.map((d) => d.name))];
+        const years = [...new Set(uniqueDtos.map((d) => d.year))];
+        const candidates = await this.db
+            .select({
+            id: holidays_schema_1.holidays.id,
+            name: holidays_schema_1.holidays.name,
+            date: holidays_schema_1.holidays.date,
+            year: holidays_schema_1.holidays.year,
+            type: holidays_schema_1.holidays.type,
+            companyId: holidays_schema_1.holidays.companyId,
+        })
+            .from(holidays_schema_1.holidays)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.inArray)(holidays_schema_1.holidays.name, names), (0, drizzle_orm_1.inArray)(holidays_schema_1.holidays.year, years), companyId ? (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.companyId, companyId) : undefined))
+            .execute();
+        const existingKeys = new Set(candidates.map((r) => `${r.name}__${r.date}__${r.year}__${r.type}__${companyId ?? 'null'}`));
+        const toInsert = uniqueDtos.filter((d) => !existingKeys.has(makeKey(d)));
+        if (!toInsert.length)
+            return [];
+        const inserted = await this.db
+            .insert(holidays_schema_1.holidays)
+            .values(toInsert.map((dto) => ({
+            ...dto,
+            companyId,
+            isWorkingDayOverride: true,
+            source,
+        })))
+            .returning()
+            .execute();
+        if (user) {
+            await this.auditService.logAction({
+                action: 'create_bulk',
+                entity: 'holiday',
+                entityId: null,
+                userId: user.id,
+                details: `Created ${inserted.length} holidays`,
+                changes: {
+                    count: inserted.length,
+                    holidayIds: inserted.map((h) => h.id),
+                    source,
+                    companyId,
+                },
+            });
+            await this.cache.bumpCompanyVersion(user.companyId);
+        }
+        return inserted;
+    }
     async createHoliday(dto, user) {
         const { name, date, year, type } = dto;
+        const companyId = user?.companyId;
+        const source = user ? 'manual' : 'system_default';
         const existing = await this.db
             .select()
             .from(holidays_schema_1.holidays)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.name, name), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.date, date), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.year, year), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.type, type), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.companyId, user.companyId)))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(holidays_schema_1.holidays.name, name), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.date, date), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.year, year), (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.type, type), companyId ? (0, drizzle_orm_1.eq)(holidays_schema_1.holidays.companyId, companyId) : undefined))
             .execute();
         if (existing.length > 0) {
             throw new Error('Holiday already exists');
@@ -173,29 +231,31 @@ let HolidaysService = class HolidaysService {
             .insert(holidays_schema_1.holidays)
             .values({
             ...dto,
-            companyId: user.companyId,
+            companyId,
             isWorkingDayOverride: true,
-            source: 'manual',
+            source,
         })
             .returning()
             .execute();
-        await this.auditService.logAction({
-            action: 'create',
-            entity: 'holiday',
-            entityId: holiday.id,
-            userId: user.id,
-            details: 'Created new holiday',
-            changes: {
-                name: holiday.name,
-                date: holiday.date,
-                year: holiday.year,
-                type: holiday.type,
-                companyId: holiday.companyId,
-                isWorkingDayOverride: holiday.isWorkingDayOverride,
-                source: holiday.source,
-            },
-        });
-        await this.cache.bumpCompanyVersion(user.companyId);
+        if (user) {
+            await this.auditService.logAction({
+                action: 'create',
+                entity: 'holiday',
+                entityId: holiday.id,
+                userId: user.id,
+                details: 'Created new holiday',
+                changes: {
+                    name: holiday.name,
+                    date: holiday.date,
+                    year: holiday.year,
+                    type: holiday.type,
+                    companyId: holiday.companyId,
+                    isWorkingDayOverride: holiday.isWorkingDayOverride,
+                    source: holiday.source,
+                },
+            });
+            await this.cache.bumpCompanyVersion(user.companyId);
+        }
         return holiday;
     }
     async update(id, dto, user) {
