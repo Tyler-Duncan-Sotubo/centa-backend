@@ -167,7 +167,6 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 employmentStatus: dto.employmentStatus,
                 departmentId: dto.departmentId,
                 jobRoleId: dto.jobRoleId,
-                costCenterId: dto.costCenterId,
                 locationId: dto.locationId,
                 payGroupId: dto.payGroupId,
                 employmentStartDate: dto.employmentStartDate,

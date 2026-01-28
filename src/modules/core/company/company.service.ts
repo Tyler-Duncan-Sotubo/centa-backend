@@ -509,43 +509,34 @@ export class CompanyService {
   }
 
   async getCompanyElements(companyId: string) {
-    return this.cache.getOrSetVersioned(
-      companyId,
-      ['company', 'elements'],
-      async () => {
-        // child services should themselves bump company version on writes
-        const [
-          departmentsRes,
-          payGroups,
-          locations,
-          jobRolesRes,
-          costCenters,
-          roles,
-          templates,
-        ] = await Promise.all([
-          this.departmentService.findAll(companyId),
-          this.payGroupService.findAll(companyId),
-          this.locationService.findAll(companyId),
-          this.jobRoleService.findAll(companyId),
-          this.costCenterService.findAll(companyId),
-          this.permissionsService.getRolesByCompany(companyId),
-          this.onboardingSeederService.getTemplatesByCompanySummaries(
-            companyId,
-          ),
-        ]);
+    // child services should themselves bump company version on writes
+    const [
+      departmentsRes,
+      payGroups,
+      locations,
+      jobRolesRes,
+      costCenters,
+      roles,
+      templates,
+    ] = await Promise.all([
+      this.departmentService.findAll(companyId),
+      this.payGroupService.findAll(companyId),
+      this.locationService.findAll(companyId),
+      this.jobRoleService.findAll(companyId),
+      this.costCenterService.findAll(companyId),
+      this.permissionsService.getRolesByCompany(companyId),
+      this.onboardingSeederService.getTemplatesByCompanySummaries(companyId),
+    ]);
 
-        return {
-          departments: departmentsRes,
-          payGroups,
-          locations,
-          jobRoles: jobRolesRes,
-          costCenters,
-          roles,
-          templates,
-        };
-      },
-      { ttlSeconds: this.ttlElements, tags: this.tags(companyId) },
-    );
+    return {
+      departments: departmentsRes,
+      payGroups,
+      locations,
+      jobRoles: jobRolesRes,
+      costCenters,
+      roles,
+      templates,
+    };
   }
 
   // ---- Global (non-company-scoped) -------------------------------------

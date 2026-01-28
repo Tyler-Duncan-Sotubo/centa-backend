@@ -33,8 +33,8 @@ export declare class EmployeesBulkImportWriteService {
         }[];
         created: {
             createdEmps: {
-                id: any;
-                email: any;
+                id: string;
+                email: string;
             }[];
             createdUsers: {
                 id: string;

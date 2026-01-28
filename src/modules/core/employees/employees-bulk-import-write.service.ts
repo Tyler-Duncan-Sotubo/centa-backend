@@ -351,9 +351,27 @@ export class EmployeesBulkImportWriteService {
         });
 
         const finDto = plainToInstance(CreateFinanceDto, {});
+
+        // ✅ NEW: parse gross salary from CSV (ONLY change)
+        const grossSalaryRaw = this.asString(row['Gross Salary']);
+        if (!grossSalaryRaw)
+          throw new BadRequestException('Gross Salary is required');
+
+        // allow values like "5,000,000" or "₦5,000,000"
+        const grossSalaryCleaned = grossSalaryRaw.replace(/[^0-9.-]/g, '');
+        const grossSalary = Number(grossSalaryCleaned);
+        if (!Number.isFinite(grossSalary)) {
+          throw new BadRequestException(
+            `Invalid Gross Salary "${grossSalaryRaw}"`,
+          );
+        }
+        if (grossSalary < 0) {
+          throw new BadRequestException('Gross Salary cannot be negative');
+        }
+
         const compDto = plainToInstance(CreateCompensationDto, {
           effectiveDate: employmentStartDate.toISOString(),
-          grossSalary: 0,
+          grossSalary,
           currency: 'NGN',
           payFrequency: 'Monthly',
         });

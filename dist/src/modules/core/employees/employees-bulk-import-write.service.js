@@ -224,9 +224,20 @@ let EmployeesBulkImportWriteService = EmployeesBulkImportWriteService_1 = class 
                     employmentStartDate: employmentStartDate.toISOString(),
                 });
                 const finDto = (0, class_transformer_1.plainToInstance)(create_finance_dto_1.CreateFinanceDto, {});
+                const grossSalaryRaw = this.asString(row['Gross Salary']);
+                if (!grossSalaryRaw)
+                    throw new common_1.BadRequestException('Gross Salary is required');
+                const grossSalaryCleaned = grossSalaryRaw.replace(/[^0-9.-]/g, '');
+                const grossSalary = Number(grossSalaryCleaned);
+                if (!Number.isFinite(grossSalary)) {
+                    throw new common_1.BadRequestException(`Invalid Gross Salary "${grossSalaryRaw}"`);
+                }
+                if (grossSalary < 0) {
+                    throw new common_1.BadRequestException('Gross Salary cannot be negative');
+                }
                 const compDto = (0, class_transformer_1.plainToInstance)(create_compensation_dto_1.CreateCompensationDto, {
                     effectiveDate: employmentStartDate.toISOString(),
-                    grossSalary: 0,
+                    grossSalary,
                     currency: 'NGN',
                     payFrequency: 'Monthly',
                 });

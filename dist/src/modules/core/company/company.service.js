@@ -355,26 +355,24 @@ let CompanyService = class CompanyService {
         }, { ttlSeconds: this.ttlSummary, tags: this.tags(companyId) });
     }
     async getCompanyElements(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['company', 'elements'], async () => {
-            const [departmentsRes, payGroups, locations, jobRolesRes, costCenters, roles, templates,] = await Promise.all([
-                this.departmentService.findAll(companyId),
-                this.payGroupService.findAll(companyId),
-                this.locationService.findAll(companyId),
-                this.jobRoleService.findAll(companyId),
-                this.costCenterService.findAll(companyId),
-                this.permissionsService.getRolesByCompany(companyId),
-                this.onboardingSeederService.getTemplatesByCompanySummaries(companyId),
-            ]);
-            return {
-                departments: departmentsRes,
-                payGroups,
-                locations,
-                jobRoles: jobRolesRes,
-                costCenters,
-                roles,
-                templates,
-            };
-        }, { ttlSeconds: this.ttlElements, tags: this.tags(companyId) });
+        const [departmentsRes, payGroups, locations, jobRolesRes, costCenters, roles, templates,] = await Promise.all([
+            this.departmentService.findAll(companyId),
+            this.payGroupService.findAll(companyId),
+            this.locationService.findAll(companyId),
+            this.jobRoleService.findAll(companyId),
+            this.costCenterService.findAll(companyId),
+            this.permissionsService.getRolesByCompany(companyId),
+            this.onboardingSeederService.getTemplatesByCompanySummaries(companyId),
+        ]);
+        return {
+            departments: departmentsRes,
+            payGroups,
+            locations,
+            jobRoles: jobRolesRes,
+            costCenters,
+            roles,
+            templates,
+        };
     }
     async getAllCompanies() {
         return this.cache.getOrSetCache('global:companies:all', async () => this.db.select().from(schema_1.companies).execute(), { ttlSeconds: this.ttlAllCompanies });
