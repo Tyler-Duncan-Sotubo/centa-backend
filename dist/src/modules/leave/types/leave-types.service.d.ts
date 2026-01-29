@@ -19,11 +19,11 @@ export declare class LeaveTypesService {
     create(dto: CreateLeaveTypeDto, user: User, ip: string): Promise<{
         id: string;
         name: string;
-        isPaid: boolean | null;
-        colorTag: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
+        isPaid: boolean | null;
+        colorTag: string | null;
     }>;
     findAll(companyId: string): Promise<{
         id: string;

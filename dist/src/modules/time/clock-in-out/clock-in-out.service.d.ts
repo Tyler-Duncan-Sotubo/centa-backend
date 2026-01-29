@@ -56,8 +56,8 @@ export declare class ClockInOutService {
             averageCheckInTime: Date | null;
         };
         summaryList: {
-            employeeId: string;
-            employeeNumber: string;
+            employeeId: any;
+            employeeNumber: any;
             name: string;
             department: any;
             checkInTime: string | null;
@@ -76,8 +76,8 @@ export declare class ClockInOutService {
     }>;
     getDailyDashboardStatsByDate(companyId: string, date: string): Promise<{
         summaryList: {
-            employeeId: string;
-            employeeNumber: string;
+            employeeId: any;
+            employeeNumber: any;
             name: string;
             department: any;
             checkInTime: string | null;

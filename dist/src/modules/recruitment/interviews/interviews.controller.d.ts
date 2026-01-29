@@ -13,11 +13,11 @@ export declare class InterviewsController extends BaseController {
     private readonly emailTemplatesService;
     constructor(interviewsService: InterviewsService, scoreCard: ScorecardTemplateService, emailTemplatesService: InterviewEmailTemplateService);
     scheduleInterview(dto: ScheduleInterviewDto): Promise<{
+        status: string | null;
         id: string;
         mode: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
-        status: string | null;
         applicationId: string;
         stage: "phone_screen" | "tech" | "onsite" | "final";
         scheduledFor: Date;
@@ -125,10 +125,10 @@ export declare class InterviewsController extends BaseController {
         id: string;
         name: string;
         createdAt: Date | null;
-        description: string | null;
         isActive: boolean | null;
         companyId: string | null;
         isSystem: boolean | null;
+        description: string | null;
     }>;
     deleteScorecardTemplate(templateId: string, user: User): Promise<{
         message: string;
@@ -137,10 +137,10 @@ export declare class InterviewsController extends BaseController {
         id: string;
         name: string;
         createdAt: Date | null;
-        description: string | null;
         isActive: boolean | null;
         companyId: string | null;
         isSystem: boolean | null;
+        description: string | null;
     }>;
     getAllEmailTemplates(user: User): Promise<{
         id: string;
@@ -156,22 +156,22 @@ export declare class InterviewsController extends BaseController {
     createEmailTemplate(dto: CreateEmailTemplateDto, user: User): Promise<{
         id: string;
         name: string;
-        body: string;
-        createdBy: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
+        createdBy: string | null;
+        body: string;
         isGlobal: boolean | null;
         subject: string;
     }>;
     cloneEmailTemplate(templateId: string, user: User): Promise<{
         id: string;
         name: string;
-        body: string;
-        createdBy: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
+        createdBy: string | null;
+        body: string;
         isGlobal: boolean | null;
         subject: string;
     }>;

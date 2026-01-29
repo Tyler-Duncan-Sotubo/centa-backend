@@ -7,6 +7,7 @@ export declare class ExpensesController extends BaseController {
     private readonly expensesService;
     constructor(expensesService: ExpensesService);
     create(createExpenseDto: CreateExpenseDto, user: User): Promise<{
+        status: string;
         date: string;
         id: string;
         createdAt: Date | null;
@@ -14,16 +15,16 @@ export declare class ExpensesController extends BaseController {
         companyId: string;
         category: string;
         employeeId: string;
-        status: string;
         submittedAt: Date | null;
+        amount: string;
         rejectionReason: string | null;
         purpose: string;
-        amount: string;
         receiptUrl: string | null;
         paymentMethod: string | null;
         deletedAt: Date | null;
     }>;
     bulkCreate(rows: any[], user: User): Promise<{
+        status: string;
         date: string;
         id: string;
         createdAt: Date | null;
@@ -31,11 +32,10 @@ export declare class ExpensesController extends BaseController {
         companyId: string;
         category: string;
         employeeId: string;
-        status: string;
         submittedAt: Date | null;
+        amount: string;
         rejectionReason: string | null;
         purpose: string;
-        amount: string;
         receiptUrl: string | null;
         paymentMethod: string | null;
         deletedAt: Date | null;

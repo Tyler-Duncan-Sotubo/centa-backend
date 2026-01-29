@@ -55,27 +55,16 @@ export declare class AuthService {
         };
     } | {
         user: {
-            id: any;
-            firstName: any;
-            lastName: any;
+            id: string;
+            firstName: string;
+            lastName: string;
             email: string;
             companyId: string;
             companyName: string;
             avatar: string | null;
             role: string;
             roleId: string;
-            employmentStatus: any;
-        } | {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
+            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         };
         backendTokens: {
             accessToken: string;
@@ -126,27 +115,16 @@ export declare class AuthService {
         };
     } | {
         user: {
-            id: any;
-            firstName: any;
-            lastName: any;
+            id: string;
+            firstName: string;
+            lastName: string;
             email: string;
             companyId: string;
             companyName: string;
             avatar: string | null;
             role: string;
             roleId: string;
-            employmentStatus: any;
-        } | {
-            id: any;
-            firstName: any;
-            lastName: any;
-            email: string;
-            companyId: string;
-            companyName: string;
-            avatar: string | null;
-            role: string;
-            roleId: string;
-            employmentStatus: any;
+            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
         };
         backendTokens: {
             accessToken: string;

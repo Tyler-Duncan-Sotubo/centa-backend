@@ -6,13 +6,13 @@ export declare class AssetsReportController extends BaseController {
     private readonly assetsReportService;
     constructor(assetsReportService: AssetsReportService);
     create(createAssetsReportDto: CreateAssetsReportDto, user: User): Promise<{
+        status: string | null;
         id: string;
         updatedAt: Date | null;
-        description: string;
         companyId: string;
+        description: string;
         employeeId: string;
         documentUrl: string | null;
-        status: string | null;
         assetId: string;
         reportType: string;
         reportedAt: Date | null;
