@@ -65,6 +65,23 @@ export declare class LocationsService {
                 identity: undefined;
                 generated: undefined;
             }, {}, {}>;
+            locationType: import("drizzle-orm/pg-core").PgColumn<{
+                name: "location_type";
+                tableName: "company_locations";
+                dataType: "string";
+                columnType: "PgEnumColumn";
+                data: "OFFICE" | "HOME" | "REMOTE";
+                driverParam: string;
+                notNull: true;
+                hasDefault: true;
+                isPrimaryKey: false;
+                isAutoincrement: false;
+                hasRuntimeDefault: false;
+                enumValues: ["OFFICE", "HOME", "REMOTE"];
+                baseColumn: never;
+                identity: undefined;
+                generated: undefined;
+            }, {}, {}>;
             name: import("drizzle-orm/pg-core").PgColumn<{
                 name: "name";
                 tableName: "company_locations";
@@ -327,12 +344,13 @@ export declare class LocationsService {
     create(dto: CreateLocationDto, user: User, ip: string): Promise<{
         id: string;
         name: string;
-        createdAt: Date;
-        updatedAt: Date;
         isActive: boolean | null;
         country: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         isPrimary: boolean | null;
+        locationType: "OFFICE" | "HOME" | "REMOTE";
         street: string | null;
         city: string | null;
         state: string | null;
@@ -346,6 +364,7 @@ export declare class LocationsService {
         id: string;
         companyId: string;
         isPrimary: boolean | null;
+        locationType: "OFFICE" | "HOME" | "REMOTE";
         name: string;
         street: string | null;
         city: string | null;
@@ -364,6 +383,7 @@ export declare class LocationsService {
         id: string;
         companyId: string;
         isPrimary: boolean | null;
+        locationType: "OFFICE" | "HOME" | "REMOTE";
         name: string;
         street: string | null;
         city: string | null;
@@ -382,6 +402,7 @@ export declare class LocationsService {
         id: string;
         companyId: string;
         isPrimary: boolean | null;
+        locationType: "OFFICE" | "HOME" | "REMOTE";
         name: string;
         street: string | null;
         city: string | null;
@@ -400,6 +421,7 @@ export declare class LocationsService {
         id: string;
         companyId: string;
         isPrimary: boolean | null;
+        locationType: "OFFICE" | "HOME" | "REMOTE";
         name: string;
         street: string | null;
         city: string | null;
@@ -428,13 +450,13 @@ export declare class LocationsService {
     addLocationManager(locationId: string, managerId: string): Promise<{
         id: string;
         createdAt: Date;
-        managerId: string;
         locationId: string;
+        managerId: string;
     }[]>;
     removeLocationManager(locationId: string, managerId: string): Promise<{
         id: string;
         createdAt: Date;
-        managerId: string;
         locationId: string;
+        managerId: string;
     }[]>;
 }

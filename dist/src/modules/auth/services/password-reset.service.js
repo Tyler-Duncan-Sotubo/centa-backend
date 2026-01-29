@@ -52,10 +52,10 @@ let PasswordResetService = class PasswordResetService {
         }
         let inviteLink = '';
         if (user[0].role === 'employee') {
-            inviteLink = `${this.configService.get('EMPLOYEE_PORTAL_URL')}/auth/reset-password/${token}`;
+            inviteLink = `${this.configService.get('EMPLOYEE_PORTAL_URL')}/reset-password/${token}`;
         }
         else {
-            inviteLink = `${this.configService.get('CLIENT_URL')}/auth/reset-password/${token}`;
+            inviteLink = `${this.configService.get('CLIENT_URL')}/reset-password/${token}`;
         }
         await this.passwordResetEmailService.sendPasswordResetEmail(email, user[0].firstName || 'User', inviteLink);
         const existingToken = await this.db

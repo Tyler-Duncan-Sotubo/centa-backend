@@ -198,7 +198,7 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                     effectiveDate: dto.employmentStartDate,
                 }, id, 'system', trx);
             }
-            const inviteLink = `${this.config.get('EMPLOYEE_PORTAL_URL')}/auth/reset-password/${token}`;
+            const inviteLink = `${this.config.get('EMPLOYEE_PORTAL_URL')}/reset-password/${token}`;
             await this.employeeInvitationService.sendInvitationEmail(emp.email, emp.firstName, company.name, 'Employee', inviteLink);
             await this.companySettingsService.setOnboardingTask(companyId, 'employees', 'upload_employees', 'done');
             return emp;

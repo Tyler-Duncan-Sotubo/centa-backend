@@ -82,34 +82,32 @@ let ClockInOutService = class ClockInOutService {
             throw new common_1.BadRequestException('Employee not found');
         const lat = Number(latitude);
         const lon = Number(longitude);
-        if (employee.locationId) {
-            const officeLocation = await this.cache.getOrSetVersioned(employee.companyId, ['attendance', 'locations', 'one', employee.locationId], async () => {
-                const [loc] = await this.db
-                    .select()
-                    .from(schema_1.companyLocations)
-                    .where((0, drizzle_orm_1.eq)(schema_1.companyLocations.id, employee.locationId))
-                    .limit(1)
-                    .execute();
-                return loc ?? null;
-            }, { ttlSeconds: 300, tags: this.tags(employee.companyId) });
-            if (!officeLocation) {
-                throw new common_1.BadRequestException('Assigned office location not found');
-            }
-            if (!this.isWithinRadius(lat, lon, Number(officeLocation.latitude), Number(officeLocation.longitude))) {
-                throw new common_1.BadRequestException('You are not at your assigned office location.');
-            }
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+            throw new common_1.BadRequestException('Invalid latitude/longitude provided.');
         }
-        else {
-            const officeLocations = await this.cache.getOrSetVersioned(employee.companyId, ['attendance', 'locations', 'all'], async () => this.db
-                .select()
-                .from(schema_1.companyLocations)
-                .where((0, drizzle_orm_1.eq)(schema_1.companyLocations.companyId, employee.companyId))
-                .execute(), { ttlSeconds: 300, tags: this.tags(employee.companyId) });
-            const ok = officeLocations.some((loc) => this.isWithinRadius(lat, lon, Number(loc.latitude), Number(loc.longitude)));
-            if (!ok) {
-                throw new common_1.BadRequestException('You are not at a valid company location.');
-            }
+        if (!employee.locationId) {
+            throw new common_1.BadRequestException('No assigned office location for this employee. Please contact HR/admin.');
         }
+        const officeLocations = await this.cache.getOrSetVersioned(employee.companyId, ['attendance', 'locations', 'all'], async () => this.db
+            .select()
+            .from(schema_1.companyLocations)
+            .where((0, drizzle_orm_1.eq)(schema_1.companyLocations.companyId, employee.companyId))
+            .execute(), { ttlSeconds: 300, tags: this.tags(employee.companyId) });
+        if (!officeLocations || officeLocations.length === 0) {
+            throw new common_1.BadRequestException('No company locations configured. Please contact admin.');
+        }
+        const activeLocations = officeLocations.filter((l) => l.isActive);
+        const assigned = activeLocations.find((l) => l.id === employee.locationId);
+        if (!assigned)
+            throw new common_1.BadRequestException('Assigned office location not found.');
+        const isWithin = (loc) => this.isWithinRadius(lat, lon, Number(loc.latitude), Number(loc.longitude));
+        if (isWithin(assigned))
+            return;
+        const fallbackOffices = activeLocations.filter((l) => l.locationType === 'OFFICE');
+        const okAnyOffice = fallbackOffices.some(isWithin);
+        if (okAnyOffice)
+            return;
+        throw new common_1.BadRequestException('You are not at a valid company location.');
     }
     async clockIn(user, dto) {
         const employee = await this.employeesService.findOneByUserId(user.id);

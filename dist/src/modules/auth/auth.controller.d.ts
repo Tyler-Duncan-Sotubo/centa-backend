@@ -51,16 +51,27 @@ export declare class AuthController {
             subscriptionPlan: "free" | "pro" | "enterprise";
             trialEndsAt: Date | null;
         } | {
-            id: string;
-            firstName: string;
-            lastName: string;
+            id: any;
+            firstName: any;
+            lastName: any;
             email: string;
             companyId: string;
             companyName: string;
             avatar: string | null;
             role: string;
             roleId: string;
-            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
+            employmentStatus: any;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;
@@ -97,16 +108,27 @@ export declare class AuthController {
             subscriptionPlan: "free" | "pro" | "enterprise";
             trialEndsAt: Date | null;
         } | {
-            id: string;
-            firstName: string;
-            lastName: string;
+            id: any;
+            firstName: any;
+            lastName: any;
             email: string;
             companyId: string;
             companyName: string;
             avatar: string | null;
             role: string;
             roleId: string;
-            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
+            employmentStatus: any;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;
@@ -171,16 +193,27 @@ export declare class AuthController {
             subscriptionPlan: "free" | "pro" | "enterprise";
             trialEndsAt: Date | null;
         } | {
-            id: string;
-            firstName: string;
-            lastName: string;
+            id: any;
+            firstName: any;
+            lastName: any;
             email: string;
             companyId: string;
             companyName: string;
             avatar: string | null;
             role: string;
             roleId: string;
-            employmentStatus: "probation" | "active" | "on_leave" | "resigned" | "terminated" | "onboarding" | "inactive";
+            employmentStatus: any;
+        } | {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: string;
+            companyId: string;
+            companyName: string;
+            avatar: string | null;
+            role: string;
+            roleId: string;
+            employmentStatus: any;
         };
         backendTokens: {
             accessToken: string;

@@ -7,6 +7,7 @@ import { AssetsSettingsService } from '../settings/assets-settings.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
 import { CacheService } from 'src/common/cache/cache.service';
 import { PushNotificationService } from 'src/modules/notification/services/push-notification.service';
+import { AssetNotificationService } from 'src/modules/notification/services/asset-notification.service';
 export declare class AssetsRequestService {
     private readonly db;
     private readonly auditService;
@@ -14,18 +15,19 @@ export declare class AssetsRequestService {
     private readonly pusher;
     private readonly cache;
     private readonly push;
-    constructor(db: db, auditService: AuditService, assetsSettingsService: AssetsSettingsService, pusher: PusherService, cache: CacheService, push: PushNotificationService);
+    private readonly assetNotificationService;
+    constructor(db: db, auditService: AuditService, assetsSettingsService: AssetsSettingsService, pusher: PusherService, cache: CacheService, push: PushNotificationService, assetNotificationService: AssetNotificationService);
     private tags;
     handleAssetApprovalFlow(assetRequestId: string, user: User): Promise<void>;
     create(dto: CreateAssetsRequestDto, user: User): Promise<{
-        status: string | null;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
         employeeId: string;
-        notes: string | null;
+        status: string | null;
         rejectionReason: string | null;
+        notes: string | null;
         purpose: string;
         requestDate: string;
         assetType: string;
@@ -113,4 +115,5 @@ export declare class AssetsRequestService {
         }[];
     }>;
     handleAssetApprovalAction(assetRequestId: string, user: User, action: 'approved' | 'rejected', remarks?: string): Promise<string>;
+    private buildAssetRequestEmailContext;
 }

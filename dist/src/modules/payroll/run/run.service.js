@@ -41,22 +41,24 @@ const payroll_approval_service_1 = require("../../notification/services/payroll-
 const config_1 = require("@nestjs/config");
 const hot_queries_1 = require("../../../drizzle/hot-queries");
 const D_ZERO = new decimal_js_1.default(0);
-const D_RATE_007 = new decimal_js_1.default(0.07);
-const D_RATE_011 = new decimal_js_1.default(0.11);
+const D_RENT_RELIEF = new decimal_js_1.default(200_000);
+const D_RATE_000 = new decimal_js_1.default(0);
 const D_RATE_015 = new decimal_js_1.default(0.15);
-const D_RATE_019 = new decimal_js_1.default(0.19);
+const D_RATE_018 = new decimal_js_1.default(0.18);
 const D_RATE_021 = new decimal_js_1.default(0.21);
-const D_RATE_024 = new decimal_js_1.default(0.24);
+const D_RATE_023 = new decimal_js_1.default(0.23);
+const D_RATE_025 = new decimal_js_1.default(0.25);
+const BRACKETS = [
+    { limit: new decimal_js_1.default(800_000), rate: D_RATE_000 },
+    { limit: new decimal_js_1.default(2_200_000), rate: D_RATE_015 },
+    { limit: new decimal_js_1.default(9_000_000), rate: D_RATE_018 },
+    { limit: new decimal_js_1.default(13_000_000), rate: D_RATE_021 },
+    { limit: new decimal_js_1.default(25_000_000), rate: D_RATE_023 },
+    { limit: new decimal_js_1.default(50_000_000), rate: D_RATE_025 },
+    { limit: new decimal_js_1.default(Infinity), rate: D_RATE_025 },
+];
 const D_HUNDRED = new decimal_js_1.default(100);
 const toDec = (v) => v instanceof decimal_js_1.default ? v : new decimal_js_1.default(v);
-const BRACKETS = [
-    { limit: new decimal_js_1.default(300_000), rate: D_RATE_007 },
-    { limit: new decimal_js_1.default(600_000), rate: D_RATE_011 },
-    { limit: new decimal_js_1.default(1_100_000), rate: D_RATE_015 },
-    { limit: new decimal_js_1.default(1_600_000), rate: D_RATE_019 },
-    { limit: new decimal_js_1.default(3_200_000), rate: D_RATE_021 },
-    { limit: new decimal_js_1.default(Infinity), rate: D_RATE_024 },
-];
 let RunService = class RunService {
     constructor(payrollQueue, db, hot, auditService, payrollSettingsService, compensationService, taxService, payslipService, salaryAdvanceService, pusher, payrollApprovalEmailService, configService) {
         this.payrollQueue = payrollQueue;
@@ -72,14 +74,12 @@ let RunService = class RunService {
         this.payrollApprovalEmailService = payrollApprovalEmailService;
         this.configService = configService;
     }
-    calculatePAYE(annualSalary, pensionDeduction, nhfDeduction, taxRelief) {
+    calculatePAYE(annualSalary, pensionDeduction, nhfDeduction) {
         const annual = new decimal_js_1.default(annualSalary);
         const pension = new decimal_js_1.default(pensionDeduction).mul(12);
         const nhf = new decimal_js_1.default(nhfDeduction).mul(12);
-        const relief = new decimal_js_1.default(taxRelief);
         const redefinedAnnualSalary = annual.minus(pension).minus(nhf);
-        const personalAllowance = relief.plus(redefinedAnnualSalary.mul(0.2));
-        const taxableIncome = decimal_js_1.default.max(annual.minus(personalAllowance).minus(pension).minus(nhf), D_ZERO);
+        const taxableIncome = decimal_js_1.default.max(redefinedAnnualSalary.minus(D_RENT_RELIEF), D_ZERO);
         let paye = D_ZERO;
         let remaining = taxableIncome;
         let previousLimit = D_ZERO;
@@ -230,7 +230,6 @@ let RunService = class RunService {
         const diff = grossSalary.minus(totalUsed);
         basicAmt = basicAmt.plus(diff);
         const payGroupSettings = payGroupRow || {};
-        const relief = payrollSettings.default_tax_relief ?? 200000;
         const bhtTotal = basicAmt.plus(housingAmt).plus(transportAmt);
         const empPct = toDec(payrollSettings.default_pension_employee_percent || 8);
         const erPct = toDec(payrollSettings.default_pension_employer_percent || 10);
@@ -246,7 +245,7 @@ let RunService = class RunService {
             : D_ZERO;
         const nhfContribution = applyNHF ? percentOf(basicAmt, nhfPct) : D_ZERO;
         const annualizedGross = grossSalary.mul(12);
-        const { paye, taxableIncome } = this.calculatePAYE(annualizedGross, employeePensionContribution, nhfContribution, toDec(relief));
+        const { paye, taxableIncome } = this.calculatePAYE(annualizedGross, employeePensionContribution, nhfContribution);
         const monthlyPAYE = toDec(paye)
             .div(12)
             .toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP);

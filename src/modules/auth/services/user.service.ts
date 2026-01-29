@@ -230,7 +230,7 @@ export class UserService {
 
     const inviteLink = `${this.configService.get(
       'CLIENT_URL',
-    )}/auth/invite/${token}`;
+    )}/invite/${token}`;
 
     await this.invitation.sendInvitationEmail(
       dto.email,

@@ -13,13 +13,13 @@ export declare class InterviewsController extends BaseController {
     private readonly emailTemplatesService;
     constructor(interviewsService: InterviewsService, scoreCard: ScorecardTemplateService, emailTemplatesService: InterviewEmailTemplateService);
     scheduleInterview(dto: ScheduleInterviewDto): Promise<{
-        status: string | null;
         id: string;
         mode: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
+        status: string | null;
         applicationId: string;
-        stage: "phone_screen" | "tech" | "onsite" | "final";
+        stage: "onsite" | "phone_screen" | "tech" | "final";
         scheduledFor: Date;
         durationMins: number;
         meetingLink: string | null;
@@ -29,7 +29,7 @@ export declare class InterviewsController extends BaseController {
     rescheduleInterview(interviewId: string, dto: ScheduleInterviewDto): Promise<{
         id: string;
         applicationId: string;
-        stage: "phone_screen" | "tech" | "onsite" | "final";
+        stage: "onsite" | "phone_screen" | "tech" | "final";
         scheduledFor: Date;
         durationMins: number;
         meetingLink: string | null;
@@ -45,7 +45,7 @@ export declare class InterviewsController extends BaseController {
         applicationId: string;
         scheduledFor: Date;
         durationMins: number;
-        stage: "phone_screen" | "tech" | "onsite" | "final";
+        stage: "onsite" | "phone_screen" | "tech" | "final";
         mode: string | null;
         meetingLink: string | null;
         candidateName: string;
@@ -71,7 +71,7 @@ export declare class InterviewsController extends BaseController {
         scorecardCriteria: Record<string, any[]>;
         id: string;
         applicationId: string;
-        stage: "phone_screen" | "tech" | "onsite" | "final";
+        stage: "onsite" | "phone_screen" | "tech" | "final";
         scheduledFor: Date;
         durationMins: number;
         meetingLink: string | null;
@@ -88,7 +88,7 @@ export declare class InterviewsController extends BaseController {
     listInterviewsForApplication(applicationId: string): Promise<{
         id: string;
         applicationId: string;
-        stage: "phone_screen" | "tech" | "onsite" | "final";
+        stage: "onsite" | "phone_screen" | "tech" | "final";
         scheduledFor: Date;
         durationMins: number;
         meetingLink: string | null;
@@ -124,11 +124,11 @@ export declare class InterviewsController extends BaseController {
     createScorecardTemplate(dto: CreateScorecardTemplateDto, user: User): Promise<{
         id: string;
         name: string;
-        createdAt: Date | null;
         isActive: boolean | null;
+        createdAt: Date | null;
         companyId: string | null;
-        isSystem: boolean | null;
         description: string | null;
+        isSystem: boolean | null;
     }>;
     deleteScorecardTemplate(templateId: string, user: User): Promise<{
         message: string;
@@ -136,11 +136,11 @@ export declare class InterviewsController extends BaseController {
     cloneScorecardTemplate(templateId: string, user: User): Promise<{
         id: string;
         name: string;
-        createdAt: Date | null;
         isActive: boolean | null;
+        createdAt: Date | null;
         companyId: string | null;
-        isSystem: boolean | null;
         description: string | null;
+        isSystem: boolean | null;
     }>;
     getAllEmailTemplates(user: User): Promise<{
         id: string;
@@ -159,8 +159,8 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
-        createdBy: string | null;
         body: string;
+        createdBy: string | null;
         isGlobal: boolean | null;
         subject: string;
     }>;
@@ -170,8 +170,8 @@ export declare class InterviewsController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
-        createdBy: string | null;
         body: string;
+        createdBy: string | null;
         isGlobal: boolean | null;
         subject: string;
     }>;

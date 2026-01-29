@@ -2,12 +2,19 @@ import {
   boolean,
   doublePrecision,
   index,
+  pgEnum,
   pgTable,
   timestamp,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
 import { companies } from './company.schema';
+
+export const locationTypeEnum = pgEnum('location_type', [
+  'OFFICE',
+  'HOME',
+  'REMOTE',
+]);
 
 export const companyLocations = pgTable(
   'company_locations',
@@ -19,6 +26,9 @@ export const companyLocations = pgTable(
       .notNull(),
 
     isPrimary: boolean('is_primary').default(false),
+
+    // ✅ NEW
+    locationType: locationTypeEnum('location_type').notNull().default('OFFICE'),
 
     name: varchar('name', { length: 255 }).notNull(),
     street: varchar('street', { length: 255 }),

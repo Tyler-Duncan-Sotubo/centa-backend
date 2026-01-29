@@ -14,6 +14,7 @@ import { NewsletterEmailService } from './services/newsletter-email.service';
 import { AnnouncementNotificationService } from './services/announcement-notification.service';
 import { EmailQueueProcessor } from './services/email-queue.processor';
 import { LeaveNotificationService } from './services/leave-notification.service';
+import { AssetNotificationService } from './services/asset-notification.service';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { LeaveNotificationService } from './services/leave-notification.service'
     NewsletterEmailService,
     AnnouncementNotificationService,
     LeaveNotificationService,
+    AssetNotificationService,
   ],
   exports: [
     PasswordResetEmailService,
@@ -47,6 +49,7 @@ import { LeaveNotificationService } from './services/leave-notification.service'
     GoalNotificationService,
     PushNotificationService,
     LeaveNotificationService,
+    AssetNotificationService,
   ],
 })
 export class NotificationModule {}

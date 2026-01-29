@@ -40,27 +40,32 @@ import { PayrollApprovalEmailService } from 'src/modules/notification/services/p
 import { ConfigService } from '@nestjs/config';
 import { HotQueries } from 'src/drizzle/hot-queries';
 
+// ===== Constants =====
 const D_ZERO = new Decimal(0);
+const D_RENT_RELIEF = new Decimal(200_000);
 
-const D_RATE_007 = new Decimal(0.07);
-const D_RATE_011 = new Decimal(0.11);
+const D_RATE_000 = new Decimal(0);
 const D_RATE_015 = new Decimal(0.15);
-const D_RATE_019 = new Decimal(0.19);
+const D_RATE_018 = new Decimal(0.18);
 const D_RATE_021 = new Decimal(0.21);
-const D_RATE_024 = new Decimal(0.24);
+const D_RATE_023 = new Decimal(0.23);
+const D_RATE_025 = new Decimal(0.25);
+
+// New PAYE brackets (cumulative limits)
+const BRACKETS = [
+  { limit: new Decimal(800_000), rate: D_RATE_000 },
+  { limit: new Decimal(2_200_000), rate: D_RATE_015 },
+  { limit: new Decimal(9_000_000), rate: D_RATE_018 },
+  { limit: new Decimal(13_000_000), rate: D_RATE_021 },
+  { limit: new Decimal(25_000_000), rate: D_RATE_023 },
+  { limit: new Decimal(50_000_000), rate: D_RATE_025 },
+  { limit: new Decimal(Infinity), rate: D_RATE_025 },
+] as const;
+
 const D_HUNDRED = new Decimal(100);
 
 const toDec = (v: Decimal.Value): Decimal =>
   v instanceof Decimal ? v : new Decimal(v);
-
-const BRACKETS = [
-  { limit: new Decimal(300_000), rate: D_RATE_007 },
-  { limit: new Decimal(600_000), rate: D_RATE_011 },
-  { limit: new Decimal(1_100_000), rate: D_RATE_015 },
-  { limit: new Decimal(1_600_000), rate: D_RATE_019 },
-  { limit: new Decimal(3_200_000), rate: D_RATE_021 },
-  { limit: new Decimal(Infinity), rate: D_RATE_024 },
-] as const;
 
 type HotRunCache = {
   deductionsByEmp: Map<string, any[]>;
@@ -88,39 +93,33 @@ export class RunService {
     private readonly configService: ConfigService,
   ) {}
 
+  // ===== Updated calculator =====
   private calculatePAYE(
     annualSalary: Decimal.Value,
     pensionDeduction: Decimal.Value,
     nhfDeduction: Decimal.Value,
-    taxRelief: Decimal.Value,
   ): { paye: Decimal; taxableIncome: Decimal } {
-    // Convert once
     const annual = new Decimal(annualSalary);
     const pension = new Decimal(pensionDeduction).mul(12);
     const nhf = new Decimal(nhfDeduction).mul(12);
-    const relief = new Decimal(taxRelief);
 
-    // Redefined salary after deductions
+    // Gross after statutory deductions (as you already do)
     const redefinedAnnualSalary = annual.minus(pension).minus(nhf);
 
-    // Personal allowance: ₦200,000 + 20% of redefined salary
-    const personalAllowance = relief.plus(redefinedAnnualSalary.mul(0.2));
-
-    // Taxable Income: salary - personal allowance - pension - nhf
+    // Reform: CRA expunged; rent relief only ₦200,000
     const taxableIncome = Decimal.max(
-      annual.minus(personalAllowance).minus(pension).minus(nhf),
+      redefinedAnnualSalary.minus(D_RENT_RELIEF),
       D_ZERO,
     );
 
-    // Compute PAYE using hoisted brackets (no per-call allocations)
     let paye = D_ZERO;
-    let remaining = taxableIncome; // already a Decimal
+    let remaining = taxableIncome;
     let previousLimit = D_ZERO;
 
     for (let i = 0; i < BRACKETS.length && remaining.gt(D_ZERO); i++) {
       const { limit, rate } = BRACKETS[i];
       const span = limit.minus(previousLimit);
-      const range = remaining.lt(span) ? remaining : span; // Decimal.min without extra alloc
+      const range = remaining.lt(span) ? remaining : span;
       if (range.lte(D_ZERO)) break;
 
       paye = paye.plus(range.mul(rate));
@@ -375,7 +374,6 @@ export class RunService {
 
     // 14) Statutory + PAYE
     const payGroupSettings = payGroupRow || {};
-    const relief = payrollSettings.default_tax_relief ?? 200000;
 
     const bhtTotal = basicAmt.plus(housingAmt).plus(transportAmt);
 
@@ -408,7 +406,6 @@ export class RunService {
       annualizedGross,
       employeePensionContribution,
       nhfContribution,
-      toDec(relief),
     );
 
     const monthlyPAYE = toDec(paye)

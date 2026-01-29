@@ -96,62 +96,67 @@ export class ClockInOutService {
     const lat = Number(latitude);
     const lon = Number(longitude);
 
-    if (employee.locationId) {
-      const officeLocation = await this.cache.getOrSetVersioned(
-        employee.companyId,
-        ['attendance', 'locations', 'one', employee.locationId],
-        async () => {
-          const [loc] = await this.db
-            .select()
-            .from(companyLocations)
-            .where(eq(companyLocations.id, employee.locationId))
-            .limit(1)
-            .execute();
-          return loc ?? null;
-        },
-        { ttlSeconds: 300, tags: this.tags(employee.companyId) },
-      );
-      if (!officeLocation) {
-        throw new BadRequestException('Assigned office location not found');
-      }
-      if (
-        !this.isWithinRadius(
-          lat,
-          lon,
-          Number(officeLocation.latitude),
-          Number(officeLocation.longitude),
-        )
-      ) {
-        throw new BadRequestException(
-          'You are not at your assigned office location.',
-        );
-      }
-    } else {
-      const officeLocations = await this.cache.getOrSetVersioned(
-        employee.companyId,
-        ['attendance', 'locations', 'all'],
-        async () =>
-          this.db
-            .select()
-            .from(companyLocations)
-            .where(eq(companyLocations.companyId, employee.companyId))
-            .execute(),
-        { ttlSeconds: 300, tags: this.tags(employee.companyId) },
-      );
-      const ok = officeLocations.some((loc) =>
-        this.isWithinRadius(
-          lat,
-          lon,
-          Number(loc.latitude),
-          Number(loc.longitude),
-        ),
-      );
-      if (!ok) {
-        throw new BadRequestException(
-          'You are not at a valid company location.',
-        );
-      }
+    // 1) Validate coordinates
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      throw new BadRequestException('Invalid latitude/longitude provided.');
     }
+
+    // 2) Enforce rule: every employee must have an assigned locationId
+    if (!employee.locationId) {
+      // This should never happen if your data is correct
+      throw new BadRequestException(
+        'No assigned office location for this employee. Please contact HR/admin.',
+      );
+    }
+
+    // 3) Load ALL company locations once (cache) for:
+    //    - verifying assigned location exists
+    //    - fallback to any company location
+    const officeLocations = await this.cache.getOrSetVersioned(
+      employee.companyId,
+      ['attendance', 'locations', 'all'],
+      async () =>
+        this.db
+          .select()
+          .from(companyLocations)
+          .where(eq(companyLocations.companyId, employee.companyId))
+          .execute(),
+      { ttlSeconds: 300, tags: this.tags(employee.companyId) },
+    );
+
+    if (!officeLocations || officeLocations.length === 0) {
+      throw new BadRequestException(
+        'No company locations configured. Please contact admin.',
+      );
+    }
+
+    // after you fetch officeLocations (all locations for the company)
+    const activeLocations = officeLocations.filter((l) => l.isActive);
+
+    const assigned = activeLocations.find((l) => l.id === employee.locationId);
+    if (!assigned)
+      throw new BadRequestException('Assigned office location not found.');
+
+    const isWithin = (loc: any) =>
+      this.isWithinRadius(
+        lat,
+        lon,
+        Number(loc.latitude),
+        Number(loc.longitude),
+      );
+
+    // 1) assigned location always allowed
+    if (isWithin(assigned)) return;
+
+    // 2) fallback ONLY to OFFICE locations (and active)
+    const fallbackOffices = activeLocations.filter(
+      (l) => l.locationType === 'OFFICE',
+    );
+    const okAnyOffice = fallbackOffices.some(isWithin);
+    if (okAnyOffice) return;
+
+    // short error
+    throw new BadRequestException('You are not at a valid company location.');
   }
 
   /** ---------- clock in/out ---------- */

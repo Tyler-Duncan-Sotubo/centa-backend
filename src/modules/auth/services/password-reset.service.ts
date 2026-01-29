@@ -50,11 +50,11 @@ export class PasswordResetService {
     if (user[0].role === 'employee') {
       inviteLink = `${this.configService.get(
         'EMPLOYEE_PORTAL_URL',
-      )}/auth/reset-password/${token}`;
+      )}/reset-password/${token}`;
     } else {
       inviteLink = `${this.configService.get(
         'CLIENT_URL',
-      )}/auth/reset-password/${token}`;
+      )}/reset-password/${token}`;
     }
 
     await this.passwordResetEmailService.sendPasswordResetEmail(

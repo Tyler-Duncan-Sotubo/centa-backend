@@ -24,14 +24,16 @@ const assets_settings_service_1 = require("../settings/assets-settings.service")
 const pusher_service_1 = require("../../notification/services/pusher.service");
 const cache_service_1 = require("../../../common/cache/cache.service");
 const push_notification_service_1 = require("../../notification/services/push-notification.service");
+const asset_notification_service_1 = require("../../notification/services/asset-notification.service");
 let AssetsRequestService = class AssetsRequestService {
-    constructor(db, auditService, assetsSettingsService, pusher, cache, push) {
+    constructor(db, auditService, assetsSettingsService, pusher, cache, push, assetNotificationService) {
         this.db = db;
         this.auditService = auditService;
         this.assetsSettingsService = assetsSettingsService;
         this.pusher = pusher;
         this.cache = cache;
         this.push = push;
+        this.assetNotificationService = assetNotificationService;
     }
     tags(companyId) {
         return [
@@ -156,6 +158,27 @@ let AssetsRequestService = class AssetsRequestService {
             .execute();
         await this.pusher.createNotification(user.companyId, `Asset request by ${user.firstName} ${user.lastName} for ${newRequest.assetType} has been created.`, 'asset');
         await this.handleAssetApprovalFlow(newRequest.id, user);
+        try {
+            const ctx = await this.buildAssetRequestEmailContext(newRequest, user);
+            await this.assetNotificationService.sendAssetApprovalRequestEmail({
+                toEmail: ctx.managerEmail,
+                managerName: ctx.managerName,
+                employeeName: ctx.employeeName,
+                assetType: ctx.assetType,
+                purpose: ctx.purpose,
+                urgency: ctx.urgency,
+                notes: ctx.notes ?? undefined,
+                companyName: ctx.companyName,
+                assetRequestId: newRequest.id,
+                employeeId: newRequest.employeeId,
+                meta: {
+                    source: 'asset_request_create',
+                },
+            });
+        }
+        catch (e) {
+            console.error('[AssetRequestsService] manager email failed', e);
+        }
         await this.auditService.logAction({
             action: 'create',
             entity: 'asset_request',
@@ -383,6 +406,45 @@ let AssetsRequestService = class AssetsRequestService {
                 data: {},
                 type: 'message',
             });
+            try {
+                const [fullRequest] = await this.db
+                    .select()
+                    .from(asset_requests_schema_1.assetRequests)
+                    .where((0, drizzle_orm_1.eq)(asset_requests_schema_1.assetRequests.id, assetRequestId))
+                    .limit(1)
+                    .execute();
+                const employee = await this.db.query.employees.findFirst({
+                    where: (0, drizzle_orm_1.eq)(schema_1.employees.id, request.employeeId),
+                    columns: { userId: true },
+                });
+                if (employee?.userId && fullRequest) {
+                    const requesterUser = await this.db.query.users.findFirst({
+                        where: (0, drizzle_orm_1.eq)(schema_1.users.id, employee.userId),
+                    });
+                    if (requesterUser?.email) {
+                        const ctx = await this.buildAssetRequestEmailContext(fullRequest, requesterUser);
+                        await this.assetNotificationService.sendAssetDecisionEmail({
+                            toEmail: requesterUser.email,
+                            managerName: ctx.managerName,
+                            employeeName: ctx.employeeName,
+                            assetType: ctx.assetType,
+                            purpose: ctx.purpose,
+                            urgency: ctx.urgency,
+                            notes: ctx.notes ?? undefined,
+                            companyName: ctx.companyName,
+                            status: 'rejected',
+                            rejectionReason: remarks ?? '',
+                            remarks: remarks ?? '',
+                            assetRequestId: fullRequest.id,
+                            employeeId: fullRequest.employeeId,
+                            approverId: user.id,
+                        });
+                    }
+                }
+            }
+            catch (e) {
+                console.error('[AssetApproval] rejected email failed', e);
+            }
             await this.cache.bumpCompanyVersion(user.companyId);
             return `Asset request rejected successfully`;
         }
@@ -420,6 +482,44 @@ let AssetsRequestService = class AssetsRequestService {
                 data: {},
                 type: 'message',
             });
+            try {
+                const [fullRequest] = await this.db
+                    .select()
+                    .from(asset_requests_schema_1.assetRequests)
+                    .where((0, drizzle_orm_1.eq)(asset_requests_schema_1.assetRequests.id, assetRequestId))
+                    .limit(1)
+                    .execute();
+                const employee = await this.db.query.employees.findFirst({
+                    where: (0, drizzle_orm_1.eq)(schema_1.employees.id, request.employeeId),
+                    columns: { userId: true },
+                });
+                if (employee?.userId && fullRequest) {
+                    const requesterUser = await this.db.query.users.findFirst({
+                        where: (0, drizzle_orm_1.eq)(schema_1.users.id, employee.userId),
+                    });
+                    if (requesterUser?.email) {
+                        const ctx = await this.buildAssetRequestEmailContext(fullRequest, requesterUser);
+                        await this.assetNotificationService.sendAssetDecisionEmail({
+                            toEmail: requesterUser.email,
+                            managerName: ctx.managerName,
+                            employeeName: ctx.employeeName,
+                            assetType: ctx.assetType,
+                            purpose: ctx.purpose,
+                            urgency: ctx.urgency,
+                            notes: ctx.notes ?? undefined,
+                            companyName: ctx.companyName,
+                            status: 'approved',
+                            remarks: `[Fallback] ${remarks ?? ''}`,
+                            assetRequestId: fullRequest.id,
+                            employeeId: fullRequest.employeeId,
+                            approverId: user.id,
+                        });
+                    }
+                }
+            }
+            catch (e) {
+                console.error('[AssetApproval] fallback email failed', e);
+            }
             await this.cache.bumpCompanyVersion(user.companyId);
             return `Asset request fully approved via fallback`;
         }
@@ -446,6 +546,44 @@ let AssetsRequestService = class AssetsRequestService {
             })
                 .where((0, drizzle_orm_1.eq)(asset_requests_schema_1.assetRequests.id, assetRequestId))
                 .execute();
+            try {
+                const [fullRequest] = await this.db
+                    .select()
+                    .from(asset_requests_schema_1.assetRequests)
+                    .where((0, drizzle_orm_1.eq)(asset_requests_schema_1.assetRequests.id, assetRequestId))
+                    .limit(1)
+                    .execute();
+                const employee = await this.db.query.employees.findFirst({
+                    where: (0, drizzle_orm_1.eq)(schema_1.employees.id, request.employeeId),
+                    columns: { userId: true },
+                });
+                if (employee?.userId && fullRequest) {
+                    const requesterUser = await this.db.query.users.findFirst({
+                        where: (0, drizzle_orm_1.eq)(schema_1.users.id, employee.userId),
+                    });
+                    if (requesterUser?.email) {
+                        const ctx = await this.buildAssetRequestEmailContext(fullRequest, requesterUser);
+                        await this.assetNotificationService.sendAssetDecisionEmail({
+                            toEmail: requesterUser.email,
+                            managerName: ctx.managerName,
+                            employeeName: ctx.employeeName,
+                            assetType: ctx.assetType,
+                            purpose: ctx.purpose,
+                            urgency: ctx.urgency,
+                            notes: ctx.notes ?? undefined,
+                            companyName: ctx.companyName,
+                            status: 'approved',
+                            remarks: remarks ?? '',
+                            assetRequestId: fullRequest.id,
+                            employeeId: fullRequest.employeeId,
+                            approverId: user.id,
+                        });
+                    }
+                }
+            }
+            catch (e) {
+                console.error('[AssetApproval] approved email failed', e);
+            }
         }
         await this.pusher.createEmployeeNotification(user.companyId, request.employeeId, `Your asset request has been ${action}`, 'asset');
         await this.pusher.createNotification(user.companyId, `Your asset request has been ${action}`, 'asset');
@@ -459,6 +597,54 @@ let AssetsRequestService = class AssetsRequestService {
         await this.cache.bumpCompanyVersion(user.companyId);
         return `Asset request ${action} successfully`;
     }
+    async buildAssetRequestEmailContext(assetRequest, requester) {
+        const employee = await this.db.query.employees.findFirst({
+            where: (0, drizzle_orm_1.eq)(schema_1.employees.userId, requester.id),
+            columns: {
+                id: true,
+                managerId: true,
+            },
+        });
+        if (!employee?.managerId) {
+            throw new common_1.BadRequestException('Line manager not assigned to employee.');
+        }
+        const managerEmployee = await this.db.query.employees.findFirst({
+            where: (0, drizzle_orm_1.eq)(schema_1.employees.id, employee.managerId),
+            columns: {
+                userId: true,
+            },
+        });
+        if (!managerEmployee?.userId) {
+            throw new common_1.BadRequestException('Manager user record not found.');
+        }
+        const managerUser = await this.db.query.users.findFirst({
+            where: (0, drizzle_orm_1.eq)(schema_1.users.id, managerEmployee.userId),
+            columns: {
+                firstName: true,
+                lastName: true,
+                email: true,
+            },
+        });
+        if (!managerUser) {
+            throw new common_1.BadRequestException('Manager user not found.');
+        }
+        const company = await this.db.query.companies.findFirst({
+            where: (0, drizzle_orm_1.eq)(schema_1.companies.id, requester.companyId),
+            columns: {
+                name: true,
+            },
+        });
+        return {
+            managerEmail: managerUser.email,
+            managerName: `${managerUser.firstName} ${managerUser.lastName}`,
+            employeeName: `${requester.firstName} ${requester.lastName}`,
+            assetType: assetRequest.assetType,
+            purpose: assetRequest.purpose,
+            urgency: assetRequest.urgency,
+            notes: assetRequest.notes || null,
+            companyName: company?.name ?? 'CentaHR',
+        };
+    }
 };
 exports.AssetsRequestService = AssetsRequestService;
 exports.AssetsRequestService = AssetsRequestService = __decorate([
@@ -468,6 +654,7 @@ exports.AssetsRequestService = AssetsRequestService = __decorate([
         assets_settings_service_1.AssetsSettingsService,
         pusher_service_1.PusherService,
         cache_service_1.CacheService,
-        push_notification_service_1.PushNotificationService])
+        push_notification_service_1.PushNotificationService,
+        asset_notification_service_1.AssetNotificationService])
 ], AssetsRequestService);
 //# sourceMappingURL=assets-request.service.js.map

@@ -494,7 +494,7 @@ export declare class CompanyService {
         };
         pendingChecklists: {
             statusId: string;
-            checkListStatus: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
+            checkListStatus: "skipped" | "pending" | "in_progress" | "completed" | "overdue" | "cancelled" | null;
             checklistId: string;
             title: string;
             dueDaysAfterStart: number | null;
@@ -565,6 +565,7 @@ export declare class CompanyService {
             id: string;
             companyId: string;
             isPrimary: boolean | null;
+            locationType: "OFFICE" | "HOME" | "REMOTE";
             name: string;
             street: string | null;
             city: string | null;

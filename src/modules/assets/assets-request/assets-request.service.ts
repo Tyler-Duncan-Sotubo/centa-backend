@@ -15,13 +15,16 @@ import { eq, and, desc, sql } from 'drizzle-orm';
 import {
   approvalSteps,
   approvalWorkflows,
+  companies,
   employees,
+  users,
 } from 'src/drizzle/schema';
 import { assetApprovals } from '../schema/asset-approval.schema';
 import { AssetsSettingsService } from '../settings/assets-settings.service';
 import { PusherService } from 'src/modules/notification/services/pusher.service';
 import { CacheService } from 'src/common/cache/cache.service';
 import { PushNotificationService } from 'src/modules/notification/services/push-notification.service';
+import { AssetNotificationService } from 'src/modules/notification/services/asset-notification.service';
 
 @Injectable()
 export class AssetsRequestService {
@@ -32,6 +35,7 @@ export class AssetsRequestService {
     private readonly pusher: PusherService,
     private readonly cache: CacheService,
     private readonly push: PushNotificationService,
+    private readonly assetNotificationService: AssetNotificationService,
   ) {}
 
   private tags(companyId: string) {
@@ -209,6 +213,32 @@ export class AssetsRequestService {
     );
 
     await this.handleAssetApprovalFlow(newRequest.id, user);
+
+    // ✅ EMAIL NOTIFICATION TO LINE MANAGER (REQUESTED)
+    try {
+      const ctx = await this.buildAssetRequestEmailContext(newRequest, user);
+
+      await this.assetNotificationService.sendAssetApprovalRequestEmail({
+        toEmail: ctx.managerEmail,
+        managerName: ctx.managerName,
+        employeeName: ctx.employeeName,
+        assetType: ctx.assetType,
+        purpose: ctx.purpose,
+        urgency: ctx.urgency,
+        notes: ctx.notes ?? undefined,
+        companyName: ctx.companyName,
+
+        // optional ids/meta
+        assetRequestId: newRequest.id,
+        employeeId: newRequest.employeeId,
+        meta: {
+          source: 'asset_request_create',
+        },
+      });
+    } catch (e) {
+      // don't block request creation if email fails
+      console.error('[AssetRequestsService] manager email failed', e);
+    }
 
     await this.auditService.logAction({
       action: 'create',
@@ -474,6 +504,9 @@ export class AssetsRequestService {
       );
     }
 
+    // =========================
+    // ❌ REJECTED
+    // =========================
     if (action === 'rejected') {
       await this.db
         .update(approvalSteps)
@@ -521,12 +554,60 @@ export class AssetsRequestService {
         type: 'message',
       });
 
-      // write -> invalidate
-      await this.cache.bumpCompanyVersion(user.companyId);
+      // ✅ EMAIL NOTIFICATION (EMPLOYEE)
+      try {
+        const [fullRequest] = await this.db
+          .select()
+          .from(assetRequests)
+          .where(eq(assetRequests.id, assetRequestId))
+          .limit(1)
+          .execute();
 
+        const employee = await this.db.query.employees.findFirst({
+          where: eq(employees.id, request.employeeId),
+          columns: { userId: true },
+        });
+
+        if (employee?.userId && fullRequest) {
+          const requesterUser = await this.db.query.users.findFirst({
+            where: eq(users.id, employee.userId),
+          });
+
+          if (requesterUser?.email) {
+            const ctx = await this.buildAssetRequestEmailContext(
+              fullRequest,
+              requesterUser,
+            );
+
+            await this.assetNotificationService.sendAssetDecisionEmail({
+              toEmail: requesterUser.email,
+              managerName: ctx.managerName,
+              employeeName: ctx.employeeName,
+              assetType: ctx.assetType,
+              purpose: ctx.purpose,
+              urgency: ctx.urgency,
+              notes: ctx.notes ?? undefined,
+              companyName: ctx.companyName,
+              status: 'rejected',
+              rejectionReason: remarks ?? '',
+              remarks: remarks ?? '',
+              assetRequestId: fullRequest.id,
+              employeeId: fullRequest.employeeId,
+              approverId: user.id,
+            });
+          }
+        }
+      } catch (e) {
+        console.error('[AssetApproval] rejected email failed', e);
+      }
+
+      await this.cache.bumpCompanyVersion(user.companyId);
       return `Asset request rejected successfully`;
     }
 
+    // =========================
+    // ✅ FALLBACK APPROVAL
+    // =========================
     if (isFallback) {
       const remainingSteps = steps.filter((s) => s.status === 'pending');
 
@@ -562,6 +643,7 @@ export class AssetsRequestService {
         `Your asset request has been ${action}`,
         'asset',
       );
+
       await this.pusher.createNotification(
         user.companyId,
         `Your asset request has been ${action}`,
@@ -576,12 +658,59 @@ export class AssetsRequestService {
         type: 'message',
       });
 
-      // write -> invalidate
-      await this.cache.bumpCompanyVersion(user.companyId);
+      // ✅ EMAIL NOTIFICATION (EMPLOYEE)
+      try {
+        const [fullRequest] = await this.db
+          .select()
+          .from(assetRequests)
+          .where(eq(assetRequests.id, assetRequestId))
+          .limit(1)
+          .execute();
 
+        const employee = await this.db.query.employees.findFirst({
+          where: eq(employees.id, request.employeeId),
+          columns: { userId: true },
+        });
+
+        if (employee?.userId && fullRequest) {
+          const requesterUser = await this.db.query.users.findFirst({
+            where: eq(users.id, employee.userId),
+          });
+
+          if (requesterUser?.email) {
+            const ctx = await this.buildAssetRequestEmailContext(
+              fullRequest,
+              requesterUser,
+            );
+
+            await this.assetNotificationService.sendAssetDecisionEmail({
+              toEmail: requesterUser.email,
+              managerName: ctx.managerName,
+              employeeName: ctx.employeeName,
+              assetType: ctx.assetType,
+              purpose: ctx.purpose,
+              urgency: ctx.urgency,
+              notes: ctx.notes ?? undefined,
+              companyName: ctx.companyName,
+              status: 'approved',
+              remarks: `[Fallback] ${remarks ?? ''}`,
+              assetRequestId: fullRequest.id,
+              employeeId: fullRequest.employeeId,
+              approverId: user.id,
+            });
+          }
+        }
+      } catch (e) {
+        console.error('[AssetApproval] fallback email failed', e);
+      }
+
+      await this.cache.bumpCompanyVersion(user.companyId);
       return `Asset request fully approved via fallback`;
     }
 
+    // =========================
+    // ✅ NORMAL APPROVAL
+    // =========================
     await this.db
       .update(approvalSteps)
       .set({ status: 'approved' })
@@ -610,6 +739,52 @@ export class AssetsRequestService {
         })
         .where(eq(assetRequests.id, assetRequestId))
         .execute();
+
+      // ✅ EMAIL NOTIFICATION (FINAL APPROVED)
+      try {
+        const [fullRequest] = await this.db
+          .select()
+          .from(assetRequests)
+          .where(eq(assetRequests.id, assetRequestId))
+          .limit(1)
+          .execute();
+
+        const employee = await this.db.query.employees.findFirst({
+          where: eq(employees.id, request.employeeId),
+          columns: { userId: true },
+        });
+
+        if (employee?.userId && fullRequest) {
+          const requesterUser = await this.db.query.users.findFirst({
+            where: eq(users.id, employee.userId),
+          });
+
+          if (requesterUser?.email) {
+            const ctx = await this.buildAssetRequestEmailContext(
+              fullRequest,
+              requesterUser,
+            );
+
+            await this.assetNotificationService.sendAssetDecisionEmail({
+              toEmail: requesterUser.email,
+              managerName: ctx.managerName,
+              employeeName: ctx.employeeName,
+              assetType: ctx.assetType,
+              purpose: ctx.purpose,
+              urgency: ctx.urgency,
+              notes: ctx.notes ?? undefined,
+              companyName: ctx.companyName,
+              status: 'approved',
+              remarks: remarks ?? '',
+              assetRequestId: fullRequest.id,
+              employeeId: fullRequest.employeeId,
+              approverId: user.id,
+            });
+          }
+        }
+      } catch (e) {
+        console.error('[AssetApproval] approved email failed', e);
+      }
     }
 
     await this.pusher.createEmployeeNotification(
@@ -618,6 +793,7 @@ export class AssetsRequestService {
       `Your asset request has been ${action}`,
       'asset',
     );
+
     await this.pusher.createNotification(
       user.companyId,
       `Your asset request has been ${action}`,
@@ -632,9 +808,77 @@ export class AssetsRequestService {
       type: 'message',
     });
 
-    // write -> invalidate
     await this.cache.bumpCompanyVersion(user.companyId);
-
     return `Asset request ${action} successfully`;
+  }
+
+  private async buildAssetRequestEmailContext(
+    assetRequest: typeof assetRequests.$inferSelect,
+    requester: User | any,
+  ) {
+    // 1️⃣ Get requester employee record
+    const employee = await this.db.query.employees.findFirst({
+      where: eq(employees.userId, requester.id),
+      columns: {
+        id: true,
+        managerId: true,
+      },
+    });
+
+    if (!employee?.managerId) {
+      throw new BadRequestException('Line manager not assigned to employee.');
+    }
+
+    // 2️⃣ Get manager employee record
+    const managerEmployee = await this.db.query.employees.findFirst({
+      where: eq(employees.id, employee.managerId),
+      columns: {
+        userId: true,
+      },
+    });
+
+    if (!managerEmployee?.userId) {
+      throw new BadRequestException('Manager user record not found.');
+    }
+
+    // 3️⃣ Get manager user details
+    const managerUser = await this.db.query.users.findFirst({
+      where: eq(users.id, managerEmployee.userId),
+      columns: {
+        firstName: true,
+        lastName: true,
+        email: true,
+      },
+    });
+
+    if (!managerUser) {
+      throw new BadRequestException('Manager user not found.');
+    }
+
+    // 4️⃣ Get company details
+    const company = await this.db.query.companies.findFirst({
+      where: eq(companies.id, requester.companyId),
+      columns: {
+        name: true,
+      },
+    });
+
+    return {
+      // Recipient
+      managerEmail: managerUser.email,
+      managerName: `${managerUser.firstName} ${managerUser.lastName}`,
+
+      // Requester
+      employeeName: `${requester.firstName} ${requester.lastName}`,
+
+      // Asset details
+      assetType: assetRequest.assetType,
+      purpose: assetRequest.purpose,
+      urgency: assetRequest.urgency,
+      notes: assetRequest.notes || null,
+
+      // Branding
+      companyName: company?.name ?? 'CentaHR',
+    };
   }
 }

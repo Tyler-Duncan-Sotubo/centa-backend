@@ -11,11 +11,11 @@ export declare class AssessmentConclusionsController extends BaseController {
         createdAt: Date | null;
         updatedAt: Date | null;
         summary: string | null;
+        finalScore: number | null;
+        promotionRecommendation: string | null;
         assessmentId: string;
         strengths: string | null;
         areasForImprovement: string | null;
-        finalScore: number | null;
-        promotionRecommendation: string | null;
         potentialFlag: boolean | null;
     }>;
     update(assessmentId: string, dto: UpdateConclusionDto, user: User): Promise<{

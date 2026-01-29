@@ -176,7 +176,7 @@ let UserService = class UserService {
             companyRoleId: dto.companyRoleId,
             company_id,
         });
-        const inviteLink = `${this.configService.get('CLIENT_URL')}/auth/invite/${token}`;
+        const inviteLink = `${this.configService.get('CLIENT_URL')}/invite/${token}`;
         await this.invitation.sendInvitationEmail(dto.email, dto.name, company[0].name, dto.companyRoleId, inviteLink);
         return {
             token,

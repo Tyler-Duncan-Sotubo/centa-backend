@@ -41,7 +41,7 @@ export declare const performanceGoalCompanyPolicies: import("drizzle-orm/pg-core
             tableName: "performance_goal_company_policies";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "manager" | "private" | "company";
+            data: "company" | "manager" | "private";
             driverParam: string;
             notNull: true;
             hasDefault: true;

@@ -20,6 +20,11 @@ __decorate([
 ], CreateLocationDto.prototype, "name", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['OFFICE', 'HOME', 'REMOTE']),
+    __metadata("design:type", String)
+], CreateLocationDto.prototype, "locationType", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateLocationDto.prototype, "street", void 0);

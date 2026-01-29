@@ -435,7 +435,7 @@ let EmployeesBulkImportWriteService = EmployeesBulkImportWriteService_1 = class 
             const token = tokenByUserId.get(u.id);
             if (!token)
                 return Promise.resolve();
-            const resetLink = `${baseUrl}/auth/reset-password/${token}`;
+            const resetLink = `${baseUrl}/reset-password/${token}`;
             return this.emailQueue.add('sendPasswordResetEmail', {
                 email: u.email,
                 name: firstNameByEmail.get(u.email.toLowerCase()) ?? '',

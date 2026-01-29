@@ -290,7 +290,7 @@ export class EmployeesService {
 
       const inviteLink = `${this.config.get(
         'EMPLOYEE_PORTAL_URL',
-      )}/auth/reset-password/${token}`;
+      )}/reset-password/${token}`;
       await this.employeeInvitationService.sendInvitationEmail(
         emp.email,
         emp.firstName,

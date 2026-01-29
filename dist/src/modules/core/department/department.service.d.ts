@@ -185,11 +185,11 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
             id: any;
             firstName: any;
             lastName: any;
-        };
+        } | null;
         parent: {
             id: any;
             name: any;
-        };
+        } | null;
         costCenter: {
             id: string;
             code: string;
@@ -204,11 +204,11 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
             id: any;
             firstName: any;
             lastName: any;
-        } | null;
+        };
         parent: {
             id: any;
             name: any;
-        } | null;
+        };
         costCenter: {
             id: string;
             code: string;
@@ -286,11 +286,11 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
             id: any;
             firstName: any;
             lastName: any;
-        };
+        } | null;
         parent: {
             id: any;
             name: any;
-        };
+        } | null;
         costCenter: {
             id: string;
             code: string;
@@ -305,11 +305,11 @@ export declare class DepartmentService extends BaseCrudService<UpdateDepartmentD
             id: any;
             firstName: any;
             lastName: any;
-        } | null;
+        };
         parent: {
             id: any;
             name: any;
-        } | null;
+        };
         costCenter: {
             id: string;
             code: string;

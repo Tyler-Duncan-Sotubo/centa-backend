@@ -14,7 +14,7 @@ export declare class OnboardingController extends BaseController {
             assignee: "employee" | "hr" | "it" | "finance" | null;
             order: number | null;
             dueDaysAfterStart: number | null;
-            status: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
+            status: "pending" | "skipped" | "in_progress" | "completed" | "overdue" | "cancelled" | null;
             completedAt: Date | null;
         }[];
         employeeId: any;
@@ -30,7 +30,7 @@ export declare class OnboardingController extends BaseController {
             assignee: "employee" | "hr" | "it" | "finance" | null;
             order: number | null;
             dueDaysAfterStart: number | null;
-            status: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
+            status: "pending" | "skipped" | "in_progress" | "completed" | "overdue" | "cancelled" | null;
             completedAt: Date | null;
         }[];
         employeeId: any;
@@ -88,7 +88,7 @@ export declare class OnboardingController extends BaseController {
         id: string;
         employeeId: string;
         checklistId: string;
-        status: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
+        status: "pending" | "skipped" | "in_progress" | "completed" | "overdue" | "cancelled" | null;
         completedAt: Date | null;
     }>;
 }

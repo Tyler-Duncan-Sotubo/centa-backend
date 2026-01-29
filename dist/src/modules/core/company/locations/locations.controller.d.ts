@@ -9,12 +9,13 @@ export declare class LocationsController extends BaseController {
     create(createLocationDto: CreateLocationDto, user: User, ip: string): Promise<{
         id: string;
         name: string;
-        createdAt: Date;
-        updatedAt: Date;
         isActive: boolean | null;
         country: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         isPrimary: boolean | null;
+        locationType: "OFFICE" | "HOME" | "REMOTE";
         street: string | null;
         city: string | null;
         state: string | null;
@@ -28,6 +29,7 @@ export declare class LocationsController extends BaseController {
         id: string;
         companyId: string;
         isPrimary: boolean | null;
+        locationType: "OFFICE" | "HOME" | "REMOTE";
         name: string;
         street: string | null;
         city: string | null;
@@ -46,6 +48,7 @@ export declare class LocationsController extends BaseController {
         id: string;
         companyId: string;
         isPrimary: boolean | null;
+        locationType: "OFFICE" | "HOME" | "REMOTE";
         name: string;
         street: string | null;
         city: string | null;
@@ -64,6 +67,7 @@ export declare class LocationsController extends BaseController {
         id: string;
         companyId: string;
         isPrimary: boolean | null;
+        locationType: "OFFICE" | "HOME" | "REMOTE";
         name: string;
         street: string | null;
         city: string | null;
@@ -82,6 +86,7 @@ export declare class LocationsController extends BaseController {
         id: string;
         companyId: string;
         isPrimary: boolean | null;
+        locationType: "OFFICE" | "HOME" | "REMOTE";
         name: string;
         street: string | null;
         city: string | null;
@@ -110,13 +115,13 @@ export declare class LocationsController extends BaseController {
     addLocationManager(id: string, employeeId: string): Promise<{
         id: string;
         createdAt: Date;
-        managerId: string;
         locationId: string;
+        managerId: string;
     }[]>;
     updateLocationManager(id: string, employeeId: string): Promise<{
         id: string;
         createdAt: Date;
-        managerId: string;
         locationId: string;
+        managerId: string;
     }[]>;
 }

@@ -1,3 +1,4 @@
+export declare const locationTypeEnum: import("drizzle-orm/pg-core").PgEnum<["OFFICE", "HOME", "REMOTE"]>;
 export declare const companyLocations: import("drizzle-orm/pg-core").PgTableWithColumns<{
     name: "company_locations";
     schema: undefined;
@@ -49,6 +50,23 @@ export declare const companyLocations: import("drizzle-orm/pg-core").PgTableWith
             isAutoincrement: false;
             hasRuntimeDefault: false;
             enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        locationType: import("drizzle-orm/pg-core").PgColumn<{
+            name: "location_type";
+            tableName: "company_locations";
+            dataType: "string";
+            columnType: "PgEnumColumn";
+            data: "OFFICE" | "HOME" | "REMOTE";
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: ["OFFICE", "HOME", "REMOTE"];
             baseColumn: never;
             identity: undefined;
             generated: undefined;

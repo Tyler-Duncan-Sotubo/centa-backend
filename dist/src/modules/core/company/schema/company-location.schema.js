@@ -1,14 +1,20 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.companyLocations = void 0;
+exports.companyLocations = exports.locationTypeEnum = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 const company_schema_1 = require("./company.schema");
+exports.locationTypeEnum = (0, pg_core_1.pgEnum)('location_type', [
+    'OFFICE',
+    'HOME',
+    'REMOTE',
+]);
 exports.companyLocations = (0, pg_core_1.pgTable)('company_locations', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
     companyId: (0, pg_core_1.uuid)('company_id')
         .references(() => company_schema_1.companies.id, { onDelete: 'cascade' })
         .notNull(),
     isPrimary: (0, pg_core_1.boolean)('is_primary').default(false),
+    locationType: (0, exports.locationTypeEnum)('location_type').notNull().default('OFFICE'),
     name: (0, pg_core_1.varchar)('name', { length: 255 }).notNull(),
     street: (0, pg_core_1.varchar)('street', { length: 255 }),
     city: (0, pg_core_1.varchar)('city', { length: 100 }),

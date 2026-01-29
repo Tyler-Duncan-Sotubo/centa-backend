@@ -13,11 +13,11 @@ export declare class AssessmentConclusionsService {
         createdAt: Date | null;
         updatedAt: Date | null;
         summary: string | null;
+        finalScore: number | null;
+        promotionRecommendation: string | null;
         assessmentId: string;
         strengths: string | null;
         areasForImprovement: string | null;
-        finalScore: number | null;
-        promotionRecommendation: string | null;
         potentialFlag: boolean | null;
     }>;
     updateConclusion(assessmentId: string, dto: UpdateConclusionDto, authorId: string): Promise<{

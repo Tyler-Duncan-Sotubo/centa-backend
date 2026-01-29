@@ -7,13 +7,13 @@ export declare class BonusesController extends BaseController {
     private readonly bonusesService;
     constructor(bonusesService: BonusesService);
     create(createBonusDto: CreateBonusDto, user: User): Promise<{
-        status: string | null;
         id: string;
         createdAt: Date | null;
         companyId: string;
-        createdBy: string;
         employeeId: string;
         effectiveDate: string;
+        status: string | null;
+        createdBy: string;
         amount: string;
         bonusType: string;
     }[]>;

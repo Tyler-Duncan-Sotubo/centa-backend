@@ -1,8 +1,14 @@
-import { IsString, IsOptional, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsIn } from 'class-validator';
+
+export type LocationType = 'OFFICE' | 'HOME' | 'REMOTE';
 
 export class CreateLocationDto {
   @IsString()
   name: string;
+
+  @IsOptional()
+  @IsIn(['OFFICE', 'HOME', 'REMOTE'])
+  locationType?: LocationType;
 
   @IsOptional()
   @IsString()
