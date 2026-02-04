@@ -8,5 +8,6 @@ export declare class AutoCreateCycleCronService {
     private readonly logger;
     constructor(settingsService: PerformanceSettingsService, cycleService: CycleService, companyService: CompanyService);
     handleAutoCycleCreation(): Promise<void>;
+    private generateCycleContainingDate;
     private generateNextCycleRange;
 }

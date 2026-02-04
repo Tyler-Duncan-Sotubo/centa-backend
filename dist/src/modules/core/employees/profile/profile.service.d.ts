@@ -245,10 +245,11 @@ export declare class ProfileService {
     constructor(db: db, auditService: AuditService);
     upsert(employeeId: string, dto: CreateProfileDto, userId: string, ip: string): Promise<{
         id: string;
-        country: string | null;
         createdAt: Date;
         updatedAt: Date;
+        country: string | null;
         state: string | null;
+        employeeId: string;
         dateOfBirth: string | null;
         gender: string | null;
         maritalStatus: string | null;
@@ -256,7 +257,6 @@ export declare class ProfileService {
         phone: string | null;
         emergencyName: string | null;
         emergencyPhone: string | null;
-        employeeId: string;
     }>;
     findOne(employeeId: string): Promise<{
         id: string;

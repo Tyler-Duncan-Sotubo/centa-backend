@@ -9,10 +9,10 @@ export declare class LocationsController extends BaseController {
     create(createLocationDto: CreateLocationDto, user: User, ip: string): Promise<{
         id: string;
         name: string;
-        isActive: boolean | null;
-        country: string | null;
         createdAt: Date;
         updatedAt: Date;
+        isActive: boolean | null;
+        country: string | null;
         companyId: string;
         isPrimary: boolean | null;
         locationType: "OFFICE" | "HOME" | "REMOTE";
@@ -115,13 +115,13 @@ export declare class LocationsController extends BaseController {
     addLocationManager(id: string, employeeId: string): Promise<{
         id: string;
         createdAt: Date;
-        locationId: string;
         managerId: string;
+        locationId: string;
     }[]>;
     updateLocationManager(id: string, employeeId: string): Promise<{
         id: string;
         createdAt: Date;
-        locationId: string;
         managerId: string;
+        locationId: string;
     }[]>;
 }

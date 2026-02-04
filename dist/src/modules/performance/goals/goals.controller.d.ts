@@ -15,6 +15,7 @@ export declare class GoalsController extends BaseController {
     create(dto: CreateGoalDto, user: User): Promise<{
         id: any;
         employeeId: any;
+        status: any;
     }[]>;
     findAll(user: User, status: string): Promise<({
         progress: number;
@@ -858,4 +859,13 @@ export declare class GoalsController extends BaseController {
         updatedAt: Date | null;
     }>;
     deleteAttachment(attachmentId: string, user: User): Promise<void>;
+    approve(id: string, user: User): Promise<{
+        id: any;
+        status: any;
+        employeeId: any;
+    }>;
+    reject(id: string, reason: string, user: User): Promise<{
+        id: any;
+        status: any;
+    }>;
 }

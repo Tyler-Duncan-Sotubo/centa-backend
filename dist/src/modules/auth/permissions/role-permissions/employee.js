@@ -49,5 +49,6 @@ exports.EmployeeRolePermissions = [
     'performance.reviews.submit_self',
     'performance.reviews.submit_peer',
     'performance.reviews.read',
+    'performance.cycles.read',
 ];
 //# sourceMappingURL=employee.js.map

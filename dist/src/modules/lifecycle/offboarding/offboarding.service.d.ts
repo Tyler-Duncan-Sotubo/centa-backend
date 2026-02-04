@@ -9,13 +9,13 @@ export declare class OffboardingService {
     private readonly auditService;
     constructor(db: db, auditService: AuditService);
     begin(createDto: CreateOffboardingBeginDto, user: User): Promise<{
+        status: string | null;
         id: string;
         companyId: string;
         employeeId: string;
-        status: string | null;
-        completedAt: Date | null;
         notes: string | null;
         startedAt: Date | null;
+        completedAt: Date | null;
         terminationType: string | null;
         terminationReason: string | null;
         terminationDate: string;
@@ -84,13 +84,13 @@ export declare class OffboardingService {
             sessionId: string;
             assetId: string | null;
         }[];
+        status: string | null;
         id: string;
         companyId: string;
         employeeId: string;
-        status: string | null;
-        completedAt: Date | null;
         notes: string | null;
         startedAt: Date | null;
+        completedAt: Date | null;
         terminationType: string | null;
         terminationReason: string | null;
         terminationDate: string;

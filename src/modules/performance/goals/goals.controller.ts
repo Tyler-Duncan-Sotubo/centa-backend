@@ -191,4 +191,20 @@ export class GoalsController extends BaseController {
   ) {
     return this.activityService.deleteAttachment(attachmentId, user);
   }
+
+  @Patch(':id/approve')
+  @SetMetadata('permissions', ['performance.goals.edit'])
+  approve(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.goalsService.approveGoal(id, user);
+  }
+
+  @Patch(':id/reject')
+  @SetMetadata('permissions', ['performance.goals.edit'])
+  reject(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.goalsService.rejectGoal(id, reason, user);
+  }
 }

@@ -338,7 +338,7 @@ export declare class ReportService {
             name: string;
             startDate: string;
             endDate: string;
-            status: "active" | "upcoming" | "closed";
+            status: "active" | "closed" | "upcoming";
         };
         cycleHealth: {
             totalAppraisals: number;

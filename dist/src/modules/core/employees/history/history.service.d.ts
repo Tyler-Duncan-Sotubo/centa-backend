@@ -169,8 +169,8 @@ export declare class HistoryService {
     create(employeeId: string, dto: CreateHistoryDto, userId: string, ip: string): Promise<{
         id: string;
         createdAt: Date;
-        description: string | null;
         type: "employment" | "education" | "certification" | "promotion" | "transfer" | "termination";
+        description: string | null;
         title: string;
         startDate: string | null;
         employeeId: string;

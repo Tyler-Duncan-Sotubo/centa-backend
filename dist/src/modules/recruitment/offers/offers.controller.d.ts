@@ -11,16 +11,17 @@ export declare class OffersController extends BaseController {
     private readonly sendOffersService;
     constructor(offersService: OffersService, sendOffersService: SendOffersService);
     create(createOfferDto: CreateOfferDto, user: User): Promise<{
+        version: number | null;
+        status: "pending" | "accepted" | "sent" | "declined" | "expired";
         id: string;
-        currency: string;
         createdAt: Date | null;
         updatedAt: Date | null;
+        currency: string;
         companyId: string;
-        startDate: string | null;
-        status: "pending" | "accepted" | "sent" | "declined" | "expired";
-        expiresAt: Date | null;
         createdBy: string | null;
+        startDate: string | null;
         templateId: string | null;
+        expiresAt: Date | null;
         applicationId: string;
         signingMethod: string;
         salary: string | null;
@@ -30,7 +31,6 @@ export declare class OffersController extends BaseController {
         signingUrl: string | null;
         signedAt: Date | null;
         sentAt: Date | null;
-        version: number | null;
         pdfData: Record<string, any>;
     }>;
     getTemplateVariables(dto: GetOfferTemplateVariablesDto, user: User): Promise<{

@@ -9,8 +9,8 @@ export declare class PerformanceReviewQuestionService {
     constructor(db: db, auditService: AuditService);
     create(user: User, dto: CreateQuestionsDto): Promise<{
         id: string;
-        isActive: boolean | null;
         createdAt: Date | null;
+        isActive: boolean | null;
         companyId: string | null;
         type: string;
         isGlobal: boolean | null;

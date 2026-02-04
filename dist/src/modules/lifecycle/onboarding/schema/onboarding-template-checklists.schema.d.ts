@@ -169,7 +169,7 @@ export declare const employeeChecklistStatus: import("drizzle-orm/pg-core").PgTa
             tableName: "employee_checklist_status";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "pending" | "skipped" | "in_progress" | "completed" | "overdue" | "cancelled";
+            data: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled";
             driverParam: string;
             notNull: false;
             hasDefault: true;

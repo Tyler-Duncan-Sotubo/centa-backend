@@ -37,6 +37,26 @@ export class GoalsService {
     private readonly goalNotification: GoalNotificationService,
   ) {}
 
+  isHrOrAdmin = (user: User) =>
+    ['super_admin', 'admin', 'hr_admin'].includes((user as any).role);
+
+  async getEmployeeById(tx: db, companyId: string, employeeId: string) {
+    const [emp] = await tx
+      .select({
+        id: employees.id,
+        userId: employees.userId,
+        managerId: employees.managerId,
+        companyId: employees.companyId,
+      })
+      .from(employees)
+      .where(
+        and(eq(employees.id, employeeId), eq(employees.companyId, companyId)),
+      )
+      .limit(1);
+
+    return emp;
+  }
+
   async create(dto: CreateGoalDto, user: User) {
     const {
       title,
@@ -46,12 +66,14 @@ export class GoalsService {
       weight,
       employeeId,
       groupId,
-      status,
+      status, // NOTE: we will NOT trust this for ESS users
     } = dto;
 
-    if (!startDate) throw new Error('startDate is required.');
+    if (!startDate) throw new BadRequestException('startDate is required.');
     if (!!employeeId === !!groupId) {
-      throw new Error('Provide exactly one owner: employeeId OR groupId.');
+      throw new BadRequestException(
+        'Provide exactly one owner: employeeId OR groupId.',
+      );
     }
 
     // Normalize to YYYY-MM-DD for date columns/comparisons
@@ -60,46 +82,71 @@ export class GoalsService {
 
     const startDateStr = normDate(startDate);
     const dueDateStr = normDate(dueDate);
-    const statusVal = status ?? 'draft';
     const now = new Date();
 
-    // Find cycle covering startDate
-    const [cycle] = await this.db
-      .select({ id: performanceCycles.id })
-      .from(performanceCycles)
-      .where(
-        and(
-          eq(performanceCycles.companyId, user.companyId),
-          lte(performanceCycles.startDate, startDateStr),
-          gte(performanceCycles.endDate, startDateStr),
-        ),
-      )
-      .limit(1);
-
-    if (!cycle) {
-      throw new Error('No performance cycle covers the provided startDate.');
-    }
-
-    // Resolve the assigner (from users) to a name
-    const [assigner] = await this.db
-      .select({
-        id: users.id,
-        fullName: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
-      })
-      .from(users)
-      .where(eq(users.id, user.id))
-      .execute();
-
-    const assignedByName = assigner?.fullName ?? `${user.id}`; // fallback
+    // ---- Authorization helpers (adjust role keys to your app) ----
+    const isPrivileged = () => {
+      const role = (user as any).role ?? (user as any).userRole ?? null;
+      return ['super_admin', 'admin', 'hr_admin', 'hr_manager'].includes(role);
+    };
 
     return await this.db.transaction(async (tx) => {
-      let goalsToInsert: (typeof performanceGoals.$inferInsert)[] = [];
+      // Find cycle covering startDate
+      const [cycle] = await tx
+        .select({ id: performanceCycles.id })
+        .from(performanceCycles)
+        .where(
+          and(
+            eq(performanceCycles.companyId, user.companyId),
+            lte(performanceCycles.startDate, startDateStr),
+            gte(performanceCycles.endDate, startDateStr),
+          ),
+        )
+        .limit(1);
+
+      if (!cycle) {
+        throw new BadRequestException(
+          'No performance cycle covers the provided startDate.',
+        );
+      }
+
+      // Resolve assigner (creator) name
+      const [assigner] = await tx
+        .select({
+          id: users.id,
+          fullName: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
+        })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+
+      const assignedByName = assigner?.fullName ?? `${user.id}`;
+
+      // Resolve creator's employee record (needed for ESS guardrails)
+      const [creatorEmployee] = await tx
+        .select({
+          id: employees.id,
+          userId: employees.userId,
+          companyId: employees.companyId,
+        })
+        .from(employees)
+        .where(
+          and(
+            eq(employees.userId, user.id),
+            eq(employees.companyId, user.companyId),
+          ),
+        )
+        .limit(1);
+
+      const creatorIsPrivileged = isPrivileged();
+      const creatorIsEmployee = !!creatorEmployee; // ESS-like
+
+      // ---- Determine target employees ----
       let targetEmployeeIds: string[] = [];
 
       if (employeeId) {
         targetEmployeeIds = [employeeId];
       } else {
-        // Resolve members of the group
         const members = await tx
           .select({ employeeId: groupMemberships.employeeId })
           .from(groupMemberships)
@@ -109,45 +156,81 @@ export class GoalsService {
           ...new Set(members.map((m) => m.employeeId)),
         ];
         if (uniqueEmployeeIds.length === 0) {
-          throw new Error('Selected group has no members.');
+          throw new BadRequestException('Selected group has no members.');
         }
         targetEmployeeIds = uniqueEmployeeIds;
       }
 
-      // Fetch the target employees (email + firstName) from employees table
+      // ---- ESS guardrails: employees can only create goals for themselves ----
+      // If the creator is not privileged and has an employee record, restrict to self only.
+      if (!creatorIsPrivileged && creatorIsEmployee) {
+        const selfId = creatorEmployee!.id;
+        const allSelf = targetEmployeeIds.every((id) => id === selfId);
+
+        if (!allSelf) {
+          throw new BadRequestException(
+            'You can only create goals for yourself.',
+          );
+        }
+
+        // Additionally, block groupId-based fan-out from ESS
+        if (groupId) {
+          throw new BadRequestException('You cannot create goals for a group.');
+        }
+      }
+
+      // ---- Fetch target employee info (email + firstName) ----
       const employeesInfo = await tx
         .select({
           id: employees.id,
           firstName: employees.firstName,
-          email: employees.email, // adjust if your column is different
+          email: employees.email,
+          companyId: employees.companyId,
         })
         .from(employees)
         .where(inArray(employees.id, targetEmployeeIds));
 
-      // Guard: ensure we found all the employees
+      // Guard: ensure all exist + belong to company
       const foundIds = new Set(employeesInfo.map((e) => e.id));
       const missing = targetEmployeeIds.filter((id) => !foundIds.has(id));
       if (missing.length) {
-        throw new Error(
-          `Some employees not found or missing email records: ${missing.join(', ')}`,
+        throw new NotFoundException(
+          `Some employees not found: ${missing.join(', ')}`,
+        );
+      }
+      const outsideCompany = employeesInfo.filter(
+        (e) => e.companyId !== user.companyId,
+      );
+      if (outsideCompany.length) {
+        throw new BadRequestException(
+          'One or more employees are outside your company.',
         );
       }
 
+      // ---- Status rules (do NOT trust dto.status for ESS) ----
+      // Recommended lifecycle:
+      // - privileged creators: allow provided status or default to 'draft'
+      // - employees creating self-goals: force 'pending_approval' (or 'draft' if you prefer a submit step)
+      const computedStatus = creatorIsPrivileged
+        ? (status ?? 'draft')
+        : 'pending_approval';
+
       // Build inserts (one goal per employee)
-      goalsToInsert = employeesInfo.map((emp) => ({
-        title,
-        description: description ?? null,
-        startDate: startDateStr,
-        dueDate: dueDateStr,
-        companyId: user.companyId,
-        cycleId: cycle.id,
-        assignedAt: now,
-        assignedBy: user.id,
-        weight: weight ?? 0,
-        status: statusVal,
-        employeeId: emp.id,
-        employeeGroupId: groupId ?? null, // lineage for group case
-      }));
+      const goalsToInsert: (typeof performanceGoals.$inferInsert)[] =
+        employeesInfo.map((emp) => ({
+          title,
+          description: description ?? null,
+          startDate: startDateStr,
+          dueDate: dueDateStr,
+          companyId: user.companyId,
+          cycleId: cycle.id,
+          assignedAt: now,
+          assignedBy: user.id,
+          weight: weight ?? 0,
+          status: computedStatus,
+          employeeId: emp.id,
+          employeeGroupId: groupId ?? null,
+        }));
 
       const created = await tx
         .insert(performanceGoals)
@@ -155,6 +238,7 @@ export class GoalsService {
         .returning({
           id: performanceGoals.id,
           employeeId: performanceGoals.employeeId,
+          status: performanceGoals.status,
         });
 
       // Create a check-in schedule for EACH created goal, in the same txn
@@ -182,38 +266,42 @@ export class GoalsService {
           dueDate: dueDateStr,
           cycleId: cycle.id,
           weight: weight ?? 0,
-          status: statusVal,
+          status: computedStatus,
           ownerType: employeeId ? 'employee' : 'group',
           count: targetEmployeeIds.length,
+          creatorIsPrivileged,
         },
       });
 
-      // --- Email fan-out: one email per employee, using employees table + names ---
-      // Map created goals by employeeId for goalId lookup
-      const goalIdByEmployee = new Map(
-        created.map((g) => [g.employeeId, g.id]),
-      );
+      // ---- Notifications ----
+      // If employee proposed the goal (pending_approval), typically notify the manager, not the employee.
+      // Since your current service only has "sendGoalAssignment", we:
+      // - send assignment email only when goal is actually "assigned" (not pending approval)
+      // - otherwise, skip (or swap to a "request approval" email if you add one)
+      const shouldSendAssignmentEmail = computedStatus !== 'pending_approval';
 
-      // Send one email per employee with personalized fields
-      await Promise.all(
-        employeesInfo.map((emp) =>
-          this.goalNotification.sendGoalAssignment({
-            toEmail: emp.email,
-            subject: `New Goal Assigned: ${title}`,
-            assignedBy: assignedByName, // human-readable name from users table
-            assignedTo: emp.firstName ?? '', // employee first name from employees table
-            title,
-            dueDate: dueDateStr,
-            description: description ?? '',
-            progress: statusVal, // maps to your SendGrid `progress` field
-            meta: {
-              goalId: goalIdByEmployee.get(emp.id) ?? null,
-            },
-          }),
-        ),
-      );
+      if (shouldSendAssignmentEmail) {
+        const goalIdByEmployee = new Map(
+          created.map((g) => [g.employeeId, g.id]),
+        );
 
-      // Return the array (group fan-out) or single-item array (employee)
+        await Promise.all(
+          employeesInfo.map((emp) =>
+            this.goalNotification.sendGoalAssignment({
+              toEmail: emp.email,
+              subject: `New Goal Assigned: ${title}`,
+              assignedBy: assignedByName,
+              assignedTo: emp.firstName ?? '',
+              title,
+              dueDate: dueDateStr,
+              description: description ?? '',
+              progress: computedStatus, // was statusVal
+              meta: { goalId: goalIdByEmployee.get(emp.id) ?? null },
+            }),
+          ),
+        );
+      }
+
       return created;
     });
   }
@@ -768,5 +856,169 @@ export class GoalsService {
       activity: { updatesCount, commentsCount, attachmentsCount },
       deletable: !hasActivity,
     };
+  }
+
+  async approveGoal(goalId: string, user: User) {
+    const role = (user as any).role ?? (user as any).userRole ?? null;
+    const isPrivileged = [
+      'super_admin',
+      'admin',
+      'hr_admin',
+      'hr_manager',
+    ].includes(role);
+
+    return await this.db.transaction(async (tx) => {
+      const [goal] = await tx
+        .select({
+          id: performanceGoals.id,
+          status: performanceGoals.status,
+          employeeId: performanceGoals.employeeId, // currently typed string | null
+        })
+        .from(performanceGoals)
+        .where(
+          and(
+            eq(performanceGoals.id, goalId),
+            eq(performanceGoals.companyId, user.companyId),
+          ),
+        )
+        .limit(1);
+
+      if (!goal) throw new NotFoundException('Goal not found');
+      if (!goal.employeeId)
+        throw new BadRequestException('Goal has no employee owner');
+
+      // If not HR/admin, validate that user is the employee’s manager
+      if (!isPrivileged) {
+        const [managerEmp] = await tx
+          .select({
+            id: employees.id,
+          })
+          .from(employees)
+          .where(
+            and(
+              eq(employees.userId, user.id),
+              eq(employees.companyId, user.companyId),
+            ),
+          )
+          .limit(1);
+
+        if (!managerEmp) {
+          throw new BadRequestException('Manager employee record not found.');
+        }
+
+        // 2) Resolve goal owner's employee record
+        const [targetEmp] = await tx
+          .select({
+            id: employees.id,
+            managerId: employees.managerId,
+          })
+          .from(employees)
+          .where(
+            and(
+              eq(employees.id, goal.employeeId),
+              eq(employees.companyId, user.companyId),
+            ),
+          )
+          .limit(1);
+
+        if (!targetEmp) {
+          throw new NotFoundException('Target employee not found.');
+        }
+
+        // 3) Enforce reporting relationship
+        if (targetEmp.managerId !== managerEmp.id) {
+          throw new BadRequestException(
+            'You are not allowed to approve goals for this employee.',
+          );
+        }
+      }
+
+      const [updated] = await tx
+        .update(performanceGoals)
+        .set({
+          status: 'active', // or 'published' depending on your model
+          assignedBy: user.id,
+          assignedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(performanceGoals.id, goalId))
+        .returning({
+          id: performanceGoals.id,
+          status: performanceGoals.status,
+          employeeId: performanceGoals.employeeId,
+        });
+
+      await this.auditService.logAction({
+        action: 'approve',
+        entity: 'performance_goal',
+        entityId: goalId,
+        userId: user.id,
+        details: `Approved goal`,
+        changes: { status: 'active' },
+      });
+
+      // Optional: notify employee "Goal approved"
+      // await this.goalNotification.sendGoalApproved(...)
+
+      return updated;
+    });
+  }
+
+  async rejectGoal(goalId: string, reason: string, user: User) {
+    if (!reason?.trim()) throw new BadRequestException('Reason is required.');
+
+    return await this.db.transaction(async (tx) => {
+      const [goal] = await tx
+        .select({
+          id: performanceGoals.id,
+          status: performanceGoals.status,
+          employeeId: performanceGoals.employeeId,
+          isArchived: performanceGoals.isArchived,
+        })
+        .from(performanceGoals)
+        .where(
+          and(
+            eq(performanceGoals.id, goalId),
+            eq(performanceGoals.companyId, user.companyId),
+          ),
+        )
+        .limit(1);
+
+      if (!goal || goal.isArchived)
+        throw new NotFoundException('Goal not found.');
+      if (goal.status !== 'pending_approval') {
+        throw new BadRequestException(
+          'Only pending approval goals can be rejected.',
+        );
+      }
+
+      // Store reason as a comment (or an update row)
+      await tx.insert(goalComments).values({
+        goalId,
+        comment: `Rejected: ${reason}`,
+        authorId: user.id,
+        createdAt: new Date(),
+      } as any);
+
+      const [updated] = await tx
+        .update(performanceGoals)
+        .set({ status: 'archived', updatedAt: new Date() })
+        .where(eq(performanceGoals.id, goalId))
+        .returning({
+          id: performanceGoals.id,
+          status: performanceGoals.status,
+        });
+
+      await this.auditService.logAction({
+        action: 'reject',
+        entity: 'performance_goal',
+        entityId: goalId,
+        userId: user.id,
+        details: `Rejected goal`,
+        changes: { status: 'draft', reason },
+      });
+
+      return updated;
+    });
   }
 }

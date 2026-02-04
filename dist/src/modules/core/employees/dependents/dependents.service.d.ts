@@ -136,8 +136,8 @@ export declare class DependentsService {
         id: string;
         name: string;
         createdAt: Date;
-        dateOfBirth: string;
         employeeId: string;
+        dateOfBirth: string;
         relationship: string;
         isBeneficiary: boolean | null;
     }>;

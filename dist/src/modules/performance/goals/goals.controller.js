@@ -85,6 +85,12 @@ let GoalsController = class GoalsController extends base_controller_1.BaseContro
     deleteAttachment(attachmentId, user) {
         return this.activityService.deleteAttachment(attachmentId, user);
     }
+    approve(id, user) {
+        return this.goalsService.approveGoal(id, user);
+    }
+    reject(id, reason, user) {
+        return this.goalsService.rejectGoal(id, reason, user);
+    }
 };
 exports.GoalsController = GoalsController;
 __decorate([
@@ -255,6 +261,25 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], GoalsController.prototype, "deleteAttachment", null);
+__decorate([
+    (0, common_1.Patch)(':id/approve'),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.edit']),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], GoalsController.prototype, "approve", null);
+__decorate([
+    (0, common_1.Patch)(':id/reject'),
+    (0, common_1.SetMetadata)('permissions', ['performance.goals.edit']),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)('reason')),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", void 0)
+], GoalsController.prototype, "reject", null);
 exports.GoalsController = GoalsController = __decorate([
     (0, common_1.Controller)('performance-goals'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

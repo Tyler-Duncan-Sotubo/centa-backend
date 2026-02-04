@@ -143,7 +143,7 @@ let AutoCreatePerformanceCronService = AutoCreatePerformanceCronService_1 = clas
 };
 exports.AutoCreatePerformanceCronService = AutoCreatePerformanceCronService;
 __decorate([
-    (0, schedule_1.Cron)(schedule_1.CronExpression.EVERY_DAY_AT_2AM),
+    (0, schedule_1.Cron)(schedule_1.CronExpression.EVERY_YEAR),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)

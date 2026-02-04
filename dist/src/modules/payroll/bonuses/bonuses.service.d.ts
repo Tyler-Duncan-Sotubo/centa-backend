@@ -13,13 +13,13 @@ export declare class BonusesService {
     constructor(db: db, auditService: AuditService, cache: CacheService, push: PushNotificationService);
     private getCompanyIdByBonusId;
     create(user: User, dto: CreateBonusDto): Promise<{
+        status: string | null;
         id: string;
         createdAt: Date | null;
         companyId: string;
+        createdBy: string;
         employeeId: string;
         effectiveDate: string;
-        status: string | null;
-        createdBy: string;
         amount: string;
         bonusType: string;
     }[]>;

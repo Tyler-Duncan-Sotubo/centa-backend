@@ -19,7 +19,7 @@ export declare class OnboardingService {
             assignee: "employee" | "hr" | "it" | "finance" | null;
             order: number | null;
             dueDaysAfterStart: number | null;
-            status: "pending" | "skipped" | "in_progress" | "completed" | "overdue" | "cancelled" | null;
+            status: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
             completedAt: Date | null;
         }[];
         employeeId: any;
@@ -35,7 +35,7 @@ export declare class OnboardingService {
             assignee: "employee" | "hr" | "it" | "finance" | null;
             order: number | null;
             dueDaysAfterStart: number | null;
-            status: "pending" | "skipped" | "in_progress" | "completed" | "overdue" | "cancelled" | null;
+            status: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
             completedAt: Date | null;
         }[];
         employeeId: any;
@@ -94,7 +94,7 @@ export declare class OnboardingService {
         id: string;
         employeeId: string;
         checklistId: string;
-        status: "pending" | "skipped" | "in_progress" | "completed" | "overdue" | "cancelled" | null;
+        status: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
         completedAt: Date | null;
     }>;
     private norm;

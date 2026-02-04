@@ -11,9 +11,22 @@ export declare class GoalsService {
     private readonly policy;
     private readonly goalNotification;
     constructor(db: db, auditService: AuditService, policy: PolicyService, goalNotification: GoalNotificationService);
+    isHrOrAdmin: (user: User) => boolean;
+    getEmployeeById(tx: db, companyId: string, employeeId: string): Promise<{
+        id: any;
+        userId: any;
+        managerId: any;
+        companyId: any;
+    } | {
+        id: any;
+        userId: any;
+        managerId: any;
+        companyId: any;
+    }>;
     create(dto: CreateGoalDto, user: User): Promise<{
         id: any;
         employeeId: any;
+        status: any;
     }[]>;
     findAll(companyId: string, status?: string): Promise<({
         progress: number;
@@ -811,5 +824,14 @@ export declare class GoalsService {
             attachmentsCount: number;
         };
         deletable: boolean;
+    }>;
+    approveGoal(goalId: string, user: User): Promise<{
+        id: any;
+        status: any;
+        employeeId: any;
+    }>;
+    rejectGoal(goalId: string, reason: string, user: User): Promise<{
+        id: any;
+        status: any;
     }>;
 }

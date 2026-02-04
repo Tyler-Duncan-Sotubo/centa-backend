@@ -15,12 +15,12 @@ export declare class ReservedDaysService {
         id: string;
         createdAt: Date | null;
         companyId: string | null;
+        createdBy: string;
         startDate: string;
         employeeId: string | null;
-        leaveTypeId: string;
         endDate: string;
         reason: string | null;
-        createdBy: string;
+        leaveTypeId: string;
     }>;
     getReservedDates(companyId: string, employeeId: string): Promise<string[]>;
     findAll(companyId: string): Promise<({

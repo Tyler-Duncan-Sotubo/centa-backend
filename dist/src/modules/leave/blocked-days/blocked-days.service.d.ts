@@ -16,8 +16,8 @@ export declare class BlockedDaysService {
         name: string;
         createdAt: Date | null;
         companyId: string | null;
-        reason: string | null;
         createdBy: string;
+        reason: string | null;
     }>;
     getBlockedDates(companyId: string): Promise<string[]>;
     findAll(companyId: string): Promise<{

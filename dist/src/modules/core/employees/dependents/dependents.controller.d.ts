@@ -10,8 +10,8 @@ export declare class DependentsController extends BaseController {
         id: string;
         name: string;
         createdAt: Date;
-        dateOfBirth: string;
         employeeId: string;
+        dateOfBirth: string;
         relationship: string;
         isBeneficiary: boolean | null;
     }>;
