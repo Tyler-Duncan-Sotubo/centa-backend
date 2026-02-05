@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ReportService } from './report.service';
 import { GetTopEmployeesDto } from './dto/get-top-employees.dto';
-import { GetAppraisalReportDto } from './dto/get-appraisal-report.dto';
 import { User } from 'src/common/types/user.type';
 import { GetAssessmentReportDto } from './dto/get-assessment-report.dto';
 import { GetFeedbackReportDto } from './dto/get-feedback-report.dto';
@@ -19,19 +18,6 @@ export class PerformancePdfExportService {
   date = new Date();
   formattedDate = this.date.toISOString().split('T')[0];
 
-  async exportAppraisalReportToPDF(
-    user: User,
-    filters?: GetAppraisalReportDto,
-  ) {
-    const report = await this.reportService.getAppraisalReport(user, filters);
-
-    const html = PdfUtil.renderAppraisalReportHtml(report);
-    const pdfBuffer = await PdfUtil.generatePdf(html);
-
-    const key = `performance/appraisal/appraisal_report_${this.formattedDate}.pdf`;
-    return this.awsService.uploadPdfToS3(user.companyId, key, pdfBuffer);
-  }
-
   async exportTopEmployeesToPDF(user: User, filters: GetTopEmployeesDto) {
     const result = await this.reportService.getTopEmployees(user, filters);
 
@@ -39,22 +25,6 @@ export class PerformancePdfExportService {
     const pdfBuffer = await PdfUtil.generatePdf(html);
 
     const key = `performance/top/top_employees_${filters.cycleType}_${this.formattedDate}.pdf`;
-    return this.awsService.uploadPdfToS3(user.companyId, key, pdfBuffer);
-  }
-
-  async exportCompetencyHeatmapToPDF(user: User, cycleId: string) {
-    const heatmap = await this.reportService.getCompetencyHeatmap(user, {
-      cycleId,
-    });
-
-    const validHeatmap = Array.isArray(heatmap)
-      ? {}
-      : (heatmap as Record<string, Record<string, number>>);
-
-    const html = PdfUtil.renderHeatmapHtml(validHeatmap);
-    const pdfBuffer = await PdfUtil.generatePdf(html);
-
-    const key = `performance/heatmap/competency_heatmap_${cycleId}_${this.formattedDate}.pdf`;
     return this.awsService.uploadPdfToS3(user.companyId, key, pdfBuffer);
   }
 

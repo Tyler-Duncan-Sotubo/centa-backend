@@ -21,30 +21,11 @@ let PerformancePdfExportService = class PerformancePdfExportService {
         this.date = new Date();
         this.formattedDate = this.date.toISOString().split('T')[0];
     }
-    async exportAppraisalReportToPDF(user, filters) {
-        const report = await this.reportService.getAppraisalReport(user, filters);
-        const html = PdfUtil_1.PdfUtil.renderAppraisalReportHtml(report);
-        const pdfBuffer = await PdfUtil_1.PdfUtil.generatePdf(html);
-        const key = `performance/appraisal/appraisal_report_${this.formattedDate}.pdf`;
-        return this.awsService.uploadPdfToS3(user.companyId, key, pdfBuffer);
-    }
     async exportTopEmployeesToPDF(user, filters) {
         const result = await this.reportService.getTopEmployees(user, filters);
         const html = PdfUtil_1.PdfUtil.renderTopEmployeesHtml(result);
         const pdfBuffer = await PdfUtil_1.PdfUtil.generatePdf(html);
         const key = `performance/top/top_employees_${filters.cycleType}_${this.formattedDate}.pdf`;
-        return this.awsService.uploadPdfToS3(user.companyId, key, pdfBuffer);
-    }
-    async exportCompetencyHeatmapToPDF(user, cycleId) {
-        const heatmap = await this.reportService.getCompetencyHeatmap(user, {
-            cycleId,
-        });
-        const validHeatmap = Array.isArray(heatmap)
-            ? {}
-            : heatmap;
-        const html = PdfUtil_1.PdfUtil.renderHeatmapHtml(validHeatmap);
-        const pdfBuffer = await PdfUtil_1.PdfUtil.generatePdf(html);
-        const key = `performance/heatmap/competency_heatmap_${cycleId}_${this.formattedDate}.pdf`;
         return this.awsService.uploadPdfToS3(user.companyId, key, pdfBuffer);
     }
     async exportGoalReportToPDF(user, filters) {

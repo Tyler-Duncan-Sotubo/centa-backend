@@ -19,27 +19,6 @@ let PerformanceExportService = class PerformanceExportService {
         this.reportService = reportService;
         this.s3Service = s3Service;
     }
-    async exportAppraisalReportToS3(user, filters) {
-        const report = await this.reportService.getAppraisalReport(user, filters);
-        const exportData = report.map((r) => ({
-            employeeName: r.employeeName,
-            department: r.departmentName,
-            jobRole: r.jobRoleName,
-            score: r.appraisalScore ?? 'N/A',
-            recommendation: r.promotionRecommendation ?? 'N/A',
-            summary: r.appraisalNote?.replace(/<\/?[^>]+(>|$)/g, '') ?? '',
-        }));
-        const filename = `appraisal_report_${user.companyId}.csv`;
-        const path = await export_util_1.ExportUtil.exportToCSV(exportData, [
-            { field: 'employeeName', title: 'Employee Name' },
-            { field: 'department', title: 'Department' },
-            { field: 'jobRole', title: 'Job Role' },
-            { field: 'score', title: 'Score' },
-            { field: 'recommendation', title: 'Recommendation' },
-            { field: 'summary', title: 'Summary' },
-        ], filename);
-        return this.s3Service.uploadFilePath(path, user.companyId, 'performance', 'appraisal');
-    }
     async exportTopEmployeesToS3(user, filters) {
         const result = await this.reportService.getTopEmployees(user, filters);
         const exportData = result.map((r) => ({
@@ -58,23 +37,6 @@ let PerformanceExportService = class PerformanceExportService {
             { field: 'promotionRecommendation', title: 'Recommendation' },
         ], filename);
         return this.s3Service.uploadFilePath(path, user.companyId, 'performance', 'top');
-    }
-    async exportCompetencyHeatmapToS3(user, cycleId) {
-        const heatmap = await this.reportService.getCompetencyHeatmap(user, {
-            cycleId,
-        });
-        const exportData = Object.entries(heatmap).flatMap(([competency, levels]) => Object.entries(levels).map(([level, count]) => ({
-            competency,
-            level,
-            count,
-        })));
-        const filename = `competency_heatmap_${user.companyId}_${cycleId}`;
-        const path = await export_util_1.ExportUtil.exportToCSV(exportData, [
-            { field: 'competency', title: 'Competency' },
-            { field: 'level', title: 'Level' },
-            { field: 'count', title: 'Count' },
-        ], filename);
-        return this.s3Service.uploadFilePath(path, user.companyId, 'performance', 'heatmap');
     }
     async exportGoalReportToCSV(user, filters) {
         const report = await this.reportService.getGoalReport(user, filters);

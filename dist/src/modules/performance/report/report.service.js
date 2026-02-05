@@ -17,14 +17,11 @@ const common_1 = require("@nestjs/common");
 const drizzle_module_1 = require("../../../drizzle/drizzle.module");
 const drizzle_orm_1 = require("drizzle-orm");
 const schema_1 = require("../../../drizzle/schema");
-const performance_appraisals_schema_1 = require("../appraisals/schema/performance-appraisals.schema");
-const performance_appraisal_cycle_schema_1 = require("../appraisals/schema/performance-appraisal-cycle.schema");
 const performance_feedback_schema_1 = require("../feedback/schema/performance-feedback.schema");
 const performance_feedback_responses_schema_1 = require("../feedback/schema/performance-feedback-responses.schema");
+const performance_feedback_questions_schema_1 = require("../feedback/schema/performance-feedback-questions.schema");
 const performance_assessments_schema_1 = require("../assessments/schema/performance-assessments.schema");
 const performance_assessment_conclusions_schema_1 = require("../assessments/schema/performance-assessment-conclusions.schema");
-const performance_appraisals_entries_schema_1 = require("../appraisals/schema/performance-appraisals-entries.schema");
-const performance_feedback_questions_schema_1 = require("../feedback/schema/performance-feedback-questions.schema");
 let ReportService = class ReportService {
     constructor(db) {
         this.db = db;
@@ -35,15 +32,6 @@ let ReportService = class ReportService {
             .from(schema_1.performanceCycles)
             .where((0, drizzle_orm_1.eq)(schema_1.performanceCycles.companyId, companyId))
             .orderBy((0, drizzle_orm_1.desc)(schema_1.performanceCycles.startDate))
-            .execute();
-        const appraisalCycles = await this.db
-            .select({
-            id: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.id,
-            name: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.name,
-        })
-            .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
-            .where((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, companyId))
-            .orderBy((0, drizzle_orm_1.desc)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate))
             .execute();
         const employeesList = await this.db
             .select({
@@ -59,54 +47,7 @@ let ReportService = class ReportService {
             .where((0, drizzle_orm_1.eq)(schema_1.departments.companyId, companyId))
             .orderBy(schema_1.departments.name)
             .execute();
-        return { cycles, employeesList, departmentsList, appraisalCycles };
-    }
-    async getAppraisalReport(user, filters) {
-        const { cycleId, employeeId, departmentId, minimumScore } = filters || {};
-        let targetCycleId = cycleId;
-        if (!targetCycleId) {
-            const [activeCycle] = await this.db
-                .select({
-                id: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.id,
-                name: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.name,
-                startDate: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate,
-                endDate: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.endDate,
-                status: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.status,
-            })
-                .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, user.companyId), (0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.status, 'active')))
-                .orderBy((0, drizzle_orm_1.desc)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate))
-                .limit(1)
-                .execute();
-            if (!activeCycle) {
-                return [];
-            }
-            targetCycleId = activeCycle.id;
-        }
-        const report = await this.db
-            .select({
-            cycleId: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.id,
-            cycleName: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.name,
-            appraisalId: performance_appraisals_schema_1.appraisals.id,
-            employeeId: schema_1.employees.id,
-            employeeName: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
-            jobRoleName: schema_1.jobRoles.title,
-            departmentName: schema_1.departments.name,
-            appraisalNote: performance_appraisals_schema_1.appraisals.finalNote,
-            appraisalScore: performance_appraisals_schema_1.appraisals.finalScore,
-            promotionRecommendation: performance_appraisals_schema_1.appraisals.promotionRecommendation,
-            submittedAt: performance_appraisals_schema_1.appraisals.createdAt,
-        })
-            .from(performance_appraisals_schema_1.appraisals)
-            .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(schema_1.employees.id, performance_appraisals_schema_1.appraisals.employeeId))
-            .innerJoin(performance_appraisal_cycle_schema_1.performanceAppraisalCycles, (0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.id, performance_appraisals_schema_1.appraisals.cycleId))
-            .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.jobRoles.id, schema_1.employees.jobRoleId))
-            .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.departments.id, schema_1.employees.departmentId))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, user.companyId), targetCycleId ? (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.cycleId, targetCycleId) : undefined, employeeId ? (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, employeeId) : undefined, departmentId ? (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, departmentId) : undefined, minimumScore !== undefined
-            ? (0, drizzle_orm_1.gte)(performance_appraisals_schema_1.appraisals.finalScore, minimumScore)
-            : undefined))
-            .execute();
-        return report;
+        return { cycles, employeesList, departmentsList };
     }
     async getGoalReport(user, filters) {
         const { cycleId, employeeId, departmentId, status, minimumWeight } = filters || {};
@@ -124,12 +65,11 @@ let ReportService = class ReportService {
                 .orderBy((0, drizzle_orm_1.desc)(schema_1.performanceCycles.startDate))
                 .limit(1)
                 .execute();
-            if (!activeCycle) {
+            if (!activeCycle)
                 return [];
-            }
             targetCycleId = activeCycle.id;
         }
-        const report = await this.db
+        return this.db
             .select({
             goalId: schema_1.performanceGoals.id,
             employeeId: schema_1.employees.id,
@@ -152,7 +92,6 @@ let ReportService = class ReportService {
             ? (0, drizzle_orm_1.gte)(schema_1.performanceGoals.weight, minimumWeight)
             : undefined))
             .execute();
-        return report;
     }
     async getFeedbackReport(user, filters) {
         const { type, employeeId } = filters;
@@ -190,21 +129,19 @@ let ReportService = class ReportService {
             .execute();
         const groupedResponses = {};
         for (const r of responses) {
-            if (!groupedResponses[r.feedbackId]) {
+            if (!groupedResponses[r.feedbackId])
                 groupedResponses[r.feedbackId] = [];
-            }
             groupedResponses[r.feedbackId].push({
                 questionText: r.questionText,
                 answer: r.answer,
                 order: r.order ?? 0,
             });
         }
-        const report = feedbackEntries.map((entry) => ({
+        return feedbackEntries.map((entry) => ({
             ...entry,
             senderName: entry.isAnonymous ? undefined : entry.senderName,
             responses: groupedResponses[entry.feedbackId] || [],
         }));
-        return report;
     }
     async getAssessmentReportSummary(user, filters) {
         const { cycleId, employeeId, reviewerId, departmentId, status } = filters || {};
@@ -222,12 +159,11 @@ let ReportService = class ReportService {
                 .orderBy((0, drizzle_orm_1.desc)(schema_1.performanceCycles.startDate))
                 .limit(1)
                 .execute();
-            if (!activeCycle) {
+            if (!activeCycle)
                 return [];
-            }
             targetCycleId = activeCycle.id;
         }
-        const result = await this.db
+        return this.db
             .select({
             id: performance_assessments_schema_1.performanceAssessments.id,
             employeeId: performance_assessments_schema_1.performanceAssessments.revieweeId,
@@ -257,53 +193,22 @@ let ReportService = class ReportService {
             : undefined))
             .orderBy((0, drizzle_orm_1.desc)(performance_assessments_schema_1.performanceAssessments.submittedAt))
             .execute();
-        return result;
     }
     async getTopEmployees(user, filter) {
-        const { cycleType = 'appraisal', departmentId, jobRoleId } = filter;
-        const isAppraisal = cycleType === 'appraisal';
+        const { departmentId, jobRoleId } = filter;
         const [latestCycle] = await this.db
-            .select()
-            .from(isAppraisal ? performance_appraisal_cycle_schema_1.performanceAppraisalCycles : schema_1.performanceCycles)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(isAppraisal
-            ? performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId
-            : schema_1.performanceCycles.companyId, user.companyId), (0, drizzle_orm_1.eq)(isAppraisal
-            ? performance_appraisal_cycle_schema_1.performanceAppraisalCycles.status
-            : schema_1.performanceCycles.status, 'active')))
-            .orderBy((0, drizzle_orm_1.desc)(isAppraisal
-            ? performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate
-            : schema_1.performanceCycles.startDate))
+            .select({
+            id: schema_1.performanceCycles.id,
+            name: schema_1.performanceCycles.name,
+            startDate: schema_1.performanceCycles.startDate,
+        })
+            .from(schema_1.performanceCycles)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceCycles.companyId, user.companyId), (0, drizzle_orm_1.eq)(schema_1.performanceCycles.status, 'active')))
+            .orderBy((0, drizzle_orm_1.desc)(schema_1.performanceCycles.startDate))
             .limit(1)
             .execute();
         if (!latestCycle)
             return [];
-        if (isAppraisal) {
-            const where = [
-                (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.cycleId, latestCycle.id),
-                (0, drizzle_orm_1.isNotNull)(performance_appraisals_schema_1.appraisals.finalScore),
-            ];
-            if (departmentId)
-                where.push((0, drizzle_orm_1.eq)(schema_1.employees.departmentId, departmentId));
-            if (jobRoleId)
-                where.push((0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, jobRoleId));
-            return this.db
-                .select({
-                employeeId: schema_1.employees.id,
-                employeeName: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
-                departmentName: schema_1.departments.name,
-                jobRoleName: schema_1.jobRoles.title,
-                finalScore: performance_appraisals_schema_1.appraisals.finalScore,
-                promotionRecommendation: performance_appraisals_schema_1.appraisals.promotionRecommendation,
-            })
-                .from(performance_appraisals_schema_1.appraisals)
-                .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, schema_1.employees.id))
-                .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.jobRoles.id, schema_1.employees.jobRoleId))
-                .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.departments.id, schema_1.employees.departmentId))
-                .where((0, drizzle_orm_1.and)(...where))
-                .orderBy((0, drizzle_orm_1.desc)(performance_appraisals_schema_1.appraisals.finalScore))
-                .limit(10)
-                .execute();
-        }
         const where = [
             (0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.cycleId, latestCycle.id),
             (0, drizzle_orm_1.isNotNull)(performance_assessment_conclusions_schema_1.assessmentConclusions.finalScore),
@@ -312,7 +217,7 @@ let ReportService = class ReportService {
             where.push((0, drizzle_orm_1.eq)(schema_1.employees.departmentId, departmentId));
         if (jobRoleId)
             where.push((0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, jobRoleId));
-        return this.db
+        const rows = await this.db
             .select({
             employeeId: schema_1.employees.id,
             employeeName: (0, drizzle_orm_1.sql) `concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
@@ -331,227 +236,97 @@ let ReportService = class ReportService {
             .orderBy((0, drizzle_orm_1.desc)(performance_assessment_conclusions_schema_1.assessmentConclusions.finalScore))
             .limit(10)
             .execute();
-    }
-    async getCompetencyHeatmap(user, filters) {
-        let targetCycleId = filters?.cycleId;
-        if (!targetCycleId) {
-            const [activeCycle] = await this.db
-                .select({
-                id: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.id,
-                name: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.name,
-                startDate: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate,
-                endDate: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.endDate,
-                status: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.status,
-            })
-                .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, user.companyId), (0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.status, 'active')))
-                .orderBy((0, drizzle_orm_1.desc)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate))
-                .limit(1)
-                .execute();
-            if (!activeCycle) {
-                return [];
-            }
-            targetCycleId = activeCycle.id;
-        }
-        const result = await this.db
-            .select({
-            competencyName: schema_1.performanceCompetencies.name,
-            levelName: schema_1.competencyLevels.name,
-            count: (0, drizzle_orm_1.sql) `count(*)`.as('count'),
-        })
-            .from(performance_appraisals_entries_schema_1.appraisalEntries)
-            .innerJoin(performance_appraisals_schema_1.appraisals, (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.id, performance_appraisals_entries_schema_1.appraisalEntries.appraisalId))
-            .innerJoin(schema_1.performanceCompetencies, (0, drizzle_orm_1.eq)(schema_1.performanceCompetencies.id, performance_appraisals_entries_schema_1.appraisalEntries.competencyId))
-            .leftJoin(schema_1.competencyLevels, (0, drizzle_orm_1.eq)(schema_1.competencyLevels.id, performance_appraisals_entries_schema_1.appraisalEntries.employeeLevelId))
-            .where((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.cycleId, targetCycleId))
-            .groupBy(schema_1.performanceCompetencies.name, schema_1.competencyLevels.name)
-            .orderBy(schema_1.performanceCompetencies.name, schema_1.competencyLevels.name)
-            .execute();
-        const heatmap = {};
-        for (const row of result) {
-            if (!heatmap[row.competencyName]) {
-                heatmap[row.competencyName] = {};
-            }
-            heatmap[row.competencyName][row.levelName ?? 'Unrated'] = row.count;
-        }
-        return heatmap;
-    }
-    async getParticipationReport(user, filters) {
-        let targetCycleId = filters?.cycleId;
-        if (!targetCycleId) {
-            const [activeCycle] = await this.db
-                .select({ id: schema_1.performanceCycles.id })
-                .from(schema_1.performanceCycles)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceCycles.companyId, user.companyId), (0, drizzle_orm_1.eq)(schema_1.performanceCycles.status, 'active')))
-                .orderBy((0, drizzle_orm_1.desc)(schema_1.performanceCycles.startDate))
-                .limit(1)
-                .execute();
-            if (!activeCycle)
-                return [];
-            targetCycleId = activeCycle.id;
-        }
-        const rows = await this.db
-            .select({
-            employeeId: schema_1.employees.id,
-            employeeName: (0, drizzle_orm_1.sql) `
-        concat(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})
-      `,
-            submittedByEmployee: performance_appraisals_schema_1.appraisals.submittedByEmployee,
-            submittedByManager: performance_appraisals_schema_1.appraisals.submittedByManager,
-            finalized: performance_appraisals_schema_1.appraisals.finalized,
-        })
-            .from(performance_appraisals_schema_1.appraisals)
-            .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.employeeId, schema_1.employees.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.companyId, user.companyId), (0, drizzle_orm_1.eq)(performance_appraisals_schema_1.appraisals.cycleId, targetCycleId)))
-            .execute();
-        return rows.map((r) => ({
-            employeeId: r.employeeId,
-            employeeName: r.employeeName,
-            submittedByEmployee: r.submittedByEmployee,
-            submittedByManager: r.submittedByManager,
-            finalized: r.finalized,
-            completed: Boolean(r.submittedByEmployee && r.submittedByManager),
-        }));
+        return rows.map((r) => ({ ...r, source: 'performance' }));
     }
     async getPerformanceOverview(user) {
-        const [appraisalCycle] = await this.db
-            .select({
-            id: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.id,
-            name: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.name,
-            startDate: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate,
-            endDate: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.endDate,
-            status: performance_appraisal_cycle_schema_1.performanceAppraisalCycles.status,
-        })
-            .from(performance_appraisal_cycle_schema_1.performanceAppraisalCycles)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.companyId, user.companyId), (0, drizzle_orm_1.eq)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.status, 'active')))
-            .orderBy((0, drizzle_orm_1.desc)(performance_appraisal_cycle_schema_1.performanceAppraisalCycles.startDate))
-            .limit(1)
-            .execute();
         const [performanceCycle] = await this.db
             .select({
             id: schema_1.performanceCycles.id,
             name: schema_1.performanceCycles.name,
             startDate: schema_1.performanceCycles.startDate,
             endDate: schema_1.performanceCycles.endDate,
+            status: schema_1.performanceCycles.status,
         })
             .from(schema_1.performanceCycles)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceCycles.companyId, user.companyId), (0, drizzle_orm_1.eq)(schema_1.performanceCycles.status, 'active')))
             .orderBy((0, drizzle_orm_1.desc)(schema_1.performanceCycles.startDate))
             .limit(1)
             .execute();
-        if (!appraisalCycle && !performanceCycle) {
-            return [];
+        if (!performanceCycle) {
+            return {
+                performanceCycle: null,
+                goalPerformance: { totalGoals: 0, completedGoals: 0, overdueGoals: 0 },
+                feedbackActivity: {
+                    peerCount: 0,
+                    managerCount: 0,
+                    selfCount: 0,
+                    avgPerEmployee: 0,
+                    anonymityRate: 0,
+                },
+                assessmentActivity: {
+                    total: 0,
+                    submitted: 0,
+                    inProgress: 0,
+                    notStarted: 0,
+                    avgScore: 0,
+                    recommendationCounts: {},
+                },
+                topEmployees: [],
+            };
         }
-        const [appraisals, goals, peerFeedback, mgrFeedback, selfFeedback, participationRecords, heatmap,] = await Promise.all([
-            this.getAppraisalReport(user),
-            this.getGoalReport(user, {}),
+        const [goals, peerFeedback, mgrFeedback, selfFeedback, topEmployees] = await Promise.all([
+            this.getGoalReport(user, { cycleId: performanceCycle.id }),
             this.getFeedbackReport(user, { type: 'peer' }),
             this.getFeedbackReport(user, { type: 'manager' }),
             this.getFeedbackReport(user, { type: 'employee' }),
-            this.getParticipationReport(user),
-            this.getCompetencyHeatmap(user, {
-                cycleId: '',
+            this.getTopEmployees(user, {
+                cycleType: 'performance',
             }),
         ]);
-        const [topAppraisal] = await this.getTopEmployees(user, {
-            cycleType: 'appraisal',
-        });
-        const [topReview] = await this.getTopEmployees(user, {
-            cycleType: 'performance',
-        });
-        let topEmployee = null;
-        if (topAppraisal && topReview) {
-            topEmployee =
-                (topAppraisal.finalScore ?? 0) >= (topReview.finalScore ?? 0)
-                    ? { ...topAppraisal, source: 'appraisal' }
-                    : { ...topReview, source: 'review' };
-        }
-        else {
-            topEmployee = topAppraisal
-                ? { ...topAppraisal, source: 'appraisal' }
-                : topReview
-                    ? { ...topReview, source: 'review' }
-                    : null;
-        }
-        const totalAppraisals = appraisals.length;
-        const completedAppraisals = appraisals.filter((a) => a.appraisalScore != null).length;
-        const completionRate = totalAppraisals
-            ? completedAppraisals / totalAppraisals
-            : 0;
-        const onTimeCount = appraisals.filter((a) => a.submittedAt &&
-            new Date(a.submittedAt) <= new Date(appraisalCycle.endDate)).length;
-        const overdueCount = completedAppraisals - onTimeCount;
-        const avgTimeToCompleteDays = completedAppraisals
-            ? appraisals
-                .filter((a) => a.submittedAt)
-                .reduce((sum, a) => {
-                if (!a.submittedAt)
-                    return sum;
-                const days = (new Date(a.submittedAt).getTime() -
-                    new Date(appraisalCycle.startDate).getTime()) /
-                    (1000 * 60 * 60 * 24);
-                return sum + days;
-            }, 0) / completedAppraisals
-            : 0;
-        const scores = appraisals
-            .map((a) => a.appraisalScore ?? 0)
-            .filter((s) => s != null);
-        const avgScore = scores.length
-            ? scores.reduce((sum, v) => sum + v, 0) / scores.length
-            : 0;
-        const buckets = { '0-50': 0, '51-70': 0, '71-85': 0, '86-100': 0 };
-        scores.forEach((s) => {
-            if (s <= 50)
-                buckets['0-50']++;
-            else if (s <= 70)
-                buckets['51-70']++;
-            else if (s <= 85)
-                buckets['71-85']++;
-            else
-                buckets['86-100']++;
-        });
-        const recommendationCounts = appraisals.reduce((acc, a) => {
-            const r = a.promotionRecommendation || 'none';
-            acc[r] = (acc[r] || 0) + 1;
-            return acc;
-        }, {});
         const totalGoals = goals.length;
         const completedGoals = goals.filter((g) => g.status === 'completed').length;
         const overdueGoals = goals.filter((g) => new Date(g.dueDate) < new Date() && g.status !== 'completed').length;
         const peerCount = peerFeedback.length;
         const managerCount = mgrFeedback.length;
         const selfCount = selfFeedback.length;
-        const uniqueEmployees = new Set([...peerFeedback, ...mgrFeedback, ...selfFeedback].map((f) => f.recipientId)).size;
+        const combinedFeedback = [...peerFeedback, ...mgrFeedback, ...selfFeedback];
+        const uniqueEmployees = new Set(combinedFeedback.map((f) => f.recipientId).filter(Boolean)).size;
         const totalFeedback = peerCount + managerCount + selfCount;
         const avgPerEmployee = uniqueEmployees
             ? totalFeedback / uniqueEmployees
             : 0;
-        const anonymityRate = totalFeedback
-            ? (peerFeedback.filter((f) => f.isAnonymous).length +
-                mgrFeedback.filter((f) => f.isAnonymous).length +
-                selfFeedback.filter((f) => f.isAnonymous).length) /
-                totalFeedback
+        const anonymityCount = peerFeedback.filter((f) => f.isAnonymous).length +
+            mgrFeedback.filter((f) => f.isAnonymous).length +
+            selfFeedback.filter((f) => f.isAnonymous).length;
+        const anonymityRate = totalFeedback ? anonymityCount / totalFeedback : 0;
+        const assessmentRows = await this.db
+            .select({
+            status: performance_assessments_schema_1.performanceAssessments.status,
+            finalScore: performance_assessment_conclusions_schema_1.assessmentConclusions.finalScore,
+            promotionRecommendation: performance_assessment_conclusions_schema_1.assessmentConclusions.promotionRecommendation,
+        })
+            .from(performance_assessments_schema_1.performanceAssessments)
+            .leftJoin(performance_assessment_conclusions_schema_1.assessmentConclusions, (0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, performance_assessments_schema_1.performanceAssessments.id))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.companyId, user.companyId), (0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.cycleId, performanceCycle.id)))
+            .execute();
+        const totalAssessments = assessmentRows.length;
+        const submitted = assessmentRows.filter((a) => a.status === 'submitted').length;
+        const inProgress = assessmentRows.filter((a) => a.status === 'in_progress').length;
+        const notStarted = assessmentRows.filter((a) => a.status === 'not_started').length;
+        const scored = assessmentRows
+            .map((a) => a.finalScore)
+            .filter((v) => v != null);
+        const avgScore = scored.length
+            ? scored.reduce((s, v) => s + v, 0) / scored.length
             : 0;
-        const totalParticipants = participationRecords.length;
-        const completedParticipants = participationRecords.filter((p) => p.completed).length;
-        const participationRate = totalParticipants
-            ? completedParticipants / totalParticipants
-            : 0;
+        const recommendationCounts = assessmentRows.reduce((acc, a) => {
+            const r = (a.promotionRecommendation || 'none');
+            acc[r] = (acc[r] || 0) + 1;
+            return acc;
+        }, {});
+        const [topEmployee] = topEmployees;
         return {
-            appraisalCycle,
-            cycleHealth: {
-                totalAppraisals,
-                completedAppraisals,
-                completionRate,
-                onTimeCount,
-                overdueCount,
-                avgTimeToCompleteDays,
-            },
-            appraisalOutcomes: {
-                avgScore,
-                scoreDistribution: buckets,
-                recommendationCounts,
-            },
+            performanceCycle,
             goalPerformance: {
                 totalGoals,
                 completedGoals,
@@ -564,15 +339,15 @@ let ReportService = class ReportService {
                 avgPerEmployee,
                 anonymityRate,
             },
-            competencyInsights: {
-                heatmap,
+            assessmentActivity: {
+                total: totalAssessments,
+                submitted,
+                inProgress,
+                notStarted,
+                avgScore,
+                recommendationCounts,
             },
-            participation: {
-                total: totalParticipants,
-                completed: completedParticipants,
-                completionRate: participationRate,
-            },
-            topEmployees: [topEmployee],
+            topEmployees: topEmployee ? [topEmployee] : [],
         };
     }
 };

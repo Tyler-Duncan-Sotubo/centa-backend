@@ -4,7 +4,6 @@ import { BaseController } from 'src/common/interceptor/base.controller';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { CurrentUser } from 'src/modules/auth/decorator/current-user.decorator';
 import { User } from 'src/common/types/user.type';
-import { GetAppraisalReportDto } from './dto/get-appraisal-report.dto';
 import { GetGoalReportDto } from './dto/get-goal-report.dto';
 import { GetFeedbackReportDto } from './dto/get-feedback-report.dto';
 import { GetAssessmentReportDto } from './dto/get-assessment-report.dto';
@@ -32,15 +31,6 @@ export class ReportController extends BaseController {
   @Get('reports-filters')
   async getReportsFilters(@CurrentUser() user: User) {
     return this.reportService.reportFilters(user.companyId);
-  }
-
-  @Get('appraisal-report')
-  async getAppraisalReport(
-    @CurrentUser() user: User,
-    @Query('cycleId') cycleId: string,
-    @Query() filter?: GetAppraisalReportDto,
-  ) {
-    return this.reportService.getAppraisalReport(user, filter);
   }
 
   @Get('goal-report')
@@ -75,28 +65,7 @@ export class ReportController extends BaseController {
     return this.reportService.getTopEmployees(user, filter);
   }
 
-  @Get('competency-heatmap')
-  async getCompetencyHeatmap(
-    @CurrentUser() user: User,
-    @Query() filters: { cycleId: string },
-  ) {
-    return this.reportService.getCompetencyHeatmap(user, filters);
-  }
-
   // GENERATE REPORTS
-  @Get('export-appraisal-report')
-  async exportAppraisalReport(
-    @CurrentUser() user: User,
-    @Query('format') format: 'csv' | 'pdf' = 'csv',
-    @Query() filters: GetAppraisalReportDto,
-  ) {
-    const url =
-      format === 'pdf'
-        ? await this.pdf.exportAppraisalReportToPDF(user, filters)
-        : await this.csv.exportAppraisalReportToS3(user, filters);
-
-    return { url };
-  }
 
   @Get('export-top-employees')
   async exportTopEmployees(
@@ -108,20 +77,6 @@ export class ReportController extends BaseController {
       format === 'pdf'
         ? await this.pdf.exportTopEmployeesToPDF(user, filters)
         : await this.csv.exportTopEmployeesToS3(user, filters);
-
-    return { url };
-  }
-
-  @Get('export-competency-heatmap')
-  async exportCompetencyHeatmap(
-    @CurrentUser() user: User,
-    @Query('cycleId') cycleId: string,
-    @Query('format') format: 'csv' | 'pdf' = 'csv',
-  ) {
-    const url =
-      format === 'pdf'
-        ? await this.pdf.exportCompetencyHeatmapToPDF(user, cycleId)
-        : await this.csv.exportCompetencyHeatmapToS3(user, cycleId);
 
     return { url };
   }
