@@ -62,7 +62,7 @@ let GoalsService = class GoalsService {
             const role = user.role ?? user.userRole ?? null;
             return ['super_admin', 'admin', 'hr_admin', 'hr_manager'].includes(role);
         };
-        return await this.db.transaction(async (tx) => {
+        return this.db.transaction(async (tx) => {
             const [cycle] = await tx
                 .select({ id: schema_1.performanceCycles.id })
                 .from(schema_1.performanceCycles)
@@ -109,21 +109,23 @@ let GoalsService = class GoalsService {
                 targetEmployeeIds = uniqueEmployeeIds;
             }
             if (!creatorIsPrivileged && creatorIsEmployee) {
-                const selfId = creatorEmployee.id;
-                const allSelf = targetEmployeeIds.every((id) => id === selfId);
-                if (!allSelf) {
-                    throw new common_1.BadRequestException('You can only create goals for yourself.');
-                }
                 if (groupId) {
                     throw new common_1.BadRequestException('You cannot create goals for a group.');
+                }
+                const selfId = creatorEmployee.id;
+                if (targetEmployeeIds.length !== 1 || targetEmployeeIds[0] !== selfId) {
+                    throw new common_1.BadRequestException('You can only create goals for yourself.');
                 }
             }
             const employeesInfo = await tx
                 .select({
                 id: schema_1.employees.id,
                 firstName: schema_1.employees.firstName,
+                lastName: schema_1.employees.lastName,
                 email: schema_1.employees.email,
                 companyId: schema_1.employees.companyId,
+                managerId: schema_1.employees.managerId,
+                userId: schema_1.employees.userId,
             })
                 .from(schema_1.employees)
                 .where((0, drizzle_orm_1.inArray)(schema_1.employees.id, targetEmployeeIds));
@@ -181,9 +183,8 @@ let GoalsService = class GoalsService {
                     creatorIsPrivileged,
                 },
             });
-            const shouldSendAssignmentEmail = computedStatus !== 'pending_approval';
-            if (shouldSendAssignmentEmail) {
-                const goalIdByEmployee = new Map(created.map((g) => [g.employeeId, g.id]));
+            const goalIdByEmployee = new Map(created.map((g) => [g.employeeId, g.id]));
+            if (computedStatus !== 'pending_approval') {
                 await Promise.all(employeesInfo.map((emp) => this.goalNotification.sendGoalAssignment({
                     toEmail: emp.email,
                     subject: `New Goal Assigned: ${title}`,
@@ -195,7 +196,37 @@ let GoalsService = class GoalsService {
                     progress: computedStatus,
                     meta: { goalId: goalIdByEmployee.get(emp.id) ?? null },
                 })));
+                return created;
             }
+            const emp = employeesInfo[0];
+            const goalId = goalIdByEmployee.get(emp.id) ?? null;
+            if (!emp?.managerId) {
+                throw new common_1.BadRequestException('Cannot request approval: this employee has no manager assigned.');
+            }
+            const [manager] = await tx
+                .select({
+                email: schema_1.users.email,
+                firstName: schema_1.users.firstName,
+                lastName: schema_1.users.lastName,
+            })
+                .from(schema_1.employees)
+                .innerJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.users.id, schema_1.employees.userId))
+                .where((0, drizzle_orm_1.eq)(schema_1.employees.id, emp.managerId))
+                .limit(1);
+            if (!manager?.email) {
+                throw new common_1.BadRequestException('Cannot request approval: manager does not have an email address.');
+            }
+            const employeeFullName = `${emp.firstName ?? ''} ${emp.lastName ?? ''}`.trim();
+            await this.goalNotification.sendGoalApprovalRequest({
+                toEmail: manager.email,
+                subject: `Goal approval required: ${title}`,
+                employeeName: employeeFullName,
+                managerName: manager.firstName ?? '',
+                title,
+                dueDate: dueDateStr,
+                description: description ?? '',
+                meta: { goalId },
+            });
             return created;
         });
     }
@@ -501,12 +532,32 @@ let GoalsService = class GoalsService {
         return updated;
     }
     async remove(id, user) {
+        const role = user.role ?? user.userRole ?? null;
+        console.log('Attempting to archive goal', { id, userId: user.id, role });
+        const canArchive = [
+            'super_admin',
+            'admin',
+            'hr_admin',
+            'hr_manager',
+        ].includes(role);
+        if (!canArchive) {
+            throw new common_1.BadRequestException('You are not allowed to delete goals.');
+        }
         const [existing] = await this.db
-            .select()
+            .select({
+            id: performance_goals_schema_1.performanceGoals.id,
+            title: performance_goals_schema_1.performanceGoals.title,
+            isArchived: performance_goals_schema_1.performanceGoals.isArchived,
+            companyId: performance_goals_schema_1.performanceGoals.companyId,
+        })
             .from(performance_goals_schema_1.performanceGoals)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.id, id), (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.companyId, user.companyId)));
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.id, id), (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.companyId, user.companyId)))
+            .limit(1);
         if (!existing) {
             throw new common_1.NotFoundException('Goal not found');
+        }
+        if (existing.isArchived) {
+            return { message: 'Goal is already archived' };
         }
         await this.db
             .update(performance_goals_schema_1.performanceGoals)

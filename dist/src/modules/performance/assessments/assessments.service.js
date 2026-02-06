@@ -388,7 +388,7 @@ let AssessmentsService = class AssessmentsService {
                     .from(schema_1.performanceGoals)
                     .innerJoin(schema_1.employees, (0, drizzle_orm_1.eq)(schema_1.employees.id, schema_1.performanceGoals.employeeId))
                     .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.departments.id, schema_1.employees.departmentId))
-                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceGoals.employeeId, assessment.revieweeId)))
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceGoals.employeeId, assessment.revieweeId), (0, drizzle_orm_1.eq)(schema_1.performanceGoals.cycleId, assessment.cycleId), (0, drizzle_orm_1.inArray)(schema_1.performanceGoals.status, ['active', 'completed'])))
                     .orderBy((0, drizzle_orm_1.desc)(schema_1.performanceGoals.assignedAt));
                 const latestProgress = await this.db
                     .select({

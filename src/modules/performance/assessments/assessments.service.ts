@@ -553,7 +553,13 @@ export class AssessmentsService {
             .from(performanceGoals)
             .innerJoin(employees, eq(employees.id, performanceGoals.employeeId))
             .leftJoin(departments, eq(departments.id, employees.departmentId))
-            .where(and(eq(performanceGoals.employeeId, assessment.revieweeId)))
+            .where(
+              and(
+                eq(performanceGoals.employeeId, assessment.revieweeId),
+                eq(performanceGoals.cycleId, assessment.cycleId),
+                inArray(performanceGoals.status, ['active', 'completed']),
+              ),
+            )
             .orderBy(desc(performanceGoals.assignedAt));
 
           const latestProgress = await this.db

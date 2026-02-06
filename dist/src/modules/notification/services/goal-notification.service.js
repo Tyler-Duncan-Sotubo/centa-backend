@@ -106,6 +106,37 @@ let GoalNotificationService = class GoalNotificationService {
             }
         }
     }
+    async sendGoalApprovalRequest(payload) {
+        sgMail.setApiKey(this.config.get('SEND_GRID_KEY') || '');
+        const templateId = this.config.get('GOAL_APPROVAL_REQUEST_TEMPLATE_ID') || '';
+        const approvalPage = `${this.config.get('EMPLOYEE_PORTAL_URL')}/dashboard/performance/goals`;
+        const msg = {
+            to: payload.toEmail,
+            from: {
+                name: 'Goal Approval Required',
+                email: 'noreply@centahr.com',
+            },
+            templateId,
+            dynamicTemplateData: {
+                subject: payload.subject,
+                managerName: payload.managerName,
+                employeeName: payload.employeeName,
+                title: payload.title,
+                dueDate: payload.dueDate,
+                description: payload.description,
+                url: approvalPage,
+            },
+        };
+        try {
+            await sgMail.send(msg);
+        }
+        catch (error) {
+            console.error('[NotificationService] sendGoalApprovalRequest failed', error);
+            if (error.response) {
+                console.error(error.response.body);
+            }
+        }
+    }
 };
 exports.GoalNotificationService = GoalNotificationService;
 exports.GoalNotificationService = GoalNotificationService = __decorate([

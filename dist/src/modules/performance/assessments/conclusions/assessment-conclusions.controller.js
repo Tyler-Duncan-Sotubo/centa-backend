@@ -34,6 +34,15 @@ let AssessmentConclusionsController = class AssessmentConclusionsController exte
     get(assessmentId) {
         return this.conclusionsService.getConclusionByAssessment(assessmentId);
     }
+    submitToHr(assessmentId, user) {
+        return this.conclusionsService.submitConclusionToHR(assessmentId, user.id);
+    }
+    requestChanges(assessmentId, note, user) {
+        return this.conclusionsService.requestChanges(assessmentId, note, user.id);
+    }
+    approve(assessmentId, user) {
+        return this.conclusionsService.approveConclusion(assessmentId, user.id);
+    }
 };
 exports.AssessmentConclusionsController = AssessmentConclusionsController;
 __decorate([
@@ -74,6 +83,37 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], AssessmentConclusionsController.prototype, "get", null);
+__decorate([
+    (0, common_1.Post)('submit-to-hr'),
+    (0, common_1.SetMetadata)('permissions', [
+        'performance.reviews.submit_manager',
+        'performance.reviews.manage_all',
+    ]),
+    __param(0, (0, common_1.Param)('assessmentId')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], AssessmentConclusionsController.prototype, "submitToHr", null);
+__decorate([
+    (0, common_1.Post)('request-changes'),
+    (0, common_1.SetMetadata)('permissions', ['performance.reviews.manage_all']),
+    __param(0, (0, common_1.Param)('assessmentId')),
+    __param(1, (0, common_1.Body)('note')),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", void 0)
+], AssessmentConclusionsController.prototype, "requestChanges", null);
+__decorate([
+    (0, common_1.Post)('approve'),
+    (0, common_1.SetMetadata)('permissions', ['performance.reviews.manage_all']),
+    __param(0, (0, common_1.Param)('assessmentId')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], AssessmentConclusionsController.prototype, "approve", null);
 exports.AssessmentConclusionsController = AssessmentConclusionsController = __decorate([
     (0, common_1.Controller)('assessments/:assessmentId/conclusion'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

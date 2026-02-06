@@ -32,6 +32,17 @@ interface GoalUpdatePayload {
   meta?: Record<string, any>; // e.g. goalId
 }
 
+interface GoalApprovalRequestPayload {
+  toEmail: string; // manager email
+  subject: string;
+  employeeName: string;
+  managerName: string;
+  title: string;
+  dueDate: string;
+  description: string;
+  meta?: Record<string, any>; // goalId, employeeId, etc.
+}
+
 @Injectable()
 export class GoalNotificationService {
   constructor(private readonly config: ConfigService) {}
@@ -139,6 +150,47 @@ export class GoalNotificationService {
       await sgMail.send(msg as any);
     } catch (error: any) {
       console.error('[NotificationService] sendGoalAssignment failed', error);
+      if (error.response) {
+        console.error(error.response.body);
+      }
+    }
+  }
+
+  async sendGoalApprovalRequest(payload: GoalApprovalRequestPayload) {
+    sgMail.setApiKey(this.config.get<string>('SEND_GRID_KEY') || '');
+
+    const templateId =
+      this.config.get<string>('GOAL_APPROVAL_REQUEST_TEMPLATE_ID') || '';
+
+    const approvalPage = `${this.config.get(
+      'EMPLOYEE_PORTAL_URL',
+    )}/dashboard/performance/goals`;
+
+    const msg = {
+      to: payload.toEmail,
+      from: {
+        name: 'Goal Approval Required',
+        email: 'noreply@centahr.com',
+      },
+      templateId,
+      dynamicTemplateData: {
+        subject: payload.subject,
+        managerName: payload.managerName,
+        employeeName: payload.employeeName,
+        title: payload.title,
+        dueDate: payload.dueDate,
+        description: payload.description,
+        url: approvalPage,
+      },
+    };
+
+    try {
+      await sgMail.send(msg as any);
+    } catch (error: any) {
+      console.error(
+        '[NotificationService] sendGoalApprovalRequest failed',
+        error,
+      );
       if (error.response) {
         console.error(error.response.body);
       }

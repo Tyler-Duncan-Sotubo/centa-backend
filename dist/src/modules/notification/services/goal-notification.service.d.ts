@@ -25,11 +25,22 @@ interface GoalUpdatePayload {
     title: string;
     meta?: Record<string, any>;
 }
+interface GoalApprovalRequestPayload {
+    toEmail: string;
+    subject: string;
+    employeeName: string;
+    managerName: string;
+    title: string;
+    dueDate: string;
+    description: string;
+    meta?: Record<string, any>;
+}
 export declare class GoalNotificationService {
     private readonly config;
     constructor(config: ConfigService);
     sendGoalCheckin(payload: GoalCheckinPayload): Promise<void>;
     sendGoalAssignment(payload: GoalAssignmentPayload): Promise<void>;
     sendGoalUpdates(payload: GoalUpdatePayload): Promise<void>;
+    sendGoalApprovalRequest(payload: GoalApprovalRequestPayload): Promise<void>;
 }
 export {};

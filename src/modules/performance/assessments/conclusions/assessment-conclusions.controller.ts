@@ -25,7 +25,11 @@ export class AssessmentConclusionsController extends BaseController {
     super();
   }
 
-  // Create a conclusion — only for manager assessments
+  // ---------------------
+  // Core CRUD
+  // ---------------------
+
+  // Create a conclusion — line manager / HR
   @Post()
   @SetMetadata('permissions', [
     'performance.reviews.submit_manager',
@@ -39,7 +43,7 @@ export class AssessmentConclusionsController extends BaseController {
     return this.conclusionsService.createConclusion(assessmentId, dto, user.id);
   }
 
-  // Update an existing conclusion
+  // Update a conclusion
   @Patch()
   @SetMetadata('permissions', [
     'performance.reviews.submit_manager',
@@ -53,7 +57,7 @@ export class AssessmentConclusionsController extends BaseController {
     return this.conclusionsService.updateConclusion(assessmentId, dto, user.id);
   }
 
-  // Get the conclusion for an assessment
+  // Get conclusion
   @Get()
   @SetMetadata('permissions', [
     'performance.reviews.read',
@@ -62,5 +66,43 @@ export class AssessmentConclusionsController extends BaseController {
   ])
   get(@Param('assessmentId') assessmentId: string) {
     return this.conclusionsService.getConclusionByAssessment(assessmentId);
+  }
+
+  // ---------------------
+  // Workflow actions
+  // ---------------------
+
+  // Line Manager → submit conclusion to HR
+  @Post('submit-to-hr')
+  @SetMetadata('permissions', [
+    'performance.reviews.submit_manager',
+    'performance.reviews.manage_all',
+  ])
+  submitToHr(
+    @Param('assessmentId') assessmentId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.conclusionsService.submitConclusionToHR(assessmentId, user.id);
+  }
+
+  // HR → request changes from Line Manager
+  @Post('request-changes')
+  @SetMetadata('permissions', ['performance.reviews.manage_all'])
+  requestChanges(
+    @Param('assessmentId') assessmentId: string,
+    @Body('note') note: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.conclusionsService.requestChanges(assessmentId, note, user.id);
+  }
+
+  // HR → approve / finalize conclusion
+  @Post('approve')
+  @SetMetadata('permissions', ['performance.reviews.manage_all'])
+  approve(
+    @Param('assessmentId') assessmentId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.conclusionsService.approveConclusion(assessmentId, user.id);
   }
 }

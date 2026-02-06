@@ -66,7 +66,7 @@ export class GoalsService {
       weight,
       employeeId,
       groupId,
-      status, // NOTE: we will NOT trust this for ESS users
+      status, // DO NOT trust for ESS users
     } = dto;
 
     if (!startDate) throw new BadRequestException('startDate is required.');
@@ -84,14 +84,13 @@ export class GoalsService {
     const dueDateStr = normDate(dueDate);
     const now = new Date();
 
-    // ---- Authorization helpers (adjust role keys to your app) ----
     const isPrivileged = () => {
       const role = (user as any).role ?? (user as any).userRole ?? null;
       return ['super_admin', 'admin', 'hr_admin', 'hr_manager'].includes(role);
     };
 
-    return await this.db.transaction(async (tx) => {
-      // Find cycle covering startDate
+    return this.db.transaction(async (tx) => {
+      // 1) Find performance cycle that covers startDate
       const [cycle] = await tx
         .select({ id: performanceCycles.id })
         .from(performanceCycles)
@@ -110,7 +109,7 @@ export class GoalsService {
         );
       }
 
-      // Resolve assigner (creator) name
+      // 2) Resolve assigner display name (single query)
       const [assigner] = await tx
         .select({
           id: users.id,
@@ -122,7 +121,7 @@ export class GoalsService {
 
       const assignedByName = assigner?.fullName ?? `${user.id}`;
 
-      // Resolve creator's employee record (needed for ESS guardrails)
+      // 3) Resolve creator's employee record (ESS guardrails)
       const [creatorEmployee] = await tx
         .select({
           id: employees.id,
@@ -139,9 +138,9 @@ export class GoalsService {
         .limit(1);
 
       const creatorIsPrivileged = isPrivileged();
-      const creatorIsEmployee = !!creatorEmployee; // ESS-like
+      const creatorIsEmployee = !!creatorEmployee;
 
-      // ---- Determine target employees ----
+      // 4) Determine target employees (avoid extra work for single employee)
       let targetEmployeeIds: string[] = [];
 
       if (employeeId) {
@@ -155,42 +154,42 @@ export class GoalsService {
         const uniqueEmployeeIds = [
           ...new Set(members.map((m) => m.employeeId)),
         ];
+
         if (uniqueEmployeeIds.length === 0) {
           throw new BadRequestException('Selected group has no members.');
         }
         targetEmployeeIds = uniqueEmployeeIds;
       }
 
-      // ---- ESS guardrails: employees can only create goals for themselves ----
-      // If the creator is not privileged and has an employee record, restrict to self only.
+      // 5) ESS guardrails: employee can only create for self (and not for group)
       if (!creatorIsPrivileged && creatorIsEmployee) {
+        if (groupId) {
+          throw new BadRequestException('You cannot create goals for a group.');
+        }
         const selfId = creatorEmployee!.id;
-        const allSelf = targetEmployeeIds.every((id) => id === selfId);
-
-        if (!allSelf) {
+        if (targetEmployeeIds.length !== 1 || targetEmployeeIds[0] !== selfId) {
           throw new BadRequestException(
             'You can only create goals for yourself.',
           );
         }
-
-        // Additionally, block groupId-based fan-out from ESS
-        if (groupId) {
-          throw new BadRequestException('You cannot create goals for a group.');
-        }
       }
 
-      // ---- Fetch target employee info (email + firstName) ----
+      // 6) Fetch target employee info (email/firstName/company + managerId for approval path)
+      //    Single query for all target employees.
       const employeesInfo = await tx
         .select({
           id: employees.id,
           firstName: employees.firstName,
+          lastName: employees.lastName,
           email: employees.email,
           companyId: employees.companyId,
+          managerId: employees.managerId,
+          userId: employees.userId,
         })
         .from(employees)
         .where(inArray(employees.id, targetEmployeeIds));
 
-      // Guard: ensure all exist + belong to company
+      // Ensure all found
       const foundIds = new Set(employeesInfo.map((e) => e.id));
       const missing = targetEmployeeIds.filter((id) => !foundIds.has(id));
       if (missing.length) {
@@ -198,6 +197,8 @@ export class GoalsService {
           `Some employees not found: ${missing.join(', ')}`,
         );
       }
+
+      // Ensure same company
       const outsideCompany = employeesInfo.filter(
         (e) => e.companyId !== user.companyId,
       );
@@ -207,15 +208,12 @@ export class GoalsService {
         );
       }
 
-      // ---- Status rules (do NOT trust dto.status for ESS) ----
-      // Recommended lifecycle:
-      // - privileged creators: allow provided status or default to 'draft'
-      // - employees creating self-goals: force 'pending_approval' (or 'draft' if you prefer a submit step)
+      // 7) Status rules (do NOT trust dto.status for ESS)
       const computedStatus = creatorIsPrivileged
         ? (status ?? 'draft')
         : 'pending_approval';
 
-      // Build inserts (one goal per employee)
+      // 8) Insert goals (one per employee)
       const goalsToInsert: (typeof performanceGoals.$inferInsert)[] =
         employeesInfo.map((emp) => ({
           title,
@@ -241,7 +239,7 @@ export class GoalsService {
           status: performanceGoals.status,
         });
 
-      // Create a check-in schedule for EACH created goal, in the same txn
+      // 9) Create check-in schedule for each goal (parallel)
       await Promise.all(
         created.map((g) =>
           this.policy.upsertGoalScheduleFromPolicy(
@@ -252,6 +250,7 @@ export class GoalsService {
         ),
       );
 
+      // 10) Audit
       await this.auditService.logAction({
         action: 'create',
         entity: 'performance_goal',
@@ -273,18 +272,21 @@ export class GoalsService {
         },
       });
 
-      // ---- Notifications ----
-      // If employee proposed the goal (pending_approval), typically notify the manager, not the employee.
-      // Since your current service only has "sendGoalAssignment", we:
-      // - send assignment email only when goal is actually "assigned" (not pending approval)
-      // - otherwise, skip (or swap to a "request approval" email if you add one)
-      const shouldSendAssignmentEmail = computedStatus !== 'pending_approval';
+      /**
+       * 11) Notifications
+       *
+       * - If computedStatus !== 'pending_approval' -> email assignees
+       * - If computedStatus === 'pending_approval' -> email manager for approval
+       *
+       * Note:
+       * - ESS users cannot create group goals (guardrail above), so pending_approval implies single employee.
+       */
+      const goalIdByEmployee = new Map(
+        created.map((g) => [g.employeeId, g.id]),
+      );
 
-      if (shouldSendAssignmentEmail) {
-        const goalIdByEmployee = new Map(
-          created.map((g) => [g.employeeId, g.id]),
-        );
-
+      if (computedStatus !== 'pending_approval') {
+        // Send to assignees (O(n))
         await Promise.all(
           employeesInfo.map((emp) =>
             this.goalNotification.sendGoalAssignment({
@@ -295,12 +297,59 @@ export class GoalsService {
               title,
               dueDate: dueDateStr,
               description: description ?? '',
-              progress: computedStatus, // was statusVal
+              progress: computedStatus, // if you want progress label separate, change this field
               meta: { goalId: goalIdByEmployee.get(emp.id) ?? null },
             }),
           ),
         );
+        return created;
       }
+
+      // pending_approval path (single employee)
+      const emp = employeesInfo[0];
+      const goalId = goalIdByEmployee.get(emp.id) ?? null;
+
+      if (!emp?.managerId) {
+        // Choose your desired behavior:
+        // - throw, or
+        // - skip email, or
+        // - fallback to HR/admin mailbox
+        throw new BadRequestException(
+          'Cannot request approval: this employee has no manager assigned.',
+        );
+      }
+
+      // Fetch manager email in one join (still inside txn)
+      const [manager] = await tx
+        .select({
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+        })
+        .from(employees)
+        .innerJoin(users, eq(users.id, employees.userId))
+        .where(eq(employees.id, emp.managerId))
+        .limit(1);
+
+      if (!manager?.email) {
+        throw new BadRequestException(
+          'Cannot request approval: manager does not have an email address.',
+        );
+      }
+
+      const employeeFullName =
+        `${emp.firstName ?? ''} ${emp.lastName ?? ''}`.trim();
+
+      await this.goalNotification.sendGoalApprovalRequest({
+        toEmail: manager.email,
+        subject: `Goal approval required: ${title}`,
+        employeeName: employeeFullName,
+        managerName: manager.firstName ?? '',
+        title,
+        dueDate: dueDateStr,
+        description: description ?? '',
+        meta: { goalId },
+      });
 
       return created;
     });
@@ -699,18 +748,44 @@ export class GoalsService {
   }
 
   async remove(id: string, user: User) {
+    const role = (user as any).role ?? (user as any).userRole ?? null;
+
+    console.log('Attempting to archive goal', { id, userId: user.id, role });
+
+    // Only privileged roles can archive/delete goals
+    const canArchive = [
+      'super_admin',
+      'admin',
+      'hr_admin',
+      'hr_manager',
+    ].includes(role);
+
+    if (!canArchive) {
+      throw new BadRequestException('You are not allowed to delete goals.');
+    }
+
     const [existing] = await this.db
-      .select()
+      .select({
+        id: performanceGoals.id,
+        title: performanceGoals.title,
+        isArchived: performanceGoals.isArchived,
+        companyId: performanceGoals.companyId,
+      })
       .from(performanceGoals)
       .where(
         and(
           eq(performanceGoals.id, id),
           eq(performanceGoals.companyId, user.companyId),
         ),
-      );
+      )
+      .limit(1);
 
     if (!existing) {
       throw new NotFoundException('Goal not found');
+    }
+
+    if (existing.isArchived) {
+      return { message: 'Goal is already archived' };
     }
 
     await this.db

@@ -26,58 +26,58 @@ let AssessmentConclusionsService = class AssessmentConclusionsService {
         this.db = db;
         this.cache = cache;
     }
-    tags(companyId) {
-        return [`company:${companyId}:assessments`];
-    }
     async invalidate(companyId) {
         await this.cache.bumpCompanyVersion(companyId);
     }
     async createConclusion(assessmentId, dto, authorId) {
-        const [assessment] = await this.db
-            .select()
-            .from(performance_assessments_schema_1.performanceAssessments)
-            .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.id, assessmentId));
-        if (!assessment)
-            throw new common_1.NotFoundException('Assessment not found');
-        if (assessment.reviewerId !== authorId && !(await this.isHR(authorId))) {
+        const assessment = await this.getAssessmentOrThrow(assessmentId);
+        const isReviewer = assessment.reviewerId === authorId;
+        const isHR = await this.isHR(authorId);
+        if (!isReviewer && !isHR) {
             throw new common_1.ForbiddenException('Not authorized to submit this conclusion');
         }
         const [existing] = await this.db
-            .select()
+            .select({ assessmentId: performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId })
             .from(performance_assessment_conclusions_schema_1.assessmentConclusions)
-            .where((0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, assessmentId));
+            .where((0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, assessmentId))
+            .limit(1);
         if (existing)
             throw new common_1.BadRequestException('Conclusion already exists');
+        const now = new Date();
         const [created] = await this.db
             .insert(performance_assessment_conclusions_schema_1.assessmentConclusions)
             .values({
             assessmentId,
             ...dto,
-            createdAt: new Date(),
+            reviewStatus: 'draft',
+            createdAt: now,
+            updatedAt: now,
         })
             .returning();
-        if (created) {
-            await this.db
-                .update(performance_assessments_schema_1.performanceAssessments)
-                .set({ status: 'submitted', submittedAt: new Date() })
-                .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.id, assessmentId));
-            await this.invalidate(assessment.companyId);
-        }
+        await this.invalidate(assessment.companyId);
         return created;
     }
     async updateConclusion(assessmentId, dto, authorId) {
-        const [conclusion] = await this.db
-            .select()
-            .from(performance_assessment_conclusions_schema_1.assessmentConclusions)
-            .where((0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, assessmentId));
-        if (!conclusion)
-            throw new common_1.NotFoundException('Conclusion not found');
-        const [assessment] = await this.db
-            .select()
-            .from(performance_assessments_schema_1.performanceAssessments)
-            .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.id, assessmentId));
-        if (assessment?.reviewerId !== authorId && !(await this.isHR(authorId))) {
-            throw new common_1.ForbiddenException('Not authorized to update this conclusion');
+        const assessment = await this.getAssessmentOrThrow(assessmentId);
+        const conclusion = await this.getConclusionOrThrow(assessmentId);
+        if (conclusion.reviewStatus === 'approved') {
+            throw new common_1.BadRequestException('Conclusion is approved and cannot be edited');
+        }
+        const isReviewer = assessment.reviewerId === authorId;
+        const isHR = await this.isHR(authorId);
+        if (conclusion.reviewStatus === 'draft' ||
+            conclusion.reviewStatus === 'needs_changes') {
+            if (!isReviewer) {
+                throw new common_1.ForbiddenException('Only the line manager can edit at this stage');
+            }
+        }
+        else if (conclusion.reviewStatus === 'pending_hr') {
+            if (!isHR) {
+                throw new common_1.ForbiddenException('Only HR can edit at this stage');
+            }
+        }
+        else {
+            throw new common_1.BadRequestException('Invalid review status');
         }
         const [updated] = await this.db
             .update(performance_assessment_conclusions_schema_1.assessmentConclusions)
@@ -87,25 +87,114 @@ let AssessmentConclusionsService = class AssessmentConclusionsService {
         await this.invalidate(assessment.companyId);
         return updated;
     }
-    async getConclusionByAssessment(assessmentId) {
-        const [assessment] = await this.db
-            .select({
-            companyId: performance_assessments_schema_1.performanceAssessments.companyId,
+    async submitConclusionToHR(assessmentId, authorId) {
+        const assessment = await this.getAssessmentOrThrow(assessmentId);
+        const conclusion = await this.getConclusionOrThrow(assessmentId);
+        if (assessment.reviewerId !== authorId) {
+            throw new common_1.ForbiddenException('Only the line manager can submit to HR');
+        }
+        if (!['draft', 'needs_changes'].includes(conclusion.reviewStatus)) {
+            throw new common_1.BadRequestException('Conclusion is not ready to submit to HR');
+        }
+        const [updated] = await this.db
+            .update(performance_assessment_conclusions_schema_1.assessmentConclusions)
+            .set({
+            reviewStatus: 'pending_hr',
+            submittedToHrAt: new Date(),
+            submittedToHrBy: authorId,
+            changesRequestedAt: null,
+            changesRequestedBy: null,
+            changesRequestNote: null,
+            updatedAt: new Date(),
         })
+            .where((0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, assessmentId))
+            .returning();
+        await this.db
+            .update(performance_assessments_schema_1.performanceAssessments)
+            .set({ status: 'submitted', submittedAt: new Date() })
+            .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.id, assessmentId));
+        await this.invalidate(assessment.companyId);
+        return updated;
+    }
+    async requestChanges(assessmentId, note, authorId) {
+        if (!note?.trim())
+            throw new common_1.BadRequestException('A note is required');
+        const assessment = await this.getAssessmentOrThrow(assessmentId);
+        const conclusion = await this.getConclusionOrThrow(assessmentId);
+        const isHR = await this.isHR(authorId);
+        if (!isHR)
+            throw new common_1.ForbiddenException('Only HR can request changes');
+        if (conclusion.reviewStatus !== 'pending_hr') {
+            throw new common_1.BadRequestException('Conclusion is not pending HR review');
+        }
+        const [updated] = await this.db
+            .update(performance_assessment_conclusions_schema_1.assessmentConclusions)
+            .set({
+            reviewStatus: 'needs_changes',
+            changesRequestedAt: new Date(),
+            changesRequestedBy: authorId,
+            changesRequestNote: note.trim(),
+            updatedAt: new Date(),
+        })
+            .where((0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, assessmentId))
+            .returning();
+        await this.invalidate(assessment.companyId);
+        return updated;
+    }
+    async approveConclusion(assessmentId, authorId) {
+        const assessment = await this.getAssessmentOrThrow(assessmentId);
+        const conclusion = await this.getConclusionOrThrow(assessmentId);
+        const isHR = await this.isHR(authorId);
+        if (!isHR)
+            throw new common_1.ForbiddenException('Only HR can approve');
+        if (conclusion.reviewStatus !== 'pending_hr') {
+            throw new common_1.BadRequestException('Conclusion is not pending HR review');
+        }
+        const [approved] = await this.db
+            .update(performance_assessment_conclusions_schema_1.assessmentConclusions)
+            .set({
+            reviewStatus: 'approved',
+            hrApprovedAt: new Date(),
+            hrApprovedBy: authorId,
+            updatedAt: new Date(),
+        })
+            .where((0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, assessmentId))
+            .returning();
+        await this.invalidate(assessment.companyId);
+        return approved;
+    }
+    async getConclusionByAssessment(assessmentId) {
+        const assessment = await this.getAssessmentOrThrow(assessmentId);
+        return this.cache.getOrSetVersioned(assessment.companyId, ['assessments', 'conclusion', assessmentId], async () => {
+            const [conclusion] = await this.db
+                .select()
+                .from(performance_assessment_conclusions_schema_1.assessmentConclusions)
+                .where((0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, assessmentId))
+                .limit(1);
+            if (!conclusion)
+                throw new common_1.NotFoundException('Conclusion not found');
+            return conclusion;
+        });
+    }
+    async getAssessmentOrThrow(assessmentId) {
+        const [assessment] = await this.db
+            .select()
             .from(performance_assessments_schema_1.performanceAssessments)
             .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.id, assessmentId))
             .limit(1);
         if (!assessment)
             throw new common_1.NotFoundException('Assessment not found');
-        return this.cache.getOrSetVersioned(assessment.companyId, ['assessments', 'conclusion', assessmentId], async () => {
-            const [conclusion] = await this.db
-                .select()
-                .from(performance_assessment_conclusions_schema_1.assessmentConclusions)
-                .where((0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, assessmentId));
-            if (!conclusion)
-                throw new common_1.NotFoundException('Conclusion not found');
-            return conclusion;
-        });
+        return assessment;
+    }
+    async getConclusionOrThrow(assessmentId) {
+        const [conclusion] = await this.db
+            .select()
+            .from(performance_assessment_conclusions_schema_1.assessmentConclusions)
+            .where((0, drizzle_orm_1.eq)(performance_assessment_conclusions_schema_1.assessmentConclusions.assessmentId, assessmentId))
+            .limit(1);
+        if (!conclusion)
+            throw new common_1.NotFoundException('Conclusion not found');
+        return conclusion;
     }
     async isHR(userId) {
         const [row] = await this.db
