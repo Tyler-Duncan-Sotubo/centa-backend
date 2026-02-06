@@ -25,6 +25,7 @@ const employees_service_1 = require("../../core/employees/employees.service");
 const leave_request_service_1 = require("../../leave/request/leave-request.service");
 const department_service_1 = require("../../core/department/department.service");
 const schema_2 = require("../../../drizzle/schema");
+const date_fns_tz_1 = require("date-fns-tz");
 let ReportService = class ReportService {
     constructor(db, attendanceSettingsService, employeeShiftsService, employeesService, leaveRequestService, departmentsService) {
         this.db = db;
@@ -35,23 +36,20 @@ let ReportService = class ReportService {
         this.departmentsService = departmentsService;
     }
     async getDailyAttendanceSummary(companyId) {
-        const today = new Date().toISOString().split('T')[0];
-        const yesterday = new Date(Date.now() - 86400000)
-            .toISOString()
-            .split('T')[0];
-        const startOfDay = new Date(today);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(yesterday);
-        endOfDay.setHours(23, 59, 59, 999);
-        const workStartBoundary = new Date();
-        workStartBoundary.setHours(9, 0, 0, 0);
-        function toDate(d) {
-            if (!d)
-                return null;
-            return typeof d === 'string'
-                ? new Date(d.replace(' ', 'T'))
-                : new Date(d);
-        }
+        const tz = 'Africa/Lagos';
+        const todayKey = (0, date_fns_tz_1.formatInTimeZone)(new Date(), tz, 'yyyy-MM-dd');
+        const yesterdayKey = (0, date_fns_tz_1.formatInTimeZone)(new Date(Date.now() - 86400000), tz, 'yyyy-MM-dd');
+        const todayStartUtc = (0, date_fns_tz_1.fromZonedTime)(`${todayKey}T00:00:00.000`, tz);
+        const todayEndUtc = (0, date_fns_tz_1.fromZonedTime)(`${todayKey}T23:59:59.999`, tz);
+        const yesterdayStartUtc = (0, date_fns_tz_1.fromZonedTime)(`${yesterdayKey}T00:00:00.000`, tz);
+        const yesterdayEndUtc = (0, date_fns_tz_1.fromZonedTime)(`${yesterdayKey}T23:59:59.999`, tz);
+        const s = await this.attendanceSettingsService.getAllAttendanceSettings(companyId);
+        const defaultStart = s['default_start_time'] ?? '09:00';
+        const lateToleranceMins = Number(s['late_tolerance_minutes'] ?? 10);
+        const workStartUtcToday = (0, date_fns_tz_1.fromZonedTime)(`${todayKey}T${defaultStart}:00`, tz);
+        const lateBoundaryUtcToday = new Date(workStartUtcToday.getTime() + lateToleranceMins * 60000);
+        const workStartUtcYesterday = (0, date_fns_tz_1.fromZonedTime)(`${yesterdayKey}T${defaultStart}:00`, tz);
+        const lateBoundaryUtcYesterday = new Date(workStartUtcYesterday.getTime() + lateToleranceMins * 60000);
         const employees = await this.employeesService.findAllEmployees(companyId);
         const allEmployees = employees.filter((emp) => emp.employmentStatus === 'active');
         const allDepartments = await this.departmentsService.findAll(companyId);
@@ -59,27 +57,26 @@ let ReportService = class ReportService {
             this.db
                 .select()
                 .from(schema_1.attendanceRecords)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, startOfDay)))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, todayStartUtc), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, todayEndUtc)))
                 .execute(),
             this.db
                 .select()
                 .from(schema_1.attendanceRecords)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, startOfDay)))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, yesterdayStartUtc), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, yesterdayEndUtc)))
                 .execute(),
         ]);
         const summaryList = allEmployees.map((emp) => {
             const rec = todayRecs.find((r) => r.employeeId === emp.id);
             const dept = allDepartments.find((d) => d.id === emp.departmentId);
-            const ci = toDate(rec?.clockIn);
-            const co = toDate(rec?.clockOut);
-            const isLate = ci ? ci > workStartBoundary : false;
+            const ci = rec?.clockIn ? new Date(rec.clockIn) : null;
+            const co = rec?.clockOut ? new Date(rec.clockOut) : null;
+            const isLate = ci ? ci.getTime() > lateBoundaryUtcToday.getTime() : false;
             let status = 'absent';
             if (ci)
                 status = isLate ? 'late' : 'present';
             let totalWorkedMinutes = null;
             if (ci && co) {
-                const diffMs = co.getTime() - ci.getTime();
-                totalWorkedMinutes = Math.floor(diffMs / 1000 / 60);
+                totalWorkedMinutes = Math.floor((co.getTime() - ci.getTime()) / 60000);
             }
             return {
                 employeeId: emp.id,
@@ -95,19 +92,20 @@ let ReportService = class ReportService {
         const presentCount = summaryList.filter((e) => e.status === 'present').length;
         const lateCount = summaryList.filter((e) => e.status === 'late').length;
         const absentCount = summaryList.filter((e) => e.status === 'absent').length;
-        const checkInMillis = summaryList
+        const attendanceRate = allEmployees.length > 0
+            ? (((presentCount + lateCount) / allEmployees.length) * 100).toFixed(2) + '%'
+            : '0%';
+        const checkInMillisToday = summaryList
             .filter((e) => e.status !== 'absent' && e.checkInTime)
-            .map((e) => {
-            const [hours, minutes] = e.checkInTime.split(':').map(Number);
-            return new Date().setHours(hours, minutes, 0, 0);
-        });
-        const averageCheckInTime = checkInMillis.length
-            ? new Date(checkInMillis.reduce((a, b) => a + b, 0) / checkInMillis.length)
+            .map((e) => new Date(e.checkInTime).getTime());
+        const averageCheckInTime = checkInMillisToday.length
+            ? new Date(checkInMillisToday.reduce((a, b) => a + b, 0) /
+                checkInMillisToday.length)
             : null;
         const yesterdayPresent = yesterdayRecs.length;
         const yesterdayLate = yesterdayRecs.filter((r) => {
-            const ci = toDate(r.clockIn);
-            return ci && ci > workStartBoundary;
+            const ci = r.clockIn ? new Date(r.clockIn) : null;
+            return ci ? ci.getTime() > lateBoundaryUtcYesterday.getTime() : false;
         }).length;
         const attendanceChangePercent = yesterdayPresent > 0
             ? Math.round(((presentCount + lateCount - yesterdayPresent) / yesterdayPresent) *
@@ -116,48 +114,56 @@ let ReportService = class ReportService {
         const lateChangePercent = yesterdayLate > 0
             ? Math.round(((lateCount - yesterdayLate) / yesterdayLate) * 100)
             : 0;
-        const yesterdayCheckInMillis = yesterdayRecs
-            .map((r) => toDate(r.clockIn))
-            .filter((d) => !!d)
-            .map((d) => d.getTime());
-        const averageCheckInTimeYesterday = yesterdayCheckInMillis.length
-            ? new Date(yesterdayCheckInMillis.reduce((a, b) => a + b, 0) /
-                yesterdayCheckInMillis.length)
+        const checkInMillisYesterday = yesterdayRecs
+            .map((r) => (r.clockIn ? new Date(r.clockIn).getTime() : null))
+            .filter((t) => typeof t === 'number');
+        const averageCheckInTimeYesterday = checkInMillisYesterday.length
+            ? new Date(checkInMillisYesterday.reduce((a, b) => a + b, 0) /
+                checkInMillisYesterday.length)
             : null;
-        const averageCheckInTimeChange = {
-            today: averageCheckInTime,
-            yesterday: averageCheckInTimeYesterday,
-        };
-        const last7Days = (0, date_fns_1.eachDayOfInterval)({
-            start: (0, date_fns_1.subDays)(new Date(today), 6),
-            end: new Date(today),
-        }).map((d) => (0, date_fns_1.format)(d, 'yyyy-MM-dd'));
-        const sevenDayTrend = await Promise.all(last7Days.map(async (date) => {
-            const recs = await this.db
-                .select()
-                .from(schema_1.attendanceRecords)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.createdAt, new Date(date))))
-                .execute();
-            return Number(((recs.length / allEmployees.length) * 100).toFixed(2));
-        }));
-        const todayDate = new Date(today);
-        const dayOfWeek = todayDate.getDay() || 7;
-        const monday = (0, date_fns_1.subDays)(todayDate, dayOfWeek - 1);
-        const wtdDates = (0, date_fns_1.eachDayOfInterval)({ start: monday, end: todayDate }).map((d) => (0, date_fns_1.format)(d, 'yyyy-MM-dd'));
-        const wtdRecs = await this.db
-            .select()
-            .from(schema_1.attendanceRecords)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.createdAt, new Date(wtdDates[0])), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.createdAt, new Date(wtdDates[wtdDates.length - 1]))))
-            .execute();
-        const wtdAttendanceRate = ((wtdRecs.length / (allEmployees.length * wtdDates.length)) *
-            100).toFixed(2) + '%';
-        const monthStart = (0, date_fns_1.format)(new Date(todayDate.getFullYear(), todayDate.getMonth(), 1), 'yyyy-MM-dd');
-        const overtimeAgg = await this.db
+        const last7DayKeys = (0, date_fns_1.eachDayOfInterval)({
+            start: (0, date_fns_1.subDays)(new Date(), 6),
+            end: new Date(),
+        }).map((d) => (0, date_fns_tz_1.formatInTimeZone)(d, tz, 'yyyy-MM-dd'));
+        const last7StartUtc = (0, date_fns_tz_1.fromZonedTime)(`${last7DayKeys[0]}T00:00:00.000`, tz);
+        const last7EndUtc = (0, date_fns_tz_1.fromZonedTime)(`${last7DayKeys[last7DayKeys.length - 1]}T23:59:59.999`, tz);
+        const last7Recs = await this.db
             .select({
-            total: (0, drizzle_orm_1.sql) `SUM(${schema_1.attendanceRecords.overtimeMinutes}) as total`,
+            clockIn: schema_1.attendanceRecords.clockIn,
         })
             .from(schema_1.attendanceRecords)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.createdAt, new Date(monthStart)), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.createdAt, new Date(today))))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, last7StartUtc), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, last7EndUtc)))
+            .execute();
+        const byDayCount = new Map();
+        for (const r of last7Recs) {
+            const k = (0, date_fns_tz_1.formatInTimeZone)(new Date(r.clockIn), tz, 'yyyy-MM-dd');
+            byDayCount.set(k, (byDayCount.get(k) ?? 0) + 1);
+        }
+        const sevenDayTrend = last7DayKeys.map((k) => Number((((byDayCount.get(k) ?? 0) / Math.max(allEmployees.length, 1)) *
+            100).toFixed(2)));
+        const todayLocalDate = new Date((0, date_fns_tz_1.fromZonedTime)(`${todayKey}T12:00:00.000`, tz));
+        const dayOfWeek = Number((0, date_fns_tz_1.formatInTimeZone)(todayLocalDate, tz, 'i'));
+        const mondayLocal = new Date(todayLocalDate.getTime() - (dayOfWeek - 1) * 86400000);
+        const mondayKey = (0, date_fns_tz_1.formatInTimeZone)(mondayLocal, tz, 'yyyy-MM-dd');
+        const wtdStartUtc = (0, date_fns_tz_1.fromZonedTime)(`${mondayKey}T00:00:00.000`, tz);
+        const wtdEndUtc = todayEndUtc;
+        const wtdRecs = await this.db
+            .select({ clockIn: schema_1.attendanceRecords.clockIn })
+            .from(schema_1.attendanceRecords)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, wtdStartUtc), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, wtdEndUtc)))
+            .execute();
+        const wtdDayCount = Math.max(1, Math.round((todayEndUtc.getTime() - wtdStartUtc.getTime()) / 86400000) +
+            1);
+        const wtdAttendanceRate = ((wtdRecs.length / (Math.max(allEmployees.length, 1) * wtdDayCount)) *
+            100).toFixed(2) + '%';
+        const monthStartKey = (0, date_fns_tz_1.formatInTimeZone)(new Date(), tz, 'yyyy-MM-01');
+        const monthStartUtc = (0, date_fns_tz_1.fromZonedTime)(`${monthStartKey}T00:00:00.000`, tz);
+        const overtimeAgg = await this.db
+            .select({
+            total: (0, drizzle_orm_1.sql) `COALESCE(SUM(${schema_1.attendanceRecords.overtimeMinutes}), 0)`,
+        })
+            .from(schema_1.attendanceRecords)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, monthStartUtc), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, todayEndUtc)))
             .execute();
         const totalOvertimeMinutes = Number(overtimeAgg[0]?.total || 0);
         const overtimeThisMonth = `${Math.floor(totalOvertimeMinutes / 60)} hrs`;
@@ -167,7 +173,7 @@ let ReportService = class ReportService {
             count: (0, drizzle_orm_1.sql) `COUNT(*)`,
         })
             .from(schema_1.attendanceRecords)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.createdAt, new Date(monthStart)), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.createdAt, new Date(today)), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.isLateArrival, true)))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, monthStartUtc), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, todayEndUtc), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.isLateArrival, true)))
             .groupBy(schema_1.attendanceRecords.employeeId)
             .orderBy((0, drizzle_orm_1.sql) `COUNT(*) DESC`)
             .limit(5)
@@ -185,32 +191,37 @@ let ReportService = class ReportService {
         });
         const departmentRates = Object.entries(deptMap).map(([dept, data]) => ({
             department: dept,
-            rate: ((data.pres / data.tot) * 100).toFixed(2) + '%',
+            rate: ((data.pres / Math.max(data.tot, 1)) * 100).toFixed(2) + '%',
         }));
-        const thirtyDaysAgo = (0, date_fns_1.format)((0, date_fns_1.subDays)(new Date(today), 29), 'yyyy-MM-dd');
+        const thirtyDaysAgoKey = (0, date_fns_tz_1.formatInTimeZone)((0, date_fns_1.subDays)(new Date(), 29), tz, 'yyyy-MM-dd');
+        const thirtyDaysAgoUtc = (0, date_fns_tz_1.fromZonedTime)(`${thirtyDaysAgoKey}T00:00:00.000`, tz);
         const recs30 = await this.db
-            .select()
+            .select({ id: schema_1.attendanceRecords.id })
             .from(schema_1.attendanceRecords)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.createdAt, new Date(thirtyDaysAgo)), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.createdAt, new Date(today))))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, thirtyDaysAgoUtc), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, todayEndUtc)))
             .execute();
         const totalPossibleAttendance = allEmployees.length * 30;
         const absences = totalPossibleAttendance - recs30.length;
-        const rolling30DayAbsenteeismRate = ((absences / totalPossibleAttendance) * 100).toFixed(2) + '%';
+        const rolling30DayAbsenteeismRate = ((absences / Math.max(totalPossibleAttendance, 1)) * 100).toFixed(2) +
+            '%';
         return {
             details: {
-                date: today,
+                date: todayKey,
                 totalEmployees: allEmployees.length,
                 present: presentCount,
                 late: lateCount,
                 absent: absentCount,
-                attendanceRate: (((presentCount + lateCount) / allEmployees.length) * 100).toFixed(2) + '%',
+                attendanceRate,
                 averageCheckInTime,
             },
             summaryList,
             metrics: {
                 attendanceChangePercent,
                 lateChangePercent,
-                averageCheckInTimeChange,
+                averageCheckInTimeChange: {
+                    today: averageCheckInTime,
+                    yesterday: averageCheckInTimeYesterday,
+                },
             },
             dashboard: {
                 sevenDayTrend,
@@ -223,49 +234,44 @@ let ReportService = class ReportService {
         };
     }
     async getDailySummaryList(companyId, date) {
-        const targetDate = new Date(date);
-        const startOfDay = new Date(targetDate);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(targetDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        const workStartBoundary = new Date(targetDate);
-        workStartBoundary.setHours(9, 0, 0, 0);
-        function toDate(d) {
-            if (!d)
-                return null;
-            return typeof d === 'string'
-                ? new Date(d.replace(' ', 'T'))
-                : new Date(d);
-        }
+        const tz = 'Africa/Lagos';
+        const dayKey = date.includes('T')
+            ? (0, date_fns_tz_1.formatInTimeZone)(new Date(date), tz, 'yyyy-MM-dd')
+            : date;
+        const startOfDayUtc = (0, date_fns_tz_1.fromZonedTime)(`${dayKey}T00:00:00.000`, tz);
+        const endOfDayUtc = (0, date_fns_tz_1.fromZonedTime)(`${dayKey}T23:59:59.999`, tz);
+        const workStartUtc = (0, date_fns_tz_1.fromZonedTime)(`${dayKey}T09:00:00.000`, tz);
+        const s = await this.attendanceSettingsService.getAllAttendanceSettings(companyId);
+        const lateToleranceMins = Number(s['late_tolerance_minutes'] ?? 10);
+        const lateBoundaryUtc = new Date(workStartUtc.getTime() + lateToleranceMins * 60000);
         const employees = await this.employeesService.findAllEmployees(companyId);
         const allEmployees = employees.filter((emp) => emp.employmentStatus === 'active');
         const departments = await this.departmentsService.findAll(companyId);
         const attendance = await this.db
             .select()
             .from(schema_1.attendanceRecords)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, startOfDay), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, endOfDay)))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_1.attendanceRecords.clockIn, startOfDayUtc), (0, drizzle_orm_1.lte)(schema_1.attendanceRecords.clockIn, endOfDayUtc)))
             .execute();
         const summaryList = allEmployees.map((emp) => {
             const rec = attendance.find((r) => r.employeeId === emp.id);
             const dept = departments.find((d) => d.id === emp.departmentId);
-            const ci = toDate(rec?.clockIn);
-            const co = toDate(rec?.clockOut);
-            const isLate = ci ? ci > workStartBoundary : false;
+            const ci = rec?.clockIn ? new Date(rec.clockIn) : null;
+            const co = rec?.clockOut ? new Date(rec.clockOut) : null;
+            const isLate = ci ? ci.getTime() > lateBoundaryUtc.getTime() : false;
             let status = 'absent';
             if (ci)
                 status = isLate ? 'late' : 'present';
             let totalWorkedMinutes = null;
             if (ci && co) {
-                const diffMs = co.getTime() - ci.getTime();
-                totalWorkedMinutes = Math.floor(diffMs / 1000 / 60);
+                totalWorkedMinutes = Math.floor((co.getTime() - ci.getTime()) / 60000);
             }
             return {
                 employeeId: emp.id,
                 employeeNumber: emp.employeeNumber,
                 name: `${emp.firstName} ${emp.lastName}`,
                 department: dept?.name ?? 'Unknown',
-                checkInTime: ci?.toISOString() ?? null,
-                checkOutTime: co?.toISOString() ?? null,
+                checkInTime: ci ? (0, date_fns_tz_1.formatInTimeZone)(ci, tz, 'HH:mm:ss') : null,
+                checkOutTime: co ? (0, date_fns_tz_1.formatInTimeZone)(co, tz, 'HH:mm:ss') : null,
                 status,
                 totalWorkedMinutes,
             };

@@ -261,6 +261,7 @@ let ClockInOutService = class ClockInOutService {
         return this.cache.getOrSetVersioned(companyId, ['attendance', 'dashboard', 'daily'], async () => {
             const summary = await this.reportService.getDailyAttendanceSummary(companyId);
             const { details, summaryList, metrics, dashboard } = summary;
+            console.log(metrics);
             return { details, summaryList, metrics, ...dashboard };
         });
     }
