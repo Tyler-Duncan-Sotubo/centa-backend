@@ -282,7 +282,7 @@ export class AuthService {
     const companySettings =
       await this.companySettingsService.getTwoFactorAuthSetting(user.companyId);
 
-    if (hoursSinceLastLogin > 48 && companySettings.twoFactorAuth) {
+    if (hoursSinceLastLogin > 72 && companySettings.twoFactorAuth) {
       await this.verifyLogin.generateVerificationToken(user.id);
       const tempToken =
         await this.tokenGeneratorService.generateTempToken(user);
