@@ -83,8 +83,8 @@ let ReportService = class ReportService {
                 employeeNumber: emp.employeeNumber,
                 name: `${emp.firstName} ${emp.lastName}`,
                 department: dept?.name ?? 'Unknown',
-                checkInTime: ci?.toISOString() ?? null,
-                checkOutTime: co?.toISOString() ?? null,
+                checkInTime: ci ? (0, date_fns_tz_1.formatInTimeZone)(ci, tz, 'HH:mm:ss') : null,
+                checkOutTime: co ? (0, date_fns_tz_1.formatInTimeZone)(co, tz, 'HH:mm:ss') : null,
                 status,
                 totalWorkedMinutes,
             };

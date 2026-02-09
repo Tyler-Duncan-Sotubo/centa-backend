@@ -399,7 +399,6 @@ export class ClockInOutService {
         const summary =
           await this.reportService.getDailyAttendanceSummary(companyId);
         const { details, summaryList, metrics, dashboard } = summary;
-        console.log(metrics);
         return { details, summaryList, metrics, ...dashboard };
       },
     );

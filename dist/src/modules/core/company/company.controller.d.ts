@@ -176,7 +176,7 @@ export declare class CompanyController extends BaseController {
         };
         pendingChecklists: {
             statusId: string;
-            checkListStatus: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
+            checkListStatus: "in_progress" | "pending" | "skipped" | "completed" | "overdue" | "cancelled" | null;
             checklistId: string;
             title: string;
             dueDaysAfterStart: number | null;

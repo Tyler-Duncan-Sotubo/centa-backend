@@ -134,8 +134,8 @@ export class ReportService {
         department: dept?.name ?? 'Unknown',
 
         // keep ISO (recommended; UI can format to Lagos)
-        checkInTime: ci?.toISOString() ?? null,
-        checkOutTime: co?.toISOString() ?? null,
+        checkInTime: ci ? formatInTimeZone(ci, tz, 'HH:mm:ss') : null,
+        checkOutTime: co ? formatInTimeZone(co, tz, 'HH:mm:ss') : null,
 
         status,
         totalWorkedMinutes,

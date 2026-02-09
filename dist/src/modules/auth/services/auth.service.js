@@ -209,7 +209,7 @@ let AuthService = class AuthService {
             ? (now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60)
             : Infinity;
         const companySettings = await this.companySettingsService.getTwoFactorAuthSetting(user.companyId);
-        if (hoursSinceLastLogin > 48 && companySettings.twoFactorAuth) {
+        if (hoursSinceLastLogin > 72 && companySettings.twoFactorAuth) {
             await this.verifyLogin.generateVerificationToken(user.id);
             const tempToken = await this.tokenGeneratorService.generateTempToken(user);
             this.logger.info({ userId: user.id, email: dto.email, ip, context }, '2FA required due to inactivity');
