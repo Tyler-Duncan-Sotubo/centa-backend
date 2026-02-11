@@ -12,4 +12,11 @@ export declare class OrgChartController extends BaseController {
         focus: import("./dto/org-chart-node.dto").OrgChartNodeDto;
         directReports: import("./dto/org-chart-node.dto").OrgChartNodeDto[];
     }>;
+    getMyTeam(employeeId: string, user: User): Promise<import("./dto/org-chart-node.dto").OrgChartNodeDto[]>;
+    getMyTeamContext(employeeId: string, user: User): Promise<{
+        me: import("./dto/org-chart-node.dto").OrgChartNodeDto;
+        manager: import("./dto/org-chart-node.dto").OrgChartNodeDto | null;
+        peers: import("./dto/org-chart-node.dto").OrgChartNodeDto[];
+        directReports: import("./dto/org-chart-node.dto").OrgChartNodeDto[];
+    }>;
 }

@@ -874,5 +874,20 @@ export declare class EmployeesService {
         status: string;
         reason: string | null;
     }[]>;
+    getEmployeeCard(employeeId: string, companyId: string): Promise<{
+        id: string;
+        first_name: string;
+        last_name: string;
+        job_role: string | null;
+        department_name: any;
+        location: string | null;
+        avatar: string | null;
+        employeeManager: {
+            id: string;
+            name: string;
+        };
+        effectiveDate: string;
+        timeInPositionDays: number | null;
+    }>;
 }
 export {};

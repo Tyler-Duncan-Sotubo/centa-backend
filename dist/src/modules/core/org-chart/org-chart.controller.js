@@ -35,6 +35,12 @@ let OrgChartController = class OrgChartController extends base_controller_1.Base
     async getEmployeeOrgChart(user, employeeId) {
         return this.orgChartService.getEmployeeOrgChart(user.companyId, employeeId);
     }
+    async getMyTeam(employeeId, user) {
+        return this.orgChartService.getMyTeam(user.companyId, employeeId);
+    }
+    async getMyTeamContext(employeeId, user) {
+        return this.orgChartService.getMyTeamContext(user.companyId, employeeId);
+    }
 };
 exports.OrgChartController = OrgChartController;
 __decorate([
@@ -76,6 +82,24 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], OrgChartController.prototype, "getEmployeeOrgChart", null);
+__decorate([
+    (0, common_1.Get)('my-team/:employeeId'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    __param(0, (0, common_1.Param)('employeeId')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], OrgChartController.prototype, "getMyTeam", null);
+__decorate([
+    (0, common_1.Get)('my-team-context/:employeeId'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    __param(0, (0, common_1.Param)('employeeId')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], OrgChartController.prototype, "getMyTeamContext", null);
 exports.OrgChartController = OrgChartController = __decorate([
     (0, common_1.Controller)('org-chart'),
     __metadata("design:paramtypes", [org_chart_service_1.OrgChartService])

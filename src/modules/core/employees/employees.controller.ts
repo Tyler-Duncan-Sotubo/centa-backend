@@ -280,4 +280,13 @@ export class EmployeesController extends BaseController {
   search(@Query() params: SearchEmployeesDto) {
     return this.employeesService.search(params);
   }
+
+  @Get('employee-card/:employeeId')
+  @UseGuards(JwtAuthGuard)
+  async getEmployeeCard(
+    @CurrentUser() user: User,
+    @Param('employeeId') employeeId: string,
+  ) {
+    return this.employeesService.getEmployeeCard(employeeId, user.companyId);
+  }
 }

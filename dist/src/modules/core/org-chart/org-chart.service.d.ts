@@ -13,4 +13,11 @@ export declare class OrgChartService {
         directReports: OrgChartNodeDto[];
     }>;
     private attachChildCounts;
+    getMyTeam(companyId: string, employeeId: string): Promise<OrgChartNodeDto[]>;
+    getMyTeamContext(companyId: string, employeeId: string): Promise<{
+        me: OrgChartNodeDto;
+        manager: OrgChartNodeDto | null;
+        peers: OrgChartNodeDto[];
+        directReports: OrgChartNodeDto[];
+    }>;
 }

@@ -1236,6 +1236,39 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
             return leaveRequestsData;
         }, { tags: [`employee:${employeeId}`] });
     }
+    async getEmployeeCard(employeeId, companyId) {
+        const emp = await this.findOne(employeeId, companyId);
+        const manager = emp.employeeManager?.id
+            ? {
+                id: emp.employeeManager.id,
+                firstName: emp.employeeManager.firstName,
+                lastName: emp.employeeManager.lastName,
+                email: emp.employeeManager.email,
+                avatarUrl: emp.employeeManager.avatarUrl ?? '',
+            }
+            : null;
+        const start = emp.effectiveDate ? new Date(emp.effectiveDate) : null;
+        const timeInPositionDays = start
+            ? Math.max(0, Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24)))
+            : null;
+        return {
+            id: emp.id,
+            first_name: emp.firstName,
+            last_name: emp.lastName,
+            job_role: emp.jobRole ?? null,
+            department_name: emp.department ?? null,
+            location: emp.location ?? null,
+            avatar: emp.avatarUrl ?? null,
+            employeeManager: manager
+                ? {
+                    id: manager.id,
+                    name: `${manager.firstName} ${manager.lastName}`.trim(),
+                }
+                : { id: '', name: 'N/A' },
+            effectiveDate: emp.effectiveDate ?? null,
+            timeInPositionDays,
+        };
+    }
 };
 exports.EmployeesService = EmployeesService;
 exports.EmployeesService = EmployeesService = EmployeesService_1 = __decorate([

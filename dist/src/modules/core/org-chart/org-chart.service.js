@@ -185,6 +185,17 @@ let OrgChartService = class OrgChartService {
             };
         });
     }
+    async getMyTeam(companyId, employeeId) {
+        return this.getChildren(companyId, employeeId);
+    }
+    async getMyTeamContext(companyId, employeeId) {
+        const { chain, focus, directReports } = await this.getEmployeeOrgChart(companyId, employeeId);
+        const manager = chain.length >= 2 ? chain[chain.length - 2] : null;
+        const peers = manager?.id
+            ? (await this.getChildren(companyId, manager.id)).filter((p) => p.id !== focus.id)
+            : [];
+        return { me: focus, manager, peers, directReports };
+    }
 };
 exports.OrgChartService = OrgChartService;
 exports.OrgChartService = OrgChartService = __decorate([

@@ -102,6 +102,9 @@ let EmployeesController = class EmployeesController extends base_controller_1.Ba
     search(params) {
         return this.employeesService.search(params);
     }
+    async getEmployeeCard(user, employeeId) {
+        return this.employeesService.getEmployeeCard(employeeId, user.companyId);
+    }
 };
 exports.EmployeesController = EmployeesController;
 __decorate([
@@ -323,6 +326,15 @@ __decorate([
     __metadata("design:paramtypes", [search_employees_dto_1.SearchEmployeesDto]),
     __metadata("design:returntype", void 0)
 ], EmployeesController.prototype, "search", null);
+__decorate([
+    (0, common_1.Get)('employee-card/:employeeId'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('employeeId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], EmployeesController.prototype, "getEmployeeCard", null);
 exports.EmployeesController = EmployeesController = __decorate([
     (0, common_1.UseInterceptors)(audit_interceptor_1.AuditInterceptor),
     (0, common_1.Controller)('employees'),

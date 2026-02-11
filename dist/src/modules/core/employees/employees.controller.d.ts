@@ -386,4 +386,19 @@ export declare class EmployeesController extends BaseController {
         costCenterName: string | null;
         locationName: string | null;
     })[]>;
+    getEmployeeCard(user: User, employeeId: string): Promise<{
+        id: string;
+        first_name: string;
+        last_name: string;
+        job_role: string | null;
+        department_name: any;
+        location: string | null;
+        avatar: string | null;
+        employeeManager: {
+            id: string;
+            name: string;
+        };
+        effectiveDate: string;
+        timeInPositionDays: number | null;
+    }>;
 }

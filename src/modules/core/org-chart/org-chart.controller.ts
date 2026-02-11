@@ -45,4 +45,23 @@ export class OrgChartController extends BaseController {
   ) {
     return this.orgChartService.getEmployeeOrgChart(user.companyId, employeeId);
   }
+
+  // Team org chart (manager + direct reports)
+  @Get('my-team/:employeeId')
+  @UseGuards(JwtAuthGuard)
+  async getMyTeam(
+    @Param('employeeId') employeeId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.orgChartService.getMyTeam(user.companyId, employeeId);
+  }
+
+  @Get('my-team-context/:employeeId')
+  @UseGuards(JwtAuthGuard)
+  async getMyTeamContext(
+    @Param('employeeId') employeeId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.orgChartService.getMyTeamContext(user.companyId, employeeId);
+  }
 }
