@@ -59,7 +59,7 @@ export declare class ReportService {
         department: any;
         checkInTime: string | null;
         checkOutTime: string | null;
-        status: "absent" | "present" | "late";
+        status: "absent" | "present" | "late" | "weekend";
         totalWorkedMinutes: number | null;
     }[]>;
     getMonthlyAttendanceSummary(companyId: string, yearMonth: string): Promise<{

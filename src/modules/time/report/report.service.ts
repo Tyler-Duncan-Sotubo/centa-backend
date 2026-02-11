@@ -426,6 +426,10 @@ export class ReportService {
       workStartUtc.getTime() + lateToleranceMins * 60000,
     );
 
+    // ✅ weekend logic (Sat/Sun)
+    const dayOfWeek = new Date(dayKey).getDay(); // 0 Sun, 6 Sat
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
     const employees = await this.employeesService.findAllEmployees(companyId);
     const allEmployees = employees.filter(
       (emp) => emp.employmentStatus === 'active',
@@ -452,11 +456,12 @@ export class ReportService {
       const ci = rec?.clockIn ? new Date(rec.clockIn) : null;
       const co = rec?.clockOut ? new Date(rec.clockOut) : null;
 
-      // ✅ use lateBoundaryUtc
       const isLate = ci ? ci.getTime() > lateBoundaryUtc.getTime() : false;
 
-      let status: 'absent' | 'present' | 'late' = 'absent';
-      if (ci) status = isLate ? 'late' : 'present';
+      let status: 'absent' | 'present' | 'late' | 'weekend' = 'absent';
+
+      if (isWeekend && !ci) status = 'weekend';
+      else if (ci) status = isLate ? 'late' : 'present';
 
       let totalWorkedMinutes: number | null = null;
       if (ci && co) {
@@ -474,6 +479,7 @@ export class ReportService {
         totalWorkedMinutes,
       };
     });
+
     return summaryList;
   }
 

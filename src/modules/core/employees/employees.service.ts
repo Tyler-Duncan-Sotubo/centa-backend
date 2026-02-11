@@ -60,6 +60,7 @@ import { leaveRequests } from 'src/modules/leave/schema/leave-requests.schema';
 import { leaveTypes } from 'src/modules/leave/schema/leave-types.schema';
 import { EmployeeProfileDto } from './dto/update-employee-details.dto';
 import { OnboardingService } from 'src/modules/lifecycle/onboarding/onboarding.service';
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 
 type Section =
   | 'core'
@@ -1536,14 +1537,22 @@ export class EmployeesService {
     companyId: string,
     yearMonth: string,
   ): Promise<MonthlySummary> {
-    // --- bounds for the month in server local time (adapt if you store UTC) ---
+    const tz = 'Africa/Lagos';
+
+    // --- bounds for the month in Lagos ---
     const [y, m] = yearMonth.split('-').map(Number);
     if (!y || !m) throw new Error('yearMonth must be YYYY-MM');
 
-    const monthStart = new Date(y, m - 1, 1, 0, 0, 0, 0);
-    const monthEnd = new Date(y, m, 0, 23, 59, 59, 999);
-    const today = new Date();
-    const capEnd = monthEnd < today ? monthEnd : today;
+    const firstDay = `${yearMonth}-01`;
+    const lastDay = `${yearMonth}-${String(
+      new Date(y, m, 0).getDate(),
+    ).padStart(2, '0')}`;
+
+    const monthStartUtc = fromZonedTime(`${firstDay}T00:00:00.000`, tz);
+    const monthEndUtc = fromZonedTime(`${lastDay}T23:59:59.999`, tz);
+
+    const todayStr = formatInTimeZone(new Date(), tz, 'yyyy-MM-dd');
+    const capEndUtc = fromZonedTime(`${todayStr}T23:59:59.999`, tz);
 
     // --- settings once ---
     const s =
@@ -1552,18 +1561,16 @@ export class EmployeesService {
     const defaultStartTime = (s['default_start_time'] as string) ?? '09:00';
     const defaultTolerance = Number(s['late_tolerance_minutes'] ?? 10);
 
-    // --- prefetch shifts for the whole month (if enabled) into a date → shift map ---
+    // --- prefetch shifts ---
     const shiftMap: ShiftMap = {};
 
     if (useShifts) {
-      // implement this in your service (one query that returns active shifts overlapping [monthStart, monthEnd])
-      // Expected shape per row: { date: 'yyyy-MM-dd', startTime: 'HH:mm', endTime?: 'HH:mm', lateToleranceMinutes?: number }
       const monthlyShifts =
         await this.employeeShiftsService.getEmployeeShiftsForRange(
           employeeId,
           companyId,
-          monthStart,
-          monthEnd,
+          monthStartUtc,
+          monthEndUtc,
         );
 
       monthlyShifts.forEach((s) => {
@@ -1575,10 +1582,9 @@ export class EmployeesService {
       });
     }
 
-    // --- single attendance read for the month ---
+    // --- attendance read ---
     const rows = await this.db
       .select({
-        id: attendanceRecords.id,
         clockIn: attendanceRecords.clockIn,
         clockOut: attendanceRecords.clockOut,
         workDurationMinutes: attendanceRecords.workDurationMinutes,
@@ -1589,12 +1595,12 @@ export class EmployeesService {
         and(
           eq(attendanceRecords.employeeId, employeeId),
           eq(attendanceRecords.companyId, companyId),
-          gte(attendanceRecords.clockIn, monthStart),
-          lte(attendanceRecords.clockIn, capEnd),
+          gte(attendanceRecords.clockIn, monthStartUtc),
+          lte(attendanceRecords.clockIn, capEndUtc),
         ),
       );
 
-    // Keep earliest clock-in per day
+    // group by Lagos day
     const byDate = new Map<
       string,
       {
@@ -1604,8 +1610,9 @@ export class EmployeesService {
         overtimeMinutes: number | null;
       }
     >();
+
     for (const r of rows) {
-      const dayKey = format(r.clockIn, 'yyyy-MM-dd');
+      const dayKey = formatInTimeZone(r.clockIn, tz, 'yyyy-MM-dd');
       const prev = byDate.get(dayKey);
       if (!prev || r.clockIn < prev.clockIn) {
         byDate.set(dayKey, {
@@ -1617,37 +1624,40 @@ export class EmployeesService {
       }
     }
 
-    const days = eachDayOfInterval({ start: monthStart, end: capEnd }).map(
-      (d) => format(d, 'yyyy-MM-dd'),
-    );
+    const days = eachDayOfInterval({
+      start: new Date(firstDay),
+      end: new Date(todayStr < lastDay ? todayStr : lastDay),
+    }).map((d) => format(d, 'yyyy-MM-dd'));
 
     const summaryList = days.map((dateKey) => {
       const rec = byDate.get(dateKey);
+
+      // ✅ weekend (Lagos)
+      const dayOfWeek = new Date(dateKey).getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
       if (!rec) {
         return {
           date: dateKey,
           checkInTime: null,
           checkOutTime: null,
-          status: 'absent' as AttStatus,
+          status: (isWeekend ? 'weekend' : 'absent') as AttStatus,
         };
       }
 
-      // compute late/present using shift (if any), else defaults
+      // compute late/present
       const shift = useShifts ? shiftMap[dateKey] : undefined;
       const startTime = shift?.startTime ?? defaultStartTime;
       const tol = (shift?.lateToleranceMinutes ?? defaultTolerance) * 60_000;
 
-      const shiftStartISO = `${dateKey}T${startTime}:00`;
-      const shiftStart = parseISO(shiftStartISO);
-      const isLate =
-        isValid(shiftStart) &&
-        rec.clockIn.getTime() > shiftStart.getTime() + tol;
+      const shiftStartUtc = fromZonedTime(`${dateKey}T${startTime}:00`, tz);
+      const isLate = rec.clockIn.getTime() > shiftStartUtc.getTime() + tol;
 
       return {
         date: dateKey,
-        checkInTime: rec.clockIn.toTimeString().slice(0, 8),
+        checkInTime: formatInTimeZone(rec.clockIn, tz, 'HH:mm:ss'),
         checkOutTime: rec.clockOut
-          ? rec.clockOut.toTimeString().slice(0, 8)
+          ? formatInTimeZone(rec.clockOut, tz, 'HH:mm:ss')
           : null,
         status: isLate ? 'late' : ('present' as AttStatus),
       };

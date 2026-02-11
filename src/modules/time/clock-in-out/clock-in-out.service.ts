@@ -19,7 +19,7 @@ import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { AdjustAttendanceDto } from './dto/adjust-attendance.dto';
 import { CacheService } from 'src/common/cache/cache.service';
 
-type DayStatus = 'absent' | 'present' | 'late';
+type DayStatus = 'absent' | 'present' | 'late' | 'weekend';
 
 @Injectable()
 export class ClockInOutService {
@@ -576,92 +576,144 @@ export class ClockInOutService {
       status: DayStatus;
     }>;
   }> {
+    const tz = 'Africa/Lagos';
+
     return this.cache.getOrSetVersioned(
       companyId,
       ['attendance', 'employee', employeeId, 'by-month-fast', yearMonth],
       async () => {
         const [y, m] = yearMonth.split('-').map(Number);
-        const start = new Date(y, m - 1, 1);
-        const end = new Date(y, m - 1, new Date(y, m, 0).getDate());
-        const allDays = eachDayOfInterval({ start, end }).map((d) =>
-          format(d, 'yyyy-MM-dd'),
-        );
-        const todayStr = new Date().toISOString().split('T')[0];
+
+        const firstDay = `${yearMonth}-01`;
+        const lastDay = `${yearMonth}-${String(
+          new Date(y, m, 0).getDate(),
+        ).padStart(2, '0')}`;
+
+        const startUtc = fromZonedTime(`${firstDay}T00:00:00.000`, tz);
+        const endUtc = fromZonedTime(`${lastDay}T23:59:59.999`, tz);
+
+        const allDays = eachDayOfInterval({
+          start: new Date(firstDay),
+          end: new Date(lastDay),
+        }).map((d) => format(d, 'yyyy-MM-dd'));
+
+        const todayStr = formatInTimeZone(new Date(), tz, 'yyyy-MM-dd');
         const days = allDays.filter((d) => d <= todayStr);
 
-        // 1 query: all records for month
         const recs = await this.db
           .select({
-            id: attendanceRecords.id,
             clockIn: attendanceRecords.clockIn,
             clockOut: attendanceRecords.clockOut,
-            workDurationMinutes: attendanceRecords.workDurationMinutes,
-            overtimeMinutes: attendanceRecords.overtimeMinutes,
           })
           .from(attendanceRecords)
           .where(
             and(
               eq(attendanceRecords.employeeId, employeeId),
               eq(attendanceRecords.companyId, companyId),
-              gte(attendanceRecords.clockIn, new Date(y, m - 1, 1)),
-              lte(
-                attendanceRecords.clockIn,
-                new Date(
-                  y,
-                  m - 1,
-                  new Date(y, m, 0).getDate(),
-                  23,
-                  59,
-                  59,
-                  999,
-                ),
-              ),
+              gte(attendanceRecords.clockIn, startUtc),
+              lte(attendanceRecords.clockIn, endUtc),
             ),
           )
           .execute();
 
         const byDay = new Map<string, (typeof recs)[number]>();
         for (const r of recs) {
-          const key = r.clockIn.toISOString().split('T')[0];
-          if (!byDay.has(key)) byDay.set(key, r); // first-in wins
+          const key = formatInTimeZone(new Date(r.clockIn), tz, 'yyyy-MM-dd');
+          if (!byDay.has(key)) byDay.set(key, r);
         }
 
-        // settings once
         const s = await this.getSettings(companyId);
+        const useShifts = s['use_shifts'] ?? false;
         const defaultStart = s['default_start_time'] ?? '09:00';
         const defaultTol = Number(s['late_tolerance_minutes'] ?? 10);
 
-        const out = days.map((dateKey) => {
+        const out: {
+          date: string;
+          checkInTime: string | null;
+          checkOutTime: string | null;
+          status: DayStatus;
+        }[] = [];
+
+        for (const dateKey of days) {
           const rec = byDay.get(dateKey);
+
+          // ✅ HARD-CODE WEEKEND FIRST
+          const dayOfWeek = new Date(dateKey).getDay();
+          if (dayOfWeek === 0 || dayOfWeek === 6) {
+            out.push({
+              date: dateKey,
+              checkInTime: rec
+                ? formatInTimeZone(new Date(rec.clockIn), tz, 'HH:mm:ss')
+                : null,
+              checkOutTime: rec?.clockOut
+                ? formatInTimeZone(new Date(rec.clockOut), tz, 'HH:mm:ss')
+                : null,
+              status: 'weekend',
+            });
+            continue;
+          }
+
+          let startStr = defaultStart;
+          let tol = defaultTol;
+
+          let hasShift = true;
+
+          if (useShifts) {
+            const shift =
+              await this.employeeShiftsService.getActiveShiftForEmployee(
+                employeeId,
+                companyId,
+                dateKey,
+              );
+            if (!shift) {
+              hasShift = false;
+            } else {
+              startStr = shift.startTime;
+              tol = shift.lateToleranceMinutes ?? tol;
+            }
+          }
+
+          if (!hasShift) {
+            out.push({
+              date: dateKey,
+              checkInTime: rec
+                ? formatInTimeZone(new Date(rec.clockIn), tz, 'HH:mm:ss')
+                : null,
+              checkOutTime: rec?.clockOut
+                ? formatInTimeZone(new Date(rec.clockOut), tz, 'HH:mm:ss')
+                : null,
+              status: 'weekend',
+            });
+            continue;
+          }
+
           if (!rec) {
-            return {
+            out.push({
               date: dateKey,
               checkInTime: null,
               checkOutTime: null,
-              status: 'absent' as DayStatus,
-            };
+              status: 'absent',
+            });
+            continue;
           }
 
-          const startStr = defaultStart;
-          const tol = defaultTol;
-          // (Optional) If you have a weekday-based shift map, compute here and set startStr/endStr/tol.
+          const shiftStartUtc = fromZonedTime(`${dateKey}T${startStr}`, tz);
+          const lateBoundaryUtc = new Date(
+            shiftStartUtc.getTime() + tol * 60000,
+          );
 
-          const shiftStart = parseISO(`${dateKey}T${startStr}:00`);
-          const checkIn = new Date(rec.clockIn);
-          const diffLate = (checkIn.getTime() - shiftStart.getTime()) / 60000;
-          const status: DayStatus = diffLate > tol ? 'late' : 'present';
+          const ci = new Date(rec.clockIn);
+          const isLate = ci.getTime() > lateBoundaryUtc.getTime();
 
-          return {
+          out.push({
             date: dateKey,
-            checkInTime: checkIn.toTimeString().slice(0, 8),
+            checkInTime: formatInTimeZone(ci, tz, 'HH:mm:ss'),
             checkOutTime: rec.clockOut
-              ? new Date(rec.clockOut).toTimeString().slice(0, 8)
+              ? formatInTimeZone(new Date(rec.clockOut), tz, 'HH:mm:ss')
               : null,
-            status,
-          };
-        });
-
-        // reverse newest-first if you prefer
+            status: isLate ? 'late' : 'present',
+          });
+        }
         return { summaryList: out.reverse() };
       },
     );

@@ -120,6 +120,13 @@
       "when": 1769689002131,
       "tag": "0016_talented_texas_twister",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1770727565182,
+      "tag": "0017_bitter_skullbuster",
+      "breakpoints": true
     }
   ]
 }

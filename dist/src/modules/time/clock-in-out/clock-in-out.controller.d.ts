@@ -19,13 +19,13 @@ export declare class ClockInOutController extends BaseController {
     }>;
     getDailyDashboardStatsByDate(user: User, date: string): Promise<{
         summaryList: {
-            employeeId: any;
-            employeeNumber: any;
+            employeeId: string;
+            employeeNumber: string;
             name: string;
             department: any;
             checkInTime: string | null;
             checkOutTime: string | null;
-            status: "absent" | "present" | "late";
+            status: "absent" | "present" | "late" | "weekend";
             totalWorkedMinutes: number | null;
         }[];
     }>;
@@ -78,7 +78,7 @@ export declare class ClockInOutController extends BaseController {
         date: string;
         checkInTime: string | null;
         checkOutTime: string | null;
-        status: "absent" | "present" | "late";
+        status: "absent" | "present" | "late" | "weekend";
         workDurationMinutes: number | null;
         overtimeMinutes: number;
         isLateArrival: boolean;
@@ -89,7 +89,7 @@ export declare class ClockInOutController extends BaseController {
             date: string;
             checkInTime: string | null;
             checkOutTime: string | null;
-            status: "absent" | "present" | "late";
+            status: "absent" | "present" | "late" | "weekend";
         }>;
     }>;
     adjustAttendance(attendanceRecordId: string, dto: AdjustAttendanceDto, user: User, ip: string): Promise<string>;

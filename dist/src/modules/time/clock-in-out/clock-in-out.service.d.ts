@@ -8,7 +8,7 @@ import { User } from 'src/common/types/user.type';
 import { ReportService } from '../report/report.service';
 import { AdjustAttendanceDto } from './dto/adjust-attendance.dto';
 import { CacheService } from 'src/common/cache/cache.service';
-type DayStatus = 'absent' | 'present' | 'late';
+type DayStatus = 'absent' | 'present' | 'late' | 'weekend';
 export declare class ClockInOutService {
     private readonly db;
     private readonly auditService;
@@ -76,13 +76,13 @@ export declare class ClockInOutService {
     }>;
     getDailyDashboardStatsByDate(companyId: string, date: string): Promise<{
         summaryList: {
-            employeeId: any;
-            employeeNumber: any;
+            employeeId: string;
+            employeeNumber: string;
             name: string;
             department: any;
             checkInTime: string | null;
             checkOutTime: string | null;
-            status: "absent" | "present" | "late";
+            status: "absent" | "present" | "late" | "weekend";
             totalWorkedMinutes: number | null;
         }[];
     }>;

@@ -244,6 +244,8 @@ let ReportService = class ReportService {
         const s = await this.attendanceSettingsService.getAllAttendanceSettings(companyId);
         const lateToleranceMins = Number(s['late_tolerance_minutes'] ?? 10);
         const lateBoundaryUtc = new Date(workStartUtc.getTime() + lateToleranceMins * 60000);
+        const dayOfWeek = new Date(dayKey).getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
         const employees = await this.employeesService.findAllEmployees(companyId);
         const allEmployees = employees.filter((emp) => emp.employmentStatus === 'active');
         const departments = await this.departmentsService.findAll(companyId);
@@ -259,7 +261,9 @@ let ReportService = class ReportService {
             const co = rec?.clockOut ? new Date(rec.clockOut) : null;
             const isLate = ci ? ci.getTime() > lateBoundaryUtc.getTime() : false;
             let status = 'absent';
-            if (ci)
+            if (isWeekend && !ci)
+                status = 'weekend';
+            else if (ci)
                 status = isLate ? 'late' : 'present';
             let totalWorkedMinutes = null;
             if (ci && co) {

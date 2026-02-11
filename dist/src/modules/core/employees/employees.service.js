@@ -49,6 +49,7 @@ const payslip_service_1 = require("../../payroll/payslip/payslip.service");
 const leave_requests_schema_1 = require("../../leave/schema/leave-requests.schema");
 const leave_types_schema_1 = require("../../leave/schema/leave-types.schema");
 const onboarding_service_1 = require("../../lifecycle/onboarding/onboarding.service");
+const date_fns_tz_1 = require("date-fns-tz");
 let EmployeesService = EmployeesService_1 = class EmployeesService {
     constructor(db, logger, audit, profileService, historyService, dependentsService, certificationsService, compensationService, financeService, deptSvc, roleSvc, ccSvc, groupsService, config, employeeInvitationService, cacheService, companySettingsService, permissionService, leaveBalanceService, attendanceSettingsService, employeeShiftsService, payslipService, onboardingService) {
         this.db = db;
@@ -1073,20 +1074,23 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
             .execute();
     }
     async getEmployeeAttendanceByMonth(employeeId, companyId, yearMonth) {
+        const tz = 'Africa/Lagos';
         const [y, m] = yearMonth.split('-').map(Number);
         if (!y || !m)
             throw new Error('yearMonth must be YYYY-MM');
-        const monthStart = new Date(y, m - 1, 1, 0, 0, 0, 0);
-        const monthEnd = new Date(y, m, 0, 23, 59, 59, 999);
-        const today = new Date();
-        const capEnd = monthEnd < today ? monthEnd : today;
+        const firstDay = `${yearMonth}-01`;
+        const lastDay = `${yearMonth}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+        const monthStartUtc = (0, date_fns_tz_1.fromZonedTime)(`${firstDay}T00:00:00.000`, tz);
+        const monthEndUtc = (0, date_fns_tz_1.fromZonedTime)(`${lastDay}T23:59:59.999`, tz);
+        const todayStr = (0, date_fns_tz_1.formatInTimeZone)(new Date(), tz, 'yyyy-MM-dd');
+        const capEndUtc = (0, date_fns_tz_1.fromZonedTime)(`${todayStr}T23:59:59.999`, tz);
         const s = await this.attendanceSettingsService.getAllAttendanceSettings(companyId);
         const useShifts = s['use_shifts'] ?? false;
         const defaultStartTime = s['default_start_time'] ?? '09:00';
         const defaultTolerance = Number(s['late_tolerance_minutes'] ?? 10);
         const shiftMap = {};
         if (useShifts) {
-            const monthlyShifts = await this.employeeShiftsService.getEmployeeShiftsForRange(employeeId, companyId, monthStart, monthEnd);
+            const monthlyShifts = await this.employeeShiftsService.getEmployeeShiftsForRange(employeeId, companyId, monthStartUtc, monthEndUtc);
             monthlyShifts.forEach((s) => {
                 shiftMap[s.date] = {
                     startTime: s.startTime,
@@ -1097,17 +1101,16 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
         }
         const rows = await this.db
             .select({
-            id: schema_2.attendanceRecords.id,
             clockIn: schema_2.attendanceRecords.clockIn,
             clockOut: schema_2.attendanceRecords.clockOut,
             workDurationMinutes: schema_2.attendanceRecords.workDurationMinutes,
             overtimeMinutes: schema_2.attendanceRecords.overtimeMinutes,
         })
             .from(schema_2.attendanceRecords)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_2.attendanceRecords.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_2.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_2.attendanceRecords.clockIn, monthStart), (0, drizzle_orm_1.lte)(schema_2.attendanceRecords.clockIn, capEnd)));
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_2.attendanceRecords.employeeId, employeeId), (0, drizzle_orm_1.eq)(schema_2.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.gte)(schema_2.attendanceRecords.clockIn, monthStartUtc), (0, drizzle_orm_1.lte)(schema_2.attendanceRecords.clockIn, capEndUtc)));
         const byDate = new Map();
         for (const r of rows) {
-            const dayKey = (0, date_fns_1.format)(r.clockIn, 'yyyy-MM-dd');
+            const dayKey = (0, date_fns_tz_1.formatInTimeZone)(r.clockIn, tz, 'yyyy-MM-dd');
             const prev = byDate.get(dayKey);
             if (!prev || r.clockIn < prev.clockIn) {
                 byDate.set(dayKey, {
@@ -1118,29 +1121,32 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 });
             }
         }
-        const days = (0, date_fns_1.eachDayOfInterval)({ start: monthStart, end: capEnd }).map((d) => (0, date_fns_1.format)(d, 'yyyy-MM-dd'));
+        const days = (0, date_fns_1.eachDayOfInterval)({
+            start: new Date(firstDay),
+            end: new Date(todayStr < lastDay ? todayStr : lastDay),
+        }).map((d) => (0, date_fns_1.format)(d, 'yyyy-MM-dd'));
         const summaryList = days.map((dateKey) => {
             const rec = byDate.get(dateKey);
+            const dayOfWeek = new Date(dateKey).getDay();
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
             if (!rec) {
                 return {
                     date: dateKey,
                     checkInTime: null,
                     checkOutTime: null,
-                    status: 'absent',
+                    status: (isWeekend ? 'weekend' : 'absent'),
                 };
             }
             const shift = useShifts ? shiftMap[dateKey] : undefined;
             const startTime = shift?.startTime ?? defaultStartTime;
             const tol = (shift?.lateToleranceMinutes ?? defaultTolerance) * 60_000;
-            const shiftStartISO = `${dateKey}T${startTime}:00`;
-            const shiftStart = (0, date_fns_1.parseISO)(shiftStartISO);
-            const isLate = (0, date_fns_1.isValid)(shiftStart) &&
-                rec.clockIn.getTime() > shiftStart.getTime() + tol;
+            const shiftStartUtc = (0, date_fns_tz_1.fromZonedTime)(`${dateKey}T${startTime}:00`, tz);
+            const isLate = rec.clockIn.getTime() > shiftStartUtc.getTime() + tol;
             return {
                 date: dateKey,
-                checkInTime: rec.clockIn.toTimeString().slice(0, 8),
+                checkInTime: (0, date_fns_tz_1.formatInTimeZone)(rec.clockIn, tz, 'HH:mm:ss'),
                 checkOutTime: rec.clockOut
-                    ? rec.clockOut.toTimeString().slice(0, 8)
+                    ? (0, date_fns_tz_1.formatInTimeZone)(rec.clockOut, tz, 'HH:mm:ss')
                     : null,
                 status: isLate ? 'late' : 'present',
             };

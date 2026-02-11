@@ -25,13 +25,13 @@ export declare class AssessmentsService {
         id: string;
         createdAt: Date | null;
         companyId: string;
-        status: "not_started" | "in_progress" | "submitted" | null;
-        type: "self" | "manager" | "peer";
+        type: "manager" | "self" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
         cycleId: string;
         templateId: string;
+        submittedAt: Date | null;
         reviewerId: string;
         revieweeId: string;
-        submittedAt: Date | null;
     }>;
     startAssessment(assessmentId: string, userId: string): Promise<void>;
     saveSectionComments(assessmentId: string, userId: string, dto: SubmitAssessmentDto): Promise<{
@@ -39,8 +39,8 @@ export declare class AssessmentsService {
     }>;
     getAssessmentsForDashboard(companyId: string, filters?: GetDashboardAssessmentsDto): Promise<{
         id: string;
-        type: "self" | "manager" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        type: "manager" | "self" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
         reviewer: string;
         employee: string;
         departmentName: any;
@@ -64,8 +64,8 @@ export declare class AssessmentsService {
         templateId: string;
         reviewerId: string;
         revieweeId: string;
-        type: "self" | "manager" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        type: "manager" | "self" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -76,8 +76,8 @@ export declare class AssessmentsService {
         templateId: string;
         reviewerId: string;
         revieweeId: string;
-        type: "self" | "manager" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        type: "manager" | "self" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -88,8 +88,8 @@ export declare class AssessmentsService {
         templateId: string;
         reviewerId: string;
         revieweeId: string;
-        type: "self" | "manager" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        type: "manager" | "self" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
