@@ -12,74 +12,110 @@ var EmailQueueProcessor_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EmailQueueProcessor = void 0;
 const bullmq_1 = require("@nestjs/bullmq");
+const bullmq_2 = require("bullmq");
 const common_1 = require("@nestjs/common");
 const employee_invitation_service_1 = require("./employee-invitation.service");
 const goal_notification_service_1 = require("./goal-notification.service");
 const announcement_notification_service_1 = require("./announcement-notification.service");
+const notification_delivery_service_1 = require("../notification-delivery.service");
 let EmailQueueProcessor = EmailQueueProcessor_1 = class EmailQueueProcessor extends bullmq_1.WorkerHost {
-    constructor(employeeInvitationService, goalNotificationService, announcementNotificationService) {
+    constructor(employeeInvitationService, goalNotificationService, announcementNotificationService, notificationDeliveryService) {
         super();
         this.employeeInvitationService = employeeInvitationService;
         this.goalNotificationService = goalNotificationService;
         this.announcementNotificationService = announcementNotificationService;
+        this.notificationDeliveryService = notificationDeliveryService;
         this.logger = new common_1.Logger(EmailQueueProcessor_1.name);
+        this.logger.warn({
+            op: 'email.worker.boot',
+            pid: process.pid,
+            queue: 'emailQueue',
+        });
+    }
+    onReady() {
+        this.logger.warn({ op: 'email.worker.ready', queue: 'emailQueue' });
+    }
+    onFailed(job, err) {
+        this.logger.error({
+            op: 'email.worker.failed',
+            queue: 'emailQueue',
+            jobId: job?.id,
+            jobName: job?.name,
+            attemptsMade: job?.attemptsMade,
+            err: err?.message,
+        }, err?.stack);
+    }
+    onCompleted(job) {
+        this.logger.log({
+            op: 'email.worker.completed',
+            queue: 'emailQueue',
+            jobId: job?.id,
+            jobName: job?.name,
+        });
     }
     async process(job) {
-        const { id, name, attemptsMade, opts } = job;
+        const { id, name, attemptsMade, opts, data } = job;
         this.logger.log({
-            op: 'email.job.start',
+            op: 'email.worker.got_job',
+            queue: job.queueName,
             jobId: id,
             jobName: name,
             attemptsMade,
             maxAttempts: opts?.attempts,
-            queue: job.queueName,
+            data,
         });
         try {
+            this.logger.log({
+                op: 'email.worker.route',
+                jobId: id,
+                jobName: name,
+            });
             switch (name) {
                 case 'sendPasswordResetEmail':
-                    this.logger.debug({
-                        op: 'email.invite.payload',
-                        jobId: id,
-                        email: job.data?.email,
-                        companyName: job.data?.companyName,
-                        role: job.data?.role,
-                    });
-                    await this.handleEmployeeInvitationEmail(job.data);
+                    await this.employeeInvitationService.sendInvitationEmail(data.email, data.name, data.companyName, data.role, data.resetLink);
                     break;
                 case 'sendGoalCheckin':
-                    this.logger.debug({
-                        op: 'email.goalCheckin.payload',
-                        jobId: id,
-                        employeeId: job.data?.employeeId,
-                        goalId: job.data?.goalId,
-                    });
-                    await this.handleGoalCheckin(job.data);
+                    await this.goalNotificationService.sendGoalCheckin(data);
                     break;
                 case 'sendAnnouncement':
-                    this.logger.debug({
-                        op: 'email.announcement.payload',
+                    await this.announcementNotificationService.sendNewAnnouncement(data);
+                    break;
+                case 'sendNotificationEvent':
+                    this.logger.log({
+                        op: 'email.worker.route.sendNotificationEvent',
                         jobId: id,
-                        announcementId: job.data?.announcementId,
+                        data,
                     });
-                    await this.handleAnnouncement(job.data);
+                    if (!data?.notificationEventId) {
+                        this.logger.error({
+                            op: 'email.worker.sendNotificationEvent.missing_event_id',
+                            jobId: id,
+                            jobName: name,
+                            data,
+                        });
+                        throw new Error('notificationEventId missing from job.data');
+                    }
+                    await this.notificationDeliveryService.deliver(data.notificationEventId);
                     break;
                 default:
                     this.logger.warn({
-                        op: 'email.job.unhandled',
+                        op: 'email.worker.unhandled',
                         jobId: id,
                         jobName: name,
                     });
                     return;
             }
             this.logger.log({
-                op: 'email.job.success',
+                op: 'email.worker.success',
+                queue: job.queueName,
                 jobId: id,
                 jobName: name,
             });
         }
         catch (error) {
             this.logger.error({
-                op: 'email.job.failed',
+                op: 'email.worker.process_failed',
+                queue: job.queueName,
                 jobId: id,
                 jobName: name,
                 attemptsMade,
@@ -89,28 +125,37 @@ let EmailQueueProcessor = EmailQueueProcessor_1 = class EmailQueueProcessor exte
             throw error;
         }
     }
-    async handleEmployeeInvitationEmail(data) {
-        const { email, name, companyName, role } = data;
-        this.logger.log({
-            op: 'email.invite.send',
-            email,
-            companyName,
-            role,
-        });
-        await this.employeeInvitationService.sendInvitationEmail(email, name, companyName, role, data.resetLink);
-    }
-    async handleGoalCheckin(data) {
-        await this.goalNotificationService.sendGoalCheckin(data);
-    }
-    async handleAnnouncement(data) {
-        await this.announcementNotificationService.sendNewAnnouncement(data);
-    }
 };
 exports.EmailQueueProcessor = EmailQueueProcessor;
+__decorate([
+    (0, bullmq_1.OnWorkerEvent)('ready'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], EmailQueueProcessor.prototype, "onReady", null);
+__decorate([
+    (0, bullmq_1.OnWorkerEvent)('failed'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [bullmq_2.Job, Error]),
+    __metadata("design:returntype", void 0)
+], EmailQueueProcessor.prototype, "onFailed", null);
+__decorate([
+    (0, bullmq_1.OnWorkerEvent)('completed'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [bullmq_2.Job]),
+    __metadata("design:returntype", void 0)
+], EmailQueueProcessor.prototype, "onCompleted", null);
 exports.EmailQueueProcessor = EmailQueueProcessor = EmailQueueProcessor_1 = __decorate([
-    (0, bullmq_1.Processor)('emailQueue'),
+    (0, bullmq_1.Processor)('emailQueue', {
+        concurrency: 5,
+        limiter: {
+            max: 30,
+            duration: 1000,
+        },
+    }),
     __metadata("design:paramtypes", [employee_invitation_service_1.EmployeeInvitationService,
         goal_notification_service_1.GoalNotificationService,
-        announcement_notification_service_1.AnnouncementNotificationService])
+        announcement_notification_service_1.AnnouncementNotificationService,
+        notification_delivery_service_1.NotificationDeliveryService])
 ], EmailQueueProcessor);
 //# sourceMappingURL=email-queue.processor.js.map

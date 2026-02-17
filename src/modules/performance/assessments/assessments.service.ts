@@ -35,6 +35,7 @@ import { GetDashboardAssessmentsDto } from './dto/get-dashboard-assessments.dto'
 import { feedbackResponses } from '../feedback/schema/performance-feedback-responses.schema';
 import { assessmentConclusions } from './schema/performance-assessment-conclusions.schema';
 import { CacheService } from 'src/common/cache/cache.service';
+import { assessmentSelfSummaries } from './schema/performance-assessment-self-summaries.schema';
 
 type AssessmentCounts = {
   all: number;
@@ -83,6 +84,9 @@ export class AssessmentsService {
     let reviewerId = user.id;
     let revieweeId = dto.revieweeId;
 
+    // -----------------------------
+    // 1) Resolve reviewee/reviewer for self
+    // -----------------------------
     if (dto.type === 'self') {
       if (user.role === 'super_admin' || user.role === 'admin') {
         if (!dto.revieweeId) {
@@ -102,15 +106,84 @@ export class AssessmentsService {
         }
         revieweeId = employee.id;
       }
+
       reviewerId = user.id;
     }
 
+    // -----------------------------
+    // 2) Resolve templateId
+    //    - If dto.templateId is provided, use it (but validate it belongs to company)
+    //    - Otherwise, pick company default template (isDefault=true)
+    // -----------------------------
+    let templateId = dto.templateId;
+
+    if (templateId) {
+      const [tpl] = await this.db
+        .select({ id: performanceReviewTemplates.id })
+        .from(performanceReviewTemplates)
+        .where(
+          and(
+            eq(performanceReviewTemplates.id, templateId),
+            eq(performanceReviewTemplates.companyId, user.companyId),
+          ),
+        )
+        .limit(1);
+
+      if (!tpl) {
+        throw new BadRequestException(
+          'Invalid templateId (not found or not in your company).',
+        );
+      }
+    } else {
+      const [defaultTpl] = await this.db
+        .select({ id: performanceReviewTemplates.id })
+        .from(performanceReviewTemplates)
+        .where(
+          and(
+            eq(performanceReviewTemplates.companyId, user.companyId),
+            eq(performanceReviewTemplates.isDefault, true),
+          ),
+        )
+        .limit(1);
+
+      if (!defaultTpl) {
+        throw new BadRequestException(
+          'No default performance review template configured for this company.',
+        );
+      }
+
+      templateId = defaultTpl.id;
+    }
+
+    // find assessment for the same cycle, reviewee, and type that is not archived
+    const [existing] = await this.db
+      .select()
+      .from(performanceAssessments)
+      .where(
+        and(
+          eq(performanceAssessments.cycleId, dto.cycleId),
+          eq(performanceAssessments.revieweeId, revieweeId),
+          eq(performanceAssessments.type, dto.type),
+          eq(performanceAssessments.companyId, user.companyId),
+        ),
+      )
+      .limit(1);
+
+    if (existing) {
+      throw new BadRequestException(
+        'An assessment for this cycle, employee, and type already exists.',
+      );
+    }
+
+    // -----------------------------
+    // 3) Insert
+    // -----------------------------
     const [assessment] = await this.db
       .insert(performanceAssessments)
       .values({
         companyId: user.companyId,
         cycleId: dto.cycleId,
-        templateId: dto.templateId,
+        templateId, // <- resolved
         reviewerId,
         revieweeId,
         type: dto.type,
@@ -130,6 +203,8 @@ export class AssessmentsService {
         revieweeId: assessment.revieweeId,
         reviewerId: assessment.reviewerId,
         cycleId: assessment.cycleId,
+        templateId: assessment.templateId,
+        type: assessment.type,
       },
     });
 
@@ -472,7 +547,9 @@ export class AssessmentsService {
 
         const result: any = { ...assessment, templateName: template.name };
 
+        // -------------------------
         // Section Comments
+        // -------------------------
         const sectionComments = await this.db
           .select({
             section: assessmentSectionComments.section,
@@ -482,7 +559,29 @@ export class AssessmentsService {
           .where(eq(assessmentSectionComments.assessmentId, assessment.id));
         result.sectionComments = sectionComments;
 
+        // -------------------------
+        // ✅ Self Summary (optional)
+        // -------------------------
+        // NOTE: this will return null for manager/peer if no row exists (safe for UI)
+        // If you want only for self type, wrap in: if (assessment.type === 'self') { ... }
+        const [selfSummary] = await this.db
+          .select({
+            assessmentId: assessmentSelfSummaries.assessmentId,
+            summary: assessmentSelfSummaries.summary,
+            createdAt: assessmentSelfSummaries.createdAt,
+            updatedAt: assessmentSelfSummaries.updatedAt,
+            createdBy: assessmentSelfSummaries.createdBy,
+            updatedBy: assessmentSelfSummaries.updatedBy,
+          })
+          .from(assessmentSelfSummaries)
+          .where(eq(assessmentSelfSummaries.assessmentId, assessment.id))
+          .limit(1);
+
+        result.selfSummary = selfSummary ?? null;
+
+        // -------------------------
         // Questionnaire
+        // -------------------------
         if (template.includeQuestionnaire) {
           const questions = await this.db
             .select({
@@ -536,7 +635,9 @@ export class AssessmentsService {
           result.questions = groupedQuestions;
         }
 
+        // -------------------------
         // Goals
+        // -------------------------
         if (template.includeGoals) {
           const goals = await this.db
             .select({
@@ -591,7 +692,9 @@ export class AssessmentsService {
           result.goals = enrichedGoals;
         }
 
+        // -------------------------
         // Feedback
+        // -------------------------
         if (template.includeFeedback) {
           const feedbacks = await this.db
             .select({
@@ -633,7 +736,9 @@ export class AssessmentsService {
           }));
         }
 
+        // -------------------------
         // Attendance
+        // -------------------------
         if (template.includeAttendance) {
           const attendance = await this.getAttendanceSummaryForCycle(
             assessment.revieweeId,
@@ -655,10 +760,32 @@ export class AssessmentsService {
   // They don't carry companyId in signature; caching would require extra lookups.
 
   async getAssessmentsForUser(userId: string) {
-    return this.db
+    const assessments = await this.db
       .select()
       .from(performanceAssessments)
       .where(eq(performanceAssessments.revieweeId, userId));
+
+    return assessments;
+  }
+
+  async getAssessmentsForEmployee(employeeId: string) {
+    const assessments = await this.db
+      .select({
+        id: performanceAssessments.id,
+        cycleName: performanceCycles.name,
+        type: performanceAssessments.type,
+        status: performanceAssessments.status,
+        submittedAt: performanceAssessments.submittedAt,
+        createdAt: performanceAssessments.createdAt,
+      })
+      .from(performanceAssessments)
+      .leftJoin(
+        performanceCycles,
+        eq(performanceCycles.id, performanceAssessments.cycleId),
+      )
+      .where(eq(performanceAssessments.revieweeId, employeeId));
+
+    return assessments;
   }
 
   async getTeamAssessments(managerId: string, cycleId: string) {

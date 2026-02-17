@@ -15,6 +15,8 @@ const goal_policy_controller_1 = require("./goal-policy.controller");
 const goal_policy_service_1 = require("./goal-policy.service");
 const bullmq_1 = require("@nestjs/bullmq");
 const goal_checkin_cron_service_1 = require("./goal-checkin-cron.service");
+const goal_rollover_cron_service_1 = require("./goal-rollover-cron.service");
+const cycle_service_1 = require("../cycle/cycle.service");
 let GoalsModule = class GoalsModule {
 };
 exports.GoalsModule = GoalsModule;
@@ -31,6 +33,8 @@ exports.GoalsModule = GoalsModule = __decorate([
             goal_activity_service_1.GoalActivityService,
             goal_policy_service_1.PolicyService,
             goal_checkin_cron_service_1.GoalCheckinCronService,
+            goal_rollover_cron_service_1.GoalRolloverCronService,
+            cycle_service_1.CycleService,
         ],
     })
 ], GoalsModule);

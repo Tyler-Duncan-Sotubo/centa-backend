@@ -3,12 +3,24 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as sgMail from '@sendgrid/mail';
 
-interface GoalCheckinPayload {
-  goalTitle: string;
+export interface GoalCheckinPayload {
   toEmail: string;
+  firstName: string;
+  employeeName: string;
   subject: string;
-  body: string;
-  meta?: Record<string, any>; // flexible metadata (e.g. goalId)
+
+  title: string;
+  dueDate?: string;
+
+  body?: string;
+  companyName?: string;
+
+  meta?: {
+    goalId?: string;
+    employeeId?: string;
+    bucket?: 't7' | 't2' | 'today' | 'overdue' | string;
+    [k: string]: any;
+  };
 }
 
 interface GoalAssignmentPayload {
@@ -65,11 +77,26 @@ export class GoalNotificationService {
       },
       templateId,
       dynamicTemplateData: {
+        // ✅ SUBJECT
         subject: payload.subject,
-        body: payload.body,
+
+        // ✅ PERSON
+        firstName: payload.firstName,
+        employeeName: payload.employeeName,
+
+        // ✅ GOAL
+        title: payload.title,
+        dueDate: payload.dueDate,
+
+        // ✅ SYSTEM
+        companyName: payload.companyName,
+
+        // ✅ LINKS
         goalId: payload.meta?.goalId,
         url: goalPage,
-        // you can add more dynamic fields here if your template expects them
+
+        // optional extra
+        bucket: payload.meta?.bucket,
       },
     };
 

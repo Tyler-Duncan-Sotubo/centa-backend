@@ -57,6 +57,7 @@ export const performanceGoals = pgTable(
       .notNull()
       .references(() => users.id),
 
+    isRecurring: boolean('is_recurring').default(false),
     isPrivate: boolean('is_private').default(false),
     updatedAt: timestamp('updated_at').defaultNow(),
     isArchived: boolean('is_archived').default(false),

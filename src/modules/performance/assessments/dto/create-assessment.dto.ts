@@ -1,11 +1,12 @@
-import { IsUUID, IsIn } from 'class-validator';
+import { IsUUID, IsIn, IsOptional } from 'class-validator';
 
 export class CreateAssessmentDto {
   @IsUUID()
   cycleId: string;
 
+  @IsOptional()
   @IsUUID()
-  templateId: string;
+  templateId?: string; // optional because you default it
 
   @IsUUID()
   revieweeId: string;

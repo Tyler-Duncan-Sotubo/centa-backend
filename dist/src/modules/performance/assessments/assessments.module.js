@@ -15,6 +15,8 @@ const assessment_responses_controller_1 = require("./responses/assessment-respon
 const assessment_conclusions_controller_1 = require("./conclusions/assessment-conclusions.controller");
 const responses_service_1 = require("./responses/responses.service");
 const conclusions_service_1 = require("./conclusions/conclusions.service");
+const self_assessments_controller_1 = require("./self-assessments.controller");
+const self_assessments_service_1 = require("./self-assessments.service");
 let AssessmentsModule = class AssessmentsModule {
 };
 exports.AssessmentsModule = AssessmentsModule;
@@ -24,12 +26,14 @@ exports.AssessmentsModule = AssessmentsModule = __decorate([
             assessments_controller_1.AssessmentsController,
             assessment_responses_controller_1.AssessmentResponsesController,
             assessment_conclusions_controller_1.AssessmentConclusionsController,
+            self_assessments_controller_1.SelfAssessmentsController,
         ],
         providers: [
             assessments_service_1.AssessmentsService,
             clock_in_out_service_1.ClockInOutService,
             responses_service_1.AssessmentResponsesService,
             conclusions_service_1.AssessmentConclusionsService,
+            self_assessments_service_1.SelfAssessmentsService,
         ],
     })
 ], AssessmentsModule);

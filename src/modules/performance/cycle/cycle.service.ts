@@ -25,10 +25,63 @@ export class CycleService {
   private tags(companyId: string) {
     return [`company:${companyId}:performance-cycles`];
   }
+
   private async invalidate(companyId: string) {
     await this.cache.bumpCompanyVersion(companyId);
-    // If native Redis tagging is available you can also:
-    // await this.cache.invalidateTags(this.tags(companyId));
+  }
+
+  /**
+   * ---------------------------------------------------
+   * FIND BY NAME (used by cron)
+   * ---------------------------------------------------
+   */
+  async findByName(companyId: string, name: string) {
+    return this.cache.getOrSetVersioned(
+      companyId,
+      ['performance-cycles', 'by-name', name],
+      async () => {
+        const [cycle] = await this.db
+          .select()
+          .from(performanceCycles)
+          .where(
+            and(
+              eq(performanceCycles.companyId, companyId),
+              eq(performanceCycles.name, name),
+            ),
+          )
+          .limit(1)
+          .execute();
+
+        return cycle ?? null;
+      },
+      { tags: this.tags(companyId) },
+    );
+  }
+
+  /**
+   * ---------------------------------------------------
+   * OVERLAP CHECK
+   * ---------------------------------------------------
+   */
+  private async hasOverlap(
+    companyId: string,
+    startDate: string,
+    endDate: string,
+  ) {
+    const rows = await this.db
+      .select()
+      .from(performanceCycles)
+      .where(
+        and(
+          eq(performanceCycles.companyId, companyId),
+          lte(performanceCycles.startDate, endDate),
+          gte(performanceCycles.endDate, startDate),
+        ),
+      )
+      .limit(1)
+      .execute();
+
+    return rows.length > 0;
   }
 
   async create(
@@ -36,30 +89,35 @@ export class CycleService {
     companyId: string,
     userId?: string,
   ) {
-    const existingCycle = await this.db
-      .select()
-      .from(performanceCycles)
-      .where(
-        and(
-          eq(performanceCycles.name, createCycleDto.name),
-          eq(performanceCycles.companyId, companyId),
-        ),
-      )
-      .execute();
-
-    if (existingCycle.length > 0) {
+    /**
+     * Duplicate name guard
+     */
+    const existing = await this.findByName(companyId, createCycleDto.name);
+    if (existing) {
       throw new BadRequestException('Cycle with this name already exists');
+    }
+
+    /**
+     * Overlap guard
+     */
+    const overlap = await this.hasOverlap(
+      companyId,
+      createCycleDto.startDate,
+      createCycleDto.endDate,
+    );
+    if (overlap) {
+      throw new BadRequestException('Cycle overlaps an existing period');
     }
 
     const today = new Date();
     const startDate = new Date(createCycleDto.startDate);
     const endDate = new Date(createCycleDto.endDate);
 
-    let status = 'draft';
     if (endDate < startDate) {
       throw new BadRequestException('End date must be after start date');
     }
-    // (kept your original status logic)
+
+    let status = 'draft';
     if (startDate <= today || endDate <= today) {
       status = 'active';
     }
@@ -111,8 +169,7 @@ export class CycleService {
   }
 
   async findCurrent(companyId: string) {
-    const today = new Date();
-    const todayStr = today.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+    const todayStr = new Date().toISOString().slice(0, 10);
 
     return this.cache.getOrSetVersioned(
       companyId,
@@ -137,7 +194,6 @@ export class CycleService {
     );
   }
 
-  // Keep original for compatibility (no cache, id-only)
   async findOne(id: string) {
     const [cycle] = await this.db
       .select()
@@ -152,7 +208,6 @@ export class CycleService {
     return cycle;
   }
 
-  // Scoped + cached version (use this where you have companyId)
   async findOneScoped(companyId: string, id: string) {
     return this.cache.getOrSetVersioned(
       companyId,
@@ -181,28 +236,20 @@ export class CycleService {
   }
 
   async getLastCycle(companyId: string) {
-    return this.cache.getOrSetVersioned(
-      companyId,
-      ['performance-cycles', 'last'],
-      async () => {
-        const [lastCycle] = await this.db
-          .select()
-          .from(performanceCycles)
-          .where(eq(performanceCycles.companyId, companyId))
-          .orderBy(desc(performanceCycles.startDate))
-          .limit(1)
-          .execute();
+    const [lastCycle] = await this.db
+      .select()
+      .from(performanceCycles)
+      .where(eq(performanceCycles.companyId, companyId))
+      .orderBy(desc(performanceCycles.startDate))
+      .limit(1)
+      .execute();
 
-        return lastCycle ?? null;
-      },
-      { tags: this.tags(companyId) },
-    );
+    return lastCycle ?? null;
   }
 
   async update(id: string, updateCycleDto: UpdateCycleDto, user: User) {
     const { id: userId, companyId } = user;
 
-    // Use cached, scoped read to assert existence
     await this.findOneScoped(companyId, id);
 
     const [updatedCycle] = await this.db
@@ -223,16 +270,7 @@ export class CycleService {
       entityId: id,
       userId,
       details: `Updated performance cycle ${updatedCycle.name}`,
-      changes: {
-        ...updateCycleDto,
-        id: updatedCycle.id,
-        companyId: updatedCycle.companyId,
-        startDate: updatedCycle.startDate,
-        endDate: updatedCycle.endDate,
-        status: updatedCycle.status,
-        updatedAt: new Date().toISOString(),
-        updatedBy: userId,
-      },
+      changes: updateCycleDto,
     });
 
     await this.invalidate(companyId);
@@ -242,7 +280,6 @@ export class CycleService {
   async remove(id: string, user: User) {
     const { id: userId, companyId } = user;
 
-    // Ensure exists (cached)
     await this.findOneScoped(companyId, id);
 
     await this.db
@@ -260,14 +297,7 @@ export class CycleService {
       entity: 'performance_cycle',
       entityId: id,
       userId,
-      details: `Deleted performance cycle with ID ${id}`,
-      changes: {
-        id,
-        companyId,
-        status: 'deleted',
-        deletedAt: new Date().toISOString(),
-        deletedBy: userId,
-      },
+      details: `Deleted performance cycle ${id}`,
     });
 
     await this.invalidate(companyId);

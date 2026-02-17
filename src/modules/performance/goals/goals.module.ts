@@ -6,6 +6,8 @@ import { PerformancePolicyController } from './goal-policy.controller';
 import { PolicyService } from './goal-policy.service';
 import { BullModule } from '@nestjs/bullmq';
 import { GoalCheckinCronService } from './goal-checkin-cron.service';
+import { GoalRolloverCronService } from './goal-rollover-cron.service';
+import { CycleService } from '../cycle/cycle.service';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { GoalCheckinCronService } from './goal-checkin-cron.service';
     GoalActivityService,
     PolicyService,
     GoalCheckinCronService,
+    GoalRolloverCronService,
+    CycleService,
   ],
 })
 export class GoalsModule {}

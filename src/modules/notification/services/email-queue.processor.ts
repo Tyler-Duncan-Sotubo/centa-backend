@@ -1,11 +1,18 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
+import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
+import { Job, WorkerOptions } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { EmployeeInvitationService } from './employee-invitation.service';
 import { GoalNotificationService } from './goal-notification.service';
 import { AnnouncementNotificationService } from './announcement-notification.service';
+import { NotificationDeliveryService } from '../notification-delivery.service';
 
-@Processor('emailQueue')
+@Processor('emailQueue', {
+  concurrency: 5,
+  limiter: {
+    max: 30,
+    duration: 1000,
+  },
+} as WorkerOptions)
 export class EmailQueueProcessor extends WorkerHost {
   private readonly logger = new Logger(EmailQueueProcessor.name);
 
@@ -13,57 +20,110 @@ export class EmailQueueProcessor extends WorkerHost {
     private readonly employeeInvitationService: EmployeeInvitationService,
     private readonly goalNotificationService: GoalNotificationService,
     private readonly announcementNotificationService: AnnouncementNotificationService,
+    private readonly notificationDeliveryService: NotificationDeliveryService,
   ) {
     super();
+    this.logger.warn({
+      op: 'email.worker.boot',
+      pid: process.pid,
+      queue: 'emailQueue',
+    });
+  }
+
+  @OnWorkerEvent('ready')
+  onReady() {
+    this.logger.warn({ op: 'email.worker.ready', queue: 'emailQueue' });
+  }
+
+  @OnWorkerEvent('failed')
+  onFailed(job: Job, err: Error) {
+    this.logger.error(
+      {
+        op: 'email.worker.failed',
+        queue: 'emailQueue',
+        jobId: job?.id,
+        jobName: job?.name,
+        attemptsMade: job?.attemptsMade,
+        err: err?.message,
+      },
+      err?.stack,
+    );
+  }
+
+  @OnWorkerEvent('completed')
+  onCompleted(job: Job) {
+    this.logger.log({
+      op: 'email.worker.completed',
+      queue: 'emailQueue',
+      jobId: job?.id,
+      jobName: job?.name,
+    });
   }
 
   async process(job: Job): Promise<void> {
-    const { id, name, attemptsMade, opts } = job;
+    const { id, name, attemptsMade, opts, data } = job;
 
     this.logger.log({
-      op: 'email.job.start',
+      op: 'email.worker.got_job',
+      queue: job.queueName,
       jobId: id,
       jobName: name,
       attemptsMade,
       maxAttempts: opts?.attempts,
-      queue: job.queueName,
+      data,
     });
 
     try {
+      this.logger.log({
+        op: 'email.worker.route',
+        jobId: id,
+        jobName: name,
+      });
+
       switch (name) {
         case 'sendPasswordResetEmail':
-          this.logger.debug({
-            op: 'email.invite.payload',
-            jobId: id,
-            email: job.data?.email,
-            companyName: job.data?.companyName,
-            role: job.data?.role,
-          });
-          await this.handleEmployeeInvitationEmail(job.data);
+          await this.employeeInvitationService.sendInvitationEmail(
+            data.email,
+            data.name,
+            data.companyName,
+            data.role,
+            data.resetLink,
+          );
           break;
 
         case 'sendGoalCheckin':
-          this.logger.debug({
-            op: 'email.goalCheckin.payload',
-            jobId: id,
-            employeeId: job.data?.employeeId,
-            goalId: job.data?.goalId,
-          });
-          await this.handleGoalCheckin(job.data);
+          await this.goalNotificationService.sendGoalCheckin(data);
           break;
 
         case 'sendAnnouncement':
-          this.logger.debug({
-            op: 'email.announcement.payload',
+          await this.announcementNotificationService.sendNewAnnouncement(data);
+          break;
+
+        case 'sendNotificationEvent':
+          this.logger.log({
+            op: 'email.worker.route.sendNotificationEvent',
             jobId: id,
-            announcementId: job.data?.announcementId,
+            data,
           });
-          await this.handleAnnouncement(job.data);
+
+          if (!data?.notificationEventId) {
+            this.logger.error({
+              op: 'email.worker.sendNotificationEvent.missing_event_id',
+              jobId: id,
+              jobName: name,
+              data,
+            });
+            throw new Error('notificationEventId missing from job.data');
+          }
+
+          await this.notificationDeliveryService.deliver(
+            data.notificationEventId,
+          );
           break;
 
         default:
           this.logger.warn({
-            op: 'email.job.unhandled',
+            op: 'email.worker.unhandled',
             jobId: id,
             jobName: name,
           });
@@ -71,14 +131,16 @@ export class EmailQueueProcessor extends WorkerHost {
       }
 
       this.logger.log({
-        op: 'email.job.success',
+        op: 'email.worker.success',
+        queue: job.queueName,
         jobId: id,
         jobName: name,
       });
     } catch (error: any) {
       this.logger.error(
         {
-          op: 'email.job.failed',
+          op: 'email.worker.process_failed',
+          queue: job.queueName,
           jobId: id,
           jobName: name,
           attemptsMade,
@@ -87,35 +149,7 @@ export class EmailQueueProcessor extends WorkerHost {
         },
         error?.stack,
       );
-
-      throw error; // IMPORTANT: rethrow so BullMQ retries
+      throw error;
     }
-  }
-
-  private async handleEmployeeInvitationEmail(data: any) {
-    const { email, name, companyName, role } = data;
-
-    this.logger.log({
-      op: 'email.invite.send',
-      email,
-      companyName,
-      role,
-    });
-
-    await this.employeeInvitationService.sendInvitationEmail(
-      email,
-      name,
-      companyName,
-      role,
-      data.resetLink, // don't log token
-    );
-  }
-
-  private async handleGoalCheckin(data: any) {
-    await this.goalNotificationService.sendGoalCheckin(data);
-  }
-
-  private async handleAnnouncement(data: any) {
-    await this.announcementNotificationService.sendNewAnnouncement(data);
   }
 }

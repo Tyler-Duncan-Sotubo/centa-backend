@@ -1,0 +1,1 @@
+ALTER TABLE "performance_goals" ADD COLUMN "is_recurring" boolean DEFAULT false;

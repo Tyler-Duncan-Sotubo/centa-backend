@@ -31,22 +31,42 @@ let CycleService = class CycleService {
     async invalidate(companyId) {
         await this.cache.bumpCompanyVersion(companyId);
     }
-    async create(createCycleDto, companyId, userId) {
-        const existingCycle = await this.db
+    async findByName(companyId, name) {
+        return this.cache.getOrSetVersioned(companyId, ['performance-cycles', 'by-name', name], async () => {
+            const [cycle] = await this.db
+                .select()
+                .from(performance_cycles_schema_1.performanceCycles)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.companyId, companyId), (0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.name, name)))
+                .limit(1)
+                .execute();
+            return cycle ?? null;
+        }, { tags: this.tags(companyId) });
+    }
+    async hasOverlap(companyId, startDate, endDate) {
+        const rows = await this.db
             .select()
             .from(performance_cycles_schema_1.performanceCycles)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.name, createCycleDto.name), (0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.companyId, companyId)))
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.companyId, companyId), (0, drizzle_orm_1.lte)(performance_cycles_schema_1.performanceCycles.startDate, endDate), (0, drizzle_orm_1.gte)(performance_cycles_schema_1.performanceCycles.endDate, startDate)))
+            .limit(1)
             .execute();
-        if (existingCycle.length > 0) {
+        return rows.length > 0;
+    }
+    async create(createCycleDto, companyId, userId) {
+        const existing = await this.findByName(companyId, createCycleDto.name);
+        if (existing) {
             throw new common_1.BadRequestException('Cycle with this name already exists');
+        }
+        const overlap = await this.hasOverlap(companyId, createCycleDto.startDate, createCycleDto.endDate);
+        if (overlap) {
+            throw new common_1.BadRequestException('Cycle overlaps an existing period');
         }
         const today = new Date();
         const startDate = new Date(createCycleDto.startDate);
         const endDate = new Date(createCycleDto.endDate);
-        let status = 'draft';
         if (endDate < startDate) {
             throw new common_1.BadRequestException('End date must be after start date');
         }
+        let status = 'draft';
         if (startDate <= today || endDate <= today) {
             status = 'active';
         }
@@ -87,8 +107,7 @@ let CycleService = class CycleService {
             .execute(), { tags: this.tags(companyId) });
     }
     async findCurrent(companyId) {
-        const today = new Date();
-        const todayStr = today.toISOString().slice(0, 10);
+        const todayStr = new Date().toISOString().slice(0, 10);
         return this.cache.getOrSetVersioned(companyId, ['performance-cycles', 'current'], async () => {
             const rows = await this.db
                 .select()
@@ -125,16 +144,14 @@ let CycleService = class CycleService {
         }, { tags: this.tags(companyId) });
     }
     async getLastCycle(companyId) {
-        return this.cache.getOrSetVersioned(companyId, ['performance-cycles', 'last'], async () => {
-            const [lastCycle] = await this.db
-                .select()
-                .from(performance_cycles_schema_1.performanceCycles)
-                .where((0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.companyId, companyId))
-                .orderBy((0, drizzle_orm_1.desc)(performance_cycles_schema_1.performanceCycles.startDate))
-                .limit(1)
-                .execute();
-            return lastCycle ?? null;
-        }, { tags: this.tags(companyId) });
+        const [lastCycle] = await this.db
+            .select()
+            .from(performance_cycles_schema_1.performanceCycles)
+            .where((0, drizzle_orm_1.eq)(performance_cycles_schema_1.performanceCycles.companyId, companyId))
+            .orderBy((0, drizzle_orm_1.desc)(performance_cycles_schema_1.performanceCycles.startDate))
+            .limit(1)
+            .execute();
+        return lastCycle ?? null;
     }
     async update(id, updateCycleDto, user) {
         const { id: userId, companyId } = user;
@@ -151,16 +168,7 @@ let CycleService = class CycleService {
             entityId: id,
             userId,
             details: `Updated performance cycle ${updatedCycle.name}`,
-            changes: {
-                ...updateCycleDto,
-                id: updatedCycle.id,
-                companyId: updatedCycle.companyId,
-                startDate: updatedCycle.startDate,
-                endDate: updatedCycle.endDate,
-                status: updatedCycle.status,
-                updatedAt: new Date().toISOString(),
-                updatedBy: userId,
-            },
+            changes: updateCycleDto,
         });
         await this.invalidate(companyId);
         return updatedCycle;
@@ -177,14 +185,7 @@ let CycleService = class CycleService {
             entity: 'performance_cycle',
             entityId: id,
             userId,
-            details: `Deleted performance cycle with ID ${id}`,
-            changes: {
-                id,
-                companyId,
-                status: 'deleted',
-                deletedAt: new Date().toISOString(),
-                deletedBy: userId,
-            },
+            details: `Deleted performance cycle ${id}`,
         });
         await this.invalidate(companyId);
     }

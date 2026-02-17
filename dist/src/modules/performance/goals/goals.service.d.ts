@@ -32,6 +32,7 @@ export declare class GoalsService {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -49,6 +50,7 @@ export declare class GoalsService {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -66,6 +68,7 @@ export declare class GoalsService {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -83,6 +86,7 @@ export declare class GoalsService {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -100,6 +104,7 @@ export declare class GoalsService {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -117,6 +122,7 @@ export declare class GoalsService {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -134,6 +140,7 @@ export declare class GoalsService {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -151,6 +158,7 @@ export declare class GoalsService {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -177,6 +185,7 @@ export declare class GoalsService {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -194,6 +203,7 @@ export declare class GoalsService {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -211,6 +221,7 @@ export declare class GoalsService {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -228,6 +239,7 @@ export declare class GoalsService {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -245,6 +257,7 @@ export declare class GoalsService {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -262,6 +275,7 @@ export declare class GoalsService {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -279,6 +293,7 @@ export declare class GoalsService {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -296,6 +311,7 @@ export declare class GoalsService {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -343,6 +359,7 @@ export declare class GoalsService {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -385,6 +402,7 @@ export declare class GoalsService {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -427,6 +445,7 @@ export declare class GoalsService {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -469,6 +488,7 @@ export declare class GoalsService {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -511,6 +531,7 @@ export declare class GoalsService {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -553,6 +574,7 @@ export declare class GoalsService {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -595,6 +617,7 @@ export declare class GoalsService {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -637,6 +660,7 @@ export declare class GoalsService {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -679,6 +703,7 @@ export declare class GoalsService {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -721,6 +746,7 @@ export declare class GoalsService {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -763,6 +789,7 @@ export declare class GoalsService {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -805,6 +832,7 @@ export declare class GoalsService {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     }>;
     getStatusCountForEmployee(companyId: string, employeeId: string): Promise<Record<string, number>>;

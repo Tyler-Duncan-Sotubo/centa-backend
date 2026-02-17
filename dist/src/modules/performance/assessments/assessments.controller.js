@@ -47,6 +47,9 @@ let AssessmentsController = class AssessmentsController extends base_controller_
     getOwnAssessments(user) {
         return this.assessmentsService.getAssessmentsForUser(user.id);
     }
+    getOwnSelfAssessments(employeeId) {
+        return this.assessmentsService.getAssessmentsForEmployee(employeeId);
+    }
     getTeamAssessments(cycleId, user) {
         return this.assessmentsService.getTeamAssessments(user.id, cycleId);
     }
@@ -128,6 +131,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], AssessmentsController.prototype, "getOwnAssessments", null);
+__decorate([
+    (0, common_1.Get)('me/self/:employeeId'),
+    (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),
+    __param(0, (0, common_1.Param)('employeeId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], AssessmentsController.prototype, "getOwnSelfAssessments", null);
 __decorate([
     (0, common_1.Get)('team/:cycleId'),
     (0, common_1.SetMetadata)('permissions', ['performance.reviews.read_team']),

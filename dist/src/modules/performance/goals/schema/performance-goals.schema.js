@@ -31,6 +31,7 @@ exports.performanceGoals = (0, pg_core_1.pgTable)('performance_goals', {
     assignedBy: (0, pg_core_1.uuid)('assigned_by')
         .notNull()
         .references(() => schema_1.users.id),
+    isRecurring: (0, pg_core_1.boolean)('is_recurring').default(false),
     isPrivate: (0, pg_core_1.boolean)('is_private').default(false),
     updatedAt: (0, pg_core_1.timestamp)('updated_at').defaultNow(),
     isArchived: (0, pg_core_1.boolean)('is_archived').default(false),

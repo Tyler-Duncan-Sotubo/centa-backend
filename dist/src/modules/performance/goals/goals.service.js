@@ -48,28 +48,58 @@ let GoalsService = class GoalsService {
         return emp;
     }
     async create(dto, user) {
-        const { title, description, startDate, dueDate, weight, employeeId, groupId, status, } = dto;
-        if (!startDate)
-            throw new common_1.BadRequestException('startDate is required.');
+        const { title, description, startDate, dueDate, weight, employeeId, groupId, status, cycleId: inputCycleId, } = dto;
         if (!!employeeId === !!groupId) {
             throw new common_1.BadRequestException('Provide exactly one owner: employeeId OR groupId.');
         }
         const normDate = (d) => typeof d === 'string' ? d : d.toISOString().slice(0, 10);
-        const startDateStr = normDate(startDate);
-        const dueDateStr = normDate(dueDate);
+        const startDateStr = startDate ? normDate(startDate) : null;
+        const dueDateStr = dueDate ? normDate(dueDate) : null;
         const now = new Date();
         const isPrivileged = () => {
             const role = user.role ?? user.userRole ?? null;
             return ['super_admin', 'admin', 'hr_admin', 'hr_manager'].includes(role);
         };
         return this.db.transaction(async (tx) => {
-            const [cycle] = await tx
-                .select({ id: schema_1.performanceCycles.id })
-                .from(schema_1.performanceCycles)
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceCycles.companyId, user.companyId), (0, drizzle_orm_1.lte)(schema_1.performanceCycles.startDate, startDateStr), (0, drizzle_orm_1.gte)(schema_1.performanceCycles.endDate, startDateStr)))
-                .limit(1);
-            if (!cycle) {
-                throw new common_1.BadRequestException('No performance cycle covers the provided startDate.');
+            let cycleIdToUse;
+            let goalStartDate;
+            let goalDueDate;
+            if (inputCycleId) {
+                const [cycle] = await tx
+                    .select({
+                    id: schema_1.performanceCycles.id,
+                    startDate: schema_1.performanceCycles.startDate,
+                    endDate: schema_1.performanceCycles.endDate,
+                })
+                    .from(schema_1.performanceCycles)
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceCycles.id, inputCycleId), (0, drizzle_orm_1.eq)(schema_1.performanceCycles.companyId, user.companyId)))
+                    .limit(1);
+                if (!cycle) {
+                    throw new common_1.BadRequestException('Selected cycle not found.');
+                }
+                cycleIdToUse = cycle.id;
+                goalStartDate = cycle.startDate;
+                goalDueDate = cycle.endDate;
+            }
+            else {
+                if (!startDateStr) {
+                    throw new common_1.BadRequestException('Provide cycleId or startDate.');
+                }
+                const [cycle] = await tx
+                    .select({
+                    id: schema_1.performanceCycles.id,
+                    startDate: schema_1.performanceCycles.startDate,
+                    endDate: schema_1.performanceCycles.endDate,
+                })
+                    .from(schema_1.performanceCycles)
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceCycles.companyId, user.companyId), (0, drizzle_orm_1.lte)(schema_1.performanceCycles.startDate, startDateStr), (0, drizzle_orm_1.gte)(schema_1.performanceCycles.endDate, startDateStr)))
+                    .limit(1);
+                if (!cycle) {
+                    throw new common_1.BadRequestException('No performance cycle covers the provided startDate.');
+                }
+                cycleIdToUse = cycle.id;
+                goalStartDate = startDateStr;
+                goalDueDate = dueDateStr ?? cycle.endDate;
             }
             const [assigner] = await tx
                 .select({
@@ -144,10 +174,10 @@ let GoalsService = class GoalsService {
             const goalsToInsert = employeesInfo.map((emp) => ({
                 title,
                 description: description ?? null,
-                startDate: startDateStr,
-                dueDate: dueDateStr,
+                startDate: goalStartDate,
+                dueDate: goalDueDate,
                 companyId: user.companyId,
-                cycleId: cycle.id,
+                cycleId: cycleIdToUse,
                 assignedAt: now,
                 assignedBy: user.id,
                 weight: weight ?? 0,
@@ -173,9 +203,9 @@ let GoalsService = class GoalsService {
                     ? `Created goal "${title}" for 1 employee`
                     : `Created goal "${title}" for ${targetEmployeeIds.length} group member(s)`,
                 changes: {
-                    startDate: startDateStr,
-                    dueDate: dueDateStr,
-                    cycleId: cycle.id,
+                    startDate: goalStartDate,
+                    dueDate: goalDueDate,
+                    cycleId: cycleIdToUse,
                     weight: weight ?? 0,
                     status: computedStatus,
                     ownerType: employeeId ? 'employee' : 'group',
@@ -191,7 +221,7 @@ let GoalsService = class GoalsService {
                     assignedBy: assignedByName,
                     assignedTo: emp.firstName ?? '',
                     title,
-                    dueDate: dueDateStr,
+                    dueDate: goalDueDate,
                     description: description ?? '',
                     progress: computedStatus,
                     meta: { goalId: goalIdByEmployee.get(emp.id) ?? null },
@@ -223,7 +253,7 @@ let GoalsService = class GoalsService {
                 employeeName: employeeFullName,
                 managerName: manager.firstName ?? '',
                 title,
-                dueDate: dueDateStr,
+                dueDate: goalDueDate,
                 description: description ?? '',
                 meta: { goalId },
             });
@@ -257,6 +287,7 @@ let GoalsService = class GoalsService {
             .select({
             id: performance_goals_schema_1.performanceGoals.id,
             title: performance_goals_schema_1.performanceGoals.title,
+            isRecurring: performance_goals_schema_1.performanceGoals.isRecurring,
             description: performance_goals_schema_1.performanceGoals.description,
             parentGoalId: performance_goals_schema_1.performanceGoals.parentGoalId,
             dueDate: performance_goals_schema_1.performanceGoals.dueDate,
@@ -337,6 +368,7 @@ let GoalsService = class GoalsService {
             weight: performance_goals_schema_1.performanceGoals.weight,
             status: performance_goals_schema_1.performanceGoals.status,
             isArchived: performance_goals_schema_1.performanceGoals.isArchived,
+            isRecurring: performance_goals_schema_1.performanceGoals.isRecurring,
             employee: (0, drizzle_orm_1.sql) `CONCAT(${schema_1.employees.firstName}, ' ', ${schema_1.employees.lastName})`,
             employeeId: schema_1.employees.id,
             departmentName: schema_1.departments.name,
@@ -393,6 +425,7 @@ let GoalsService = class GoalsService {
             departmentName: schema_1.departments.name,
             departmentId: schema_1.departments.id,
             office: schema_1.companyLocations.name,
+            isRecurring: performance_goals_schema_1.performanceGoals.isRecurring,
             manager: (0, drizzle_orm_1.sql) `COALESCE(CONCAT(${managerUser.firstName}, ' ', ${managerUser.lastName}), 'Super Admin')`,
         })
             .from(performance_goals_schema_1.performanceGoals)
@@ -512,14 +545,18 @@ let GoalsService = class GoalsService {
         if (latestProgress >= 100) {
             throw new common_1.BadRequestException('Cannot update a completed goal');
         }
-        const [updated] = await this.db
-            .update(performance_goals_schema_1.performanceGoals)
-            .set({
+        const patch = {
             ...dto,
             assignedBy: user.id,
             updatedAt: new Date(),
-        })
-            .where((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.id, id))
+        };
+        if (Object.prototype.hasOwnProperty.call(dto, 'isRecurring')) {
+            patch.isRecurring = dto.isRecurring ?? false;
+        }
+        const [updated] = await this.db
+            .update(performance_goals_schema_1.performanceGoals)
+            .set(patch)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.id, id), (0, drizzle_orm_1.eq)(performance_goals_schema_1.performanceGoals.companyId, user.companyId)))
             .returning();
         await this.auditService.logAction({
             action: 'update',
@@ -527,13 +564,17 @@ let GoalsService = class GoalsService {
             entityId: id,
             userId: user.id,
             details: `Updated performance goal: ${updated.title}`,
-            changes: dto,
+            changes: {
+                ...dto,
+                ...(Object.prototype.hasOwnProperty.call(dto, 'isRecurring')
+                    ? { isRecurring: patch.isRecurring }
+                    : {}),
+            },
         });
         return updated;
     }
     async remove(id, user) {
         const role = user.role ?? user.userRole ?? null;
-        console.log('Attempting to archive goal', { id, userId: user.id, role });
         const canArchive = [
             'super_admin',
             'admin',

@@ -1,8 +1,16 @@
-import { IsString, IsOptional, IsUUID, IsNumber } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsUUID,
+  IsNumber,
+  ValidateIf,
+  IsBoolean,
+} from 'class-validator';
 
 export class CreateGoalDto {
+  @IsOptional()
   @IsString()
-  status: string;
+  status?: string;
 
   @IsString()
   title: string;
@@ -11,11 +19,21 @@ export class CreateGoalDto {
   @IsString()
   description?: string;
 
-  @IsString()
-  dueDate: string;
+  // ✅ NEW: allow assigning directly to a cycle
+  @IsOptional()
+  @IsUUID()
+  cycleId?: string;
 
+  // ✅ if cycleId NOT provided -> startDate required
+  @ValidateIf((o) => !o.cycleId)
   @IsString()
-  startDate: string;
+  @IsOptional()
+  startDate?: string;
+
+  // ✅ optional; if omitted, backend will default to cycle end
+  @IsOptional()
+  @IsString()
+  dueDate?: string;
 
   @IsOptional()
   @IsNumber()
@@ -23,9 +41,14 @@ export class CreateGoalDto {
 
   @IsOptional()
   @IsUUID()
-  groupId: string;
+  groupId?: string | null;
 
   @IsOptional()
   @IsUUID()
-  employeeId: string;
+  employeeId?: string | null;
+
+  // ✅ NEW FLAG
+  @IsOptional()
+  @IsBoolean()
+  isRecurring?: boolean;
 }

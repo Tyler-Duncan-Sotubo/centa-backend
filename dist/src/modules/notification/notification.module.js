@@ -24,6 +24,9 @@ const announcement_notification_service_1 = require("./services/announcement-not
 const email_queue_processor_1 = require("./services/email-queue.processor");
 const leave_notification_service_1 = require("./services/leave-notification.service");
 const asset_notification_service_1 = require("./services/asset-notification.service");
+const notification_delivery_service_1 = require("./notification-delivery.service");
+const notification_engine_service_1 = require("./notification-engine.service");
+const notification_planner_cron_1 = require("./cron/notification-planner.cron");
 let NotificationModule = class NotificationModule {
 };
 exports.NotificationModule = NotificationModule;
@@ -37,6 +40,7 @@ exports.NotificationModule = NotificationModule = __decorate([
         controllers: [notifications_controller_1.NotificationController],
         providers: [
             email_queue_processor_1.EmailQueueProcessor,
+            notification_planner_cron_1.NotificationPlannerCron,
             password_reset_service_1.PasswordResetEmailService,
             invitation_service_1.InvitationService,
             email_verification_service_1.EmailVerificationService,
@@ -50,6 +54,8 @@ exports.NotificationModule = NotificationModule = __decorate([
             announcement_notification_service_1.AnnouncementNotificationService,
             leave_notification_service_1.LeaveNotificationService,
             asset_notification_service_1.AssetNotificationService,
+            notification_delivery_service_1.NotificationDeliveryService,
+            notification_engine_service_1.NotificationEngineService,
         ],
         exports: [
             password_reset_service_1.PasswordResetEmailService,

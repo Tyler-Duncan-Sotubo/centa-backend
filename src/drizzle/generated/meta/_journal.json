@@ -127,6 +127,34 @@
       "when": 1770727565182,
       "tag": "0017_bitter_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1771061216603,
+      "tag": "0018_late_korath",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1771065542030,
+      "tag": "0019_omniscient_rockslide",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1771068344784,
+      "tag": "0020_salty_vance_astro",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1771104947812,
+      "tag": "0021_misty_iron_monger",
+      "breakpoints": true
     }
   ]
 }

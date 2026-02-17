@@ -30,9 +30,14 @@ let GoalNotificationService = class GoalNotificationService {
             templateId,
             dynamicTemplateData: {
                 subject: payload.subject,
-                body: payload.body,
+                firstName: payload.firstName,
+                employeeName: payload.employeeName,
+                title: payload.title,
+                dueDate: payload.dueDate,
+                companyName: payload.companyName,
                 goalId: payload.meta?.goalId,
                 url: goalPage,
+                bucket: payload.meta?.bucket,
             },
         };
         try {

@@ -67,9 +67,9 @@ export class GoalsService {
       employeeId,
       groupId,
       status, // DO NOT trust for ESS users
-    } = dto;
+      cycleId: inputCycleId, // ✅ optional (add to CreateGoalDto)
+    } = dto as any;
 
-    if (!startDate) throw new BadRequestException('startDate is required.');
     if (!!employeeId === !!groupId) {
       throw new BadRequestException(
         'Provide exactly one owner: employeeId OR groupId.',
@@ -80,8 +80,8 @@ export class GoalsService {
     const normDate = (d: string | Date) =>
       typeof d === 'string' ? d : d.toISOString().slice(0, 10);
 
-    const startDateStr = normDate(startDate);
-    const dueDateStr = normDate(dueDate);
+    const startDateStr = startDate ? normDate(startDate) : null;
+    const dueDateStr = dueDate ? normDate(dueDate) : null;
     const now = new Date();
 
     const isPrivileged = () => {
@@ -90,26 +90,79 @@ export class GoalsService {
     };
 
     return this.db.transaction(async (tx) => {
-      // 1) Find performance cycle that covers startDate
-      const [cycle] = await tx
-        .select({ id: performanceCycles.id })
-        .from(performanceCycles)
-        .where(
-          and(
-            eq(performanceCycles.companyId, user.companyId),
-            lte(performanceCycles.startDate, startDateStr),
-            gte(performanceCycles.endDate, startDateStr),
-          ),
-        )
-        .limit(1);
+      /**
+       * ---------------------------------------------------
+       * 1) Resolve cycle
+       *    - if dto.cycleId provided -> use it, derive start/due from cycle
+       *    - else use startDate to locate cycle
+       * ---------------------------------------------------
+       */
+      let cycleIdToUse: string;
+      let goalStartDate: string;
+      let goalDueDate: string;
 
-      if (!cycle) {
-        throw new BadRequestException(
-          'No performance cycle covers the provided startDate.',
-        );
+      if (inputCycleId) {
+        const [cycle] = await tx
+          .select({
+            id: performanceCycles.id,
+            startDate: performanceCycles.startDate,
+            endDate: performanceCycles.endDate,
+          })
+          .from(performanceCycles)
+          .where(
+            and(
+              eq(performanceCycles.id, inputCycleId),
+              eq(performanceCycles.companyId, user.companyId),
+            ),
+          )
+          .limit(1);
+
+        if (!cycle) {
+          throw new BadRequestException('Selected cycle not found.');
+        }
+
+        cycleIdToUse = cycle.id;
+        goalStartDate = cycle.startDate;
+        goalDueDate = cycle.endDate;
+      } else {
+        if (!startDateStr) {
+          throw new BadRequestException('Provide cycleId or startDate.');
+        }
+
+        const [cycle] = await tx
+          .select({
+            id: performanceCycles.id,
+            startDate: performanceCycles.startDate,
+            endDate: performanceCycles.endDate,
+          })
+          .from(performanceCycles)
+          .where(
+            and(
+              eq(performanceCycles.companyId, user.companyId),
+              lte(performanceCycles.startDate, startDateStr),
+              gte(performanceCycles.endDate, startDateStr),
+            ),
+          )
+          .limit(1);
+
+        if (!cycle) {
+          throw new BadRequestException(
+            'No performance cycle covers the provided startDate.',
+          );
+        }
+
+        cycleIdToUse = cycle.id;
+
+        // If dueDate not supplied, default to cycle end
+        goalStartDate = startDateStr;
+        goalDueDate = dueDateStr ?? cycle.endDate;
       }
 
-      // 2) Resolve assigner display name (single query)
+      /**
+       * ---------------------------------------------------
+       * 2) Resolve assigner display name (single query)
+       * ---------------------------------------------------
+       */
       const [assigner] = await tx
         .select({
           id: users.id,
@@ -121,7 +174,11 @@ export class GoalsService {
 
       const assignedByName = assigner?.fullName ?? `${user.id}`;
 
-      // 3) Resolve creator's employee record (ESS guardrails)
+      /**
+       * ---------------------------------------------------
+       * 3) Resolve creator's employee record (ESS guardrails)
+       * ---------------------------------------------------
+       */
       const [creatorEmployee] = await tx
         .select({
           id: employees.id,
@@ -140,7 +197,11 @@ export class GoalsService {
       const creatorIsPrivileged = isPrivileged();
       const creatorIsEmployee = !!creatorEmployee;
 
-      // 4) Determine target employees (avoid extra work for single employee)
+      /**
+       * ---------------------------------------------------
+       * 4) Determine target employees
+       * ---------------------------------------------------
+       */
       let targetEmployeeIds: string[] = [];
 
       if (employeeId) {
@@ -161,7 +222,11 @@ export class GoalsService {
         targetEmployeeIds = uniqueEmployeeIds;
       }
 
-      // 5) ESS guardrails: employee can only create for self (and not for group)
+      /**
+       * ---------------------------------------------------
+       * 5) ESS guardrails: employee can only create for self
+       * ---------------------------------------------------
+       */
       if (!creatorIsPrivileged && creatorIsEmployee) {
         if (groupId) {
           throw new BadRequestException('You cannot create goals for a group.');
@@ -174,8 +239,11 @@ export class GoalsService {
         }
       }
 
-      // 6) Fetch target employee info (email/firstName/company + managerId for approval path)
-      //    Single query for all target employees.
+      /**
+       * ---------------------------------------------------
+       * 6) Fetch target employees info
+       * ---------------------------------------------------
+       */
       const employeesInfo = await tx
         .select({
           id: employees.id,
@@ -189,7 +257,6 @@ export class GoalsService {
         .from(employees)
         .where(inArray(employees.id, targetEmployeeIds));
 
-      // Ensure all found
       const foundIds = new Set(employeesInfo.map((e) => e.id));
       const missing = targetEmployeeIds.filter((id) => !foundIds.has(id));
       if (missing.length) {
@@ -198,7 +265,6 @@ export class GoalsService {
         );
       }
 
-      // Ensure same company
       const outsideCompany = employeesInfo.filter(
         (e) => e.companyId !== user.companyId,
       );
@@ -208,20 +274,28 @@ export class GoalsService {
         );
       }
 
-      // 7) Status rules (do NOT trust dto.status for ESS)
+      /**
+       * ---------------------------------------------------
+       * 7) Status rules (do NOT trust dto.status for ESS)
+       * ---------------------------------------------------
+       */
       const computedStatus = creatorIsPrivileged
         ? (status ?? 'draft')
         : 'pending_approval';
 
-      // 8) Insert goals (one per employee)
+      /**
+       * ---------------------------------------------------
+       * 8) Insert goals (one per employee)
+       * ---------------------------------------------------
+       */
       const goalsToInsert: (typeof performanceGoals.$inferInsert)[] =
         employeesInfo.map((emp) => ({
           title,
           description: description ?? null,
-          startDate: startDateStr,
-          dueDate: dueDateStr,
+          startDate: goalStartDate,
+          dueDate: goalDueDate,
           companyId: user.companyId,
-          cycleId: cycle.id,
+          cycleId: cycleIdToUse,
           assignedAt: now,
           assignedBy: user.id,
           weight: weight ?? 0,
@@ -239,7 +313,11 @@ export class GoalsService {
           status: performanceGoals.status,
         });
 
-      // 9) Create check-in schedule for each goal (parallel)
+      /**
+       * ---------------------------------------------------
+       * 9) Create check-in schedule for each goal
+       * ---------------------------------------------------
+       */
       await Promise.all(
         created.map((g) =>
           this.policy.upsertGoalScheduleFromPolicy(
@@ -250,7 +328,11 @@ export class GoalsService {
         ),
       );
 
-      // 10) Audit
+      /**
+       * ---------------------------------------------------
+       * 10) Audit
+       * ---------------------------------------------------
+       */
       await this.auditService.logAction({
         action: 'create',
         entity: 'performance_goal',
@@ -261,9 +343,9 @@ export class GoalsService {
             ? `Created goal "${title}" for 1 employee`
             : `Created goal "${title}" for ${targetEmployeeIds.length} group member(s)`,
         changes: {
-          startDate: startDateStr,
-          dueDate: dueDateStr,
-          cycleId: cycle.id,
+          startDate: goalStartDate,
+          dueDate: goalDueDate,
+          cycleId: cycleIdToUse,
           weight: weight ?? 0,
           status: computedStatus,
           ownerType: employeeId ? 'employee' : 'group',
@@ -273,20 +355,15 @@ export class GoalsService {
       });
 
       /**
+       * ---------------------------------------------------
        * 11) Notifications
-       *
-       * - If computedStatus !== 'pending_approval' -> email assignees
-       * - If computedStatus === 'pending_approval' -> email manager for approval
-       *
-       * Note:
-       * - ESS users cannot create group goals (guardrail above), so pending_approval implies single employee.
+       * ---------------------------------------------------
        */
       const goalIdByEmployee = new Map(
         created.map((g) => [g.employeeId, g.id]),
       );
 
       if (computedStatus !== 'pending_approval') {
-        // Send to assignees (O(n))
         await Promise.all(
           employeesInfo.map((emp) =>
             this.goalNotification.sendGoalAssignment({
@@ -295,9 +372,9 @@ export class GoalsService {
               assignedBy: assignedByName,
               assignedTo: emp.firstName ?? '',
               title,
-              dueDate: dueDateStr,
+              dueDate: goalDueDate,
               description: description ?? '',
-              progress: computedStatus, // if you want progress label separate, change this field
+              progress: computedStatus,
               meta: { goalId: goalIdByEmployee.get(emp.id) ?? null },
             }),
           ),
@@ -310,16 +387,11 @@ export class GoalsService {
       const goalId = goalIdByEmployee.get(emp.id) ?? null;
 
       if (!emp?.managerId) {
-        // Choose your desired behavior:
-        // - throw, or
-        // - skip email, or
-        // - fallback to HR/admin mailbox
         throw new BadRequestException(
           'Cannot request approval: this employee has no manager assigned.',
         );
       }
 
-      // Fetch manager email in one join (still inside txn)
       const [manager] = await tx
         .select({
           email: users.email,
@@ -346,7 +418,7 @@ export class GoalsService {
         employeeName: employeeFullName,
         managerName: manager.firstName ?? '',
         title,
-        dueDate: dueDateStr,
+        dueDate: goalDueDate,
         description: description ?? '',
         meta: { goalId },
       });
@@ -388,6 +460,7 @@ export class GoalsService {
       .select({
         id: performanceGoals.id,
         title: performanceGoals.title,
+        isRecurring: performanceGoals.isRecurring,
         description: performanceGoals.description,
         parentGoalId: performanceGoals.parentGoalId,
         dueDate: performanceGoals.dueDate,
@@ -489,6 +562,7 @@ export class GoalsService {
         weight: performanceGoals.weight,
         status: performanceGoals.status,
         isArchived: performanceGoals.isArchived,
+        isRecurring: performanceGoals.isRecurring,
         employee: sql<string>`CONCAT(${employees.firstName}, ' ', ${employees.lastName})`,
         employeeId: employees.id,
         departmentName: departments.name,
@@ -557,7 +631,7 @@ export class GoalsService {
         departmentName: departments.name,
         departmentId: departments.id,
         office: companyLocations.name,
-
+        isRecurring: performanceGoals.isRecurring,
         manager: sql<string>`COALESCE(CONCAT(${managerUser.firstName}, ' ', ${managerUser.lastName}), 'Super Admin')`,
       })
       .from(performanceGoals)
@@ -725,14 +799,28 @@ export class GoalsService {
       throw new BadRequestException('Cannot update a completed goal');
     }
 
+    // ✅ allow toggling recurring
+    // UpdateGoalDto should include: isRecurring?: boolean
+    const patch: any = {
+      ...dto,
+      assignedBy: user.id,
+      updatedAt: new Date(),
+    };
+
+    // If client sends null, normalize to undefined so drizzle doesn't null it
+    if (Object.prototype.hasOwnProperty.call(dto as any, 'isRecurring')) {
+      patch.isRecurring = (dto as any).isRecurring ?? false;
+    }
+
     const [updated] = await this.db
       .update(performanceGoals)
-      .set({
-        ...dto,
-        assignedBy: user.id,
-        updatedAt: new Date(),
-      })
-      .where(eq(performanceGoals.id, id))
+      .set(patch)
+      .where(
+        and(
+          eq(performanceGoals.id, id),
+          eq(performanceGoals.companyId, user.companyId),
+        ),
+      )
       .returning();
 
     await this.auditService.logAction({
@@ -741,7 +829,12 @@ export class GoalsService {
       entityId: id,
       userId: user.id,
       details: `Updated performance goal: ${updated.title}`,
-      changes: dto,
+      changes: {
+        ...dto,
+        ...(Object.prototype.hasOwnProperty.call(dto as any, 'isRecurring')
+          ? { isRecurring: patch.isRecurring }
+          : {}),
+      },
     });
 
     return updated;
@@ -749,8 +842,6 @@ export class GoalsService {
 
   async remove(id: string, user: User) {
     const role = (user as any).role ?? (user as any).userRole ?? null;
-
-    console.log('Attempting to archive goal', { id, userId: user.id, role });
 
     // Only privileged roles can archive/delete goals
     const canArchive = [

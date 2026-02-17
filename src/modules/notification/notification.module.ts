@@ -15,6 +15,9 @@ import { AnnouncementNotificationService } from './services/announcement-notific
 import { EmailQueueProcessor } from './services/email-queue.processor';
 import { LeaveNotificationService } from './services/leave-notification.service';
 import { AssetNotificationService } from './services/asset-notification.service';
+import { NotificationDeliveryService } from './notification-delivery.service';
+import { NotificationEngineService } from './notification-engine.service';
+import { NotificationPlannerCron } from './cron/notification-planner.cron';
 
 @Module({
   imports: [
@@ -25,6 +28,7 @@ import { AssetNotificationService } from './services/asset-notification.service'
   controllers: [NotificationController],
   providers: [
     EmailQueueProcessor,
+    NotificationPlannerCron,
     PasswordResetEmailService,
     InvitationService,
     EmailVerificationService,
@@ -38,6 +42,8 @@ import { AssetNotificationService } from './services/asset-notification.service'
     AnnouncementNotificationService,
     LeaveNotificationService,
     AssetNotificationService,
+    NotificationDeliveryService,
+    NotificationEngineService,
   ],
   exports: [
     PasswordResetEmailService,

@@ -18,4 +18,5 @@ __exportStar(require("./shifts.schema"), exports);
 __exportStar(require("./employee-shifts.schema"), exports);
 __exportStar(require("./attendance-adjustments.schema"), exports);
 __exportStar(require("./attendance-records.schema"), exports);
+__exportStar(require("./attendance-breaks.schema"), exports);
 //# sourceMappingURL=index.js.map

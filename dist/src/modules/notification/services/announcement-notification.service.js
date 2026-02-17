@@ -47,9 +47,42 @@ let AnnouncementNotificationService = class AnnouncementNotificationService {
         }
         catch (error) {
             console.error('[AnnouncementNotificationService] sendNewAnnouncement failed', error);
-            if (error?.response?.body) {
+            if (error?.response?.body)
                 console.error(error.response.body);
-            }
+        }
+    }
+    async sendAssessmentReminder(payload) {
+        const apiKey = this.config.get('SEND_GRID_KEY') || '';
+        sgMail.setApiKey(apiKey);
+        const templateId = this.config.get('ASSESSMENT_REMINDER_TEMPLATE_ID') || '';
+        const url = `${this.config.get('EMPLOYEE_PORTAL_URL')}/ess/performance/reviews/${payload.meta?.assessmentId || ''}`;
+        const msg = {
+            to: payload.toEmail,
+            from: {
+                name: payload.companyName || 'Performance Team',
+                email: 'noreply@centahr.com',
+            },
+            templateId,
+            subject: payload.subject,
+            dynamicTemplateData: {
+                firstName: payload.firstName,
+                employeeName: payload.employeeName,
+                reviewerName: payload.reviewerName,
+                cycleName: payload.cycleName,
+                dueDate: payload.dueDate,
+                companyName: payload.companyName,
+                url,
+                subject: payload.subject,
+                ...payload.meta,
+            },
+        };
+        try {
+            await sgMail.send(msg);
+        }
+        catch (error) {
+            console.error('[AnnouncementNotificationService] sendAssessmentReminder failed', error);
+            if (error?.response?.body)
+                console.error(error.response.body);
         }
     }
 };

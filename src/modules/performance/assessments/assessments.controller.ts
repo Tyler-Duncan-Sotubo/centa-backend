@@ -94,6 +94,12 @@ export class AssessmentsController extends BaseController {
     return this.assessmentsService.getAssessmentsForUser(user.id);
   }
 
+  @Get('me/self/:employeeId')
+  @SetMetadata('permissions', ['performance.reviews.read'])
+  getOwnSelfAssessments(@Param('employeeId') employeeId: string) {
+    return this.assessmentsService.getAssessmentsForEmployee(employeeId);
+  }
+
   // Get assessments for manager’s direct reports in a cycle
   @Get('team/:cycleId')
   @SetMetadata('permissions', ['performance.reviews.read_team'])

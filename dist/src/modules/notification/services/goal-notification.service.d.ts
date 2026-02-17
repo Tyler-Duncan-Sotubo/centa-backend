@@ -1,10 +1,19 @@
 import { ConfigService } from '@nestjs/config';
-interface GoalCheckinPayload {
-    goalTitle: string;
+export interface GoalCheckinPayload {
     toEmail: string;
+    firstName: string;
+    employeeName: string;
     subject: string;
-    body: string;
-    meta?: Record<string, any>;
+    title: string;
+    dueDate?: string;
+    body?: string;
+    companyName?: string;
+    meta?: {
+        goalId?: string;
+        employeeId?: string;
+        bucket?: 't7' | 't2' | 'today' | 'overdue' | string;
+        [k: string]: any;
+    };
 }
 interface GoalAssignmentPayload {
     toEmail: string;

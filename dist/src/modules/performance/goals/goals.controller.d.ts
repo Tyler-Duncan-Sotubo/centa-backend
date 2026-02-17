@@ -21,6 +21,7 @@ export declare class GoalsController extends BaseController {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -38,6 +39,7 @@ export declare class GoalsController extends BaseController {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -55,6 +57,7 @@ export declare class GoalsController extends BaseController {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -72,6 +75,7 @@ export declare class GoalsController extends BaseController {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -89,6 +93,7 @@ export declare class GoalsController extends BaseController {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -106,6 +111,7 @@ export declare class GoalsController extends BaseController {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -123,6 +129,7 @@ export declare class GoalsController extends BaseController {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -140,6 +147,7 @@ export declare class GoalsController extends BaseController {
         progress: number;
         id: any;
         title: any;
+        isRecurring: any;
         description: any;
         parentGoalId: any;
         dueDate: any;
@@ -166,6 +174,7 @@ export declare class GoalsController extends BaseController {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -183,6 +192,7 @@ export declare class GoalsController extends BaseController {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -200,6 +210,7 @@ export declare class GoalsController extends BaseController {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -217,6 +228,7 @@ export declare class GoalsController extends BaseController {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -234,6 +246,7 @@ export declare class GoalsController extends BaseController {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -251,6 +264,7 @@ export declare class GoalsController extends BaseController {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -268,6 +282,7 @@ export declare class GoalsController extends BaseController {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -285,6 +300,7 @@ export declare class GoalsController extends BaseController {
         weight: any;
         status: any;
         isArchived: any;
+        isRecurring: any;
         employee: string;
         employeeId: any;
         departmentName: any;
@@ -332,6 +348,7 @@ export declare class GoalsController extends BaseController {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -374,6 +391,7 @@ export declare class GoalsController extends BaseController {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -416,6 +434,7 @@ export declare class GoalsController extends BaseController {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -458,6 +477,7 @@ export declare class GoalsController extends BaseController {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -500,6 +520,7 @@ export declare class GoalsController extends BaseController {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -542,6 +563,7 @@ export declare class GoalsController extends BaseController {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -584,6 +606,7 @@ export declare class GoalsController extends BaseController {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -626,6 +649,7 @@ export declare class GoalsController extends BaseController {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -668,6 +692,7 @@ export declare class GoalsController extends BaseController {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -710,6 +735,7 @@ export declare class GoalsController extends BaseController {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -752,6 +778,7 @@ export declare class GoalsController extends BaseController {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     } | {
         updates: {
@@ -794,6 +821,7 @@ export declare class GoalsController extends BaseController {
         departmentName: any;
         departmentId: any;
         office: string;
+        isRecurring: any;
         manager: string;
     }>;
     getStatusCounts(user: User): Promise<Record<string, number>>;

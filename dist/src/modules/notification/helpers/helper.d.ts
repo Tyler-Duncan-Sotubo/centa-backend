@@ -1,0 +1,1 @@
+export declare function buildGoalSubject(bucket: string): "Goal deadline approaching" | "Reminder: goal due in 2 days" | "Due today: goal check-in required" | "Overdue: goal update required" | "Goal reminder";

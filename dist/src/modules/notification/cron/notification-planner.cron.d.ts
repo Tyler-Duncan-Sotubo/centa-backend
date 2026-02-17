@@ -1,0 +1,30 @@
+import { db } from 'src/drizzle/types/drizzle';
+import { NotificationEngineService } from '../notification-engine.service';
+export declare class NotificationPlannerCron {
+    private readonly db;
+    private readonly engine;
+    private readonly logger;
+    constructor(db: db, engine: NotificationEngineService);
+    runDailyPlanner(): Promise<void>;
+    private planForCompany;
+    private planGoalReminders;
+    private getDefaultTemplateIdOrThrow;
+    private ensureAssessmentsExistForBuckets;
+    planAssessmentReminders(companyId: string): Promise<void>;
+    private computeBucketsThatRunToday;
+    private bucketsForCycleLength;
+    private daysFromNowForReminder;
+    private diffDaysUTC;
+    private utcDateOnly;
+    private getRelevantCycles;
+    private ensureAssessmentsExistForCycles;
+    private fetchSelfDueRows;
+    private fetchManagerDueRows;
+    private fetchOverdueRows;
+    private enqueueDigestNotifications;
+    private enqueueOverdueDigest;
+    private groupForDigest;
+    private groupOverdueForDigest;
+    private digestDedupeKey;
+    private todayIsoUTC;
+}

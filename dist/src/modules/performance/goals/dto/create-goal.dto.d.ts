@@ -1,10 +1,12 @@
 export declare class CreateGoalDto {
-    status: string;
+    status?: string;
     title: string;
     description?: string;
-    dueDate: string;
-    startDate: string;
+    cycleId?: string;
+    startDate?: string;
+    dueDate?: string;
     weight?: number;
-    groupId: string;
-    employeeId: string;
+    groupId?: string | null;
+    employeeId?: string | null;
+    isRecurring?: boolean;
 }

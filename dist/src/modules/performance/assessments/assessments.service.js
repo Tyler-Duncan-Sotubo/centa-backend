@@ -28,6 +28,7 @@ const audit_service_1 = require("../../audit/audit.service");
 const performance_feedback_responses_schema_1 = require("../feedback/schema/performance-feedback-responses.schema");
 const performance_assessment_conclusions_schema_1 = require("./schema/performance-assessment-conclusions.schema");
 const cache_service_1 = require("../../../common/cache/cache.service");
+const performance_assessment_self_summaries_schema_1 = require("./schema/performance-assessment-self-summaries.schema");
 let AssessmentsService = class AssessmentsService {
     constructor(db, clockInOutService, auditService, cache) {
         this.db = db;
@@ -72,12 +73,42 @@ let AssessmentsService = class AssessmentsService {
             }
             reviewerId = user.id;
         }
+        let templateId = dto.templateId;
+        if (templateId) {
+            const [tpl] = await this.db
+                .select({ id: schema_1.performanceReviewTemplates.id })
+                .from(schema_1.performanceReviewTemplates)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.id, templateId), (0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.companyId, user.companyId)))
+                .limit(1);
+            if (!tpl) {
+                throw new common_1.BadRequestException('Invalid templateId (not found or not in your company).');
+            }
+        }
+        else {
+            const [defaultTpl] = await this.db
+                .select({ id: schema_1.performanceReviewTemplates.id })
+                .from(schema_1.performanceReviewTemplates)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.companyId, user.companyId), (0, drizzle_orm_1.eq)(schema_1.performanceReviewTemplates.isDefault, true)))
+                .limit(1);
+            if (!defaultTpl) {
+                throw new common_1.BadRequestException('No default performance review template configured for this company.');
+            }
+            templateId = defaultTpl.id;
+        }
+        const [existing] = await this.db
+            .select()
+            .from(performance_assessments_schema_1.performanceAssessments)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.cycleId, dto.cycleId), (0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.revieweeId, revieweeId), (0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.type, dto.type), (0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.companyId, user.companyId)))
+            .limit(1);
+        if (existing) {
+            throw new common_1.BadRequestException('An assessment for this cycle, employee, and type already exists.');
+        }
         const [assessment] = await this.db
             .insert(performance_assessments_schema_1.performanceAssessments)
             .values({
             companyId: user.companyId,
             cycleId: dto.cycleId,
-            templateId: dto.templateId,
+            templateId,
             reviewerId,
             revieweeId,
             type: dto.type,
@@ -96,6 +127,8 @@ let AssessmentsService = class AssessmentsService {
                 revieweeId: assessment.revieweeId,
                 reviewerId: assessment.reviewerId,
                 cycleId: assessment.cycleId,
+                templateId: assessment.templateId,
+                type: assessment.type,
             },
         });
         await this.invalidate(user.companyId);
@@ -345,6 +378,19 @@ let AssessmentsService = class AssessmentsService {
                 .from(performance_assessment_comments_schema_1.assessmentSectionComments)
                 .where((0, drizzle_orm_1.eq)(performance_assessment_comments_schema_1.assessmentSectionComments.assessmentId, assessment.id));
             result.sectionComments = sectionComments;
+            const [selfSummary] = await this.db
+                .select({
+                assessmentId: performance_assessment_self_summaries_schema_1.assessmentSelfSummaries.assessmentId,
+                summary: performance_assessment_self_summaries_schema_1.assessmentSelfSummaries.summary,
+                createdAt: performance_assessment_self_summaries_schema_1.assessmentSelfSummaries.createdAt,
+                updatedAt: performance_assessment_self_summaries_schema_1.assessmentSelfSummaries.updatedAt,
+                createdBy: performance_assessment_self_summaries_schema_1.assessmentSelfSummaries.createdBy,
+                updatedBy: performance_assessment_self_summaries_schema_1.assessmentSelfSummaries.updatedBy,
+            })
+                .from(performance_assessment_self_summaries_schema_1.assessmentSelfSummaries)
+                .where((0, drizzle_orm_1.eq)(performance_assessment_self_summaries_schema_1.assessmentSelfSummaries.assessmentId, assessment.id))
+                .limit(1);
+            result.selfSummary = selfSummary ?? null;
             if (template.includeQuestionnaire) {
                 const questions = await this.db
                     .select({
@@ -456,10 +502,26 @@ let AssessmentsService = class AssessmentsService {
         });
     }
     async getAssessmentsForUser(userId) {
-        return this.db
+        const assessments = await this.db
             .select()
             .from(performance_assessments_schema_1.performanceAssessments)
             .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.revieweeId, userId));
+        return assessments;
+    }
+    async getAssessmentsForEmployee(employeeId) {
+        const assessments = await this.db
+            .select({
+            id: performance_assessments_schema_1.performanceAssessments.id,
+            cycleName: schema_1.performanceCycles.name,
+            type: performance_assessments_schema_1.performanceAssessments.type,
+            status: performance_assessments_schema_1.performanceAssessments.status,
+            submittedAt: performance_assessments_schema_1.performanceAssessments.submittedAt,
+            createdAt: performance_assessments_schema_1.performanceAssessments.createdAt,
+        })
+            .from(performance_assessments_schema_1.performanceAssessments)
+            .leftJoin(schema_1.performanceCycles, (0, drizzle_orm_1.eq)(schema_1.performanceCycles.id, performance_assessments_schema_1.performanceAssessments.cycleId))
+            .where((0, drizzle_orm_1.eq)(performance_assessments_schema_1.performanceAssessments.revieweeId, employeeId));
+        return assessments;
     }
     async getTeamAssessments(managerId, cycleId) {
         const team = await this.db
