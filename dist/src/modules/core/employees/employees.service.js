@@ -539,6 +539,7 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
             id: schema_1.employees.id,
             firstName: schema_1.employees.firstName,
             lastName: schema_1.employees.lastName,
+            avatarUrl: schema_2.users.avatar,
             employeeNumber: schema_1.employees.employeeNumber,
             email: schema_1.employees.email,
             departmentId: schema_1.employees.departmentId,

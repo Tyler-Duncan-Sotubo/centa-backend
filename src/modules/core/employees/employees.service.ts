@@ -793,6 +793,7 @@ export class EmployeesService {
         id: employees.id,
         firstName: employees.firstName,
         lastName: employees.lastName,
+        avatarUrl: users.avatar,
         employeeNumber: employees.employeeNumber,
         email: employees.email,
         departmentId: employees.departmentId,
