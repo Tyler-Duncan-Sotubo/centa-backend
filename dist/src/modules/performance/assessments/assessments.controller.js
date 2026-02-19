@@ -60,7 +60,6 @@ let AssessmentsController = class AssessmentsController extends base_controller_
 exports.AssessmentsController = AssessmentsController;
 __decorate([
     (0, common_1.Post)(),
-    (0, common_1.SetMetadata)('permissions', ['performance.reviews.manage_all']),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -69,11 +68,6 @@ __decorate([
 ], AssessmentsController.prototype, "create", null);
 __decorate([
     (0, common_1.Patch)(':id/start'),
-    (0, common_1.SetMetadata)('permissions', [
-        'performance.reviews.submit_self',
-        'performance.reviews.submit_peer',
-        'performance.reviews.submit_manager',
-    ]),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -82,11 +76,6 @@ __decorate([
 ], AssessmentsController.prototype, "start", null);
 __decorate([
     (0, common_1.Post)(':id/submit'),
-    (0, common_1.SetMetadata)('permissions', [
-        'performance.reviews.submit_self',
-        'performance.reviews.submit_peer',
-        'performance.reviews.submit_manager',
-    ]),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, current_user_decorator_1.CurrentUser)()),
@@ -96,7 +85,6 @@ __decorate([
 ], AssessmentsController.prototype, "submit", null);
 __decorate([
     (0, common_1.Get)('dashboard'),
-    (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
@@ -105,7 +93,6 @@ __decorate([
 ], AssessmentsController.prototype, "getDashboard", null);
 __decorate([
     (0, common_1.Get)('counts'),
-    (0, common_1.SetMetadata)('permissions', ['performance.reviews.read']),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -113,11 +100,6 @@ __decorate([
 ], AssessmentsController.prototype, "getCounts", null);
 __decorate([
     (0, common_1.Get)(':id'),
-    (0, common_1.SetMetadata)('permissions', [
-        'performance.reviews.read',
-        'performance.reviews.read_team',
-        'performance.reviews.manage_all',
-    ]),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),

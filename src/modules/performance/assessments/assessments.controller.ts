@@ -27,29 +27,18 @@ export class AssessmentsController extends BaseController {
 
   // Create a new assessment
   @Post()
-  @SetMetadata('permissions', ['performance.reviews.manage_all'])
   create(@Body() dto: CreateAssessmentDto, @CurrentUser() user: User) {
     return this.assessmentsService.createAssessment(dto, user);
   }
 
   // Start an assessment (by reviewer)
   @Patch(':id/start')
-  @SetMetadata('permissions', [
-    'performance.reviews.submit_self',
-    'performance.reviews.submit_peer',
-    'performance.reviews.submit_manager',
-  ])
   start(@Param('id') id: string, @CurrentUser() user: User) {
     return this.assessmentsService.startAssessment(id, user.id);
   }
 
   // Submit section comments (intermediate save)
   @Post(':id/submit')
-  @SetMetadata('permissions', [
-    'performance.reviews.submit_self',
-    'performance.reviews.submit_peer',
-    'performance.reviews.submit_manager',
-  ])
   submit(
     @Param('id') id: string,
     @Body() dto: SubmitAssessmentDto,
@@ -59,7 +48,6 @@ export class AssessmentsController extends BaseController {
   }
 
   @Get('dashboard')
-  @SetMetadata('permissions', ['performance.reviews.read'])
   getDashboard(
     @CurrentUser() user: User,
     @Query() filters: GetDashboardAssessmentsDto,
@@ -71,18 +59,12 @@ export class AssessmentsController extends BaseController {
   }
 
   @Get('counts')
-  @SetMetadata('permissions', ['performance.reviews.read'])
   getCounts(@CurrentUser() user: User) {
     return this.assessmentsService.getCounts(user.companyId);
   }
 
   // Get full assessment with related data (self, manager, peer)
   @Get(':id')
-  @SetMetadata('permissions', [
-    'performance.reviews.read',
-    'performance.reviews.read_team',
-    'performance.reviews.manage_all',
-  ])
   getById(@Param('id') id: string) {
     return this.assessmentsService.getAssessmentById(id);
   }
