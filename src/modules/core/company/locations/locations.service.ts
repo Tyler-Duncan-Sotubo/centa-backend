@@ -17,6 +17,7 @@ import { locationManagers } from '../schema/location-managers.schema';
 import { employees } from '../../schema';
 import { CompanySettingsService } from 'src/company-settings/company-settings.service';
 import { CacheService } from 'src/common/cache/cache.service'; // adjust if your path differs
+import { employeeAllowedLocations } from '../schema/employee-allowed-locations.schema';
 
 @Injectable()
 export class LocationsService {
@@ -308,5 +309,82 @@ export class LocationsService {
     await this.cache.bumpCompanyVersion(loc.companyId);
 
     return removed;
+  }
+
+  async addAllowedWorkLocationForEmployee(
+    employeeId: string,
+    locationId: string,
+    user: User,
+    ip: string,
+  ) {
+    const { companyId, id: userId } = user;
+
+    await this.checkCompany(companyId);
+
+    // Validate employee belongs to company
+    const [emp] = await this.db
+      .select()
+      .from(employees)
+      .where(
+        and(eq(employees.id, employeeId), eq(employees.companyId, companyId)),
+      )
+      .execute();
+
+    if (!emp) throw new BadRequestException('Employee not found');
+
+    // Validate location belongs to company and active
+    const [loc] = await this.db
+      .select()
+      .from(companyLocations)
+      .where(
+        and(
+          eq(companyLocations.id, locationId),
+          eq(companyLocations.companyId, companyId),
+          eq(companyLocations.isActive, true),
+        ),
+      )
+      .execute();
+
+    if (!loc) throw new BadRequestException('Location not found or inactive');
+
+    // Enforce max 2 extra locations
+    const existing = await this.db
+      .select()
+      .from(employeeAllowedLocations)
+      .where(eq(employeeAllowedLocations.employeeId, employeeId))
+      .execute();
+
+    if (existing.length >= 2) {
+      throw new BadRequestException(
+        'Maximum of 2 additional work locations allowed',
+      );
+    }
+
+    // Prevent duplicating primary
+    if (emp.locationId === locationId) {
+      throw new BadRequestException(
+        'Location is already the employee primary location',
+      );
+    }
+
+    // Insert (ignore duplicates if you want)
+    const [inserted] = await this.db
+      .insert(employeeAllowedLocations)
+      .values({ employeeId, locationId })
+      .returning()
+      .execute();
+
+    await this.audit.logAction({
+      entity: 'EmployeeAllowedLocation',
+      action: 'Create',
+      userId,
+      ipAddress: ip,
+      details: 'Added allowed work location for employee',
+      changes: { before: null, after: inserted },
+    });
+
+    await this.cache.bumpCompanyVersion(companyId);
+
+    return inserted;
   }
 }

@@ -3,16 +3,17 @@ import { CreateLocationDto } from './dto/create-location.dto';
 import { UpdateLocationDto } from './dto/update-location.dto';
 import { User } from 'src/common/types/user.type';
 import { BaseController } from 'src/common/interceptor/base.controller';
+import { AssignLocationDto } from './dto/assign-location.dto';
 export declare class LocationsController extends BaseController {
     private readonly locationsService;
     constructor(locationsService: LocationsService);
     create(createLocationDto: CreateLocationDto, user: User, ip: string): Promise<{
         id: string;
         name: string;
-        createdAt: Date;
-        updatedAt: Date;
         isActive: boolean | null;
         country: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         isPrimary: boolean | null;
         locationType: "OFFICE" | "HOME" | "REMOTE";
@@ -115,13 +116,18 @@ export declare class LocationsController extends BaseController {
     addLocationManager(id: string, employeeId: string): Promise<{
         id: string;
         createdAt: Date;
-        managerId: string;
         locationId: string;
+        managerId: string;
     }[]>;
     updateLocationManager(id: string, employeeId: string): Promise<{
         id: string;
         createdAt: Date;
-        managerId: string;
         locationId: string;
+        managerId: string;
     }[]>;
+    addAllowedWorkLocation(dto: AssignLocationDto, user: User, ip: string): Promise<{
+        createdAt: Date;
+        locationId: string;
+        employeeId: string;
+    }>;
 }

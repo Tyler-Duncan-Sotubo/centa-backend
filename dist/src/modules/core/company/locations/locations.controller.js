@@ -22,6 +22,7 @@ const audit_interceptor_1 = require("../../../audit/audit.interceptor");
 const current_user_decorator_1 = require("../../../auth/decorator/current-user.decorator");
 const jwt_auth_guard_1 = require("../../../auth/guards/jwt-auth.guard");
 const base_controller_1 = require("../../../../common/interceptor/base.controller");
+const assign_location_dto_1 = require("./dto/assign-location.dto");
 let LocationsController = class LocationsController extends base_controller_1.BaseController {
     constructor(locationsService) {
         super();
@@ -50,6 +51,9 @@ let LocationsController = class LocationsController extends base_controller_1.Ba
     }
     updateLocationManager(id, employeeId) {
         return this.locationsService.removeLocationManager(id, employeeId);
+    }
+    addAllowedWorkLocation(dto, user, ip) {
+        return this.locationsService.addAllowedWorkLocationForEmployee(dto.employeeId, dto.locationId, user, ip);
     }
 };
 exports.LocationsController = LocationsController;
@@ -147,6 +151,22 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], LocationsController.prototype, "updateLocationManager", null);
+__decorate([
+    (0, common_1.Patch)('assign/employee'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('permissions', ['locations.manage']),
+    (0, audit_decorator_1.Audit)({
+        action: 'create',
+        entity: 'employee_allowed_location',
+        getEntityId: (req) => req.body.employeeId,
+    }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __param(2, (0, common_1.Ip)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [assign_location_dto_1.AssignLocationDto, Object, String]),
+    __metadata("design:returntype", void 0)
+], LocationsController.prototype, "addAllowedWorkLocation", null);
 exports.LocationsController = LocationsController = __decorate([
     (0, common_1.UseInterceptors)(audit_interceptor_1.AuditInterceptor),
     (0, common_1.Controller)('locations'),

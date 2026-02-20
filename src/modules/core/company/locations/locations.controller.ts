@@ -20,6 +20,7 @@ import { User } from 'src/common/types/user.type';
 import { CurrentUser } from 'src/modules/auth/decorator/current-user.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { BaseController } from 'src/common/interceptor/base.controller';
+import { AssignLocationDto } from './dto/assign-location.dto';
 
 @UseInterceptors(AuditInterceptor)
 @Controller('locations')
@@ -113,5 +114,26 @@ export class LocationsController extends BaseController {
     @Param('employeeId') employeeId: string,
   ) {
     return this.locationsService.removeLocationManager(id, employeeId);
+  }
+
+  @Patch('assign/employee')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('permissions', ['locations.manage'])
+  @Audit({
+    action: 'create',
+    entity: 'employee_allowed_location',
+    getEntityId: (req) => req.body.employeeId,
+  })
+  addAllowedWorkLocation(
+    @Body() dto: AssignLocationDto,
+    @CurrentUser() user: User,
+    @Ip() ip: string,
+  ) {
+    return this.locationsService.addAllowedWorkLocationForEmployee(
+      dto.employeeId,
+      dto.locationId,
+      user,
+      ip,
+    );
   }
 }

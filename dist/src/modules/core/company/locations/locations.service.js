@@ -23,6 +23,7 @@ const location_managers_schema_1 = require("../schema/location-managers.schema")
 const schema_1 = require("../../schema");
 const company_settings_service_1 = require("../../../../company-settings/company-settings.service");
 const cache_service_1 = require("../../../../common/cache/cache.service");
+const employee_allowed_locations_schema_1 = require("../schema/employee-allowed-locations.schema");
 let LocationsService = class LocationsService {
     constructor(db, audit, companySettings, cache) {
         this.db = db;
@@ -211,6 +212,50 @@ let LocationsService = class LocationsService {
             .execute();
         await this.cache.bumpCompanyVersion(loc.companyId);
         return removed;
+    }
+    async addAllowedWorkLocationForEmployee(employeeId, locationId, user, ip) {
+        const { companyId, id: userId } = user;
+        await this.checkCompany(companyId);
+        const [emp] = await this.db
+            .select()
+            .from(schema_1.employees)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId), (0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId)))
+            .execute();
+        if (!emp)
+            throw new common_1.BadRequestException('Employee not found');
+        const [loc] = await this.db
+            .select()
+            .from(company_location_schema_1.companyLocations)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.id, locationId), (0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.companyId, companyId), (0, drizzle_orm_1.eq)(company_location_schema_1.companyLocations.isActive, true)))
+            .execute();
+        if (!loc)
+            throw new common_1.BadRequestException('Location not found or inactive');
+        const existing = await this.db
+            .select()
+            .from(employee_allowed_locations_schema_1.employeeAllowedLocations)
+            .where((0, drizzle_orm_1.eq)(employee_allowed_locations_schema_1.employeeAllowedLocations.employeeId, employeeId))
+            .execute();
+        if (existing.length >= 2) {
+            throw new common_1.BadRequestException('Maximum of 2 additional work locations allowed');
+        }
+        if (emp.locationId === locationId) {
+            throw new common_1.BadRequestException('Location is already the employee primary location');
+        }
+        const [inserted] = await this.db
+            .insert(employee_allowed_locations_schema_1.employeeAllowedLocations)
+            .values({ employeeId, locationId })
+            .returning()
+            .execute();
+        await this.audit.logAction({
+            entity: 'EmployeeAllowedLocation',
+            action: 'Create',
+            userId,
+            ipAddress: ip,
+            details: 'Added allowed work location for employee',
+            changes: { before: null, after: inserted },
+        });
+        await this.cache.bumpCompanyVersion(companyId);
+        return inserted;
     }
 };
 exports.LocationsService = LocationsService;

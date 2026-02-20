@@ -25,6 +25,7 @@ const report_service_1 = require("../report/report.service");
 const date_fns_1 = require("date-fns");
 const date_fns_tz_1 = require("date-fns-tz");
 const cache_service_1 = require("../../../common/cache/cache.service");
+const employee_allowed_locations_schema_1 = require("../../core/company/schema/employee-allowed-locations.schema");
 let ClockInOutService = class ClockInOutService {
     constructor(db, auditService, employeesService, attendanceSettingsService, employeeShiftsService, reportService, cache) {
         this.db = db;
@@ -97,16 +98,36 @@ let ClockInOutService = class ClockInOutService {
             throw new common_1.BadRequestException('No company locations configured. Please contact admin.');
         }
         const activeLocations = officeLocations.filter((l) => l.isActive);
-        const assigned = activeLocations.find((l) => l.id === employee.locationId);
-        if (!assigned)
+        const activeById = new Map(activeLocations.map((l) => [l.id, l]));
+        const assigned = activeById.get(employee.locationId);
+        if (!assigned) {
             throw new common_1.BadRequestException('Assigned office location not found.');
+        }
         const isWithin = (loc) => this.isWithinRadius(lat, lon, Number(loc.latitude), Number(loc.longitude));
         if (isWithin(assigned))
             return;
-        const fallbackOffices = activeLocations.filter((l) => l.locationType === 'OFFICE');
-        const okAnyOffice = fallbackOffices.some(isWithin);
-        if (okAnyOffice)
-            return;
+        const maxExtraLocations = 2;
+        const allowedRows = await this.db
+            .select({ locationId: employee_allowed_locations_schema_1.employeeAllowedLocations.locationId })
+            .from(employee_allowed_locations_schema_1.employeeAllowedLocations)
+            .where((0, drizzle_orm_1.eq)(employee_allowed_locations_schema_1.employeeAllowedLocations.employeeId, employee.id))
+            .execute();
+        const allowedIdsLimited = allowedRows
+            .map((r) => r.locationId)
+            .filter(Boolean)
+            .filter((id) => id !== employee.locationId)
+            .slice(0, maxExtraLocations);
+        for (const id of allowedIdsLimited) {
+            const loc = activeById.get(id);
+            if (!loc)
+                continue;
+            if (isWithin(loc))
+                return;
+        }
+        for (const loc of activeLocations) {
+            if (loc.locationType === 'OFFICE' && isWithin(loc))
+                return;
+        }
         throw new common_1.BadRequestException('You are not at a valid company location.');
     }
     async clockIn(user, dto) {

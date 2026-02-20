@@ -344,10 +344,10 @@ export declare class LocationsService {
     create(dto: CreateLocationDto, user: User, ip: string): Promise<{
         id: string;
         name: string;
-        createdAt: Date;
-        updatedAt: Date;
         isActive: boolean | null;
         country: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         companyId: string;
         isPrimary: boolean | null;
         locationType: "OFFICE" | "HOME" | "REMOTE";
@@ -450,13 +450,18 @@ export declare class LocationsService {
     addLocationManager(locationId: string, managerId: string): Promise<{
         id: string;
         createdAt: Date;
-        managerId: string;
         locationId: string;
+        managerId: string;
     }[]>;
     removeLocationManager(locationId: string, managerId: string): Promise<{
         id: string;
         createdAt: Date;
-        managerId: string;
         locationId: string;
+        managerId: string;
     }[]>;
+    addAllowedWorkLocationForEmployee(employeeId: string, locationId: string, user: User, ip: string): Promise<{
+        createdAt: Date;
+        locationId: string;
+        employeeId: string;
+    }>;
 }

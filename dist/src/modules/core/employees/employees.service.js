@@ -576,7 +576,7 @@ let EmployeesService = EmployeesService_1 = class EmployeesService {
                 })
                     .from(schema_1.employees)
                     .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(schema_1.employees.employmentStatus, 'active')))
-                    .limit(10)
+                    .limit(5)
                     .execute();
             }, {
                 ttlSeconds: 60 * 60 * 12,

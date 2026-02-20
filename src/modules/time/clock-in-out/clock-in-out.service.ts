@@ -18,6 +18,7 @@ import { eachDayOfInterval, format, parseISO } from 'date-fns';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { AdjustAttendanceDto } from './dto/adjust-attendance.dto';
 import { CacheService } from 'src/common/cache/cache.service';
+import { employeeAllowedLocations } from 'src/modules/core/company/schema/employee-allowed-locations.schema';
 
 type DayStatus = 'absent' | 'present' | 'late' | 'weekend';
 
@@ -101,17 +102,14 @@ export class ClockInOutService {
       throw new BadRequestException('Invalid latitude/longitude provided.');
     }
 
-    // 2) Enforce rule: every employee must have an assigned locationId
+    // 2) Enforce rule: every employee must have an assigned MAIN office locationId
     if (!employee.locationId) {
-      // This should never happen if your data is correct
       throw new BadRequestException(
         'No assigned office location for this employee. Please contact HR/admin.',
       );
     }
 
-    // 3) Load ALL company locations once (cache) for:
-    //    - verifying assigned location exists
-    //    - fallback to any company location
+    // 3) Load ALL company locations once (cache)
     const officeLocations = await this.cache.getOrSetVersioned(
       employee.companyId,
       ['attendance', 'locations', 'all'],
@@ -130,12 +128,17 @@ export class ClockInOutService {
       );
     }
 
-    // after you fetch officeLocations (all locations for the company)
+    // 4) Active locations only
     const activeLocations = officeLocations.filter((l) => l.isActive);
 
-    const assigned = activeLocations.find((l) => l.id === employee.locationId);
-    if (!assigned)
+    // Fast lookup by id
+    const activeById = new Map(activeLocations.map((l) => [l.id, l]));
+
+    // 5) Assigned MAIN office must exist and be active
+    const assigned = activeById.get(employee.locationId);
+    if (!assigned) {
       throw new BadRequestException('Assigned office location not found.');
+    }
 
     const isWithin = (loc: any) =>
       this.isWithinRadius(
@@ -145,17 +148,45 @@ export class ClockInOutService {
         Number(loc.longitude),
       );
 
-    // 1) assigned location always allowed
+    // ---------------------------
+    // RULE 1: Assigned MAIN office always allowed
+    // ---------------------------
     if (isWithin(assigned)) return;
 
-    // 2) fallback ONLY to OFFICE locations (and active)
-    const fallbackOffices = activeLocations.filter(
-      (l) => l.locationType === 'OFFICE',
-    );
-    const okAnyOffice = fallbackOffices.some(isWithin);
-    if (okAnyOffice) return;
+    // ---------------------------
+    // RULE 2: Employee extra allowed work locations (max 2)
+    // - Stored in employeeAllowedLocations join table
+    // - Must belong to same company + be active
+    // ---------------------------
+    const maxExtraLocations = 2;
 
-    // short error
+    // Pull the employee’s allowed location IDs
+    const allowedRows = await this.db
+      .select({ locationId: employeeAllowedLocations.locationId })
+      .from(employeeAllowedLocations)
+      .where(eq(employeeAllowedLocations.employeeId, employee.id))
+      .execute();
+
+    const allowedIdsLimited = allowedRows
+      .map((r) => r.locationId)
+      .filter(Boolean)
+      .filter((id) => id !== employee.locationId) // don’t re-check primary
+      .slice(0, maxExtraLocations);
+
+    for (const id of allowedIdsLimited) {
+      const loc = activeById.get(id);
+      if (!loc) continue; // ignore stale ids (or throw if you prefer strict)
+      if (isWithin(loc)) return;
+    }
+
+    // ---------------------------
+    // RULE 3: Fallback to ANY active OFFICE location (keep your existing behavior)
+    // ---------------------------
+    for (const loc of activeLocations) {
+      if (loc.locationType === 'OFFICE' && isWithin(loc)) return;
+    }
+
+    // Short error
     throw new BadRequestException('You are not at a valid company location.');
   }
 
