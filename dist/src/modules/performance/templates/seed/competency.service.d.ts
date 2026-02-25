@@ -8,8 +8,8 @@ export declare class PerformanceCompetencyService {
     private readonly auditService;
     constructor(db: db, auditService: AuditService);
     create(companyId: string | null, dto: CreateCompetencyDto, userId: string): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string | null;

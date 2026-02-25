@@ -5,7 +5,12 @@ import { ExportUtil } from 'src/utils/export.util';
 import { S3StorageService } from 'src/common/aws/s3-storage.service';
 import { ReportService } from './report.service';
 import { decrypt } from 'src/utils/crypto.util';
-import { companies, employeeFinancials, employees } from 'src/drizzle/schema';
+import {
+  companies,
+  employeeFinancials,
+  employees,
+  jobRoles,
+} from 'src/drizzle/schema';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { payroll } from '../schema/payroll-run.schema';
 import { db } from 'src/drizzle/types/drizzle';
@@ -120,9 +125,15 @@ export class GenerateReportService {
   async downloadPayslipsToS3(
     companyId: string,
     payrollRunId: string,
-    format: 'internal' | 'bank' | 'nhf' | 'pension' | 'paye',
+    format:
+      | 'internal'
+      | 'bank'
+      | 'nhf'
+      | 'pension'
+      | 'paye'
+      | 'payment_schedule'
+      | 'daily_schedule',
   ) {
-    // Fetch payslip data
     const payslips = await this.db
       .selectDistinctOn([employees.employeeNumber], {
         employee_number: employees.employeeNumber,
@@ -130,19 +141,32 @@ export class GenerateReportService {
         last_name: employees.lastName,
         email: employees.email,
         issued_at: payroll.createdAt,
+
+        // ✅ NEW: start date for pro-rating working days (new starters)
+        employment_start_date: employees.employmentStartDate,
+
         gross_salary: sql<number>`payroll.gross_salary`,
         net_salary: sql<number>`payroll.net_salary`,
         paye_tax: sql<number>`payroll.paye_tax`,
         pension_contribution: sql<number>`payroll.pension_contribution`,
         employer_pension_contribution: sql<number>`payroll.employer_pension_contribution`,
         nhf_contribution: sql<number>`payroll.nhf_contribution`,
+
+        bonuses: sql<number>`payroll.bonuses`,
+        salary_advance: sql<number>`payroll.salary_advance`,
+        total_deductions: sql<number>`payroll.total_deductions`,
+
         payroll_month: payroll.payrollMonth,
+
         bank_name: employeeFinancials.bankName,
         bank_account_number: employeeFinancials.bankAccountNumber,
+
         payroll_id: payroll.id,
         voluntaryDeductions: payroll.voluntaryDeductions,
-        expenses: payroll.reimbursements, // Assuming payroll has expenses as a field
+        expenses: payroll.reimbursements,
         companyName: companies.name,
+
+        designation: jobRoles.title,
       })
       .from(payroll)
       .innerJoin(employees, eq(payroll.employeeId, employees.id))
@@ -151,6 +175,7 @@ export class GenerateReportService {
         employeeFinancials,
         eq(employees.id, employeeFinancials.employeeId),
       )
+      .leftJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
       .where(
         and(
           eq(payroll.payrollRunId, payrollRunId),
@@ -160,48 +185,82 @@ export class GenerateReportService {
       .orderBy(asc(employees.employeeNumber))
       .execute();
 
-    if (!payslips || payslips.length === 0) {
-      return null;
-    }
+    if (!payslips || payslips.length === 0) return null;
 
     const types = await this.db
-      .select({
-        id: deductionTypes.id,
-        name: deductionTypes.name,
-      })
+      .select({ id: deductionTypes.id, name: deductionTypes.name })
       .from(deductionTypes)
       .execute();
 
     const typeMap = new Map(types.map((t) => [t.id, t.name]));
 
-    // Determine all deduction types from the payslips
     const allTypes = new Set<string>();
-
     for (const p of payslips) {
-      const voluntaryDeductions = Array.isArray(p.voluntaryDeductions)
+      const voluntary = Array.isArray(p.voluntaryDeductions)
         ? p.voluntaryDeductions
         : [];
-      for (const d of voluntaryDeductions) {
+      for (const d of voluntary) {
         const name = typeMap.get(d.typeId) || d.typeId;
         allTypes.add(name);
       }
     }
 
+    const NAIRA = '\u20A6';
+
+    const formatNaira = (value: number | null | undefined) => {
+      const num = Number(value) || 0;
+      return `${NAIRA}${num.toLocaleString('en-NG', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+    };
+
+    // working days in month, optionally from a start date (new starter)
+    const getWorkingDays = (monthDate: Date, startDate?: Date | null) => {
+      const year = monthDate.getFullYear();
+      const month = monthDate.getMonth();
+
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0); // last day of month
+
+      // if startDate is within this month, start counting from startDate
+      const effectiveStart =
+        startDate &&
+        startDate.getFullYear() === year &&
+        startDate.getMonth() === month &&
+        startDate > monthStart
+          ? startDate
+          : monthStart;
+
+      // if startDate is after the month ends -> 0 days
+      if (startDate && startDate > monthEnd) return 0;
+
+      let workingDays = 0;
+      for (
+        let d = new Date(effectiveStart);
+        d <= monthEnd;
+        d.setDate(d.getDate() + 1)
+      ) {
+        const dayOfWeek = d.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) workingDays++;
+      }
+
+      return workingDays;
+    };
+
     const voluntaryColumns = Array.from(allTypes).map((name) => ({
       field: name,
-      title: `${name} (₦)`, // for voluntary deductions
+      title: `${name} (${NAIRA})`,
     }));
 
-    const expenseColumns = [] as any[];
-
-    // Prepare expense columns separately, to ensure they come after voluntary columns
+    const expenseColumns: Array<{ field: string; title: string }> = [];
     for (const p of payslips) {
       const expenses = Array.isArray(p.expenses) ? p.expenses : [];
       for (const expense of expenses) {
-        if (!expenseColumns.some((col) => col.field === expense.expenseName)) {
+        if (!expenseColumns.some((c) => c.field === expense.expenseName)) {
           expenseColumns.push({
             field: expense.expenseName,
-            title: `Reimbursement ${expense.expenseName} (₦)`, // For each expense type like Meals, Transport
+            title: `Reimbursement ${expense.expenseName} (${NAIRA})`,
           });
         }
       }
@@ -209,22 +268,49 @@ export class GenerateReportService {
 
     let columns: any[];
 
-    // Select the column format based on the type (bank, nhf, pension, etc.)
-    if (format === 'bank') {
+    if (format === 'payment_schedule') {
+      columns = [
+        { field: 'employee_name', title: 'Employee Name' },
+        { field: 'bank_name', title: 'Bank name' },
+        { field: 'bank_account_number', title: 'Account number' },
+        { field: 'gross_pay', title: `Gross Pay (${NAIRA})` },
+        { field: 'deductions_total', title: `Deductions (${NAIRA})` },
+        {
+          field: 'bonus_allowances_total',
+          title: `Bonus/Allowances (${NAIRA})`,
+        },
+        { field: 'net_pay', title: `Net Pay (${NAIRA})` },
+      ];
+    } else if (format === 'daily_schedule') {
+      columns = [
+        { field: 'sn', title: 'S/N' },
+        { field: 'employee_name', title: 'Employee Name' },
+        { field: 'designation', title: 'Designation' },
+        { field: 'working_days', title: 'Working Days' },
+        { field: 'daily_pay', title: `Daily Pay (${NAIRA})` },
+        { field: 'gross_pay', title: `Gross Pay (${NAIRA})` },
+        {
+          field: 'bonus_allowances_total',
+          title: `Bonus/Allowances (${NAIRA})`,
+        },
+        { field: 'salary_advance', title: `Salary Advance/Loan (${NAIRA})` },
+        { field: 'net_pay', title: `Net Pay (${NAIRA})` },
+      ];
+    } else if (format === 'bank') {
       columns = [
         { field: 'employee_number', title: 'Employee Number' },
         { field: 'first_name', title: 'First Name' },
         { field: 'last_name', title: 'Last Name' },
         { field: 'bank_name', title: 'Bank Name' },
         { field: 'bank_account_number', title: 'Bank Account Number' },
-        { field: 'net_salary', title: 'Net Salary (₦)' },
+        { field: 'net_salary', title: `Net Salary (${NAIRA})` },
       ];
     } else if (format === 'nhf') {
       columns = [
         { field: 'employee_number', title: 'Employee Number' },
         { field: 'first_name', title: 'First Name' },
         { field: 'last_name', title: 'Last Name' },
-        { field: 'nhf_contribution', title: 'NHF Contribution (₦)' },
+        { field: 'nhf_contribution', title: `NHF Contribution (${NAIRA})` },
         { field: 'payroll_month', title: 'Payroll Month' },
       ];
     } else if (format === 'pension') {
@@ -232,10 +318,10 @@ export class GenerateReportService {
         { field: 'employee_number', title: 'Employee Number' },
         { field: 'first_name', title: 'First Name' },
         { field: 'last_name', title: 'Last Name' },
-        { field: 'pension_contribution', title: 'Employee Pension (₦)' },
+        { field: 'pension_contribution', title: `Employee Pension (${NAIRA})` },
         {
           field: 'employer_pension_contribution',
-          title: 'Employer Pension (₦)',
+          title: `Employer Pension (${NAIRA})`,
         },
         { field: 'payroll_month', title: 'Payroll Month' },
       ];
@@ -244,78 +330,163 @@ export class GenerateReportService {
         { field: 'employee_number', title: 'Employee Number' },
         { field: 'first_name', title: 'First Name' },
         { field: 'last_name', title: 'Last Name' },
-        { field: 'paye_tax', title: 'PAYE Tax (₦)' },
+        { field: 'paye_tax', title: `PAYE Tax (${NAIRA})` },
         { field: 'payroll_month', title: 'Payroll Month' },
       ];
     } else {
-      // default internal
       columns = [
         { field: 'employee_number', title: 'Employee Number' },
         { field: 'first_name', title: 'First Name' },
         { field: 'last_name', title: 'Last Name' },
         { field: 'email', title: 'Email' },
-        { field: 'gross_salary', title: 'Gross Salary (₦)' },
-        { field: 'paye_tax', title: 'PAYE Tax (₦)' },
-        { field: 'nhf_contribution', title: 'NHF Contribution (₦)' },
-        { field: 'pension_contribution', title: 'Employee Pension (₦)' },
+        { field: 'gross_salary', title: `Gross Salary (${NAIRA})` },
+        { field: 'paye_tax', title: `PAYE Tax (${NAIRA})` },
+        { field: 'nhf_contribution', title: `NHF Contribution (${NAIRA})` },
+        { field: 'pension_contribution', title: `Employee Pension (${NAIRA})` },
         ...voluntaryColumns,
-        ...expenseColumns, // Append expense columns after voluntary deductions
-        { field: 'net_salary', title: 'Net Salary (₦)' },
+        ...expenseColumns,
+        { field: 'net_salary', title: `Net Salary (${NAIRA})` },
         {
           field: 'employer_pension_contribution',
-          title: 'Employer Pension (₦)',
+          title: `Employer Pension (${NAIRA})`,
         },
         { field: 'payroll_month', title: 'Payroll Month' },
         { field: 'issued_at', title: 'Issued Date' },
       ];
     }
 
-    const companyName = payslips[0]?.companyName || 'unknown-company';
-    const companySlug = slugify(companyName);
-    const filename = `${companySlug}-${format}-${payslips[0].payroll_month}`;
+    let totalGross = 0;
+    let totalDaily = 0;
+    let totalBonusAllowances = 0;
+    let totalSalaryAdvance = 0;
+    let totalNet = 0;
 
-    const keys = columns.map((col) => ({
-      field: col.field,
-      title: col.title,
-    }));
-
-    // Process each payslip and include expenses and voluntary deductions
-    const decryptedPayslips = payslips.map((p) => {
+    const decryptedPayslips = payslips.map((p, index) => {
       const voluntary: Record<string, string> = {};
-
       const voluntaryDeductions = Array.isArray(p.voluntaryDeductions)
         ? p.voluntaryDeductions
         : [];
       for (const d of voluntaryDeductions) {
         const name = typeMap.get(d.typeId) || d.typeId;
-        voluntary[name] = this.format(d.amount);
+        voluntary[name] = formatNaira(d.amount);
       }
+
+      const expenseData = Array.isArray(p.expenses) ? p.expenses : [];
+      const reimbursementsTotal = expenseData.reduce(
+        (sum, e) => sum + (Number(e.amount) || 0),
+        0,
+      );
 
       const expenses: Record<string, string> = {};
-      const expenseData = Array.isArray(p.expenses) ? p.expenses : [];
       for (const expense of expenseData) {
-        // Expenses should be treated as additions, so we format them as positive amounts
-        expenses[expense.expenseName] = this.format(expense.amount);
+        expenses[expense.expenseName] = formatNaira(expense.amount);
       }
 
+      const gross = Number(p.gross_salary) || 0;
+      const net = Number(p.net_salary) || 0;
+      const salaryAdvance = Number(p.salary_advance) || 0;
+
+      totalGross += gross;
+      totalNet += net;
+      totalSalaryAdvance += salaryAdvance;
+
+      const payrollDate = p.issued_at
+        ? new Date(p.issued_at)
+        : new Date(`${p.payroll_month}-01`);
+      const startDate = p.employment_start_date
+        ? new Date(p.employment_start_date)
+        : null;
+
+      // ✅ working days pro-rated for new starters
+      const workingDays = getWorkingDays(payrollDate, startDate);
+
+      const dailyPay = workingDays > 0 ? gross / workingDays : 0;
+      totalDaily += dailyPay;
+
+      const totalDeductionsInclAdvance =
+        (Number(p.total_deductions) || 0) + salaryAdvance;
+
+      const bonusAllowancesTotal =
+        (Number(p.bonuses) || 0) + reimbursementsTotal;
+      totalBonusAllowances += bonusAllowancesTotal;
+
       return {
-        ...p,
+        sn: index + 1,
+
+        employee_number: p.employee_number,
+        first_name: p.first_name,
+        last_name: p.last_name,
+        email: p.email,
+        employee_name: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim(),
+        designation: p.designation ?? '',
+
         bank_name: p.bank_name ? decrypt(p.bank_name) : '',
         bank_account_number: p.bank_account_number
           ? decrypt(p.bank_account_number)
           : '',
-        gross_salary: this.format(p.gross_salary),
-        net_salary: this.format(p.net_salary),
-        paye_tax: this.format(p.paye_tax),
-        pension_contribution: this.format(p.pension_contribution),
-        employer_pension_contribution: this.format(
+
+        gross_salary: formatNaira(p.gross_salary),
+        net_salary: formatNaira(p.net_salary),
+        paye_tax: formatNaira(p.paye_tax),
+        pension_contribution: formatNaira(p.pension_contribution),
+        employer_pension_contribution: formatNaira(
           p.employer_pension_contribution,
         ),
-        nhf_contribution: this.format(p.nhf_contribution),
-        ...voluntary, // Add formatted deduction values
-        ...expenses, // Add formatted expenses as additions (after voluntary deductions)
+        nhf_contribution: formatNaira(p.nhf_contribution),
+
+        deductions_total: formatNaira(totalDeductionsInclAdvance),
+        bonus_allowances_total: formatNaira(bonusAllowancesTotal),
+
+        salary_advance: formatNaira(salaryAdvance),
+        net_pay: formatNaira(net),
+
+        working_days: workingDays,
+        daily_pay: formatNaira(dailyPay),
+        gross_pay: formatNaira(gross),
+
+        ...voluntary,
+        ...expenses,
       };
     });
+
+    if (format === 'daily_schedule') {
+      decryptedPayslips.push({
+        sn: 0,
+
+        employee_number: '',
+        first_name: '',
+        last_name: '',
+        email: '',
+        employee_name: 'TOTAL',
+        designation: '',
+
+        bank_name: '',
+        bank_account_number: '',
+
+        gross_salary: '',
+        net_salary: '',
+        paye_tax: '',
+        pension_contribution: '',
+        employer_pension_contribution: '',
+        nhf_contribution: '',
+
+        deductions_total: '',
+        bonus_allowances_total: formatNaira(totalBonusAllowances),
+
+        salary_advance: formatNaira(totalSalaryAdvance),
+        net_pay: formatNaira(totalNet),
+
+        working_days: 0,
+        daily_pay: formatNaira(totalDaily),
+        gross_pay: formatNaira(totalGross),
+      });
+    }
+
+    const companyName = payslips[0]?.companyName || 'unknown-company';
+    const companySlug = slugify(companyName);
+    const filename = `${companySlug}-${format}-${payslips[0].payroll_month}`;
+
+    const keys = columns.map((col) => ({ field: col.field, title: col.title }));
 
     return this.exportAndUpload(
       decryptedPayslips,

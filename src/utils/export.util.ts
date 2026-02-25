@@ -29,13 +29,16 @@ export class ExportUtil {
         })
         .join(','),
     );
+
     const csvContent = csvHeader + csvRows.join('\n');
 
     const dirPath = path.resolve(__dirname, '../../../exports');
     fs.mkdirSync(dirPath, { recursive: true });
 
     const filePath = path.join(dirPath, `${filename}.csv`);
-    fs.writeFileSync(filePath, csvContent, 'utf8');
+
+    const BOM = '\uFEFF'; // ✅ CRITICAL FIX
+    fs.writeFileSync(filePath, BOM + csvContent, 'utf8');
 
     return filePath;
   }

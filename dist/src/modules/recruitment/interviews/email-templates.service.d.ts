@@ -21,8 +21,8 @@ export declare class InterviewEmailTemplateService {
         updatedAt: Date | null;
     }[]>;
     create(user: User, dto: CreateEmailTemplateDto): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
@@ -32,8 +32,8 @@ export declare class InterviewEmailTemplateService {
         subject: string;
     }>;
     cloneTemplate(templateId: string, user: User): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;

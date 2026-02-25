@@ -12,12 +12,12 @@ export declare class AssetsReportService {
     constructor(db: db, auditService: AuditService, awsService: AwsService, cache: CacheService);
     private tags;
     create(dto: CreateAssetsReportDto, user: User): Promise<{
-        status: string | null;
         id: string;
         updatedAt: Date | null;
         companyId: string;
         description: string;
         employeeId: string;
+        status: string | null;
         documentUrl: string | null;
         assetId: string;
         reportType: string;

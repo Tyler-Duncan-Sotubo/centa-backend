@@ -6,9 +6,8 @@ export declare class SalaryAdvanceController extends BaseController {
     private readonly salaryAdvanceService;
     constructor(salaryAdvanceService: SalaryAdvanceService);
     requestLoan(employeeId: string, dto: CreateSalaryAdvanceDto, user: User): Promise<{
-        status: string;
-        id: string;
         name: string;
+        id: string;
         createdAt: Date;
         companyId: string;
         employeeId: string;
@@ -18,6 +17,7 @@ export declare class SalaryAdvanceController extends BaseController {
         totalPaid: string;
         tenureMonths: number;
         preferredMonthlyPayment: string | null;
+        status: string;
     }>;
     getLoans(user: User): Promise<({
         name: string;

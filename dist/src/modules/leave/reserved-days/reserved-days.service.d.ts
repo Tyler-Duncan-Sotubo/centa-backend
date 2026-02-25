@@ -15,10 +15,10 @@ export declare class ReservedDaysService {
         id: string;
         createdAt: Date | null;
         companyId: string | null;
-        createdBy: string;
         startDate: string;
         employeeId: string | null;
         endDate: string;
+        createdBy: string;
         reason: string | null;
         leaveTypeId: string;
     }>;

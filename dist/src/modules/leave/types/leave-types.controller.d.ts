@@ -7,8 +7,8 @@ export declare class LeaveTypesController extends BaseController {
     private readonly leaveType;
     constructor(leaveType: LeaveTypesService);
     create(dto: CreateLeaveTypeDto, user: User, ip: string): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;

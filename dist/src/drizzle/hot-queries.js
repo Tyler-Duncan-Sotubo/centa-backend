@@ -38,20 +38,21 @@ class HotQueries {
         const { rows } = await this.pool.query(query);
         return rows;
     }
-    async bonusesByRange(empId, startISO, endISO) {
+    async bonusesByRange(empId, startISO, endISOExclusive) {
         const cached = this.runCache?.bonusesByEmp?.get(empId);
         if (cached)
             return cached;
         const query = {
-            name: 'bonuses_by_range_v1',
+            name: 'bonuses_by_range_v2',
             text: `
         select *
         from payroll_bonuses
         where employee_id = $1
+          and status = 'active'
           and effective_date >= $2
           and effective_date <  $3
       `,
-            values: [empId, startISO, endISO],
+            values: [empId, startISO, endISOExclusive],
         };
         const { rows } = await this.pool.query(query);
         return rows;
@@ -103,9 +104,9 @@ class HotQueries {
             text: `
         select *
         from payroll_adjustments
-        where company_id  = $1
-          and employee_id = $2
-          and payroll_date= $3
+        where company_id   = $1
+          and employee_id  = $2
+          and payroll_date = $3
       `,
             values: [companyId, empId, payrollDate],
         };
@@ -168,22 +169,23 @@ class HotQueries {
         }
         return out;
     }
-    async bonusesByRangeForMany(empIds, startISO, endISO) {
+    async bonusesByRangeForMany(empIds, startISO, endISOExclusive) {
         if (empIds.length === 0)
             return [];
         const chunks = chunk(empIds, 10_000);
         const out = [];
         for (const part of chunks) {
             const q = {
-                name: 'bonuses_by_range_many_v1',
+                name: 'bonuses_by_range_many_v2',
                 text: `
           select *
           from payroll_bonuses
           where employee_id = any($1::uuid[])
+            and status = 'active'
             and effective_date >= $2
             and effective_date <  $3
         `,
-                values: [part, startISO, endISO],
+                values: [part, startISO, endISOExclusive],
             };
             const { rows } = await this.pool.query(q);
             out.push(...rows);
@@ -246,9 +248,9 @@ class HotQueries {
                 text: `
           select *
           from payroll_adjustments
-          where company_id  = $1
-            and employee_id = any($2::uuid[])
-            and payroll_date= $3
+          where company_id   = $1
+            and employee_id  = any($2::uuid[])
+            and payroll_date = $3
         `,
                 values: [companyId, part, payrollDate],
             };

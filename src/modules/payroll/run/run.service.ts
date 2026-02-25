@@ -219,13 +219,13 @@ export class RunService {
     const D_ZERO = new Decimal(0);
     const D_HUNDRED = new Decimal(100);
 
-    const totalTaxableAdjustments = taxableAdjustments.reduce(
-      (sum, a) => sum.plus(a.amount || 0),
+    const totalBonuses = (bonuses || []).reduce(
+      (sum, b: any) => sum.plus(toDec(b.amount ?? b.amount_value ?? 0)),
       D_ZERO,
     );
 
-    const totalBonuses = (bonuses || []).reduce(
-      (sum, b) => sum.plus(b.amount || 0),
+    const totalTaxableAdjustments = taxableAdjustments.reduce(
+      (sum, a: any) => sum.plus(toDec(a.amount ?? 0)),
       D_ZERO,
     );
 
@@ -402,31 +402,43 @@ export class RunService {
 
     const annualizedGross = grossSalary.mul(12);
 
-    const { paye, taxableIncome } = this.calculatePAYE(
-      annualizedGross,
-      employeePensionContribution,
-      nhfContribution,
-    );
+    const applyPAYE = payrollSettings.apply_paye ?? true;
 
-    const monthlyPAYE = toDec(paye)
-      .div(12)
-      .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-    const monthlyTaxableIncome = toDec(taxableIncome)
-      .div(12)
-      .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    let monthlyPAYE = D_ZERO;
+    let monthlyTaxableIncome = D_ZERO;
+
+    if (applyPAYE) {
+      const { paye, taxableIncome } = this.calculatePAYE(
+        annualizedGross,
+        employeePensionContribution,
+        nhfContribution,
+      );
+
+      monthlyPAYE = toDec(paye)
+        .div(12)
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      monthlyTaxableIncome = toDec(taxableIncome)
+        .div(12)
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    }
 
     // Custom & non-taxable
     const deductionBreakdown: { typeId: string; amount: string }[] = [];
 
     const totalPostTaxDeductions = (activeDeductions || []).reduce(
-      (sum, deduction) => {
+      (sum, d: any) => {
+        const rateType = d.rateType ?? d.rate_type ?? 'fixed';
+        const rateValue = toDec(d.rateValue ?? d.rate_value ?? 0);
+        const typeId =
+          d.deductionTypeId ?? d.deduction_type_id ?? d.deduction_type ?? '';
+
         const value =
-          deduction.rateType === 'percentage'
-            ? grossSalary.mul(toDec(deduction.rateValue)).div(D_HUNDRED)
-            : toDec(deduction.rateValue);
+          rateType === 'percentage'
+            ? grossSalary.mul(rateValue).div(D_HUNDRED)
+            : rateValue;
 
         deductionBreakdown.push({
-          typeId: deduction.deductionTypeId,
+          typeId,
           amount: value.toFixed(2),
         });
 
@@ -434,7 +446,6 @@ export class RunService {
       },
       D_ZERO,
     );
-
     const totalNonTaxable = nonTaxableAdjustments.reduce(
       (sum, a) => sum.plus(a.amount || 0),
       D_ZERO,
@@ -458,6 +469,7 @@ export class RunService {
 
     const netSalary = Decimal.max(
       grossSalary
+        .plus(totalBonuses)
         .plus(totalNonTaxable)
         .plus(reimbursedTotal)
         .minus(unpaidAdvanceAmount)

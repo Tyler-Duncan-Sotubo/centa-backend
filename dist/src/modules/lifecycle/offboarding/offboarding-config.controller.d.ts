@@ -37,8 +37,8 @@ export declare class OffboardingConfigController extends BaseController {
         }[];
     }>;
     createType(user: User, dto: CreateOffboardingConfigDto): Promise<{
-        id: string;
         name: string;
+        id: string;
         companyId: string | null;
         description: string | null;
         isGlobal: boolean | null;
@@ -52,8 +52,8 @@ export declare class OffboardingConfigController extends BaseController {
     }[]>;
     deleteType(id: string, user: User): Promise<void>;
     createReason(user: User, dto: CreateOffboardingConfigDto): Promise<{
-        id: string;
         name: string;
+        id: string;
         companyId: string | null;
         description: string | null;
         isGlobal: boolean | null;
@@ -67,8 +67,8 @@ export declare class OffboardingConfigController extends BaseController {
     }[]>;
     deleteReason(id: string, user: User): Promise<void>;
     createChecklistItem(user: User, dto: OffboardingChecklistItemDto): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         companyId: string | null;
         description: string | null;

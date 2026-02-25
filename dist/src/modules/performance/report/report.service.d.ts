@@ -163,7 +163,7 @@ export declare class ReportService {
         id: string;
         employeeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -177,7 +177,7 @@ export declare class ReportService {
         id: string;
         employeeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;
@@ -191,7 +191,7 @@ export declare class ReportService {
         id: string;
         employeeId: string;
         type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
         reviewerId: string;

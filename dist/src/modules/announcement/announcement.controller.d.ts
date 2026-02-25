@@ -19,10 +19,10 @@ export declare class AnnouncementController extends BaseController {
         updatedAt: Date | null;
         link: string | null;
         companyId: string;
-        createdBy: string;
         departmentId: string | null;
         title: string;
         locationId: string | null;
+        createdBy: string;
         body: string;
         image: string | null;
         publishedAt: Date | null;
@@ -120,8 +120,8 @@ export declare class AnnouncementController extends BaseController {
     }>;
     likeAnnouncement(id: string, reactionType: string, user: User): Promise<any>;
     createCategory(name: string, user: User): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         companyId: string;
     }>;

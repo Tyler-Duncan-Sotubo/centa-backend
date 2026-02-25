@@ -15,7 +15,7 @@ export declare class HotQueries {
     setRunCache(cache: HotRunCache): void;
     clearRunCache(): void;
     activeDeductions(empId: string, payDate: string): Promise<any>;
-    bonusesByRange(empId: string, startISO: string, endISO: string): Promise<any>;
+    bonusesByRange(empId: string, startISO: string, endISOExclusive: string): Promise<any>;
     payGroupById(payGroupId: string): Promise<any>;
     groupAllowances(payGroupId: string): Promise<any>;
     adjustmentsByDate(companyId: string, empId: string, payrollDate: string): Promise<any>;
@@ -29,7 +29,7 @@ export declare class HotQueries {
         lastName: string;
     } | undefined>;
     activeDeductionsForMany(empIds: string[], payDate: string): Promise<Row[]>;
-    bonusesByRangeForMany(empIds: string[], startISO: string, endISO: string): Promise<Row[]>;
+    bonusesByRangeForMany(empIds: string[], startISO: string, endISOExclusive: string): Promise<Row[]>;
     payGroupsByIds(payGroupIds: string[]): Promise<Row[]>;
     groupAllowancesForPayGroups(payGroupIds: string[]): Promise<Row[]>;
     adjustmentsByDateForMany(companyId: string, empIds: string[], payrollDate: string): Promise<Row[]>;

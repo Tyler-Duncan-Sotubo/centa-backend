@@ -134,8 +134,8 @@ let RunService = class RunService {
         const nonTaxableAdjustments = adjustments.filter((a) => !a.taxable);
         const D_ZERO = new decimal_js_1.default(0);
         const D_HUNDRED = new decimal_js_1.default(100);
-        const totalTaxableAdjustments = taxableAdjustments.reduce((sum, a) => sum.plus(a.amount || 0), D_ZERO);
-        const totalBonuses = (bonuses || []).reduce((sum, b) => sum.plus(b.amount || 0), D_ZERO);
+        const totalBonuses = (bonuses || []).reduce((sum, b) => sum.plus(toDec(b.amount ?? b.amount_value ?? 0)), D_ZERO);
+        const totalTaxableAdjustments = taxableAdjustments.reduce((sum, a) => sum.plus(toDec(a.amount ?? 0)), D_ZERO);
         let grossPay = toDec(employee.grossSalary).div(12);
         if (payrollSettings.enable_proration && isStarter) {
             const joinDate = new Date(employee.startDate);
@@ -245,20 +245,28 @@ let RunService = class RunService {
             : D_ZERO;
         const nhfContribution = applyNHF ? percentOf(basicAmt, nhfPct) : D_ZERO;
         const annualizedGross = grossSalary.mul(12);
-        const { paye, taxableIncome } = this.calculatePAYE(annualizedGross, employeePensionContribution, nhfContribution);
-        const monthlyPAYE = toDec(paye)
-            .div(12)
-            .toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP);
-        const monthlyTaxableIncome = toDec(taxableIncome)
-            .div(12)
-            .toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP);
+        const applyPAYE = payrollSettings.apply_paye ?? true;
+        let monthlyPAYE = D_ZERO;
+        let monthlyTaxableIncome = D_ZERO;
+        if (applyPAYE) {
+            const { paye, taxableIncome } = this.calculatePAYE(annualizedGross, employeePensionContribution, nhfContribution);
+            monthlyPAYE = toDec(paye)
+                .div(12)
+                .toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP);
+            monthlyTaxableIncome = toDec(taxableIncome)
+                .div(12)
+                .toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP);
+        }
         const deductionBreakdown = [];
-        const totalPostTaxDeductions = (activeDeductions || []).reduce((sum, deduction) => {
-            const value = deduction.rateType === 'percentage'
-                ? grossSalary.mul(toDec(deduction.rateValue)).div(D_HUNDRED)
-                : toDec(deduction.rateValue);
+        const totalPostTaxDeductions = (activeDeductions || []).reduce((sum, d) => {
+            const rateType = d.rateType ?? d.rate_type ?? 'fixed';
+            const rateValue = toDec(d.rateValue ?? d.rate_value ?? 0);
+            const typeId = d.deductionTypeId ?? d.deduction_type_id ?? d.deduction_type ?? '';
+            const value = rateType === 'percentage'
+                ? grossSalary.mul(rateValue).div(D_HUNDRED)
+                : rateValue;
             deductionBreakdown.push({
-                typeId: deduction.deductionTypeId,
+                typeId,
                 amount: value.toFixed(2),
             });
             return sum.plus(value);
@@ -275,6 +283,7 @@ let RunService = class RunService {
             .plus(nhfContribution)
             .plus(totalPostTaxDeductions);
         const netSalary = decimal_js_1.default.max(grossSalary
+            .plus(totalBonuses)
             .plus(totalNonTaxable)
             .plus(reimbursedTotal)
             .minus(unpaidAdvanceAmount)

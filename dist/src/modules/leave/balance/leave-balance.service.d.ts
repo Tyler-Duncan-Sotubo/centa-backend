@@ -191,8 +191,8 @@ export declare class LeaveBalanceService {
         updatedAt: Date | null;
         companyId: string;
         employeeId: string;
-        used: string;
         year: number;
+        used: string;
         leaveTypeId: string;
         entitlement: string;
         balance: string;

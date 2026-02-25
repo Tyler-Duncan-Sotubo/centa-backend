@@ -7,8 +7,8 @@ export declare class CertificationsController extends BaseController {
     private readonly certificationsService;
     constructor(certificationsService: CertificationsService);
     create(employeeId: string, dto: CreateCertificationDto, user: User, ip: string): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date;
         employeeId: string;
         authority: string | null;

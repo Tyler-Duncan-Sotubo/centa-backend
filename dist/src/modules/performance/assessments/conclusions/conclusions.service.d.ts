@@ -18,7 +18,7 @@ export declare class AssessmentConclusionsService {
         finalScore: number | null;
         promotionRecommendation: string | null;
         potentialFlag: boolean | null;
-        reviewStatus: "draft" | "approved" | "pending_hr" | "needs_changes";
+        reviewStatus: "approved" | "draft" | "pending_hr" | "needs_changes";
         submittedToHrAt: Date | null;
         submittedToHrBy: string | null;
         changesRequestedAt: Date | null;
@@ -36,7 +36,7 @@ export declare class AssessmentConclusionsService {
         finalScore: number | null;
         promotionRecommendation: string | null;
         potentialFlag: boolean | null;
-        reviewStatus: "draft" | "approved" | "pending_hr" | "needs_changes";
+        reviewStatus: "approved" | "draft" | "pending_hr" | "needs_changes";
         submittedToHrAt: Date | null;
         submittedToHrBy: string | null;
         changesRequestedAt: Date | null;
@@ -56,7 +56,7 @@ export declare class AssessmentConclusionsService {
         finalScore: number | null;
         promotionRecommendation: string | null;
         potentialFlag: boolean | null;
-        reviewStatus: "draft" | "approved" | "pending_hr" | "needs_changes";
+        reviewStatus: "approved" | "draft" | "pending_hr" | "needs_changes";
         submittedToHrAt: Date | null;
         submittedToHrBy: string | null;
         changesRequestedAt: Date | null;
@@ -76,7 +76,7 @@ export declare class AssessmentConclusionsService {
         finalScore: number | null;
         promotionRecommendation: string | null;
         potentialFlag: boolean | null;
-        reviewStatus: "draft" | "approved" | "pending_hr" | "needs_changes";
+        reviewStatus: "approved" | "draft" | "pending_hr" | "needs_changes";
         submittedToHrAt: Date | null;
         submittedToHrBy: string | null;
         changesRequestedAt: Date | null;
@@ -96,7 +96,7 @@ export declare class AssessmentConclusionsService {
         finalScore: number | null;
         promotionRecommendation: string | null;
         potentialFlag: boolean | null;
-        reviewStatus: "draft" | "approved" | "pending_hr" | "needs_changes";
+        reviewStatus: "approved" | "draft" | "pending_hr" | "needs_changes";
         submittedToHrAt: Date | null;
         submittedToHrBy: string | null;
         changesRequestedAt: Date | null;
@@ -116,7 +116,7 @@ export declare class AssessmentConclusionsService {
         finalScore: number | null;
         promotionRecommendation: string | null;
         potentialFlag: boolean | null;
-        reviewStatus: "draft" | "approved" | "pending_hr" | "needs_changes";
+        reviewStatus: "approved" | "draft" | "pending_hr" | "needs_changes";
         submittedToHrAt: Date | null;
         submittedToHrBy: string | null;
         changesRequestedAt: Date | null;

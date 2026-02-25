@@ -13,11 +13,11 @@ export declare class InterviewsController extends BaseController {
     private readonly emailTemplatesService;
     constructor(interviewsService: InterviewsService, scoreCard: ScorecardTemplateService, emailTemplatesService: InterviewEmailTemplateService);
     scheduleInterview(dto: ScheduleInterviewDto): Promise<{
-        status: string | null;
         id: string;
         mode: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
+        status: string | null;
         applicationId: string;
         stage: "phone_screen" | "tech" | "onsite" | "final";
         scheduledFor: Date;
@@ -122,25 +122,25 @@ export declare class InterviewsController extends BaseController {
         criteria: unknown;
     }[]>;
     createScorecardTemplate(dto: CreateScorecardTemplateDto, user: User): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string | null;
-        isSystem: boolean | null;
         description: string | null;
+        isSystem: boolean | null;
     }>;
     deleteScorecardTemplate(templateId: string, user: User): Promise<{
         message: string;
     }>;
     cloneScorecardTemplate(templateId: string, user: User): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string | null;
-        isSystem: boolean | null;
         description: string | null;
+        isSystem: boolean | null;
     }>;
     getAllEmailTemplates(user: User): Promise<{
         id: string;
@@ -154,8 +154,8 @@ export declare class InterviewsController extends BaseController {
         updatedAt: Date | null;
     }[]>;
     createEmailTemplate(dto: CreateEmailTemplateDto, user: User): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;
@@ -165,8 +165,8 @@ export declare class InterviewsController extends BaseController {
         subject: string;
     }>;
     cloneEmailTemplate(templateId: string, user: User): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string | null;

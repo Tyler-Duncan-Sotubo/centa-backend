@@ -9,15 +9,15 @@ export declare class BenefitPlanController extends BaseController {
     private readonly benefitPlanService;
     constructor(benefitPlanService: BenefitPlanService);
     create(createBenefitPlanDto: CreateBenefitPlanDto, user: User): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date | null;
         split: string;
         companyId: string;
-        category: string;
         description: string | null;
         startDate: Date;
         endDate: Date | null;
+        category: string;
         employerContribution: number | null;
         benefitGroupId: string;
         coverageOptions: unknown;

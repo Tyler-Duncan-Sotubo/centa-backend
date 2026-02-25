@@ -20,18 +20,18 @@ export declare class AssetsRequestService {
     private tags;
     handleAssetApprovalFlow(assetRequestId: string, user: User): Promise<void>;
     create(dto: CreateAssetsRequestDto, user: User): Promise<{
-        status: string | null;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
         employeeId: string;
-        notes: string | null;
-        rejectionReason: string | null;
-        assetType: string;
+        status: string | null;
         purpose: string;
-        urgency: string;
+        rejectionReason: string | null;
+        notes: string | null;
         requestDate: string;
+        assetType: string;
+        urgency: string;
     }>;
     findAll(companyId: string): Promise<({
         id: string;

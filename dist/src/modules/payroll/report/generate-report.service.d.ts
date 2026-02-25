@@ -12,7 +12,7 @@ export declare class GenerateReportService {
     private exportAndUpload;
     private exportAndUploadExcel;
     private exportAndUploadMatrix;
-    downloadPayslipsToS3(companyId: string, payrollRunId: string, format: 'internal' | 'bank' | 'nhf' | 'pension' | 'paye'): Promise<{
+    downloadPayslipsToS3(companyId: string, payrollRunId: string, format: 'internal' | 'bank' | 'nhf' | 'pension' | 'paye' | 'payment_schedule' | 'daily_schedule'): Promise<{
         url: string;
         record: any;
     } | null>;

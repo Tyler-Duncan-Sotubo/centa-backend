@@ -25,13 +25,13 @@ export declare class AssessmentsService {
         id: string;
         createdAt: Date | null;
         companyId: string;
+        status: "submitted" | "in_progress" | "not_started" | null;
         type: "manager" | "self" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
-        cycleId: string;
+        submittedAt: Date | null;
         templateId: string;
+        cycleId: string;
         reviewerId: string;
         revieweeId: string;
-        submittedAt: Date | null;
     }>;
     startAssessment(assessmentId: string, userId: string): Promise<void>;
     saveSectionComments(assessmentId: string, userId: string, dto: SubmitAssessmentDto): Promise<{
@@ -40,7 +40,7 @@ export declare class AssessmentsService {
     getAssessmentsForDashboard(companyId: string, filters?: GetDashboardAssessmentsDto): Promise<{
         id: string;
         type: "manager" | "self" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         reviewer: string;
         employee: string;
         departmentName: any;
@@ -65,7 +65,7 @@ export declare class AssessmentsService {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -73,7 +73,7 @@ export declare class AssessmentsService {
         id: string;
         cycleName: string | null;
         type: "manager" | "self" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -85,7 +85,7 @@ export declare class AssessmentsService {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -97,7 +97,7 @@ export declare class AssessmentsService {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "not_started" | "in_progress" | "submitted" | null;
+        status: "submitted" | "in_progress" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;

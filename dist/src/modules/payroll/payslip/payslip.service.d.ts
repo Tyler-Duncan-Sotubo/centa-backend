@@ -17,11 +17,11 @@ export declare class PayslipService {
         companyId: string;
         employeeId: string;
         payrollMonth: string;
-        payrollId: string;
         issuedAt: string | null;
         slipStatus: string | null;
         employerRemarks: string | null;
         pdfUrl: string | null;
+        payrollId: string;
         checksum: string | null;
         revision: number;
         reissuedAt: Date | null;

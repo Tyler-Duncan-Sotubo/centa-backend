@@ -27,6 +27,7 @@ export class HotQueries {
   setRunCache(cache: HotRunCache) {
     this.runCache = cache;
   }
+
   clearRunCache() {
     this.runCache = undefined;
   }
@@ -36,7 +37,6 @@ export class HotQueries {
   // -------------------------
 
   async activeDeductions(empId: string, payDate: string) {
-    // cache first
     const cached = this.runCache?.deductionsByEmp?.get(empId);
     if (cached) return cached;
 
@@ -52,25 +52,32 @@ export class HotQueries {
       `,
       values: [empId, payDate],
     };
+
     const { rows } = await this.pool.query(query);
     return rows;
   }
 
-  async bonusesByRange(empId: string, startISO: string, endISO: string) {
+  async bonusesByRange(
+    empId: string,
+    startISO: string,
+    endISOExclusive: string,
+  ) {
     const cached = this.runCache?.bonusesByEmp?.get(empId);
     if (cached) return cached;
 
     const query: QueryConfig = {
-      name: 'bonuses_by_range_v1',
+      name: 'bonuses_by_range_v2',
       text: `
         select *
         from payroll_bonuses
         where employee_id = $1
+          and status = 'active'
           and effective_date >= $2
           and effective_date <  $3
       `,
-      values: [empId, startISO, endISO],
+      values: [empId, startISO, endISOExclusive],
     };
+
     const { rows } = await this.pool.query(query);
     return rows;
   }
@@ -89,6 +96,7 @@ export class HotQueries {
       `,
       values: [payGroupId],
     };
+
     const { rows } = await this.pool.query(query);
     return rows[0] ?? null;
   }
@@ -111,6 +119,7 @@ export class HotQueries {
       `,
       values: [payGroupId],
     };
+
     const { rows } = await this.pool.query(query);
     return rows;
   }
@@ -128,12 +137,13 @@ export class HotQueries {
       text: `
         select *
         from payroll_adjustments
-        where company_id  = $1
-          and employee_id = $2
-          and payroll_date= $3
+        where company_id   = $1
+          and employee_id  = $2
+          and payroll_date = $3
       `,
       values: [companyId, empId, payrollDate],
     };
+
     const { rows } = await this.pool.query(query);
     return rows;
   }
@@ -154,6 +164,7 @@ export class HotQueries {
       `,
       values: [empId, startISO, endISO],
     };
+
     const { rows } = await this.pool.query(query);
     return rows as Array<{ id: string; category: string; amount: string }>;
   }
@@ -169,6 +180,7 @@ export class HotQueries {
       `,
       values: [empId],
     };
+
     const { rows } = await this.pool.query(query);
     return rows[0] as { firstName: string; lastName: string } | undefined;
   }
@@ -177,17 +189,14 @@ export class HotQueries {
   // Batch (“…ForMany”) queries
   // -------------------------
 
-  /**
-   * Active deductions for MANY employees on a given date.
-   * Uses array param + ANY(), chunked to avoid huge packets.
-   */
   async activeDeductionsForMany(
     empIds: string[],
     payDate: string,
   ): Promise<Row[]> {
     if (empIds.length === 0) return [];
-    const chunks = chunk(empIds, 10_000); // tune as needed
+    const chunks = chunk(empIds, 10_000);
     const out: Row[] = [];
+
     for (const part of chunks) {
       const q: QueryConfig = {
         name: 'active_deductions_many_v1',
@@ -201,35 +210,42 @@ export class HotQueries {
         `,
         values: [part, payDate],
       };
+
       const { rows } = await this.pool.query(q);
       out.push(...rows);
     }
+
     return out;
   }
 
+  // ✅ UPDATED: add status='active' + use endISOExclusive naming + new prepared name
   async bonusesByRangeForMany(
     empIds: string[],
     startISO: string,
-    endISO: string,
+    endISOExclusive: string,
   ): Promise<Row[]> {
     if (empIds.length === 0) return [];
     const chunks = chunk(empIds, 10_000);
     const out: Row[] = [];
+
     for (const part of chunks) {
       const q: QueryConfig = {
-        name: 'bonuses_by_range_many_v1',
+        name: 'bonuses_by_range_many_v2',
         text: `
           select *
           from payroll_bonuses
           where employee_id = any($1::uuid[])
+            and status = 'active'
             and effective_date >= $2
             and effective_date <  $3
         `,
-        values: [part, startISO, endISO],
+        values: [part, startISO, endISOExclusive],
       };
+
       const { rows } = await this.pool.query(q);
       out.push(...rows);
     }
+
     return out;
   }
 
@@ -237,6 +253,7 @@ export class HotQueries {
     if (payGroupIds.length === 0) return [];
     const chunks = chunk(payGroupIds, 10_000);
     const out: Row[] = [];
+
     for (const part of chunks) {
       const q: QueryConfig = {
         name: 'pay_groups_many_v1',
@@ -247,9 +264,11 @@ export class HotQueries {
         `,
         values: [part],
       };
+
       const { rows } = await this.pool.query(q);
       out.push(...rows);
     }
+
     return out;
   }
 
@@ -257,6 +276,7 @@ export class HotQueries {
     if (payGroupIds.length === 0) return [];
     const chunks = chunk(payGroupIds, 10_000);
     const out: Row[] = [];
+
     for (const part of chunks) {
       const q: QueryConfig = {
         name: 'group_allowances_many_v1',
@@ -272,9 +292,11 @@ export class HotQueries {
         `,
         values: [part],
       };
+
       const { rows } = await this.pool.query(q);
       out.push(...rows);
     }
+
     return out;
   }
 
@@ -286,21 +308,24 @@ export class HotQueries {
     if (empIds.length === 0) return [];
     const chunks = chunk(empIds, 10_000);
     const out: Row[] = [];
+
     for (const part of chunks) {
       const q: QueryConfig = {
         name: 'adjustments_by_date_many_v1',
         text: `
           select *
           from payroll_adjustments
-          where company_id  = $1
-            and employee_id = any($2::uuid[])
-            and payroll_date= $3
+          where company_id   = $1
+            and employee_id  = any($2::uuid[])
+            and payroll_date = $3
         `,
         values: [companyId, part, payrollDate],
       };
+
       const { rows } = await this.pool.query(q);
       out.push(...rows);
     }
+
     return out;
   }
 
@@ -312,6 +337,7 @@ export class HotQueries {
     if (empIds.length === 0) return [];
     const chunks = chunk(empIds, 10_000);
     const out: Row[] = [];
+
     for (const part of chunks) {
       const q: QueryConfig = {
         name: 'expenses_by_range_many_v1',
@@ -325,9 +351,11 @@ export class HotQueries {
         `,
         values: [part, startISO, endISO],
       };
+
       const { rows } = await this.pool.query(q);
       out.push(...rows);
     }
+
     return out;
   }
 }

@@ -177,8 +177,8 @@ export declare class CompensationService {
         currency: string;
         payFrequency: string;
         employeeId: string;
-        effectiveDate: string;
         grossSalary: number;
+        effectiveDate: string;
         applyNHf: boolean;
     }>;
     create(employeeId: string, dto: CreateCompensationDto, userId: string, ip: string, trx?: typeof this.db): Promise<{
@@ -188,8 +188,8 @@ export declare class CompensationService {
         currency: string;
         payFrequency: string;
         employeeId: string;
-        effectiveDate: string;
         grossSalary: number;
+        effectiveDate: string;
         applyNHf: boolean;
     }>;
     findAll(employeeId: string): Promise<{

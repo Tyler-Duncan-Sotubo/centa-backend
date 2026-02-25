@@ -20,7 +20,8 @@ class ExportUtil {
         const dirPath = path.resolve(__dirname, '../../../exports');
         fs.mkdirSync(dirPath, { recursive: true });
         const filePath = path.join(dirPath, `${filename}.csv`);
-        fs.writeFileSync(filePath, csvContent, 'utf8');
+        const BOM = '\uFEFF';
+        fs.writeFileSync(filePath, BOM + csvContent, 'utf8');
         return filePath;
     }
     static async exportToExcel(data, columns, filename) {
