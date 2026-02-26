@@ -15,8 +15,8 @@ export declare class SeedController extends BaseController {
     private readonly roleCompetencyExpectationService;
     constructor(performanceReviewQuestionService: PerformanceReviewQuestionService, performanceCompetencyService: PerformanceCompetencyService, roleCompetencyExpectationService: RoleCompetencyExpectationService);
     createCompetency(user: User, dto: CreateCompetencyDto): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         isActive: boolean | null;
         companyId: string | null;

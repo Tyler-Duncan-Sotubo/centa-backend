@@ -7,16 +7,16 @@ export declare class HolidaysController extends BaseController {
     private readonly holidaysService;
     constructor(holidaysService: HolidaysService);
     getYearPublicHolidays(dto: CreateHolidayDto[]): Promise<{
-        name: string;
         date: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         country: string | null;
         companyId: string | null;
         type: string;
-        year: string;
         source: string | null;
+        year: string;
         countryCode: string | null;
         isWorkingDayOverride: boolean | null;
     }[]>;
@@ -40,30 +40,30 @@ export declare class HolidaysController extends BaseController {
         type: string;
     }[]>;
     bulkCreateLeavePolicies(rows: any[], user: User): Promise<{
-        name: string;
         date: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         country: string | null;
         companyId: string | null;
         type: string;
-        year: string;
         source: string | null;
+        year: string;
         countryCode: string | null;
         isWorkingDayOverride: boolean | null;
     }[]>;
     createCustomHolidays(dto: CreateHolidayDto, user: User): Promise<{
-        name: string;
         date: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         country: string | null;
         companyId: string | null;
         type: string;
-        year: string;
         source: string | null;
+        year: string;
         countryCode: string | null;
         isWorkingDayOverride: boolean | null;
     }>;

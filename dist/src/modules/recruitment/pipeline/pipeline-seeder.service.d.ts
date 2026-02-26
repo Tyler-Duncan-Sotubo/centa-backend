@@ -11,8 +11,8 @@ export declare class PipelineSeederService {
     seedAllTemplates(): Promise<void>;
     private seedTemplate;
     cloneTemplateForCompany(templateId: string, user: User, templateName?: string): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         companyId: string | null;
         description: string | null;

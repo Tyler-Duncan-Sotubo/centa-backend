@@ -22,8 +22,9 @@ export declare class SalaryAdvanceService {
         monthlyDeduction: string | null;
     }[]>;
     salaryAdvanceRequest(dto: CreateSalaryAdvanceDto, employee_id: string, user: User): Promise<{
-        name: string;
+        status: string;
         id: string;
+        name: string;
         createdAt: Date;
         companyId: string;
         employeeId: string;
@@ -33,7 +34,6 @@ export declare class SalaryAdvanceService {
         totalPaid: string;
         tenureMonths: number;
         preferredMonthlyPayment: string | null;
-        status: string;
     }>;
     getAdvances(company_id: string): Promise<({
         name: string;

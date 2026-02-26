@@ -17,8 +17,8 @@ export declare class PermissionsController extends BaseController {
         name: string;
     }[]>;
     createCompanyRole(user: User, name: string): Promise<{
-        name: string;
         id: string;
+        name: string;
         companyId: string;
     }>;
     findCompanyRoleById(user: User, roleId: string, name: string): Promise<{

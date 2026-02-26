@@ -13,8 +13,8 @@ export declare class PerformanceTemplatesService {
     private tags;
     private bump;
     create(user: User, dto: CreateTemplateDto): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         companyId: string;
         description: string | null;

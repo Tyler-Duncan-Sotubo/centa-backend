@@ -7,7 +7,18 @@ const CURRENCY_SYMBOLS = {
     EUR: '€',
     GBP: '£',
 };
-const formatCurrency = (amount, currency = 'NGN', locale = 'en-NG') => {
+const formatCurrency = (amount, currency = 'NGN', locale = 'en-NG', options = {}) => {
+    const safeTextCurrency = options.safeTextCurrency ?? false;
+    const safePrefix = options.safePrefix ?? 'NGN';
+    if (safeTextCurrency) {
+        const num = Number(amount ?? 0);
+        const formattedNumber = new Intl.NumberFormat(locale, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(num);
+        const prefix = currency === 'NGN' ? safePrefix : currency;
+        return `${prefix} ${formattedNumber}`;
+    }
     const formatter = new Intl.NumberFormat(locale, {
         style: 'currency',
         currency,

@@ -8,6 +8,7 @@ export declare class PdfService {
     private s3;
     private bucketName;
     constructor(db: db, payslipService: PayslipService, awsService: AwsService);
+    private formatMoneyForPdf;
     generatePayslipPdf(payslipId: string): Promise<Buffer>;
     private htmlToPdf;
 }

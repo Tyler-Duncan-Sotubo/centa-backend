@@ -12,8 +12,8 @@ export declare class OfferLetterService {
     private tags;
     seedSystemOfferLetterTemplates(): Promise<void>;
     cloneCompanyTemplate(user: User, templateId: string): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         companyId: string | null;
         content: string;
@@ -22,8 +22,8 @@ export declare class OfferLetterService {
         clonedFromTemplateId: string | null;
     }>;
     createCompanyTemplate(user: User, dto: CreateOfferTemplateDto): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         companyId: string | null;
         content: string;

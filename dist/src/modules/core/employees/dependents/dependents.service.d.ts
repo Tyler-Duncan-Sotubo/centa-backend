@@ -133,8 +133,8 @@ export declare class DependentsService {
     }>;
     constructor(db: db, auditService: AuditService);
     create(employeeId: string, dto: CreateDependentDto, userId: string, ip: string): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date;
         employeeId: string;
         dateOfBirth: string;

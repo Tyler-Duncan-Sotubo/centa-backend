@@ -11,8 +11,8 @@ export declare class FeedbackController extends BaseController {
         createdAt: Date | null;
         companyId: string;
         type: string;
-        submittedAt: Date | null;
         isArchived: boolean | null;
+        submittedAt: Date | null;
         senderId: string;
         recipientId: string;
         isAnonymous: boolean | null;

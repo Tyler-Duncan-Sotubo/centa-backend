@@ -57,7 +57,7 @@ export declare class SelfAssessmentsController extends BaseController {
         reviewerId: string;
         revieweeId: string;
         type: "manager" | "self" | "peer";
-        status: "submitted" | "in_progress" | "not_started" | null;
+        status: "in_progress" | "submitted" | "not_started" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }>;

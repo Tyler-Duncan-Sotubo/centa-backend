@@ -24,37 +24,37 @@ export declare class ExpensesService {
     private exportAndUpload;
     handleExpenseApprovalFlow(expenseId: string, user: User): Promise<void>;
     create(dto: CreateExpenseDto, user: User): Promise<{
+        status: string;
         date: string;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        status: string;
+        category: string;
         employeeId: string;
         submittedAt: Date | null;
-        category: string;
-        purpose: string;
         amount: string;
+        rejectionReason: string | null;
+        purpose: string;
         receiptUrl: string | null;
         paymentMethod: string | null;
-        rejectionReason: string | null;
         deletedAt: Date | null;
     }>;
     bulkCreateExpenses(companyId: string, rows: any[], user: User): Promise<{
+        status: string;
         date: string;
         id: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
-        status: string;
+        category: string;
         employeeId: string;
         submittedAt: Date | null;
-        category: string;
-        purpose: string;
         amount: string;
+        rejectionReason: string | null;
+        purpose: string;
         receiptUrl: string | null;
         paymentMethod: string | null;
-        rejectionReason: string | null;
         deletedAt: Date | null;
     }[]>;
     update(id: string, dto: UpdateExpenseDto, user: User): Promise<{

@@ -168,8 +168,8 @@ export declare class CertificationsService {
     constructor(db: db, auditService: AuditService);
     private tags;
     create(employeeId: string, dto: CreateCertificationDto, userId: string, ip: string): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date;
         employeeId: string;
         authority: string | null;

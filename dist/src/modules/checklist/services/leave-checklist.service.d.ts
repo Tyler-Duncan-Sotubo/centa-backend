@@ -8,7 +8,7 @@ export declare class LeaveChecklistService {
     private getExtraStatuses;
     getLeaveChecklist(companyId: string): Promise<{
         tasks: Record<string, TaskStatus>;
-        required: ("blocked_days" | "holidays" | "leave_settings" | "leave_types_policies" | "reserved_days")[];
+        required: ("holidays" | "blocked_days" | "leave_settings" | "leave_types_policies" | "reserved_days")[];
         completed: boolean;
         disabledWhenComplete: boolean;
     }>;

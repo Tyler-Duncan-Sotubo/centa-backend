@@ -26,10 +26,10 @@ export declare class AnnouncementService {
         updatedAt: Date | null;
         link: string | null;
         companyId: string;
+        createdBy: string;
         departmentId: string | null;
         title: string;
         locationId: string | null;
-        createdBy: string;
         body: string;
         image: string | null;
         publishedAt: Date | null;

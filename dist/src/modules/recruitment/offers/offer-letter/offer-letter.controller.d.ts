@@ -7,8 +7,8 @@ export declare class OfferLetterController extends BaseController {
     private readonly offerLetterService;
     constructor(offerLetterService: OfferLetterService);
     cloneCompanyTemplate(user: User, templateId: string): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         companyId: string | null;
         content: string;
@@ -17,8 +17,8 @@ export declare class OfferLetterController extends BaseController {
         clonedFromTemplateId: string | null;
     }>;
     createOfferLetterTemplate(user: User, createOfferTemplateDto: CreateOfferTemplateDto): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         companyId: string | null;
         content: string;

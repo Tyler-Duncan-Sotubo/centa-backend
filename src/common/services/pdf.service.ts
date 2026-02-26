@@ -28,11 +28,22 @@ export class PdfService {
     });
   }
 
+  /**
+   * PDF-safe currency formatter.
+   * Always outputs "N 1,000.00" (no ₦ symbol).
+   */
+  private formatMoneyForPdf(amount: number) {
+    return formatCurrency(amount, 'NGN', 'en-NG', {
+      safeTextCurrency: true,
+      safePrefix: 'N',
+    });
+  }
+
   async generatePayslipPdf(payslipId: string): Promise<Buffer> {
     const payslip = await this.payslipService.getEmployeePayslip(payslipId);
     if (!payslip) throw new Error('Payslip not found');
 
-    // Prepare HTML template (you can move this into a separate file or render with EJS)
+    // Calculations
     const ytdBasic = Number(payslip.ytdBasic);
     const ytdHousing = Number(payslip.ytdHousing);
     const ytdTransport = Number(payslip.ytdTransport);
@@ -43,6 +54,7 @@ export class PdfService {
       (Number(payslip.basic) +
         Number(payslip.housing) +
         Number(payslip.transport));
+
     const otherAllowanceYTD = ytdGross - (ytdBasic + ytdHousing + ytdTransport);
 
     const totalDeductions =
@@ -50,14 +62,25 @@ export class PdfService {
       Number(payslip.pension_contribution) +
       Number(payslip.nhf_contribution) +
       Number(payslip.salaryAdvance);
+
     const reimbursementTotal = Array.isArray(payslip.reimbursement)
       ? payslip.reimbursement.reduce(
           (sum: number, r) => sum + Number(r.amount),
           0,
         )
       : 0;
+
     const netPay =
       Number(payslip.gross_salary) - totalDeductions + reimbursementTotal;
+
+    const payrollMonthLabel = new Date(
+      payslip.payroll_month + '-01',
+    ).toLocaleString('en-US', {
+      month: 'long',
+      year: 'numeric',
+    });
+
+    const money = (n: number) => this.formatMoneyForPdf(n);
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -69,36 +92,37 @@ export class PdfService {
               --border: #d9d9d9;
               --heading-bg: #f4f4f4;
               --section-space: 20px;
-              --font-body: Arial, sans-serif;
             }
+
             body {
-              font-family: 'Arial', 'Segoe UI', 'Helvetica Neue', sans-serif;
+              font-family: Arial, 'Segoe UI', 'Helvetica Neue', sans-serif;
               padding: 32px;
               color: #000;
               font-size: 12px;
             }
-            h1 {
-              font-size: 16px;
-              margin: 0 0 10px;
-            }
+
+            h1 { font-size: 16px; margin: 0 0 10px; }
             h2 {
               margin-top: var(--section-space);
               border-bottom: 1px solid var(--border);
               padding-bottom: 4px;
               font-size: 13px;
             }
+
             .company-header {
               display: flex;
               justify-content: space-between;
               align-items: center;
               margin-bottom: 10px;
             }
+
             .summary-grid {
               display: grid;
               grid-template-columns: 1fr 1fr;
               gap: 6px 24px;
               margin-top: 10px;
             }
+
             .net-pay-box {
               text-align: right;
               border: 1px solid var(--border);
@@ -112,18 +136,20 @@ export class PdfService {
               border-collapse: collapse;
               margin-top: 8px;
             }
+
             th, td {
               border: 1px solid var(--border);
               padding: 6px;
               font-size: 11px;
             }
+
             th {
               background-color: var(--heading-bg);
               text-align: left;
             }
-            td.amount, th.amount {
-              text-align: right;
-            }
+
+            td.amount, th.amount { text-align: right; }
+
             .footer {
               margin-top: 40px;
               font-size: 10px;
@@ -131,20 +157,21 @@ export class PdfService {
               color: #666;
             }
           </style>
-
         </head>
         <body>
-          <!-- 1. Header -->
           <div class="company-header">
             <div>
               <strong>${payslip.company_name}</strong><br />
             </div>
-            <img src="${payslip.companyLogo}" alt="Company Logo" style="width: 60px; height: auto" />
+            ${
+              payslip.companyLogo
+                ? `<img src="${payslip.companyLogo}" alt="Company Logo" style="width: 60px; height: auto" />`
+                : ''
+            }
           </div>
-      
-          <h1>Payslip for the month of ${new Date(payslip.payroll_month + '-01').toLocaleString('en-US', { month: 'long', year: 'numeric' })}</h1>
-      
-          <!-- 2. Summary -->
+
+          <h1>Payslip for the month of ${payrollMonthLabel}</h1>
+
           <div class="summary-grid">
             <div>
               <strong>Employee Name:</strong> ${payslip.first_name} ${payslip.last_name}<br />
@@ -154,52 +181,46 @@ export class PdfService {
             </div>
             <div class="net-pay-box">
               Employee Net Pay<br />
-              ${formatCurrency(Number(payslip.net_salary))}
+              ${money(Number(payslip.net_salary))}
             </div>
           </div>
-      
-          <!-- 3. Earnings -->
+
           <h2>Earnings</h2>
           <table>
             <thead>
               <tr><th>Description</th><th class="amount">Amount</th><th class="amount">YTD</th></tr>
             </thead>
             <tbody>
-              <tr><td>Basic</td><td class="amount">${formatCurrency(Number(payslip.basic))}</td><td class="amount">${formatCurrency(ytdBasic)}</td></tr>
-              <tr><td>Housing</td><td class="amount">${formatCurrency(Number(payslip.housing))}</td><td class="amount">${formatCurrency(ytdHousing)}</td></tr>
-              <tr><td>Transport</td><td class="amount">${formatCurrency(Number(payslip.transport))}</td><td class="amount">${formatCurrency(ytdTransport)}</td></tr>
-              <tr><td>Other Allowance</td><td class="amount">${formatCurrency(otherAllowance)}</td><td class="amount">${formatCurrency(otherAllowanceYTD)}</td></tr>
-              <tr><td><strong>Gross Earnings</strong></td><td class="amount"><strong>${formatCurrency(Number(payslip.gross_salary))}</strong></td><td class="amount"><strong>${formatCurrency(ytdGross)}</strong></td></tr>
+              <tr><td>Basic</td><td class="amount">${money(Number(payslip.basic))}</td><td class="amount">${money(ytdBasic)}</td></tr>
+              <tr><td>Housing</td><td class="amount">${money(Number(payslip.housing))}</td><td class="amount">${money(ytdHousing)}</td></tr>
+              <tr><td>Transport</td><td class="amount">${money(Number(payslip.transport))}</td><td class="amount">${money(ytdTransport)}</td></tr>
+              <tr><td>Other Allowance</td><td class="amount">${money(otherAllowance)}</td><td class="amount">${money(otherAllowanceYTD)}</td></tr>
+              <tr><td><strong>Gross Earnings</strong></td><td class="amount"><strong>${money(Number(payslip.gross_salary))}</strong></td><td class="amount"><strong>${money(ytdGross)}</strong></td></tr>
             </tbody>
           </table>
-      
-          <!-- 4. Deductions -->
+
           <h2>Deductions</h2>
           <table>
             <thead>
               <tr><th>Description</th><th class="amount">Amount</th><th class="amount">YTD</th></tr>
             </thead>
             <tbody>
-              <tr><td>PAYE Tax</td><td class="amount">${formatCurrency(Number(payslip.paye_tax))}</td><td class="amount">${formatCurrency(Number(payslip.ytdPaye))}</td></tr>
-              <tr><td>Pension Contribution</td><td class="amount">${formatCurrency(Number(payslip.pension_contribution))}</td><td class="amount">${formatCurrency(Number(payslip.ytdPension))}</td></tr>
-              <tr><td>NHF Contribution</td><td class="amount">${formatCurrency(Number(payslip.nhf_contribution))}</td><td class="amount">${formatCurrency(Number(payslip.ytdNhf))}</td></tr>
+              <tr><td>PAYE Tax</td><td class="amount">${money(Number(payslip.paye_tax))}</td><td class="amount">${money(Number(payslip.ytdPaye))}</td></tr>
+              <tr><td>Pension Contribution</td><td class="amount">${money(Number(payslip.pension_contribution))}</td><td class="amount">${money(Number(payslip.ytdPension))}</td></tr>
+              <tr><td>NHF Contribution</td><td class="amount">${money(Number(payslip.nhf_contribution))}</td><td class="amount">${money(Number(payslip.ytdNhf))}</td></tr>
               ${
                 Number(payslip.salaryAdvance) > 0
-                  ? `
-                <tr><td>Salary Advance</td><td class="amount">${formatCurrency(Number(payslip.salaryAdvance))}</td><td class="amount">—</td></tr>
-              `
+                  ? `<tr><td>Salary Advance</td><td class="amount">${money(Number(payslip.salaryAdvance))}</td><td class="amount">—</td></tr>`
                   : ''
               }
-              <tr><td><strong>Total Deductions</strong></td><td class="amount"><strong>${formatCurrency(totalDeductions)}</strong></td><td class="amount"></td></tr>
+              <tr><td><strong>Total Deductions</strong></td><td class="amount"><strong>${money(totalDeductions)}</strong></td><td class="amount"></td></tr>
             </tbody>
           </table>
-      
-          <!-- 5. Reimbursements -->
+
           ${
             Array.isArray(payslip.reimbursement) &&
             payslip.reimbursement.length > 0
               ? `
-              <!-- 5. Reimbursements -->
               <h2>Reimbursements</h2>
               <table>
                 <thead><tr><th>Description</th><th class="amount">Amount</th><th class="amount">—</th></tr></thead>
@@ -209,7 +230,7 @@ export class PdfService {
                       (r) => `
                         <tr>
                           <td>${r.expenseName}</td>
-                          <td class="amount">${formatCurrency(r.amount)}</td>
+                          <td class="amount">${money(Number(r.amount))}</td>
                           <td class="amount">—</td>
                         </tr>
                       `,
@@ -217,7 +238,7 @@ export class PdfService {
                     .join('')}
                   <tr>
                     <td><strong>Total Reimbursement</strong></td>
-                    <td class="amount"><strong>${formatCurrency(reimbursementTotal)}</strong></td>
+                    <td class="amount"><strong>${money(reimbursementTotal)}</strong></td>
                     <td class="amount"></td>
                   </tr>
                 </tbody>
@@ -225,36 +246,33 @@ export class PdfService {
               `
               : ''
           }
-          
-          <!-- 6. Net Pay Calculation -->
+
           <h2>Net Pay Calculation</h2>
           <table>
             <thead><tr><th>Description</th><th class="amount">Amount</th></tr></thead>
             <tbody>
-              <tr><td>Gross Earnings</td><td class="amount">${formatCurrency(Number(payslip.gross_salary))}</td></tr>
-              <tr><td>- Total Deductions</td><td class="amount">- ${formatCurrency(totalDeductions)}</td></tr>
-              <tr><td>+ Reimbursements</td><td class="amount">${formatCurrency(reimbursementTotal)}</td></tr>
-              <tr><td><strong>NET PAY</strong></td><td class="amount"><strong>${formatCurrency(netPay)}</strong></td></tr>
+              <tr><td>Gross Earnings</td><td class="amount">${money(Number(payslip.gross_salary))}</td></tr>
+              <tr><td>- Total Deductions</td><td class="amount">- ${money(totalDeductions)}</td></tr>
+              <tr><td>+ Reimbursements</td><td class="amount">${money(reimbursementTotal)}</td></tr>
+              <tr><td><strong>NET PAY</strong></td><td class="amount"><strong>${money(netPay)}</strong></td></tr>
             </tbody>
           </table>
-      
+
           <div class="footer">
             If you have any questions about this payslip, please contact ${payslip.company_email}
           </div>
         </body>
       </html>
-      `;
+    `;
 
     const pdfBuffer = await this.htmlToPdf(htmlContent);
 
-    // Upload to S3
     const pdfUrl = await this.awsService.uploadPdfToS3(
       payslip.email,
       `payslip/payslip-${payslip.payroll_month}.pdf`,
       pdfBuffer,
     );
 
-    // Update DB
     await this.db
       .update(paySlips)
       .set({ pdfUrl })

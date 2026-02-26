@@ -54,7 +54,9 @@ let GenerateReportService = class GenerateReportService {
         if (!rows.length) {
             throw new common_1.BadRequestException(`No data available for ${filenameBase}`);
         }
-        const filePath = await export_util_1.ExportUtil.exportToCSV(rows, columns, filenameBase);
+        const filePath = await export_util_1.ExportUtil.exportToCSV(rows, columns, filenameBase, {
+            textFields: ['bank_account_number', 'employee_number'],
+        });
         return this.awsService.uploadFilePath(filePath, companyId, 'report', folder);
     }
     async exportAndUploadExcel(rows, columns, filenameBase, companyId, folder) {
@@ -124,8 +126,15 @@ let GenerateReportService = class GenerateReportService {
             }
         }
         const NAIRA = '\u20A6';
-        const formatNaira = (value) => {
-            const num = Number(value) || 0;
+        const formatNaira = (value, opts) => {
+            const blankZero = opts?.blankZero ?? false;
+            if (value === null || value === undefined || value === '')
+                return null;
+            const num = typeof value === 'number' ? value : Number(value);
+            if (Number.isNaN(num))
+                return null;
+            if (blankZero && num === 0)
+                return null;
             return `${NAIRA}${num.toLocaleString('en-NG', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
@@ -146,8 +155,8 @@ let GenerateReportService = class GenerateReportService {
                 return 0;
             let workingDays = 0;
             for (let d = new Date(effectiveStart); d <= monthEnd; d.setDate(d.getDate() + 1)) {
-                const dayOfWeek = d.getDay();
-                if (dayOfWeek !== 0 && dayOfWeek !== 6)
+                const day = d.getDay();
+                if (day !== 0 && day !== 6)
                     workingDays++;
             }
             return workingDays;
@@ -195,7 +204,10 @@ let GenerateReportService = class GenerateReportService {
                     field: 'bonus_allowances_total',
                     title: `Bonus/Allowances (${NAIRA})`,
                 },
+                ...expenseColumns,
                 { field: 'salary_advance', title: `Salary Advance/Loan (${NAIRA})` },
+                ...voluntaryColumns,
+                { field: 'deductions_total', title: `Total Deductions (${NAIRA})` },
                 { field: 'net_pay', title: `Net Pay (${NAIRA})` },
             ];
         }
@@ -266,6 +278,8 @@ let GenerateReportService = class GenerateReportService {
         let totalBonusAllowances = 0;
         let totalSalaryAdvance = 0;
         let totalNet = 0;
+        const voluntaryTotals = new Map();
+        const expenseTotals = new Map();
         const decryptedPayslips = payslips.map((p, index) => {
             const voluntary = {};
             const voluntaryDeductions = Array.isArray(p.voluntaryDeductions)
@@ -273,20 +287,31 @@ let GenerateReportService = class GenerateReportService {
                 : [];
             for (const d of voluntaryDeductions) {
                 const name = typeMap.get(d.typeId) || d.typeId;
-                voluntary[name] = formatNaira(d.amount);
+                const amtNum = Number(d.amount ?? 0) || 0;
+                voluntary[name] = formatNaira(d.amount, { blankZero: true });
+                voluntaryTotals.set(name, (voluntaryTotals.get(name) || 0) + amtNum);
             }
             const expenseData = Array.isArray(p.expenses) ? p.expenses : [];
             const reimbursementsTotal = expenseData.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
             const expenses = {};
             for (const expense of expenseData) {
-                expenses[expense.expenseName] = formatNaira(expense.amount);
+                const amtNum = Number(expense.amount ?? 0) || 0;
+                expenses[expense.expenseName] = formatNaira(expense.amount, {
+                    blankZero: true,
+                });
+                expenseTotals.set(expense.expenseName, (expenseTotals.get(expense.expenseName) || 0) + amtNum);
             }
-            const gross = Number(p.gross_salary) || 0;
-            const net = Number(p.net_salary) || 0;
-            const salaryAdvance = Number(p.salary_advance) || 0;
-            totalGross += gross;
-            totalNet += net;
-            totalSalaryAdvance += salaryAdvance;
+            const grossRaw = p.gross_salary;
+            const netRaw = p.net_salary;
+            const salaryAdvanceRaw = p.salary_advance;
+            const totalDeductionsRaw = p.total_deductions;
+            const bonusesRaw = p.bonuses;
+            const grossNum = Number(grossRaw ?? 0);
+            const netNum = Number(netRaw ?? 0);
+            const salaryAdvanceNum = Number(salaryAdvanceRaw ?? 0);
+            totalGross += grossNum;
+            totalNet += netNum;
+            totalSalaryAdvance += salaryAdvanceNum;
             const payrollDate = p.issued_at
                 ? new Date(p.issued_at)
                 : new Date(`${p.payroll_month}-01`);
@@ -294,11 +319,11 @@ let GenerateReportService = class GenerateReportService {
                 ? new Date(p.employment_start_date)
                 : null;
             const workingDays = getWorkingDays(payrollDate, startDate);
-            const dailyPay = workingDays > 0 ? gross / workingDays : 0;
-            totalDaily += dailyPay;
-            const totalDeductionsInclAdvance = (Number(p.total_deductions) || 0) + salaryAdvance;
-            const bonusAllowancesTotal = (Number(p.bonuses) || 0) + reimbursementsTotal;
-            totalBonusAllowances += bonusAllowancesTotal;
+            const dailyPayNum = workingDays > 0 ? grossNum / workingDays : 0;
+            totalDaily += dailyPayNum;
+            const totalDeductionsInclAdvanceNum = Number(totalDeductionsRaw ?? 0) + Number(salaryAdvanceRaw ?? 0);
+            const bonusAllowancesTotalNum = Number(bonusesRaw ?? 0) + reimbursementsTotal;
+            totalBonusAllowances += bonusAllowancesTotalNum;
             return {
                 sn: index + 1,
                 employee_number: p.employee_number,
@@ -311,24 +336,38 @@ let GenerateReportService = class GenerateReportService {
                 bank_account_number: p.bank_account_number
                     ? (0, crypto_util_1.decrypt)(p.bank_account_number)
                     : '',
-                gross_salary: formatNaira(p.gross_salary),
-                net_salary: formatNaira(p.net_salary),
-                paye_tax: formatNaira(p.paye_tax),
-                pension_contribution: formatNaira(p.pension_contribution),
-                employer_pension_contribution: formatNaira(p.employer_pension_contribution),
-                nhf_contribution: formatNaira(p.nhf_contribution),
-                deductions_total: formatNaira(totalDeductionsInclAdvance),
-                bonus_allowances_total: formatNaira(bonusAllowancesTotal),
-                salary_advance: formatNaira(salaryAdvance),
-                net_pay: formatNaira(net),
+                gross_salary: formatNaira(grossRaw, { blankZero: true }),
+                net_salary: formatNaira(netRaw, { blankZero: true }),
+                paye_tax: formatNaira(p.paye_tax, { blankZero: true }),
+                pension_contribution: formatNaira(p.pension_contribution, {
+                    blankZero: true,
+                }),
+                employer_pension_contribution: formatNaira(p.employer_pension_contribution, { blankZero: true }),
+                nhf_contribution: formatNaira(p.nhf_contribution, { blankZero: true }),
+                deductions_total: formatNaira(totalDeductionsInclAdvanceNum, {
+                    blankZero: true,
+                }),
+                bonus_allowances_total: formatNaira(bonusAllowancesTotalNum, {
+                    blankZero: true,
+                }),
+                salary_advance: formatNaira(salaryAdvanceRaw, { blankZero: true }),
+                net_pay: formatNaira(netRaw, { blankZero: true }),
                 working_days: workingDays,
-                daily_pay: formatNaira(dailyPay),
-                gross_pay: formatNaira(gross),
-                ...voluntary,
+                daily_pay: formatNaira(dailyPayNum, { blankZero: true }),
+                gross_pay: formatNaira(grossNum, { blankZero: true }),
                 ...expenses,
+                ...voluntary,
             };
         });
         if (format === 'daily_schedule') {
+            const voluntaryTotalsRow = {};
+            for (const [name, total] of voluntaryTotals.entries()) {
+                voluntaryTotalsRow[name] = formatNaira(total, { blankZero: true });
+            }
+            const expenseTotalsRow = {};
+            for (const [name, total] of expenseTotals.entries()) {
+                expenseTotalsRow[name] = formatNaira(total, { blankZero: true });
+            }
             decryptedPayslips.push({
                 sn: 0,
                 employee_number: '',
@@ -339,18 +378,22 @@ let GenerateReportService = class GenerateReportService {
                 designation: '',
                 bank_name: '',
                 bank_account_number: '',
-                gross_salary: '',
-                net_salary: '',
-                paye_tax: '',
-                pension_contribution: '',
-                employer_pension_contribution: '',
-                nhf_contribution: '',
-                deductions_total: '',
-                bonus_allowances_total: formatNaira(totalBonusAllowances),
-                salary_advance: formatNaira(totalSalaryAdvance),
+                gross_salary: null,
+                net_salary: null,
+                paye_tax: null,
+                pension_contribution: null,
+                employer_pension_contribution: null,
+                nhf_contribution: null,
+                bonus_allowances_total: formatNaira(totalBonusAllowances, {
+                    blankZero: true,
+                }),
+                ...expenseTotalsRow,
+                salary_advance: formatNaira(totalSalaryAdvance, { blankZero: true }),
+                ...voluntaryTotalsRow,
+                deductions_total: null,
                 net_pay: formatNaira(totalNet),
                 working_days: 0,
-                daily_pay: formatNaira(totalDaily),
+                daily_pay: formatNaira(totalDaily, { blankZero: true }),
                 gross_pay: formatNaira(totalGross),
             });
         }
@@ -358,7 +401,7 @@ let GenerateReportService = class GenerateReportService {
         const companySlug = (0, slugify_1.slugify)(companyName);
         const filename = `${companySlug}-${format}-${payslips[0].payroll_month}`;
         const keys = columns.map((col) => ({ field: col.field, title: col.title }));
-        return this.exportAndUpload(decryptedPayslips, keys, filename, companyId, 'payroll-payslips');
+        return this.exportAndUploadExcel(decryptedPayslips, keys, filename, companyId, 'payroll-payslips');
     }
     async downloadYtdPayslipsToS3(companyId, format = 'csv') {
         const ytdData = await this.db

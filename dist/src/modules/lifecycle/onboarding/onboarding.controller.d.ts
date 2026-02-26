@@ -14,14 +14,14 @@ export declare class OnboardingController extends BaseController {
             assignee: "employee" | "hr" | "it" | "finance" | null;
             order: number | null;
             dueDaysAfterStart: number | null;
-            status: "pending" | "completed" | "in_progress" | "overdue" | "skipped" | "cancelled" | null;
+            status: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
             completedAt: Date | null;
         }[];
         employeeId: any;
         employeeName: unknown;
         email: any;
         templateId: string;
-        status: "pending" | "completed" | "in_progress" | null;
+        status: "pending" | "in_progress" | "completed" | null;
         startedAt: Date | null;
     } | {
         checklist: {
@@ -30,14 +30,14 @@ export declare class OnboardingController extends BaseController {
             assignee: "employee" | "hr" | "it" | "finance" | null;
             order: number | null;
             dueDaysAfterStart: number | null;
-            status: "pending" | "completed" | "in_progress" | "overdue" | "skipped" | "cancelled" | null;
+            status: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
             completedAt: Date | null;
         }[];
         employeeId: any;
         employeeName: unknown;
         email: any;
         templateId: string;
-        status: "pending" | "completed" | "in_progress" | null;
+        status: "pending" | "in_progress" | "completed" | null;
         startedAt: Date | null;
     })[]>;
     createEmployeeOnboarding(user: User, dto: EmployeeOnboardingInputDto): Promise<{
@@ -61,7 +61,7 @@ export declare class OnboardingController extends BaseController {
         employeeName: unknown;
         email: any;
         templateId: string;
-        status: "pending" | "completed" | "in_progress" | null;
+        status: "pending" | "in_progress" | "completed" | null;
         startedAt: Date | null;
     } | {
         checklist: {
@@ -81,14 +81,14 @@ export declare class OnboardingController extends BaseController {
         employeeName: unknown;
         email: any;
         templateId: string;
-        status: "pending" | "completed" | "in_progress" | null;
+        status: "pending" | "in_progress" | "completed" | null;
         startedAt: Date | null;
     }>;
     updateEmployeeChecklist(employeeId: string, checklistId: string, status: 'pending' | 'completed'): Promise<{
         id: string;
         employeeId: string;
         checklistId: string;
-        status: "pending" | "completed" | "in_progress" | "overdue" | "skipped" | "cancelled" | null;
+        status: "pending" | "in_progress" | "completed" | "overdue" | "skipped" | "cancelled" | null;
         completedAt: Date | null;
     }>;
 }

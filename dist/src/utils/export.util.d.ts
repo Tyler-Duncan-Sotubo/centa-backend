@@ -2,9 +2,15 @@ interface ColumnDef {
     field: string;
     title: string;
 }
+type ExportOptions = {
+    textFields?: string[];
+    keepEmpty?: boolean;
+};
 export declare class ExportUtil {
-    static exportToCSV(data: any[], columns: ColumnDef[], filename: string): string;
-    static exportToExcel(data: any[], columns: ColumnDef[], filename: string): Promise<string>;
+    private static toExcelCsvText;
+    private static csvEscape;
+    static exportToCSV(data: any[], columns: ColumnDef[], filename: string, options?: ExportOptions): string;
+    static exportToExcel(data: any[], columns: ColumnDef[], filename: string, options?: ExportOptions): Promise<string>;
     static exportToExcelMultipleSheets(sheets: {
         sheetName: string;
         rows: any[];
@@ -12,6 +18,7 @@ export declare class ExportUtil {
             field: string;
             title: string;
         }[];
+        options?: ExportOptions;
     }[], filenameBase: string): Promise<string>;
 }
 export {};

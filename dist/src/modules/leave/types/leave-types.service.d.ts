@@ -17,8 +17,8 @@ export declare class LeaveTypesService {
         colorTag: string | null;
     }[]>;
     create(dto: CreateLeaveTypeDto, user: User, ip: string): Promise<{
-        name: string;
         id: string;
+        name: string;
         createdAt: Date | null;
         updatedAt: Date | null;
         companyId: string;
