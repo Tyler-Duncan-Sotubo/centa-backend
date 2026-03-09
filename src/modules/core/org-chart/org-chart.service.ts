@@ -21,6 +21,13 @@ type RowNode = {
 export class OrgChartService {
   constructor(@Inject(DRIZZLE) private readonly db: db) {}
 
+  private activeEmployeeWhere(companyId: string) {
+    return and(
+      eq(employees.companyId, companyId),
+      eq(employees.employmentStatus, 'active'),
+    );
+  }
+
   private baseSelect = {
     id: employees.id,
     firstName: employees.firstName,
@@ -41,7 +48,7 @@ export class OrgChartService {
       .leftJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
       .leftJoin(departments, eq(employees.departmentId, departments.id))
       .where(
-        and(eq(employees.companyId, companyId), isNull(employees.managerId)),
+        and(this.activeEmployeeWhere(companyId), isNull(employees.managerId)),
       );
 
     const rootsWithCounts = await this.attachChildCounts(companyId, roots);
@@ -56,7 +63,7 @@ export class OrgChartService {
       .leftJoin(departments, eq(employees.departmentId, departments.id))
       .where(
         and(
-          eq(employees.companyId, companyId),
+          this.activeEmployeeWhere(companyId),
           inArray(employees.managerId, rootIds),
         ),
       );
@@ -92,7 +99,7 @@ export class OrgChartService {
       .leftJoin(departments, eq(employees.departmentId, departments.id))
       .where(
         and(
-          eq(employees.companyId, companyId),
+          this.activeEmployeeWhere(companyId),
           eq(employees.managerId, managerId),
         ),
       );
@@ -100,14 +107,9 @@ export class OrgChartService {
     return this.attachChildCounts(companyId, kids);
   }
 
-  /**
-   * ✅ PREVIEW N LEVELS FROM ROOTS
-   * default 4 layers (roots = layer1, ... layer4)
-   */
   async getPreview(companyId: string, depth = 4): Promise<OrgChartNodeDto[]> {
     if (depth < 1) return [];
 
-    // 1) roots
     const rootRows = await this.db
       .select(this.baseSelect)
       .from(employees)
@@ -115,13 +117,12 @@ export class OrgChartService {
       .leftJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
       .leftJoin(departments, eq(employees.departmentId, departments.id))
       .where(
-        and(eq(employees.companyId, companyId), isNull(employees.managerId)),
+        and(this.activeEmployeeWhere(companyId), isNull(employees.managerId)),
       );
 
     const roots = await this.attachChildCounts(companyId, rootRows);
     if (!roots.length || depth === 1) return roots;
 
-    // BFS level fetches: each step is ONE query + ONE counts query (via attachChildCounts)
     const nodeById = new Map<string, OrgChartNodeDto>();
     for (const r of roots) nodeById.set(r.id, r);
 
@@ -138,7 +139,7 @@ export class OrgChartService {
         .leftJoin(departments, eq(employees.departmentId, departments.id))
         .where(
           and(
-            eq(employees.companyId, companyId),
+            this.activeEmployeeWhere(companyId),
             inArray(employees.managerId, currentLevelIds),
           ),
         );
@@ -146,7 +147,6 @@ export class OrgChartService {
       const children = await this.attachChildCounts(companyId, childRows);
       if (!children.length) break;
 
-      // attach to parents
       const nextLevelIds: string[] = [];
       for (const c of children) {
         nodeById.set(c.id, c);
@@ -160,27 +160,17 @@ export class OrgChartService {
       currentLevelIds = nextLevelIds;
     }
 
-    // return roots with nested children populated
     return roots;
   }
 
-  /**
-   * ✅ SIMPLE ORG CHART FOR AN EMPLOYEE (context view)
-   * Returns:
-   * - chain from root -> ... -> employee
-   * - the employee's direct reports (one level)
-   *
-   * This is perfect for your "focus" UI.
-   */
   async getEmployeeOrgChart(
     companyId: string,
     employeeId: string,
   ): Promise<{
-    chain: OrgChartNodeDto[]; // root -> ... -> employee
-    focus: OrgChartNodeDto; // employee node
-    directReports: OrgChartNodeDto[]; // employee's kids
+    chain: OrgChartNodeDto[];
+    focus: OrgChartNodeDto;
+    directReports: OrgChartNodeDto[];
   }> {
-    // Fetch employee first (ensure exists)
     const [empRow] = await this.db
       .select(this.baseSelect)
       .from(employees)
@@ -188,17 +178,15 @@ export class OrgChartService {
       .leftJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
       .leftJoin(departments, eq(employees.departmentId, departments.id))
       .where(
-        and(eq(employees.companyId, companyId), eq(employees.id, employeeId)),
+        and(this.activeEmployeeWhere(companyId), eq(employees.id, employeeId)),
       )
       .limit(1);
 
     if (!empRow) throw new NotFoundException('Employee not found');
 
-    // Walk up to root via managerId
     const chainRows: RowNode[] = [empRow];
     let cursor = empRow.managerId;
 
-    // safety stop to avoid infinite loops
     for (let i = 0; i < 25 && cursor; i++) {
       const [mgr] = await this.db
         .select(this.baseSelect)
@@ -207,22 +195,19 @@ export class OrgChartService {
         .leftJoin(jobRoles, eq(employees.jobRoleId, jobRoles.id))
         .leftJoin(departments, eq(employees.departmentId, departments.id))
         .where(
-          and(eq(employees.companyId, companyId), eq(employees.id, cursor)),
+          and(this.activeEmployeeWhere(companyId), eq(employees.id, cursor)),
         )
         .limit(1);
 
-      if (!mgr) break; // broken chain, stop
+      if (!mgr) break;
       chainRows.push(mgr);
       cursor = mgr.managerId;
     }
 
-    // chainRows is employee -> ... -> root, reverse it
     const chainDtos = await this.attachChildCounts(companyId, chainRows);
     const chain = [...chainDtos].reverse();
 
     const focus = chain[chain.length - 1];
-
-    // Direct reports for employee
     const directReports = await this.getChildren(companyId, employeeId);
 
     return { chain, focus, directReports };
@@ -244,7 +229,7 @@ export class OrgChartService {
       .from(employees)
       .where(
         and(
-          eq(employees.companyId, companyId),
+          this.activeEmployeeWhere(companyId),
           inArray(employees.managerId, ids),
         ),
       )
@@ -277,7 +262,7 @@ export class OrgChartService {
     companyId: string,
     employeeId: string,
   ): Promise<OrgChartNodeDto[]> {
-    return this.getChildren(companyId, employeeId); // direct reports
+    return this.getChildren(companyId, employeeId);
   }
 
   async getMyTeamContext(

@@ -8,16 +8,16 @@ export declare class AssessmentsController extends BaseController {
     private readonly assessmentsService;
     constructor(assessmentsService: AssessmentsService);
     create(dto: CreateAssessmentDto, user: User): Promise<{
-        status: "in_progress" | "submitted" | "not_started" | null;
         id: string;
         createdAt: Date | null;
         companyId: string;
-        type: "manager" | "self" | "peer";
+        type: "self" | "manager" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
         templateId: string;
-        submittedAt: Date | null;
         cycleId: string;
-        revieweeId: string;
         reviewerId: string;
+        revieweeId: string;
+        submittedAt: Date | null;
     }>;
     start(id: string, user: User): Promise<void>;
     submit(id: string, dto: SubmitAssessmentDto, user: User): Promise<{
@@ -25,8 +25,8 @@ export declare class AssessmentsController extends BaseController {
     }>;
     getDashboard(user: User, filters: GetDashboardAssessmentsDto): Promise<{
         id: string;
-        type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        type: "self" | "manager" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
         reviewer: string;
         employee: string;
         departmentName: any;
@@ -51,16 +51,16 @@ export declare class AssessmentsController extends BaseController {
         templateId: string;
         reviewerId: string;
         revieweeId: string;
-        type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        type: "self" | "manager" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
     getOwnSelfAssessments(employeeId: string): Promise<{
         id: string;
         cycleName: string | null;
-        type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        type: "self" | "manager" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -71,8 +71,8 @@ export declare class AssessmentsController extends BaseController {
         templateId: string;
         reviewerId: string;
         revieweeId: string;
-        type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        type: "self" | "manager" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;
@@ -83,8 +83,8 @@ export declare class AssessmentsController extends BaseController {
         templateId: string;
         reviewerId: string;
         revieweeId: string;
-        type: "manager" | "self" | "peer";
-        status: "in_progress" | "submitted" | "not_started" | null;
+        type: "self" | "manager" | "peer";
+        status: "in_progress" | "not_started" | "submitted" | null;
         submittedAt: Date | null;
         createdAt: Date | null;
     }[]>;

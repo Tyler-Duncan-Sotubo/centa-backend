@@ -32,6 +32,9 @@ let OrgChartService = class OrgChartService {
             isDepartmentHead: (0, drizzle_orm_1.sql) `${schema_1.departments.headId} = ${schema_1.employees.id}`,
         };
     }
+    activeEmployeeWhere(companyId) {
+        return (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(schema_1.employees.employmentStatus, 'active'));
+    }
     async getRoots(companyId) {
         const roots = await this.db
             .select(this.baseSelect)
@@ -39,7 +42,7 @@ let OrgChartService = class OrgChartService {
             .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_1.users.id))
             .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
             .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.isNull)(schema_1.employees.managerId)));
+            .where((0, drizzle_orm_1.and)(this.activeEmployeeWhere(companyId), (0, drizzle_orm_1.isNull)(schema_1.employees.managerId)));
         const rootsWithCounts = await this.attachChildCounts(companyId, roots);
         const rootIds = rootsWithCounts.map((r) => r.id);
         if (!rootIds.length)
@@ -50,7 +53,7 @@ let OrgChartService = class OrgChartService {
             .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_1.users.id))
             .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
             .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.inArray)(schema_1.employees.managerId, rootIds)));
+            .where((0, drizzle_orm_1.and)(this.activeEmployeeWhere(companyId), (0, drizzle_orm_1.inArray)(schema_1.employees.managerId, rootIds)));
         const childrenWithCounts = await this.attachChildCounts(companyId, children);
         const byManager = new Map();
         for (const c of childrenWithCounts) {
@@ -72,7 +75,7 @@ let OrgChartService = class OrgChartService {
             .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_1.users.id))
             .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
             .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(schema_1.employees.managerId, managerId)));
+            .where((0, drizzle_orm_1.and)(this.activeEmployeeWhere(companyId), (0, drizzle_orm_1.eq)(schema_1.employees.managerId, managerId)));
         return this.attachChildCounts(companyId, kids);
     }
     async getPreview(companyId, depth = 4) {
@@ -84,7 +87,7 @@ let OrgChartService = class OrgChartService {
             .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_1.users.id))
             .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
             .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.isNull)(schema_1.employees.managerId)));
+            .where((0, drizzle_orm_1.and)(this.activeEmployeeWhere(companyId), (0, drizzle_orm_1.isNull)(schema_1.employees.managerId)));
         const roots = await this.attachChildCounts(companyId, rootRows);
         if (!roots.length || depth === 1)
             return roots;
@@ -101,7 +104,7 @@ let OrgChartService = class OrgChartService {
                 .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_1.users.id))
                 .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
                 .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.inArray)(schema_1.employees.managerId, currentLevelIds)));
+                .where((0, drizzle_orm_1.and)(this.activeEmployeeWhere(companyId), (0, drizzle_orm_1.inArray)(schema_1.employees.managerId, currentLevelIds)));
             const children = await this.attachChildCounts(companyId, childRows);
             if (!children.length)
                 break;
@@ -126,7 +129,7 @@ let OrgChartService = class OrgChartService {
             .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_1.users.id))
             .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
             .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId)))
+            .where((0, drizzle_orm_1.and)(this.activeEmployeeWhere(companyId), (0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId)))
             .limit(1);
         if (!empRow)
             throw new common_1.NotFoundException('Employee not found');
@@ -139,7 +142,7 @@ let OrgChartService = class OrgChartService {
                 .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.employees.userId, schema_1.users.id))
                 .leftJoin(schema_1.jobRoles, (0, drizzle_orm_1.eq)(schema_1.employees.jobRoleId, schema_1.jobRoles.id))
                 .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
-                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.eq)(schema_1.employees.id, cursor)))
+                .where((0, drizzle_orm_1.and)(this.activeEmployeeWhere(companyId), (0, drizzle_orm_1.eq)(schema_1.employees.id, cursor)))
                 .limit(1);
             if (!mgr)
                 break;
@@ -162,7 +165,7 @@ let OrgChartService = class OrgChartService {
             count: (0, drizzle_orm_1.sql) `count(*)`,
         })
             .from(schema_1.employees)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.employees.companyId, companyId), (0, drizzle_orm_1.inArray)(schema_1.employees.managerId, ids)))
+            .where((0, drizzle_orm_1.and)(this.activeEmployeeWhere(companyId), (0, drizzle_orm_1.inArray)(schema_1.employees.managerId, ids)))
             .groupBy(schema_1.employees.managerId);
         const countById = new Map();
         for (const c of counts) {

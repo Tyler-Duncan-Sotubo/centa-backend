@@ -222,9 +222,12 @@ export class DepartmentService extends BaseCrudService<
           .from(employees)
           .leftJoin(users, eq(users.id, employees.userId))
           .where(
-            inArray(
-              employees.departmentId,
-              allDepartments.map((d) => d.id),
+            and(
+              inArray(
+                employees.departmentId,
+                allDepartments.map((d) => d.id),
+              ),
+              eq(employees.employmentStatus, 'active'), // ✅ only active employees
             ),
           )
           .execute();

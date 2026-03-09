@@ -146,7 +146,7 @@ let DepartmentService = class DepartmentService extends base_crud_service_1.Base
             })
                 .from(schema_1.employees)
                 .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.users.id, schema_1.employees.userId))
-                .where((0, drizzle_orm_1.inArray)(schema_1.employees.departmentId, allDepartments.map((d) => d.id)))
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.inArray)(schema_1.employees.departmentId, allDepartments.map((d) => d.id)), (0, drizzle_orm_1.eq)(schema_1.employees.employmentStatus, 'active')))
                 .execute();
             const deptIdToEmployees = allEmployees.reduce((acc, emp) => {
                 if (emp.departmentId !== null && emp.departmentId !== undefined) {
