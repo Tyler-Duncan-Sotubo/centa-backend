@@ -111,8 +111,13 @@ export class EmployeeShiftsService {
       throw new BadRequestException(`Shift ${dto.shiftId} not found.`);
     }
 
-    // 3) Location validation
-    if (shift.locationId && shift.locationId !== employee.locationId) {
+    const enforceShiftLocationMatch = false;
+
+    if (
+      enforceShiftLocationMatch &&
+      shift.locationId &&
+      shift.locationId !== employee.locationId
+    ) {
       throw new BadRequestException(
         `Employee's location does not match shift location.`,
       );

@@ -12,9 +12,9 @@ export declare class DepartmentController extends BaseController {
     private readonly departmentWriteService;
     constructor(departmentService: DepartmentService, departmentWriteService: DepartmentWriteService);
     create(user: User, createDepartmentDto: CreateDepartmentDto): Promise<{
-        id: string;
-        name: string;
-        description: string | null;
+        id: any;
+        name: any;
+        description: any;
     }>;
     bulkCreate(rows: any[], user: User): Promise<{
         id: any;
@@ -29,10 +29,10 @@ export declare class DepartmentController extends BaseController {
             avatarUrl: string | null;
         } | null;
         employees: any[];
-        id: string;
-        name: string;
-        description: string | null;
-        createdAt: Date;
+        id: any;
+        name: any;
+        description: any;
+        createdAt: any;
     } | {
         head: {
             id: any;
@@ -41,29 +41,57 @@ export declare class DepartmentController extends BaseController {
             avatarUrl: string | null;
         } | null;
         employees: any[];
-        id: string;
-        name: string;
-        description: string | null;
-        createdAt: Date;
+        id: any;
+        name: any;
+        description: any;
+        createdAt: any;
+    } | {
+        head: {
+            id: any;
+            name: unknown;
+            email: any;
+            avatarUrl: string | null;
+        } | null;
+        employees: any[];
+        id: any;
+        name: any;
+        description: any;
+        createdAt: any;
+    } | {
+        head: {
+            id: any;
+            name: unknown;
+            email: any;
+            avatarUrl: string | null;
+        } | null;
+        employees: any[];
+        id: any;
+        name: any;
+        description: any;
+        createdAt: any;
     })[]>;
     findOne(id: string, user: User): Promise<{
-        id: string;
-        name: string;
-        description: string | null;
+        id: any;
+        name: any;
+        description: any;
+    } | {
+        id: any;
+        name: any;
+        description: any;
     }>;
     update(id: string, updateDepartmentDto: UpdateDepartmentDto, user: User, ip: string): Promise<{
         id: any;
     }>;
     remove(id: string, user: User): Promise<{
-        id: string;
+        id: any;
     }>;
     assignHead(id: string, dto: AssignHeadDto, user: User, ip: string): Promise<{
         id: any;
     }>;
     getDepartmentHead(id: string, user: User): Promise<{
-        id: string;
-        name: string;
-        description: string | null;
+        id: any;
+        name: any;
+        description: any;
         head: {
             id: any;
             firstName: any;
@@ -71,15 +99,30 @@ export declare class DepartmentController extends BaseController {
             email: any;
         };
     } | {
-        id: string;
-        name: string;
-        description: string | null;
+        id: any;
+        name: any;
+        description: any;
+        head: {
+            id: any;
+            firstName: any;
+            lastName: any;
+            email: any;
+        };
+    } | {
+        id: any;
+        name: any;
+        description: any;
         head: {
             id: any;
             firstName: any;
             lastName: any;
             email: any;
         } | null;
+    } | {
+        id: any;
+        name: any;
+        description: any;
+        head: never;
     }>;
     assignParent(user: User, id: string, dto: AssignParentDto, ip: string): Promise<{
         id: any;

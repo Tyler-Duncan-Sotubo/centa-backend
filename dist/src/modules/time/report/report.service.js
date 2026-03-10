@@ -656,21 +656,16 @@ let ReportService = class ReportService {
                 .from(schema_1.employeeShifts)
                 .leftJoin(schema_2.employees, (0, drizzle_orm_1.eq)(schema_2.employees.id, schema_1.employeeShifts.employeeId))
                 .leftJoin(schema_1.shifts, (0, drizzle_orm_1.eq)(schema_1.shifts.id, schema_1.employeeShifts.shiftId))
-                .leftJoin(schema_1.attendanceRecords, (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.employeeId, schema_1.employeeShifts.employeeId), (0, drizzle_orm_1.eq)((0, drizzle_orm_1.sql) `${schema_1.attendanceRecords.createdAt}::date`, schema_1.employeeShifts.shiftDate), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId)))
+                .leftJoin(schema_1.attendanceRecords, (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.employeeId, schema_1.employeeShifts.employeeId), (0, drizzle_orm_1.eq)((0, drizzle_orm_1.sql) `${schema_1.attendanceRecords.clockIn}::date`, schema_1.employeeShifts.shiftDate), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId)))
                 .leftJoin(schema_2.companyLocations, (0, drizzle_orm_1.eq)(schema_2.companyLocations.id, schema_1.shifts.locationId))
                 .where((0, drizzle_orm_1.and)(...conditions))
                 .groupBy(schema_1.employeeShifts.employeeId, schema_2.employees.firstName, schema_2.employees.lastName, schema_1.shifts.name, schema_1.shifts.startTime, schema_1.shifts.endTime, schema_2.companyLocations.name)
                 .execute(),
         ]);
-        const allDates = (0, date_fns_1.eachDayOfInterval)({
-            start: (0, date_fns_1.parseISO)(from),
-            end: (0, date_fns_1.parseISO)(to),
-        });
-        const workdays = allDates.filter((d) => !(0, date_fns_1.isWeekend)(d)).length;
         const detailedBreakdown = breakdown.map((row) => ({
             ...row,
             yearMonth,
-            daysExpected: workdays,
+            daysExpected: Number(row.daysScheduled ?? 0),
         }));
         return {
             yearMonth,
@@ -682,6 +677,112 @@ let ReportService = class ReportService {
                 uniqueShiftTypes: 0,
             },
             detailedBreakdown,
+        };
+    }
+    async getShiftDashboardSummaryByMonthForDL(companyId, yearMonth, filters) {
+        const from = `${yearMonth}-01`;
+        const to = new Date(new Date(from).getFullYear(), new Date(from).getMonth() + 1, 0)
+            .toISOString()
+            .split('T')[0];
+        const conditions = [
+            (0, drizzle_orm_1.eq)(schema_1.employeeShifts.companyId, companyId),
+            (0, drizzle_orm_1.eq)(schema_1.employeeShifts.isDeleted, false),
+            (0, drizzle_orm_1.gte)(schema_1.employeeShifts.shiftDate, from),
+            (0, drizzle_orm_1.lte)(schema_1.employeeShifts.shiftDate, to),
+        ];
+        if (filters?.locationId) {
+            conditions.push((0, drizzle_orm_1.eq)(schema_1.shifts.locationId, filters.locationId));
+        }
+        if (filters?.departmentId) {
+            conditions.push((0, drizzle_orm_1.eq)(schema_2.employees.departmentId, filters.departmentId));
+        }
+        const [summary, breakdown] = await Promise.all([
+            this.db
+                .select({
+                yearMonth: (0, drizzle_orm_1.sql) `TO_CHAR(${schema_1.employeeShifts.shiftDate}::date, 'YYYY-MM')`.as('yearMonth'),
+                totalAssignedShiftDays: (0, drizzle_orm_1.sql) `COUNT(${schema_1.employeeShifts.id})`.as('totalAssignedShiftDays'),
+                uniqueEmployees: (0, drizzle_orm_1.sql) `COUNT(DISTINCT ${schema_1.employeeShifts.employeeId})`.as('uniqueEmployees'),
+                uniqueShiftTypes: (0, drizzle_orm_1.sql) `COUNT(DISTINCT ${schema_1.employeeShifts.shiftId})`.as('uniqueShiftTypes'),
+                expectedWorkDays: (0, drizzle_orm_1.sql) `COUNT(${schema_1.employeeShifts.id})`.as('expectedWorkDays'),
+                presentDays: (0, drizzle_orm_1.sql) `
+          COUNT(CASE
+            WHEN ${schema_1.attendanceRecords.id} IS NOT NULL
+             AND COALESCE(${schema_1.attendanceRecords.isLateArrival}, false) = false
+            THEN 1
+          END)
+        `.as('presentDays'),
+                lateDays: (0, drizzle_orm_1.sql) `
+          COUNT(CASE
+            WHEN ${schema_1.attendanceRecords.id} IS NOT NULL
+             AND COALESCE(${schema_1.attendanceRecords.isLateArrival}, false) = true
+            THEN 1
+          END)
+        `.as('lateDays'),
+                absentDays: (0, drizzle_orm_1.sql) `
+          COUNT(${schema_1.employeeShifts.id}) - COUNT(${schema_1.attendanceRecords.id})
+        `.as('absentDays'),
+            })
+                .from(schema_1.employeeShifts)
+                .leftJoin(schema_2.employees, (0, drizzle_orm_1.eq)(schema_2.employees.id, schema_1.employeeShifts.employeeId))
+                .leftJoin(schema_1.shifts, (0, drizzle_orm_1.eq)(schema_1.shifts.id, schema_1.employeeShifts.shiftId))
+                .leftJoin(schema_1.attendanceRecords, (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.employeeId, schema_1.employeeShifts.employeeId), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.eq)((0, drizzle_orm_1.sql) `${schema_1.attendanceRecords.clockIn}::date`, schema_1.employeeShifts.shiftDate)))
+                .where((0, drizzle_orm_1.and)(...conditions))
+                .groupBy((0, drizzle_orm_1.sql) `TO_CHAR(${schema_1.employeeShifts.shiftDate}::date, 'YYYY-MM')`)
+                .execute(),
+            this.db
+                .select({
+                employeeId: schema_1.employeeShifts.employeeId,
+                employeeName: (0, drizzle_orm_1.sql) `CONCAT(${schema_2.employees.firstName}, ' ', ${schema_2.employees.lastName})`,
+                employeeNumber: schema_2.employees.employeeNumber,
+                shiftName: schema_1.shifts.name,
+                locationName: schema_2.companyLocations.name,
+                startTime: schema_1.shifts.startTime,
+                endTime: schema_1.shifts.endTime,
+                expectedWorkDays: (0, drizzle_orm_1.sql) `COUNT(${schema_1.employeeShifts.id})`.as('expectedWorkDays'),
+                presentDays: (0, drizzle_orm_1.sql) `
+          COUNT(CASE
+            WHEN ${schema_1.attendanceRecords.id} IS NOT NULL
+             AND COALESCE(${schema_1.attendanceRecords.isLateArrival}, false) = false
+            THEN 1
+          END)
+        `.as('presentDays'),
+                lateDays: (0, drizzle_orm_1.sql) `
+          COUNT(CASE
+            WHEN ${schema_1.attendanceRecords.id} IS NOT NULL
+             AND COALESCE(${schema_1.attendanceRecords.isLateArrival}, false) = true
+            THEN 1
+          END)
+        `.as('lateDays'),
+                absentDays: (0, drizzle_orm_1.sql) `
+          COUNT(${schema_1.employeeShifts.id}) - COUNT(${schema_1.attendanceRecords.id})
+        `.as('absentDays'),
+            })
+                .from(schema_1.employeeShifts)
+                .leftJoin(schema_2.employees, (0, drizzle_orm_1.eq)(schema_2.employees.id, schema_1.employeeShifts.employeeId))
+                .leftJoin(schema_1.shifts, (0, drizzle_orm_1.eq)(schema_1.shifts.id, schema_1.employeeShifts.shiftId))
+                .leftJoin(schema_1.attendanceRecords, (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.attendanceRecords.employeeId, schema_1.employeeShifts.employeeId), (0, drizzle_orm_1.eq)(schema_1.attendanceRecords.companyId, companyId), (0, drizzle_orm_1.eq)((0, drizzle_orm_1.sql) `${schema_1.attendanceRecords.clockIn}::date`, schema_1.employeeShifts.shiftDate)))
+                .leftJoin(schema_2.companyLocations, (0, drizzle_orm_1.eq)(schema_2.companyLocations.id, schema_1.shifts.locationId))
+                .where((0, drizzle_orm_1.and)(...conditions))
+                .groupBy(schema_1.employeeShifts.employeeId, schema_2.employees.employeeNumber, schema_2.employees.firstName, schema_2.employees.lastName, schema_1.shifts.name, schema_1.shifts.startTime, schema_1.shifts.endTime, schema_2.companyLocations.name)
+                .execute(),
+        ]);
+        return {
+            yearMonth,
+            filters,
+            monthlySummary: summary[0] || {
+                yearMonth,
+                totalAssignedShiftDays: 0,
+                uniqueEmployees: 0,
+                uniqueShiftTypes: 0,
+                expectedWorkDays: 0,
+                presentDays: 0,
+                lateDays: 0,
+                absentDays: 0,
+            },
+            detailedBreakdown: breakdown.map((row) => ({
+                ...row,
+                yearMonth,
+            })),
         };
     }
 };

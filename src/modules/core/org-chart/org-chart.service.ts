@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { DRIZZLE } from 'src/drizzle/drizzle.module';
 import { db } from 'src/drizzle/types/drizzle';
@@ -182,7 +182,13 @@ export class OrgChartService {
       )
       .limit(1);
 
-    if (!empRow) throw new NotFoundException('Employee not found');
+    if (!empRow) {
+      return {
+        chain: [],
+        focus: null,
+        directReports: [],
+      } as any;
+    }
 
     const chainRows: RowNode[] = [empRow];
     let cursor = empRow.managerId;

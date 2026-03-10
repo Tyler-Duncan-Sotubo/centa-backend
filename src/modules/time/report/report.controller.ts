@@ -203,4 +203,23 @@ export class ReportController extends BaseController {
     );
     return { url };
   }
+
+  @Get('gen-shift-summary')
+  @UseGuards(JwtAuthGuard)
+  @SetMetadata('permissions', ['attendance.settings'])
+  async downloadShiftSummaryReport(
+    @CurrentUser() user: User,
+    @Query('yearMonth') yearMonth: string,
+    @Query('locationId') locationId?: string,
+    @Query('departmentId') departmentId?: string,
+  ) {
+    const url =
+      await this.generateReportsService.generateShiftSummaryReportToS3(
+        user.companyId,
+        yearMonth,
+        { locationId, departmentId },
+      );
+
+    return { url };
+  }
 }

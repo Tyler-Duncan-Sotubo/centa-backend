@@ -19,10 +19,10 @@ export declare class ClockInOutController extends BaseController {
     }>;
     getDailyDashboardStatsByDate(user: User, date: string): Promise<{
         summaryList: {
-            employeeId: any;
-            employeeNumber: any;
+            employeeId: string;
+            employeeNumber: string;
             name: string;
-            department: string;
+            department: any;
             checkInTime: string | null;
             checkOutTime: string | null;
             status: "absent" | "present" | "late" | "weekend";
@@ -52,7 +52,7 @@ export declare class ClockInOutController extends BaseController {
             employeeId: any;
             employeeNumber: any;
             name: string;
-            department: string;
+            department: any;
             checkInTime: string | null;
             checkOutTime: string | null;
             status: "absent" | "present" | "late";

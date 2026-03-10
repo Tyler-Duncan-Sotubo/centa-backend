@@ -26,7 +26,7 @@ export declare class ReportService {
             employeeId: any;
             employeeNumber: any;
             name: string;
-            department: string;
+            department: any;
             checkInTime: string | null;
             checkOutTime: string | null;
             status: "absent" | "present" | "late";
@@ -53,10 +53,10 @@ export declare class ReportService {
         };
     }>;
     getDailySummaryList(companyId: string, date: string): Promise<{
-        employeeId: any;
-        employeeNumber: any;
+        employeeId: string;
+        employeeNumber: string;
         name: string;
-        department: string;
+        department: any;
         checkInTime: string | null;
         checkOutTime: string | null;
         status: "absent" | "present" | "late" | "weekend";
@@ -119,7 +119,7 @@ export declare class ReportService {
                 employeeId: any;
                 employeeNumber: any;
                 name: string;
-                department: string;
+                department: any;
                 checkInTime: string | null;
                 checkOutTime: string | null;
                 status: "absent" | "present" | "late";
@@ -224,6 +224,62 @@ export declare class ReportService {
             endTime: string | null;
             daysScheduled: number;
             daysPresent: number;
+        })[];
+    }>;
+    getShiftDashboardSummaryByMonthForDL(companyId: string, yearMonth: string, filters?: {
+        locationId?: string;
+        departmentId?: string;
+    }): Promise<{
+        yearMonth: string;
+        filters: {
+            locationId?: string;
+            departmentId?: string;
+        } | undefined;
+        monthlySummary: {
+            yearMonth: string;
+            totalAssignedShiftDays: number;
+            uniqueEmployees: number;
+            uniqueShiftTypes: number;
+            expectedWorkDays: number;
+            presentDays: number;
+            lateDays: number;
+            absentDays: number;
+        } | {
+            yearMonth: string;
+            totalAssignedShiftDays: number;
+            uniqueEmployees: number;
+            uniqueShiftTypes: number;
+            expectedWorkDays: number;
+            presentDays: number;
+            lateDays: number;
+            absentDays: number;
+        };
+        detailedBreakdown: ({
+            yearMonth: string;
+            employeeId: string;
+            employeeName: string;
+            employeeNumber: any;
+            shiftName: string | null;
+            locationName: string | null;
+            startTime: string | null;
+            endTime: string | null;
+            expectedWorkDays: number;
+            presentDays: number;
+            lateDays: number;
+            absentDays: number;
+        } | {
+            yearMonth: string;
+            employeeId: string;
+            employeeName: string;
+            employeeNumber: any;
+            shiftName: string | null;
+            locationName: string | null;
+            startTime: string | null;
+            endTime: string | null;
+            expectedWorkDays: number;
+            presentDays: number;
+            lateDays: number;
+            absentDays: number;
         })[];
     }>;
 }

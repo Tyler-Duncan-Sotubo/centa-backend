@@ -28,4 +28,11 @@ export declare class GenerateReportsService {
         url: string;
         record: any;
     }>;
+    generateShiftSummaryReportToS3(companyId: string, yearMonth: string, filters?: {
+        locationId?: string;
+        departmentId?: string;
+    }): Promise<{
+        url: string;
+        record: any;
+    }>;
 }

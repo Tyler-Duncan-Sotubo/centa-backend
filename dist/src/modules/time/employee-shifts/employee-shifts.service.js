@@ -62,7 +62,10 @@ let EmployeeShiftsService = class EmployeeShiftsService {
         if (!shift) {
             throw new common_1.BadRequestException(`Shift ${dto.shiftId} not found.`);
         }
-        if (shift.locationId && shift.locationId !== employee.locationId) {
+        const enforceShiftLocationMatch = false;
+        if (enforceShiftLocationMatch &&
+            shift.locationId &&
+            shift.locationId !== employee.locationId) {
             throw new common_1.BadRequestException(`Employee's location does not match shift location.`);
         }
         await this.assertNoOverlap(user.companyId, employeeId, dto.shiftDate);

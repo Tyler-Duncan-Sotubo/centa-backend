@@ -6,7 +6,6 @@ import {
   format,
   parseISO,
   subDays,
-  isWeekend,
   startOfMonth,
   endOfMonth,
 } from 'date-fns';
@@ -1089,7 +1088,7 @@ export class ReportService {
           and(
             eq(attendanceRecords.employeeId, employeeShifts.employeeId),
             eq(
-              sql`${attendanceRecords.createdAt}::date`,
+              sql`${attendanceRecords.clockIn}::date`,
               employeeShifts.shiftDate,
             ),
             eq(attendanceRecords.companyId, companyId),
@@ -1109,18 +1108,11 @@ export class ReportService {
         .execute(),
     ]);
 
-    // Workdays in month (Mon–Fri)
-    const allDates = eachDayOfInterval({
-      start: parseISO(from),
-      end: parseISO(to),
-    });
-    const workdays = allDates.filter((d) => !isWeekend(d)).length;
-
-    // Enrich breakdown with daysExpected
+    // daysExpected should be based on assigned shifts, not global workdays
     const detailedBreakdown = breakdown.map((row) => ({
       ...row,
       yearMonth,
-      daysExpected: workdays,
+      daysExpected: Number(row.daysScheduled ?? 0),
     }));
 
     return {
@@ -1133,6 +1125,171 @@ export class ReportService {
         uniqueShiftTypes: 0,
       },
       detailedBreakdown,
+    };
+  }
+
+  async getShiftDashboardSummaryByMonthForDL(
+    companyId: string,
+    yearMonth: string,
+    filters?: { locationId?: string; departmentId?: string },
+  ) {
+    const from = `${yearMonth}-01`;
+    const to = new Date(
+      new Date(from).getFullYear(),
+      new Date(from).getMonth() + 1,
+      0,
+    )
+      .toISOString()
+      .split('T')[0];
+
+    const conditions = [
+      eq(employeeShifts.companyId, companyId),
+      eq(employeeShifts.isDeleted, false),
+      gte(employeeShifts.shiftDate, from),
+      lte(employeeShifts.shiftDate, to),
+    ];
+
+    if (filters?.locationId) {
+      conditions.push(eq(shifts.locationId, filters.locationId));
+    }
+
+    if (filters?.departmentId) {
+      conditions.push(eq(employees.departmentId, filters.departmentId));
+    }
+
+    const [summary, breakdown] = await Promise.all([
+      this.db
+        .select({
+          yearMonth:
+            sql<string>`TO_CHAR(${employeeShifts.shiftDate}::date, 'YYYY-MM')`.as(
+              'yearMonth',
+            ),
+          totalAssignedShiftDays: sql<number>`COUNT(${employeeShifts.id})`.as(
+            'totalAssignedShiftDays',
+          ),
+          uniqueEmployees:
+            sql<number>`COUNT(DISTINCT ${employeeShifts.employeeId})`.as(
+              'uniqueEmployees',
+            ),
+          uniqueShiftTypes:
+            sql<number>`COUNT(DISTINCT ${employeeShifts.shiftId})`.as(
+              'uniqueShiftTypes',
+            ),
+          expectedWorkDays: sql<number>`COUNT(${employeeShifts.id})`.as(
+            'expectedWorkDays',
+          ),
+          presentDays: sql<number>`
+          COUNT(CASE
+            WHEN ${attendanceRecords.id} IS NOT NULL
+             AND COALESCE(${attendanceRecords.isLateArrival}, false) = false
+            THEN 1
+          END)
+        `.as('presentDays'),
+          lateDays: sql<number>`
+          COUNT(CASE
+            WHEN ${attendanceRecords.id} IS NOT NULL
+             AND COALESCE(${attendanceRecords.isLateArrival}, false) = true
+            THEN 1
+          END)
+        `.as('lateDays'),
+          absentDays: sql<number>`
+          COUNT(${employeeShifts.id}) - COUNT(${attendanceRecords.id})
+        `.as('absentDays'),
+        })
+        .from(employeeShifts)
+        .leftJoin(employees, eq(employees.id, employeeShifts.employeeId))
+        .leftJoin(shifts, eq(shifts.id, employeeShifts.shiftId))
+        .leftJoin(
+          attendanceRecords,
+          and(
+            eq(attendanceRecords.employeeId, employeeShifts.employeeId),
+            eq(attendanceRecords.companyId, companyId),
+            eq(
+              sql`${attendanceRecords.clockIn}::date`,
+              employeeShifts.shiftDate,
+            ),
+          ),
+        )
+        .where(and(...conditions))
+        .groupBy(sql`TO_CHAR(${employeeShifts.shiftDate}::date, 'YYYY-MM')`)
+        .execute(),
+
+      this.db
+        .select({
+          employeeId: employeeShifts.employeeId,
+          employeeName: sql<string>`CONCAT(${employees.firstName}, ' ', ${employees.lastName})`,
+          employeeNumber: employees.employeeNumber,
+          shiftName: shifts.name,
+          locationName: companyLocations.name,
+          startTime: shifts.startTime,
+          endTime: shifts.endTime,
+          expectedWorkDays: sql<number>`COUNT(${employeeShifts.id})`.as(
+            'expectedWorkDays',
+          ),
+          presentDays: sql<number>`
+          COUNT(CASE
+            WHEN ${attendanceRecords.id} IS NOT NULL
+             AND COALESCE(${attendanceRecords.isLateArrival}, false) = false
+            THEN 1
+          END)
+        `.as('presentDays'),
+          lateDays: sql<number>`
+          COUNT(CASE
+            WHEN ${attendanceRecords.id} IS NOT NULL
+             AND COALESCE(${attendanceRecords.isLateArrival}, false) = true
+            THEN 1
+          END)
+        `.as('lateDays'),
+          absentDays: sql<number>`
+          COUNT(${employeeShifts.id}) - COUNT(${attendanceRecords.id})
+        `.as('absentDays'),
+        })
+        .from(employeeShifts)
+        .leftJoin(employees, eq(employees.id, employeeShifts.employeeId))
+        .leftJoin(shifts, eq(shifts.id, employeeShifts.shiftId))
+        .leftJoin(
+          attendanceRecords,
+          and(
+            eq(attendanceRecords.employeeId, employeeShifts.employeeId),
+            eq(attendanceRecords.companyId, companyId),
+            eq(
+              sql`${attendanceRecords.clockIn}::date`,
+              employeeShifts.shiftDate,
+            ),
+          ),
+        )
+        .leftJoin(companyLocations, eq(companyLocations.id, shifts.locationId))
+        .where(and(...conditions))
+        .groupBy(
+          employeeShifts.employeeId,
+          employees.employeeNumber,
+          employees.firstName,
+          employees.lastName,
+          shifts.name,
+          shifts.startTime,
+          shifts.endTime,
+          companyLocations.name,
+        )
+        .execute(),
+    ]);
+
+    return {
+      yearMonth,
+      filters,
+      monthlySummary: summary[0] || {
+        yearMonth,
+        totalAssignedShiftDays: 0,
+        uniqueEmployees: 0,
+        uniqueShiftTypes: 0,
+        expectedWorkDays: 0,
+        presentDays: 0,
+        lateDays: 0,
+        absentDays: 0,
+      },
+      detailedBreakdown: breakdown.map((row) => ({
+        ...row,
+        yearMonth,
+      })),
     };
   }
 }

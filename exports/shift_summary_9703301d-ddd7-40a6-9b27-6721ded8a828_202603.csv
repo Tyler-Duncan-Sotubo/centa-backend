@@ -1,0 +1,3 @@
+﻿"Employee ID","Employee Name","Shift Name","Location","Start Time","End Time","Expected Work Days","Present Days","Late Days","Absent Days"
+"EMP-028","Franklin Benjamin","Morning Shift","","09:00:00","18:00:00","1","0","0","1"
+"EMP-013","Benjamin Chukwuma","Morning Shift","","09:00:00","18:00:00","1","1","0","0"

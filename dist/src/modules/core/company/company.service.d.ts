@@ -510,10 +510,10 @@ export declare class CompanyService {
                 avatarUrl: string | null;
             } | null;
             employees: any[];
-            id: string;
-            name: string;
-            description: string | null;
-            createdAt: Date;
+            id: any;
+            name: any;
+            description: any;
+            createdAt: any;
         } | {
             head: {
                 id: any;
@@ -522,10 +522,34 @@ export declare class CompanyService {
                 avatarUrl: string | null;
             } | null;
             employees: any[];
-            id: string;
-            name: string;
-            description: string | null;
-            createdAt: Date;
+            id: any;
+            name: any;
+            description: any;
+            createdAt: any;
+        } | {
+            head: {
+                id: any;
+                name: unknown;
+                email: any;
+                avatarUrl: string | null;
+            } | null;
+            employees: any[];
+            id: any;
+            name: any;
+            description: any;
+            createdAt: any;
+        } | {
+            head: {
+                id: any;
+                name: unknown;
+                email: any;
+                avatarUrl: string | null;
+            } | null;
+            employees: any[];
+            id: any;
+            name: any;
+            description: any;
+            createdAt: any;
         })[];
         payGroups: {
             id: string;

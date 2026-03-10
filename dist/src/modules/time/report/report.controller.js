@@ -73,6 +73,10 @@ let ReportController = class ReportController extends base_controller_1.BaseCont
         const url = await this.generateReportsService.generateOvertimeReportToS3(user.companyId, yearMonth);
         return { url };
     }
+    async downloadShiftSummaryReport(user, yearMonth, locationId, departmentId) {
+        const url = await this.generateReportsService.generateShiftSummaryReportToS3(user.companyId, yearMonth, { locationId, departmentId });
+        return { url };
+    }
 };
 exports.ReportController = ReportController;
 __decorate([
@@ -219,6 +223,18 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ReportController.prototype, "downloadOvertimeReport", null);
+__decorate([
+    (0, common_1.Get)('gen-shift-summary'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.SetMetadata)('permissions', ['attendance.settings']),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)('yearMonth')),
+    __param(2, (0, common_1.Query)('locationId')),
+    __param(3, (0, common_1.Query)('departmentId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String]),
+    __metadata("design:returntype", Promise)
+], ReportController.prototype, "downloadShiftSummaryReport", null);
 exports.ReportController = ReportController = __decorate([
     (0, common_1.Controller)('attendance-report'),
     __metadata("design:paramtypes", [report_service_1.ReportService,

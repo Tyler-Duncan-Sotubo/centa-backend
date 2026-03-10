@@ -131,8 +131,13 @@ let OrgChartService = class OrgChartService {
             .leftJoin(schema_1.departments, (0, drizzle_orm_1.eq)(schema_1.employees.departmentId, schema_1.departments.id))
             .where((0, drizzle_orm_1.and)(this.activeEmployeeWhere(companyId), (0, drizzle_orm_1.eq)(schema_1.employees.id, employeeId)))
             .limit(1);
-        if (!empRow)
-            throw new common_1.NotFoundException('Employee not found');
+        if (!empRow) {
+            return {
+                chain: [],
+                focus: null,
+                directReports: [],
+            };
+        }
         const chainRows = [empRow];
         let cursor = empRow.managerId;
         for (let i = 0; i < 25 && cursor; i++) {

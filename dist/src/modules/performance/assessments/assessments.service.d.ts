@@ -29,9 +29,9 @@ export declare class AssessmentsService {
         status: "in_progress" | "not_started" | "submitted" | null;
         templateId: string;
         cycleId: string;
+        submittedAt: Date | null;
         reviewerId: string;
         revieweeId: string;
-        submittedAt: Date | null;
     }>;
     startAssessment(assessmentId: string, userId: string): Promise<void>;
     saveSectionComments(assessmentId: string, userId: string, dto: SubmitAssessmentDto): Promise<{

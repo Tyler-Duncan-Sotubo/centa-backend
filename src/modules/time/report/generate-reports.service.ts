@@ -275,4 +275,62 @@ export class GenerateReportsService {
 
     return url; // 🚀 Return the S3 URL to frontend
   }
+
+  async generateShiftSummaryReportToS3(
+    companyId: string,
+    yearMonth: string,
+    filters?: { locationId?: string; departmentId?: string },
+  ) {
+    const report =
+      await this.reportService.getShiftDashboardSummaryByMonthForDL(
+        companyId,
+        yearMonth,
+        filters,
+      );
+
+    if (!report.detailedBreakdown.length) {
+      throw new Error('No shift summary data available for this month.');
+    }
+
+    const exportData = report.detailedBreakdown.map((row) => ({
+      employeeId: row.employeeNumber,
+      employeeName: row.employeeName,
+      shiftName: row.shiftName,
+      locationName: row.locationName ?? '',
+      startTime: row.startTime,
+      endTime: row.endTime,
+      expectedWorkDays: row.expectedWorkDays,
+      presentDays: row.presentDays,
+      lateDays: row.lateDays,
+      absentDays: row.absentDays,
+    }));
+
+    const filename = `shift_summary_${companyId}_${yearMonth.replace('-', '')}`;
+
+    const filePath = await ExportUtil.exportToCSV(
+      exportData,
+      [
+        { field: 'employeeId', title: 'Employee ID' },
+        { field: 'employeeName', title: 'Employee Name' },
+        { field: 'shiftName', title: 'Shift Name' },
+        { field: 'locationName', title: 'Location' },
+        { field: 'startTime', title: 'Start Time' },
+        { field: 'endTime', title: 'End Time' },
+        { field: 'expectedWorkDays', title: 'Expected Work Days' },
+        { field: 'presentDays', title: 'Present Days' },
+        { field: 'lateDays', title: 'Late Days' },
+        { field: 'absentDays', title: 'Absent Days' },
+      ],
+      filename,
+    );
+
+    const url = await this.awsService.uploadFilePath(
+      filePath,
+      companyId,
+      'report',
+      'shift-summary',
+    );
+
+    return url;
+  }
 }

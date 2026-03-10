@@ -15,9 +15,9 @@ export declare class AssessmentsController extends BaseController {
         status: "in_progress" | "not_started" | "submitted" | null;
         templateId: string;
         cycleId: string;
+        submittedAt: Date | null;
         reviewerId: string;
         revieweeId: string;
-        submittedAt: Date | null;
     }>;
     start(id: string, user: User): Promise<void>;
     submit(id: string, dto: SubmitAssessmentDto, user: User): Promise<{

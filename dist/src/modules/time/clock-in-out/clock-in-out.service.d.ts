@@ -59,7 +59,7 @@ export declare class ClockInOutService {
             employeeId: any;
             employeeNumber: any;
             name: string;
-            department: string;
+            department: any;
             checkInTime: string | null;
             checkOutTime: string | null;
             status: "absent" | "present" | "late";
@@ -76,10 +76,10 @@ export declare class ClockInOutService {
     }>;
     getDailyDashboardStatsByDate(companyId: string, date: string): Promise<{
         summaryList: {
-            employeeId: any;
-            employeeNumber: any;
+            employeeId: string;
+            employeeNumber: string;
             name: string;
-            department: string;
+            department: any;
             checkInTime: string | null;
             checkOutTime: string | null;
             status: "absent" | "present" | "late" | "weekend";

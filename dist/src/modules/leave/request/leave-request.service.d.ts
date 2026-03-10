@@ -32,11 +32,11 @@ export declare class LeaveRequestService {
         companyId: string;
         startDate: string;
         employeeId: string;
+        status: string;
+        endDate: string;
         requestedAt: Date | null;
         leaveTypeId: string;
-        endDate: string;
         reason: string | null;
-        status: string;
         totalDays: string;
         approverId: string | null;
         approvedAt: Date | null;
