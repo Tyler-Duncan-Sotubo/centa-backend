@@ -139,6 +139,10 @@ export declare class AuthController {
     }>;
     refreshToken(user: JwtType): Promise<{
         accessToken: string;
+        expiresIn: number;
+    }>;
+    rotateRefresh(user: JwtType): Promise<{
+        accessToken: string;
         refreshToken: string;
         expiresIn: number;
     }>;

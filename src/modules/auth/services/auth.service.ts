@@ -356,8 +356,24 @@ export class AuthService {
 
     return {
       accessToken,
-      refreshToken: '',
       expiresIn: Date.now() + 1000 * 60 * 10, //
+    };
+  }
+
+  async rotateRefreshToken(user: JwtType) {
+    const payload = {
+      email: user.email,
+      sub: user.sub,
+    };
+
+    // Generate both tokens — new access + new refresh
+    const { accessToken, refreshToken } =
+      await this.tokenGeneratorService.generateToken(payload);
+
+    return {
+      accessToken,
+      refreshToken, // ✅ this is the new one NextAuth will store
+      expiresIn: Date.now() + 1000 * 60 * 10,
     };
   }
 

@@ -165,6 +165,10 @@ export declare class AuthService {
     }>;
     refreshToken(user: JwtType): Promise<{
         accessToken: string;
+        expiresIn: number;
+    }>;
+    rotateRefreshToken(user: JwtType): Promise<{
+        accessToken: string;
         refreshToken: string;
         expiresIn: number;
     }>;

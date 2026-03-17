@@ -257,7 +257,18 @@ let AuthService = class AuthService {
         const { accessToken } = await this.tokenGeneratorService.generateToken(payload);
         return {
             accessToken,
-            refreshToken: '',
+            expiresIn: Date.now() + 1000 * 60 * 10,
+        };
+    }
+    async rotateRefreshToken(user) {
+        const payload = {
+            email: user.email,
+            sub: user.sub,
+        };
+        const { accessToken, refreshToken } = await this.tokenGeneratorService.generateToken(payload);
+        return {
+            accessToken,
+            refreshToken,
             expiresIn: Date.now() + 1000 * 60 * 10,
         };
     }

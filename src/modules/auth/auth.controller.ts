@@ -150,6 +150,11 @@ export class AuthController {
   async refreshToken(@CurrentUser() user: JwtType) {
     return await this.auth.refreshToken(user);
   }
+  @Post('rotate-refresh')
+  @UseGuards(RefreshJwtGuard)
+  rotateRefresh(@CurrentUser() user: JwtType) {
+    return this.auth.rotateRefreshToken(user);
+  }
 
   @HttpCode(HttpStatus.OK)
   @Post('logout')

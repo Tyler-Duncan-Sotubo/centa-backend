@@ -89,6 +89,9 @@ let AuthController = class AuthController {
     async refreshToken(user) {
         return await this.auth.refreshToken(user);
     }
+    rotateRefresh(user) {
+        return this.auth.rotateRefreshToken(user);
+    }
     async Logout(response) {
         return this.auth.logout(response);
     }
@@ -212,6 +215,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "refreshToken", null);
+__decorate([
+    (0, common_1.Post)('rotate-refresh'),
+    (0, common_1.UseGuards)(refresh_guard_1.RefreshJwtGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "rotateRefresh", null);
 __decorate([
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     (0, common_1.Post)('logout'),
